@@ -141,12 +141,16 @@ remain unqualified.
 
 `App.SetBluetooth` attaches an optional local `BluetoothController` before
 startup, surfacing a Settings › Bluetooth section only on platforms that provide
-one (for example the bare-metal DE25-Nano multi-input USB/Bluetooth hub).
+one: the bare-metal DE25-Nano multi-input USB/Bluetooth hub and Linux kits
+talking to the base-image `fes-bluetooth` daemon over `/run/fes-bluetooth.sock`.
 Rendering reads a nonblocking cached `BluetoothStatus` snapshot; selecting
-`Pair controller` requires confirmation before opening a bounded 30-second SSP
-pairing window. The bare-metal adapter connects only to Peripheral-class
-joystick and gamepad candidates; paired controllers use a two-press Forget
-confirmation with bond-save state surfaced in the Settings footer.
+`Pair controller` requires confirmation before opening a bounded 30-second
+pairing window (SSP on DE25-Nano; BlueZ discovery and gamepad-policy pairing in
+`fes-bluetooth` on Linux kits, where bonded pads still auto-reconnect when idle).
+Both adapters admit only controller/gamepad candidates, and paired controllers
+use a two-press Forget confirmation (removing BlueZ bonds and suppressing re-pair
+during the active window in `fes-bluetooth`, or updating `FES/BTBONDS.JSON` with
+bond-save state surfaced in the Settings footer on DE25-Nano).
 
 `corepackage.RetainArchive` validates an exact-length reader using the existing
 canonical archive, manifest, payload and ROM-map rules. It retains private

@@ -289,8 +289,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   local core while the menu is suppressed. Automatic gamepad discovery requires
   a readable physical bus and device name; it rejects unknown and virtual
   gamepad identities. A paired Bluetooth HID or HoG pad is an evdev node on
-  that bus: hold the controller pair button and the kit initiates pairing,
-  while its adapter stays non-pairable and non-discoverable to nearby devices.
+  that bus: the base-image `fes-bluetooth` daemon auto-reconnects bonded pads and
+  serves `/run/fes-bluetooth.sock` so `fogcast-tenfoot` Settings › Bluetooth can
+  open a bounded 30-second discovery/pairing window and forget paired devices
+  while the adapter stays non-pairable and non-discoverable when idle.
   BlueZ link keys live on the FESDATA3 ext4 partition at
   `/run/fogcast/fesdata3/bluetooth`, not on FAT. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the

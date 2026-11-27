@@ -2,6 +2,7 @@ package btagent
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -9,8 +10,10 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,6 +64,7 @@ func isName(err error, name string) bool {
 
 type devInfo struct {
 	Path       string
+	Address    string
 	Name       string
 	UUIDs      []string
 	Class      uint32
@@ -69,6 +73,15 @@ type devInfo struct {
 	Paired     bool
 	Connected  bool
 	Trusted    bool
+}
+
+type adapterInfo struct {
+	Path        string
+	Name        string
+	Alias       string
+	Address     string
+	Powered     bool
+	Discovering bool
 }
 
 type bus struct {
@@ -234,19 +247,20 @@ func readLine(r *bufio.Reader) (string, error) {
 	return strings.TrimRight(line, "\r\n"), nil
 }
 
-// Serve dials the system bus and pairs controllers until ctx is cancelled
-// or the connection fails.
-func Serve(ctx context.Context) error {
+// ServeWithControl dials the system bus and pairs/reconnects controllers
+// until ctx is cancelled or the bus connection fails. If ctrl is non-nil, it
+// also handles pairing-window and device-removal commands from the local UI.
+func ServeWithControl(ctx context.Context, ctrl *ControlServer) error {
 	conn, err := net.DialTimeout("unix", systemSocket, 2*time.Second)
 	if err != nil {
 		return err
 	}
-	return Run(ctx, conn)
+	return RunWithControl(ctx, conn, ctrl)
 }
 
-// Run pairs and reconnects Bluetooth controllers until ctx is cancelled or
-// the bus connection fails. The caller redials.
-func Run(ctx context.Context, raw io.ReadWriteCloser) error {
+// RunWithControl pairs and reconnects Bluetooth controllers until ctx is
+// cancelled or the bus connection fails. The caller redials.
+func RunWithControl(ctx context.Context, raw io.ReadWriteCloser, ctrl *ControlServer) error {
 	defer raw.Close()
 	stop := make(chan struct{})
 	defer close(stop)
@@ -265,7 +279,7 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		bus:                      bus,
 		attempts:                 newAttempts(),
 		devices:                  map[string]devInfo{},
-		adapters:                 map[string]struct{}{},
+		adapters:                 map[string]adapterInfo{},
 		configuredAdapters:       map[string]struct{}{},
 		pendingPairingCancel:     map[string]struct{}{},
 		logged:                   map[string]time.Time{},
@@ -273,9 +287,15 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		staleBondRemovalAttempts: map[string]int{},
 		reconnectDone:            make(chan reconnectResult, maxReconnects),
 		deviceGeneration:         map[string]uint64{},
+		forgotten:                map[string]struct{}{},
+		controlCh:                make(chan controlRequest, 8),
 	}
 	bus.onCall = a.handleCall
 	go bus.readLoop()
+	if ctrl != nil {
+		ctrl.attach(a)
+		defer ctrl.detach(a)
+	}
 	if err := a.run(ctx); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -289,7 +309,7 @@ type agent struct {
 	bus                      *bus
 	attempts                 *attempts
 	devices                  map[string]devInfo
-	adapters                 map[string]struct{}
+	adapters                 map[string]adapterInfo
 	logged                   map[string]time.Time
 	bluezOwner               string
 	registeredOwner          string
@@ -303,6 +323,16 @@ type agent struct {
 	reconnectCtx             context.Context
 	reconnectCancel          context.CancelFunc
 	deviceGeneration         map[string]uint64
+
+	pairingUntil time.Time
+	pairingTimer *time.Timer
+	forgotten    map[string]struct{}
+	controlCh    chan controlRequest
+	now          func() time.Time
+
+	statusMu           sync.RWMutex
+	cachedStatus       Status
+	cachedPairingUntil time.Time
 }
 
 type reconnectResult struct {
@@ -313,9 +343,56 @@ type reconnectResult struct {
 	generation uint64
 }
 
+func (a *agent) clock() time.Time {
+	if a.now != nil {
+		return a.now()
+	}
+	return time.Now()
+}
+
+func (a *agent) pairingActive(now time.Time) bool {
+	return !a.pairingUntil.IsZero() && now.Before(a.pairingUntil)
+}
+
+func (a *agent) resetPairingTimer(d time.Duration) {
+	if a.pairingTimer == nil {
+		a.pairingTimer = time.NewTimer(d)
+		return
+	}
+	if !a.pairingTimer.Stop() {
+		select {
+		case <-a.pairingTimer.C:
+		default:
+		}
+	}
+	a.pairingTimer.Reset(d)
+}
+
+func (a *agent) stopPairingTimer() {
+	if a.pairingTimer == nil {
+		return
+	}
+	if !a.pairingTimer.Stop() {
+		select {
+		case <-a.pairingTimer.C:
+		default:
+		}
+	}
+}
+
+func (a *agent) pairingTimerChan() <-chan time.Time {
+	if a.pairingTimer == nil {
+		return nil
+	}
+	return a.pairingTimer.C
+}
+
 func (a *agent) run(ctx context.Context) error {
 	a.resetReconnectContext(ctx)
-	defer func() { a.reconnectCancel() }()
+	defer func() {
+		a.reconnectCancel()
+		a.stopPairingTimer()
+	}()
 	if _, err := a.call(ctx, dbusDest, dbusPath, dbusIface, "Hello", "", nil, 10*time.Second); err != nil {
 		return err
 	}
@@ -335,6 +412,7 @@ func (a *agent) run(ctx context.Context) error {
 			log.Printf("bluetooth: setup failed for org.bluez owner %s: %v", owner, err)
 		}
 	}
+	a.publishSnapshot()
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -356,6 +434,14 @@ func (a *agent) run(ctx context.Context) error {
 		case result := <-a.reconnectDone:
 			if err := a.handleReconnectResult(ctx, result); err != nil {
 				return err
+			}
+		case req := <-a.controlCh:
+			a.handleControl(ctx, req)
+		case <-a.pairingTimerChan():
+			if !a.pairingUntil.IsZero() && !a.clock().Before(a.pairingUntil) {
+				a.pairingUntil = time.Time{}
+				a.stopDiscoveryAll(ctx)
+				a.publishSnapshot()
 			}
 		case <-ticker.C:
 			if a.bluezOwner == "" {
@@ -450,18 +536,16 @@ func (a *agent) refresh(ctx context.Context) error {
 	}
 	a.devices = devices
 	a.retryPendingPairingCleanup()
-	a.adapters = make(map[string]struct{}, len(adapters))
-	for _, path := range adapters {
-		a.adapters[path] = struct{}{}
-	}
+	a.adapters = adapters
 	for path := range a.configuredAdapters {
 		if _, ok := a.adapters[path]; !ok {
 			delete(a.configuredAdapters, path)
 		}
 	}
-	for _, path := range adapters {
+	for path := range adapters {
 		a.configure(ctx, path)
 	}
+	a.publishSnapshot()
 	for _, dev := range devices {
 		a.act(ctx, dev)
 	}
@@ -498,11 +582,14 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 		a.resetReconnectContext(ctx)
 		a.bluezOwner = newOwner
 		a.registeredOwner = ""
-		a.adapters = map[string]struct{}{}
+		a.adapters = map[string]adapterInfo{}
 		a.devices = map[string]devInfo{}
 		a.configuredAdapters = map[string]struct{}{}
 		a.pendingPairingCancel = map[string]struct{}{}
+		a.stopPairingTimer()
+		a.pairingUntil = time.Time{}
 		a.resetStaleBondRemovalClaims()
+		a.publishSnapshot()
 		if newOwner == "" {
 			log.Printf("bluetooth: org.bluez owner disappeared from %s", previousOwner)
 			return nil
@@ -517,15 +604,17 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 			a.logf("added", "bluetooth: InterfacesAdded: %v", err)
 			return nil
 		}
-		if _, ok := ifaces[adapterIface]; ok {
-			a.adapters[path] = struct{}{}
+		if props, ok := ifaces[adapterIface]; ok {
+			a.mergeAdapter(path, props)
 			a.configure(ctx, path)
+			a.publishSnapshot()
 		}
 		if props, ok := ifaces[deviceIface]; ok {
 			if _, exists := a.devices[path]; !exists {
 				a.invalidateDevice(path)
 			}
 			a.merge(path, props)
+			a.publishSnapshot()
 			a.act(ctx, a.devices[path])
 		}
 	case "InterfacesRemoved":
@@ -543,6 +632,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 				delete(a.configuredAdapters, path)
 			}
 		}
+		a.publishSnapshot()
 	case "PropertiesChanged":
 		iface, props, err := decodeChanged(msg.Body)
 		if err != nil {
@@ -554,13 +644,16 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 				a.invalidateDevice(msg.Path)
 			}
 			a.merge(msg.Path, props)
+			a.publishSnapshot()
 			a.act(ctx, a.devices[msg.Path])
 		}
 		if iface == adapterIface && msg.Path != "" {
-			if adapterNeedsSetup(props) {
+			a.mergeAdapter(msg.Path, props)
+			if adapterNeedsSetup(props, a.pairingActive(a.clock())) {
 				delete(a.configuredAdapters, msg.Path)
 			}
 			a.configure(ctx, msg.Path)
+			a.publishSnapshot()
 		}
 	}
 	return nil
@@ -599,19 +692,50 @@ func (a *agent) configure(ctx context.Context, path string) {
 			log.Printf("bluetooth: adapter setup failed %s set %s: %v", path, set.name, err)
 		}
 	}
-	err := a.callVoid(ctx, bluezDest, path, adapterIface, "StartDiscovery", "", nil, 10*time.Second)
-	if err != nil && !isName(err, "org.bluez.Error.InProgress") {
-		configured = false
-		log.Printf("bluetooth: adapter setup failed %s start discovery: %v", path, err)
+	wantDiscovery := a.pairingActive(a.clock())
+	info := a.adapters[path]
+	if wantDiscovery {
+		err := a.callVoid(ctx, bluezDest, path, adapterIface, "StartDiscovery", "", nil, 10*time.Second)
+		if err != nil && !isName(err, "org.bluez.Error.InProgress") {
+			configured = false
+			log.Printf("bluetooth: adapter setup failed %s start discovery: %v", path, err)
+		} else {
+			info.Discovering = true
+			a.adapters[path] = info
+		}
+	} else if info.Discovering {
+		err := a.callVoid(ctx, bluezDest, path, adapterIface, "StopDiscovery", "", nil, 10*time.Second)
+		if err != nil && !isStopDiscoveryBenign(err) {
+			configured = false
+			log.Printf("bluetooth: adapter setup failed %s stop discovery: %v", path, err)
+		} else {
+			info.Discovering = false
+			a.adapters[path] = info
+		}
 	}
 	if configured {
 		a.configuredAdapters[path] = struct{}{}
+		stateDesc := "discovery idle"
+		if wantDiscovery {
+			stateDesc = "discovery active"
+		}
 		if pairingPending {
-			log.Printf("bluetooth: adapter setup succeeded %s (Pairable restoration pending, discovery active)", path)
+			log.Printf("bluetooth: adapter setup succeeded %s (Pairable restoration pending, %s)", path, stateDesc)
 		} else {
-			log.Printf("bluetooth: adapter setup succeeded %s (Powered=true Pairable=false Discoverable=false, discovery active)", path)
+			log.Printf("bluetooth: adapter setup succeeded %s (Powered=true Pairable=false Discoverable=false, %s)", path, stateDesc)
 		}
 	}
+}
+
+func isStopDiscoveryBenign(err error) bool {
+	var de *dbusError
+	if !errors.As(err, &de) {
+		return false
+	}
+	if de.Name == "org.bluez.Error.NotReady" || de.Name == "org.bluez.Error.DoesNotExist" {
+		return true
+	}
+	return de.Name == "org.bluez.Error.Failed" && strings.Contains(strings.ToLower(de.Message), "no discovery")
 }
 
 func (a *agent) adapterHasPendingPairing(adapterPath string) bool {
@@ -639,7 +763,7 @@ func (a *agent) retryPendingPairingCleanup() {
 	}
 }
 
-func adapterNeedsSetup(props map[string]any) bool {
+func adapterNeedsSetup(props map[string]any, pairingActive bool) bool {
 	if powered, ok := props["Powered"].(bool); ok && !powered {
 		return true
 	}
@@ -649,7 +773,7 @@ func adapterNeedsSetup(props map[string]any) bool {
 	if discoverable, ok := props["Discoverable"].(bool); ok && discoverable {
 		return true
 	}
-	if discovering, ok := props["Discovering"].(bool); ok && !discovering {
+	if discovering, ok := props["Discovering"].(bool); ok && discovering != pairingActive {
 		return true
 	}
 	return false
@@ -660,7 +784,7 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if what == actionIgnore {
 		return
 	}
-	if what == actionPair && a.adapterHasPendingPairing(path.Dir(dev.Path)) {
+	if what == actionPair && (!a.pairingActive(a.clock()) || a.isForgotten(dev) || a.adapterHasPendingPairing(path.Dir(dev.Path))) {
 		return
 	}
 	if what == actionConnect && (a.reconnects >= maxReconnects || a.bluezOwner == "") {
@@ -691,6 +815,9 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 		}
 		pairSucceeded = true
 		a.resetStaleBondRemoval(dev.Path)
+		dev.Paired = true
+		a.devices[dev.Path] = dev
+		a.publishSnapshot()
 	}
 	if err := a.callVoid(ctx, bluezDest, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second); err != nil {
 		a.logf("trust:"+dev.Path, "bluetooth: trust %s: %v", dev.Path, err)
@@ -700,6 +827,9 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
 		return
 	}
+	dev.Connected = true
+	a.devices[dev.Path] = dev
+	a.publishSnapshot()
 }
 
 // An outstanding operation belongs to one BlueZ owner. Cancellation frees a
@@ -905,38 +1035,33 @@ func isStaleBondError(err error) bool {
 func (a *agent) merge(path string, props map[string]any) {
 	dev := a.devices[path]
 	dev.Path = path
-	if s, ok := props["Alias"].(string); ok && s != "" {
-		dev.Name = s
-	} else if s, ok := props["Name"].(string); ok && s != "" {
-		dev.Name = s
-	}
-	if u, ok := props["Class"].(uint32); ok {
-		dev.Class = u
-	}
-	if u, ok := props["Appearance"].(uint16); ok {
-		dev.Appearance = u
-	}
-	if s, ok := props["Modalias"].(string); ok {
-		dev.Modalias = s
-	}
-	if b, ok := props["Paired"].(bool); ok {
-		dev.Paired = b
-	}
-	if b, ok := props["Connected"].(bool); ok {
-		dev.Connected = b
-	}
-	if b, ok := props["Trusted"].(bool); ok {
-		dev.Trusted = b
-	}
-	if list, ok := props["UUIDs"].([]any); ok {
-		dev.UUIDs = dev.UUIDs[:0]
-		for _, item := range list {
-			if s, ok := item.(string); ok {
-				dev.UUIDs = append(dev.UUIDs, s)
-			}
-		}
-	}
+	applyProps(&dev, props)
 	a.devices[path] = dev
+}
+
+func (a *agent) mergeAdapter(adapterPath string, props map[string]any) {
+	info := a.adapters[adapterPath]
+	info.Path = adapterPath
+	applyAdapterProps(&info, props)
+	a.adapters[adapterPath] = info
+}
+
+func applyAdapterProps(info *adapterInfo, props map[string]any) {
+	if s, ok := props["Name"].(string); ok {
+		info.Name = s
+	}
+	if s, ok := props["Alias"].(string); ok && s != "" {
+		info.Alias = s
+	}
+	if s, ok := props["Address"].(string); ok && s != "" {
+		info.Address = strings.ToUpper(s)
+	}
+	if b, ok := props["Powered"].(bool); ok {
+		info.Powered = b
+	}
+	if b, ok := props["Discovering"].(bool); ok {
+		info.Discovering = b
+	}
 }
 
 func (a *agent) call(ctx context.Context, dest, path, iface, member, sig string, body []byte, timeout time.Duration) (*Message, error) {
@@ -1104,7 +1229,7 @@ func bodyPathUUID(body []byte) (string, string, error) {
 	return path, uuid, nil
 }
 
-func decodeObjects(body []byte) (map[string]devInfo, []string, error) {
+func decodeObjects(body []byte) (map[string]devInfo, map[string]adapterInfo, error) {
 	d := &decoder{b: body}
 	v, rest, err := d.readComplete("a{oa{sa{sv}}}")
 	if err != nil || rest != "" {
@@ -1118,13 +1243,13 @@ func decodeObjects(body []byte) (map[string]devInfo, []string, error) {
 		return nil, nil, errors.New("managed objects")
 	}
 	devices := map[string]devInfo{}
-	var adapters []string
+	adapters := map[string]adapterInfo{}
 	for _, ent := range entries {
 		pair, ok := ent.([]any)
 		if !ok || len(pair) != 2 {
 			return nil, nil, errors.New("managed object entry")
 		}
-		path, ok := pair[0].(string)
+		objPath, ok := pair[0].(string)
 		if !ok {
 			return nil, nil, errors.New("managed object path")
 		}
@@ -1132,13 +1257,15 @@ func decodeObjects(body []byte) (map[string]devInfo, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if _, ok := ifaces[adapterIface]; ok {
-			adapters = append(adapters, path)
+		if props, ok := ifaces[adapterIface]; ok {
+			info := adapterInfo{Path: objPath}
+			applyAdapterProps(&info, props)
+			adapters[objPath] = info
 		}
 		if props, ok := ifaces[deviceIface]; ok {
-			dev := devInfo{Path: path}
+			dev := devInfo{Path: objPath}
 			applyProps(&dev, props)
-			devices[path] = dev
+			devices[objPath] = dev
 		}
 	}
 	return devices, adapters, nil
@@ -1266,6 +1393,9 @@ func propMap(v any) (map[string]any, error) {
 }
 
 func applyProps(dev *devInfo, props map[string]any) {
+	if s, ok := props["Address"].(string); ok && s != "" {
+		dev.Address = strings.ToUpper(s)
+	}
 	if s, ok := props["Name"].(string); ok {
 		dev.Name = s
 	}
@@ -1298,4 +1428,228 @@ func applyProps(dev *devInfo, props map[string]any) {
 			}
 		}
 	}
+}
+
+func deviceAddress(dev devInfo) string {
+	if addr := strings.ToUpper(strings.TrimSpace(dev.Address)); addr != "" {
+		return addr
+	}
+	base := path.Base(dev.Path)
+	raw, ok := strings.CutPrefix(base, "dev_")
+	if !ok {
+		return ""
+	}
+	parts := strings.Split(raw, "_")
+	if len(parts) != 6 {
+		return ""
+	}
+	return strings.ToUpper(strings.Join(parts, ":"))
+}
+
+func (a *agent) isForgotten(dev devInfo) bool {
+	if len(a.forgotten) == 0 {
+		return false
+	}
+	addr := deviceAddress(dev)
+	if addr == "" {
+		return false
+	}
+	_, suppressed := a.forgotten[addr]
+	return suppressed
+}
+
+func (a *agent) submitControl(ctx context.Context, req controlRequest) (Status, error) {
+	req.reply = make(chan controlResult, 1)
+	select {
+	case a.controlCh <- req:
+	case <-a.bus.done:
+		return Status{}, &controlError{code: http.StatusServiceUnavailable, err: errors.New("bluetooth agent stopped")}
+	case <-ctx.Done():
+		return Status{}, ctx.Err()
+	}
+	select {
+	case res := <-req.reply:
+		return res.status, res.err
+	case <-a.bus.done:
+		return Status{}, &controlError{code: http.StatusServiceUnavailable, err: errors.New("bluetooth agent stopped")}
+	case <-ctx.Done():
+		return Status{}, ctx.Err()
+	}
+}
+
+func (a *agent) handleControl(ctx context.Context, req controlRequest) {
+	switch req.kind {
+	case controlStartPairing:
+		st, err := a.startPairing(ctx, req.duration)
+		req.reply <- controlResult{status: st, err: err}
+		if err == nil {
+			for _, dev := range a.devices {
+				a.act(ctx, dev)
+			}
+		}
+	case controlStopPairing:
+		st := a.stopPairing(ctx)
+		req.reply <- controlResult{status: st}
+	case controlForgetDevice:
+		st, err := a.forgetDevice(ctx, req.address)
+		req.reply <- controlResult{status: st, err: err}
+	default:
+		req.reply <- controlResult{err: &controlError{code: http.StatusBadRequest, err: errors.New("unknown control request")}}
+	}
+}
+
+func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Status, error) {
+	if a.bluezOwner == "" || len(a.adapters) == 0 {
+		return a.snapshot(), &controlError{code: http.StatusConflict, err: errors.New("no Bluetooth adapter available")}
+	}
+	clear(a.forgotten)
+	now := a.clock()
+	a.pairingUntil = now.Add(duration)
+	a.resetPairingTimer(duration)
+	started := false
+	var firstErr error
+	for adapterPath := range a.adapters {
+		delete(a.configuredAdapters, adapterPath)
+		a.configure(ctx, adapterPath)
+		if info, ok := a.adapters[adapterPath]; ok && info.Discovering {
+			started = true
+		} else if firstErr == nil {
+			firstErr = errors.New("bluetooth adapter could not start discovery")
+		}
+	}
+	if !started && firstErr != nil {
+		a.pairingUntil = time.Time{}
+		a.stopPairingTimer()
+		a.publishSnapshot()
+		return a.snapshot(), &controlError{code: http.StatusInternalServerError, err: firstErr}
+	}
+	a.publishSnapshot()
+	return a.snapshot(), nil
+}
+
+func (a *agent) stopPairing(ctx context.Context) Status {
+	a.stopPairingTimer()
+	a.pairingUntil = time.Time{}
+	a.stopDiscoveryAll(ctx)
+	a.publishSnapshot()
+	return a.snapshot()
+}
+
+func (a *agent) stopDiscoveryAll(ctx context.Context) {
+	for adapterPath, info := range a.adapters {
+		delete(a.configuredAdapters, adapterPath)
+		if !info.Discovering {
+			continue
+		}
+		if a.bluezOwner != "" {
+			if err := a.callVoid(ctx, bluezDest, adapterPath, adapterIface, "StopDiscovery", "", nil, 10*time.Second); err != nil && !isStopDiscoveryBenign(err) {
+				a.logf("stop-discovery:"+adapterPath, "bluetooth: stop discovery %s: %v", adapterPath, err)
+			}
+		}
+		info.Discovering = false
+		a.adapters[adapterPath] = info
+	}
+}
+
+func (a *agent) forgetDevice(ctx context.Context, address string) (Status, error) {
+	addr := strings.ToUpper(strings.TrimSpace(address))
+	if addr == "" {
+		return a.snapshot(), &controlError{code: http.StatusBadRequest, err: errors.New("bluetooth address is required")}
+	}
+	var target *devInfo
+	for _, dev := range a.devices {
+		if strings.EqualFold(deviceAddress(dev), addr) {
+			copyDev := dev
+			target = &copyDev
+			break
+		}
+	}
+	if target == nil {
+		return a.snapshot(), &controlError{code: http.StatusNotFound, err: fmt.Errorf("bluetooth device %s not found", addr)}
+	}
+	a.forgotten[addr] = struct{}{}
+	a.invalidateDevice(target.Path)
+	delete(a.devices, target.Path)
+	a.attempts.AllowPairAfterBondRemoval(target.Path)
+	a.resetStaleBondRemoval(target.Path)
+	if a.bluezOwner != "" {
+		err := a.callVoid(ctx, a.bluezOwner, path.Dir(target.Path), adapterIface, "RemoveDevice", "o", bodyPath(target.Path), 10*time.Second)
+		if err != nil && !isName(err, "org.bluez.Error.DoesNotExist") {
+			a.logf("forget:"+target.Path, "bluetooth: remove forgotten device %s: %v", target.Path, err)
+		}
+	}
+	a.publishSnapshot()
+	return a.snapshot(), nil
+}
+
+func (a *agent) publishSnapshot() {
+	var adapterNames []string
+	for p, info := range a.adapters {
+		name := strings.TrimSpace(info.Alias)
+		if name == "" {
+			name = strings.TrimSpace(info.Name)
+		}
+		if name == "" {
+			name = path.Base(p)
+		}
+		adapterNames = append(adapterNames, name)
+	}
+	slices.Sort(adapterNames)
+
+	st := Status{
+		AdapterConnected: len(a.adapters) > 0,
+	}
+	if len(adapterNames) > 0 {
+		st.AdapterName = adapterNames[0]
+	}
+	for _, dev := range a.devices {
+		if !isGamepad(dev) || (!dev.Paired && !dev.Connected) {
+			continue
+		}
+		addr := deviceAddress(dev)
+		if addr == "" {
+			continue
+		}
+		name := strings.TrimSpace(dev.Name)
+		if name == "" {
+			name = addr
+		}
+		if dev.Connected {
+			st.ConnectedCount++
+		}
+		st.Devices = append(st.Devices, DeviceStatus{
+			Address:   addr,
+			Name:      name,
+			Kind:      controllerKindLabel(dev),
+			Connected: dev.Connected,
+		})
+	}
+	slices.SortFunc(st.Devices, func(a, b DeviceStatus) int {
+		if c := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Address, b.Address)
+	})
+
+	a.statusMu.Lock()
+	a.cachedStatus = st
+	a.cachedPairingUntil = a.pairingUntil
+	a.statusMu.Unlock()
+}
+
+func (a *agent) snapshot() Status {
+	now := a.clock()
+	a.statusMu.RLock()
+	st := a.cachedStatus
+	until := a.cachedPairingUntil
+	if len(a.cachedStatus.Devices) > 0 {
+		st.Devices = append([]DeviceStatus(nil), a.cachedStatus.Devices...)
+	}
+	a.statusMu.RUnlock()
+
+	if !until.IsZero() && now.Before(until) {
+		st.PairingActive = true
+		st.PairingRemainingMS = until.Sub(now).Milliseconds()
+	}
+	return st
 }
