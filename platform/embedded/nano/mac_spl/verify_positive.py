@@ -1,0 +1,115 @@
+"""Replay the target half of a CBL positive TX trial; Ethernet capture is separate."""
+import hashlib
+import re
+
+PARKING = "87b2d7f4721c819b554212f2b80c193a07a2531e"
+PARK = "FES_CBL_MAC_TX PARK no-storage no-bl31"
+
+
+def decode_closed(raw: bytes, receipt: dict) -> dict:
+    identity = receipt.get("diagnostic_id", "")
+    frame_hash = receipt.get("frame_sha256", "")
+    if (not isinstance(raw, bytes) or len(raw) > 2 << 20 or
+            receipt.get("scope") != "de25-cbl-positive-mac-spl-v1" or
+            receipt.get("status") != "prepared" or receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
+            not re.fullmatch("[0-9a-f]{64}", frame_hash)):
+        raise ValueError("invalid positive diagnostic source receipt or UART stream")
+    data = raw.replace(b"\r\n", b"\n")
+    if not data.endswith((PARK+"\n").encode()):
+        raise ValueError("missing final terminal park")
+    lines = data.decode("ascii", errors="replace").splitlines()
+    banners = [i for i, line in enumerate(lines) if line.startswith("U-Boot SPL ")]
+    if len(banners) != 1 or not lines[banners[0]].startswith("U-Boot SPL 2025.01-fes-nano-cpu-"+identity+" "):
+        raise ValueError("missing matched SPL startup")
+    trace = [s for s in lines if s.startswith(("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX"))]
+    if any(s.startswith(("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX")) for s in lines[:banners[0]]):
+        raise ValueError("positive diagnostics before matched banner")
+    def power_trace(stage):
+        rows=[]
+        for index in range(7):
+            line = re.compile(r"FES_NANO_CPU_TRACE id=" + identity + f" stage={stage+index:02x}" +
+                              r" value=([a-f0-9]{8}) mpidr=0000000081000000 el=3")
+            matches=[(s, int(m[1],16)) for s in trace if (m:=line.fullmatch(s))]
+            if len(matches)!=1:
+                raise ValueError("missing or duplicate qualified power checkpoint")
+            rows.append(matches[0])
+        values=[v for _,v in rows]
+        if any(values[1:4]) or values[4]&0x1e!=2 or values[5]&0x1e!=2 or values[6]&0xc00:
+            raise ValueError("spare CPU released or unqualified selected core")
+        return [s for s,_ in rows], values
+    early, early_power = power_trace(0x20)
+    late, late_power = power_trace(0x30)
+    prefix = [f"FES_NANO_CPU_TRACE id={identity} stage={i:02x} value=00000000 mpidr=0000000081000000 el=3" for i in range(1,18)]
+    expected = [prefix[0],*early,*prefix[1:]] + [
+        "FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1",
+        "FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000",
+        "FES_CBL_MAC_TX BEGIN id="+identity,
+    ]
+    if trace[:len(expected)] != expected or trace[-9:] != [*late,
+            f"FES_NANO_CPU_TRACE id={identity} stage=12 value=00000000 mpidr=0000000081000000 el=3", PARK]:
+        raise ValueError("missing ordered matching cold CPU, ownership or park")
+    if len(trace) != len(expected)+12:
+        raise ValueError("missing or duplicated diagnostic evidence")
+    powers = []
+    for n, phase in enumerate(("first", "live")):
+        m = re.fullmatch(r"FES_CBL_MAC_TX POWER phase=" + phase +
+                         r" cpu0=([a-f0-9]{8}) cpu1=00000000 cpu2=00000000 cpu3=00000000"
+                         r" req=([a-f0-9]{8}) ack=([a-f0-9]{8}) boot=([a-f0-9]{8})",trace[len(expected)+n])
+        if not m:
+            raise ValueError("missing sole primary CPU power evidence")
+        primary, req, ack, boot = (int(x, 16) for x in m.groups())
+        if req & 0x1e != 2 or ack & 0x1e != 2 or boot & 0xc00:
+            raise ValueError("current CPU power ownership differs")
+        powers.append(dict(primary=primary,request=req,acknowledgement=ack,boot=boot))
+    if len({early_power[6],powers[0]["boot"],powers[1]["boot"],late_power[6]}) != 1:
+        raise ValueError("selected boot configuration changed")
+    terminal = trace[len(expected)+2]
+    fields = re.fullmatch(
+        r"FES_CBL_MAC_TX END id="+identity+
+        r" rc=(0|-1) stage=([0-8]) arm=([01]) mapped=([01]) mac=([01]) possible=([01])"
+        r" dispatch=([01]) tps=([01]) revoked=([01]) reset=([01]) disposition=([a-z-]+)"
+        r" writes=([01]) terminal_per0=([0-9a-f]{8}) terminal_route=([0-9a-f]{8})"
+        r" terminal_sid=([0-9a-f]{8}) terminal_cr0=([0-9a-f]{8}) terminal_ack=([0-9a-f]{8})"
+        r" terminal_ste=([0-9a-f]{8}) reg=10d11024 value=([0-9a-f]{8}) desc=([0-9a-f]{8})"
+        r" dma=([0-9a-f]{8}) fault_reg=([0-9a-f]{8}) fault_value=([0-9a-f]{8})", terminal)
+    if not fields:
+        raise ValueError("missing terminal hardware closure")
+    rc, stage = int(fields[1]), int(fields[2])
+    arm, mapped, mac, possible, dispatch, tps, revoked, reset = map(int, fields.groups()[2:10])
+    disposition, writes = fields[11], int(fields[12])
+    per0, route, sid, cr0, ack, ste, reset_readback, desc, dma, fault_reg, fault_value = (
+        int(x, 16) for x in fields.groups()[12:])
+    if per0 != 0xff7fbfff or reset_readback != per0:
+        raise ValueError("terminal reset scope differs from the initial CBL state")
+    flags = (arm, mapped, mac, possible, dispatch, tps, revoked, reset, writes)
+    state = (route, sid, cr0, ack, ste)
+    abort = (3, 0x10001, 13, 13, 1)
+    if disposition == "closed":
+        valid = (rc == 0 and stage == 8 and flags == (1,)*9 and state == abort
+                 and desc & 0xb0008000 == 0x30000000 and not dma & 0x3200
+                 and fault_reg == fault_value == 0)
+    elif disposition == "unchanged":
+        valid = (rc == -1 and stage in (0,1) and flags == (0,)*9
+                 and state == (0x30, 0, 0, 0, 0) and desc == dma == 0)
+    elif disposition == "revoked-undispatched":
+        valid = (rc == -1 and stage in (3,4,5) and flags == (1,1,mac,0,0,0,1,1,1)
+                 and state == abort and desc == dma == 0)
+    else:
+        valid = False
+    if not valid:
+        raise ValueError("terminal result conflicts with observed ownership or controller state")
+    if any("Trying to boot from" in s or "FES_NANO_SPL HANDOFF" in s for s in lines):
+        raise ValueError("unexpected storage or firmware handoff")
+    return dict(scope=receipt["scope"], diagnostic_id=identity, frame_sha256=frame_hash,
+                uart_sha256=hashlib.sha256(raw).hexdigest(), target_closed=True,
+                parking_revision=PARKING, cpu_power=powers, device_frame_dispatched=bool(dispatch),
+                process_stopped=bool(tps), translation_revoked=bool(revoked), disposition=disposition,
+                mac_in_reset=True, parked=True, terminal_reset=per0, tx_descriptor=desc, dma_status=dma,
+                fault_reg=fault_reg, fault_value=fault_value)
+
+
+def decode_positive(raw: bytes, receipt: dict) -> dict:
+    result = decode_closed(raw, receipt)
+    if not result["device_frame_dispatched"]:
+        raise ValueError("diagnostic closed before frame dispatch")
+    return result
