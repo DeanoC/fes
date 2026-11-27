@@ -8,7 +8,7 @@
   "fabric": {
     "id": "fes.fabric.embedded.sd",
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "constants": {
     "FesEmbeddedSdCall": 3254780674,
@@ -29,6 +29,8 @@
     "FesEmbeddedSdContained": 8,
     "FesEmbeddedSdDataHeld": 16,
     "FesEmbeddedSdClosedOnly": 32,
-    "FesEmbeddedSdFlags": 63
+    "FesEmbeddedSdShared": 64,
+    "FesEmbeddedSdPrivateGeneration": 128,
+    "FesEmbeddedSdFlags": 255
   }
 }

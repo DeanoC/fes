@@ -111,7 +111,8 @@ func (v *HPSContextVerifier) openMenuSession(ctx, lifetime context.Context, cont
 	}
 	b := transfer.binding
 	repeat := b.rearm && b.menuReturn != nil && b.menuReturn.self == b.menuReturn && b.menuReturn.verifier == v &&
-		v.menuSession == b.menuReturn && b.menuReturn.closed && b.menuReturn.closeErr == nil && b.menuReturn.nextAttempted && b.menuReturn.storageResumed
+		v.menuSession == b.menuReturn && b.menuReturn.closed && b.menuReturn.closeErr == nil && b.menuReturn.nextAttempted &&
+		(b.menuReturn.storageResumed || b.menuReturn.storage.Receipt().Shared)
 	roleReturn := program != nil && b.rearm
 	if !transfer.done || transfer.err != nil || transfer.region != nil || transfer.phase != "complete" || len(transfer.source) == 0 || len(transfer.pending) != 0 ||
 		transfer.offset != len(transfer.source) || transfer.accepted != len(transfer.source) || b.verifier != v || b.program != program ||

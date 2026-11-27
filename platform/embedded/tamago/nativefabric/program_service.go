@@ -347,6 +347,11 @@ func (s *ProgramService) Launch(ctx context.Context, generation uint64, request 
 	if err != nil {
 		return ProgramSession{}, p.fail(err)
 	}
+	if p.store.Shared() {
+		if err := p.store.Resume(); err != nil {
+			return ProgramSession{}, p.fail(err)
+		}
+	}
 	view.State, view.Held = ProgramRunning, false
 	if program := plan.state.program; program != nil && len(program.tape) != 0 {
 		sum := sha256.Sum256(program.tape)
@@ -440,15 +445,22 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 		return observed, p.fail(err)
 	}
 	if resume {
-		if err = p.loader.boot.ResumeStorageAfterReturn(p.store); err != nil {
-			return observed, p.fail(err)
-		}
-		if err = control.Err(); err != nil {
-			return observed, p.fail(err)
-		}
-		active, err := p.store.ActiveReceipt()
-		if err != nil || active.Owner != observed.After.Owner || observed.After.Generation > math.MaxUint64-2 || active.Generation != observed.After.Generation+2 {
-			return observed, p.fail(errors.Join(err, errors.New("native program service: SD lost the owned return")))
+		if p.store.Shared() {
+			active, err := p.store.ActiveReceipt()
+			if err != nil || !active.Shared || active.Owner != observed.After.Owner {
+				return observed, p.fail(errors.Join(err, errors.New("native program service: shared SD lost the owned return")))
+			}
+		} else {
+			if err = p.loader.boot.ResumeStorageAfterReturn(p.store); err != nil {
+				return observed, p.fail(err)
+			}
+			if err = control.Err(); err != nil {
+				return observed, p.fail(err)
+			}
+			active, err := p.store.ActiveReceipt()
+			if err != nil || active.Owner != observed.After.Owner || observed.After.Generation > math.MaxUint64-2 || active.Generation != observed.After.Generation+2 {
+				return observed, p.fail(errors.Join(err, errors.New("native program service: SD lost the owned return")))
+			}
 		}
 		view.State = ProgramReady
 		p.rearm = true
@@ -462,6 +474,11 @@ func (s *ProgramService) finish(ctx context.Context, session ProgramSession, res
 			}
 		}
 	} else {
+		if p.store.Shared() {
+			if err := p.store.Quiesce(); err != nil {
+				return observed, p.fail(err)
+			}
+		}
 		view.State = ProgramParked
 		p.preferences.seal(errors.New("native program UI: storage remains contained at shutdown"))
 	}

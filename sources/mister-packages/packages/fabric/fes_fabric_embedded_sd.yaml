@@ -2,11 +2,14 @@ schema: mister-packages.v1
 kind: fabric
 id: fes.fabric.embedded.sd
 major: 1
-minor: 0
+minor: 1
 description: >-
-  Experimental firmware-owned Nano SD PIO lease with continuously reset data
-  bridges. Shares the bridge owner and generation. No non-secure initialization,
-  production programming profile or board qualification is supplied.
+  Experimental firmware-owned Nano SD lease. ClosedOnly retains exclusive
+  closed-bridge PIO ownership sharing the bridge owner and generation. Shared
+  with PrivateGeneration opts into concurrent SD access with active FPGA
+  bridges and confirmed Ethernet under a compiled shared ownership policy. No
+  non-secure initialization, production programming profile or board
+  qualification is supplied.
 constants:
   - {name: FesEmbeddedSdCall, value: 0xc2000302}
   - {name: FesEmbeddedSdCookie, value: 0x46455353}
@@ -26,4 +29,6 @@ constants:
   - {name: FesEmbeddedSdContained, value: 0x8}
   - {name: FesEmbeddedSdDataHeld, value: 0x10}
   - {name: FesEmbeddedSdClosedOnly, value: 0x20}
-  - {name: FesEmbeddedSdFlags, value: 0x3f}
+  - {name: FesEmbeddedSdShared, value: 0x40}
+  - {name: FesEmbeddedSdPrivateGeneration, value: 0x80}
+  - {name: FesEmbeddedSdFlags, value: 0xff}

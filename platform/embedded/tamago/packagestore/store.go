@@ -105,13 +105,25 @@ func (p *Selection) Inspection() corepackage.Inspection {
 	return p.archive.Inspection()
 }
 
-// Handoff can only be produced after successful firmware containment. It is
-// invalidated when this store resumes. Its receipt is not FPGA authority.
+// Handoff can only be produced after successful firmware containment (or
+// active retention on a Shared store). It is invalidated when this store changes
+// lease generation. Its receipt is not FPGA authority.
 type Handoff struct {
-	store     *Store
-	selection *Selection
-	receipt   sdcontrol.Receipt
-	returned  sdcontrol.Receipt
+	store      *Store
+	selection  *Selection
+	receipt    sdcontrol.Receipt
+	returned   sdcontrol.Receipt
+	concurrent bool
+}
+
+// Concurrent reports whether this handoff keeps a shared SD lease active.
+func (h *Handoff) Concurrent() bool {
+	return h != nil && h.concurrent
+}
+
+// SameStore reports whether h and other belong to the same underlying Store.
+func (h *Handoff) SameStore(other *Handoff) bool {
+	return h != nil && other != nil && h.store != nil && h.store == other.store
 }
 
 // OwnsHandoff compares private store identity only. It does not validate a
@@ -145,7 +157,11 @@ func (h *Handoff) Selection() (*Selection, error) {
 	if s.retired {
 		return nil, ErrRetired
 	}
-	if s.last.Active || s.last != h.receipt || s.returned != h.returned || h.selection == nil {
+	if h.concurrent {
+		if !s.last.Shared || !s.last.Active || !s.last.Prepared || s.last != h.receipt || s.returned != h.returned || h.selection == nil {
+			return nil, ErrState
+		}
+	} else if s.last.Active || s.last != h.receipt || s.returned != h.returned || h.selection == nil {
 		return nil, ErrState
 	}
 	if err := s.observe(); err != nil {
@@ -176,6 +192,16 @@ func New(files fs.FS, lease Lease) (*Store, error) {
 		return nil, ErrState
 	}
 	return &Store{files: files, lease: lease, last: r}, nil
+}
+
+// Shared reports whether this store uses an opt-in concurrent SD lease.
+func (s *Store) Shared() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.last.Shared
 }
 
 // ActiveReceipt checks this store's cached lease while it is usable. It makes
@@ -499,6 +525,26 @@ func (s *Store) Contain(selection *Selection) (*Handoff, error) {
 	return &Handoff{store: s, selection: selection, receipt: s.last, returned: s.returned}, nil
 }
 
+// RetainActive publishes a concurrent handoff while keeping a Shared store's
+// SD lease active and prepared. Legacy closed-bridge stores return ErrState.
+func (s *Store) RetainActive(selection *Selection) (*Handoff, error) {
+	if s == nil {
+		return nil, ErrState
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.retired {
+		return nil, ErrRetired
+	}
+	if !s.last.Shared || !s.last.Active || !s.last.Prepared || selection == nil || selection.store != s || selection.generation != s.last.Generation {
+		return nil, ErrState
+	}
+	if err := s.observe(); err != nil {
+		return nil, err
+	}
+	return &Handoff{store: s, selection: selection, receipt: s.last, returned: s.returned, concurrent: true}, nil
+}
+
 // Quiesce closes owned storage without publishing a programming handoff. It is
 // used after final settings writes, when no package will be programmed.
 func (s *Store) Quiesce() error {
@@ -595,7 +641,7 @@ func (s *Store) resumeAfterReturn(owner, generation uint64) error {
 	if err := s.observe(); err != nil {
 		return err
 	}
-	if s.last.Active || s.last.Prepared || owner != s.last.Owner ||
+	if s.last.Shared || s.last.Active || s.last.Prepared || owner != s.last.Owner ||
 		generation <= s.last.Generation || generation > ^uint64(0)-3 {
 		return ErrState
 	}

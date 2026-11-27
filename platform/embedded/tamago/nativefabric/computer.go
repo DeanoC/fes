@@ -325,8 +325,9 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	menu := binding.menuReturn
 	fromMenu := binding.program != nil && (binding.program.role == programRoleComputer || binding.program.role == programRoleUploadShell) && binding.program.loader.menu != nil &&
 		menu != nil && menu.self == menu && menu.verifier == v && v.menuSession == menu &&
-		menu.closed && menu.closeErr == nil && menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
-		menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3
+		menu.closed && menu.closeErr == nil && menu.nextAttempted && menu.returned.Frames > 0 &&
+		((menu.storageResumed && menu.returned.After.Generation <= math.MaxUint64-3 && binding.source.Bridges.Generation == menu.returned.After.Generation+3) ||
+			(menu.storage.Receipt().Shared && binding.source.Bridges.Generation == menu.returned.After.Generation))
 	if binding.source.Bridges.Generation <= v.computerGeneration ||
 		(v.computerGeneration == 0 && binding.rearm && !fromMenu) || (v.computerGeneration != 0 && (!v.computerClosed || !binding.rearm)) {
 		v.computerMu.Unlock()

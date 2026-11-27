@@ -21,7 +21,8 @@ func (s *MenuSession) ResumeStorageAfterReturn() error {
 	}
 	defer s.active.Store(false)
 	if !s.closed || s.closeErr != nil || s.storageAttempted || s.returned.Frames == 0 ||
-		s.returned.After.Generation == 0 || s.returned.After.Generation > math.MaxUint64-3 {
+		s.returned.After.Generation == 0 || s.returned.After.Generation > math.MaxUint64-3 ||
+		s.storage.Receipt().Shared {
 		return scanout.ErrReaderRetired
 	}
 	s.storageAttempted = true
@@ -62,7 +63,7 @@ func (s *MenuSession) NewStoredReconfigurationTransfer(plan *StoredConfiguration
 		return nil, HPSBootObservation{}, scanout.ErrReaderBusy
 	}
 	defer s.active.Store(false)
-	if !s.closed || s.closeErr != nil || !s.storageResumed || s.nextAttempted || s.returned.Frames == 0 {
+	if !s.closed || s.closeErr != nil || (!s.storageResumed && !s.storage.Receipt().Shared) || s.nextAttempted || s.returned.Frames == 0 {
 		return nil, HPSBootObservation{}, scanout.ErrReaderRetired
 	}
 	s.nextAttempted = true

@@ -23,6 +23,18 @@ static int healthy(struct fes_nano_sd *s)
 {
     struct fes_nano_bridges *b = s->bridges;
     if (s->failed) return -1;
+    if (s->shared.valid) {
+        if (!b || !b->initialized || b->failed || b->device_lease ||
+            b->state.owner != s->owner || b->epoch != s->epoch || !b->state.generation ||
+            b->state.never_enabled > 1 || b->state.masters_contained > 1 ||
+            (b->state.fabric != FES_NANO_FABRIC_ABSENT && b->state.fabric != FES_NANO_FABRIC_PRESENT) ||
+            s->active > 1 || s->prepared > 1 || (s->prepared && !s->active) ||
+            s->reservation != s->active || !s->shared.context || !s->shared.contained ||
+            s->shared.allow_during_config > 1 ||
+            s->shared.valid(s->shared.context, b, s) != 1)
+            return retire(s, -1);
+        return 0;
+    }
     if (!b || !b->initialized || b->failed || b->state.owner != s->owner ||
         b->epoch != s->epoch || b->state.reset != FES_NANO_BRIDGES_ALL ||
         b->state.fabric != FES_NANO_FABRIC_ABSENT ||
@@ -49,21 +61,30 @@ static int scope(struct fes_nano_sd *s)
 {
     struct fes_nano_bridge_snapshot snapshot;
     if (healthy(s)) return -1;
-    if (!s->active && fes_nano_bridges_observe(s->bridges, &snapshot))
+    if (!s->shared.valid && !s->active && fes_nano_bridges_observe(s->bridges, &snapshot))
         return retire(s, -1);
     int error = s->ops.scope(s->ops.context, s->owner, s->epoch, s->active);
     if (error) return retire(s, error);
-    if (!s->active && fes_nano_bridges_observe(s->bridges, &snapshot))
+    if (!s->shared.valid && !s->active && fes_nano_bridges_observe(s->bridges, &snapshot))
         return retire(s, -1);
+    if (s->shared.valid && healthy(s)) return -1;
     return 0;
 }
-int fes_nano_sd_init(struct fes_nano_sd *s, struct fes_nano_bridges *b,
-                     struct fes_nano_sd_ops ops, unsigned qualifications)
+static int initialize_sd(struct fes_nano_sd *s, struct fes_nano_bridges *b,
+                         struct fes_nano_sd_ops ops, unsigned qualifications,
+                         const struct fes_nano_sd_shared_ops *shared)
 {
     if (!s || s->attempted) return -1;
     s->attempted = 1;
     s->bridges = b;
-    if (!b || !b->initialized || b->state.generation != 1 ||
+    if (shared) {
+        s->shared = *shared;
+        if (!shared->context || !shared->valid || !shared->contained ||
+            shared->allow_during_config > 1 || ops.returned)
+            return retire(s, -22);
+    }
+    if (!b || !b->initialized || b->failed || b->device_lease || b->state.generation != 1 ||
+        !b->state.never_enabled || b->state.reset != FES_NANO_BRIDGES_ALL || !b->state.masters_contained ||
         qualifications != FES_NANO_SD_QUALIFIED || !ops.scope || !ops.resume ||
         !ops.prepare || !ops.stop)
         return retire(s, -22);
@@ -72,19 +93,40 @@ int fes_nano_sd_init(struct fes_nano_sd *s, struct fes_nano_bridges *b,
     s->epoch = b->epoch;
     s->stopped_generation = b->state.generation;
     if (scope(s)) return -1;
+    if (shared) {
+        struct fes_nano_bridge_snapshot observed;
+        if (fes_nano_bridges_observe(b, &observed)) return retire(s, -1);
+    }
     s->initialized = 1;
     return 0;
 }
+int fes_nano_sd_init(struct fes_nano_sd *s, struct fes_nano_bridges *b,
+                     struct fes_nano_sd_ops ops, unsigned qualifications)
+{
+    return initialize_sd(s, b, ops, qualifications, 0);
+}
+int fes_nano_sd_init_shared(struct fes_nano_sd *s, struct fes_nano_bridges *b,
+                            struct fes_nano_sd_ops ops, unsigned qualifications,
+                            struct fes_nano_sd_shared_ops shared)
+{
+    return initialize_sd(s, b, ops, qualifications, &shared);
+}
 static void success(struct fes_nano_sd *s, uint64_t result[4])
 {
-    unsigned flags = FES_EMBEDDED_SD_SUPPORTED | FES_EMBEDDED_SD_DATA_HELD |
-                     FES_EMBEDDED_SD_CLOSED_ONLY;
+    unsigned flags = FES_EMBEDDED_SD_SUPPORTED;
+    if (s->shared.valid) {
+        flags |= FES_EMBEDDED_SD_SHARED | FES_EMBEDDED_SD_PRIVATE_GENERATION;
+        if ((s->bridges->state.reset & FES_NANO_BRIDGES_DATA) == FES_NANO_BRIDGES_DATA)
+            flags |= FES_EMBEDDED_SD_DATA_HELD;
+    } else {
+        flags |= FES_EMBEDDED_SD_DATA_HELD | FES_EMBEDDED_SD_CLOSED_ONLY;
+    }
     flags |= s->active ? FES_EMBEDDED_SD_ACTIVE : FES_EMBEDDED_SD_CONTAINED;
     if (s->prepared) flags |= FES_EMBEDDED_SD_PREPARED;
     result[0] = FES_EMBEDDED_SD_OK;
     result[1] |= flags;
     result[2] = s->owner;
-    result[3] = s->bridges->state.generation;
+    result[3] = s->shared.valid ? s->generation : s->bridges->state.generation;
 }
 void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
                      uint64_t generation, unsigned configuring, uint64_t result[4])
@@ -98,9 +140,13 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
         (operation == FES_EMBEDDED_SD_QUERY && (owner || generation))) return;
     if (!s || !s->attempted) { result[0] = FES_EMBEDDED_SD_NOT_READY; return; }
     if (!s->initialized || healthy(s)) { result[0] = FES_EMBEDDED_SD_ERROR; return; }
+    uint64_t expected_generation = s->shared.valid ? s->generation : s->bridges->state.generation;
     if (operation != FES_EMBEDDED_SD_QUERY &&
-        (owner != s->owner || generation != s->bridges->state.generation)) return;
-    if (configuring) { result[0] = FES_EMBEDDED_SD_BUSY; return; }
+        (owner != s->owner || generation != expected_generation)) return;
+    if (configuring && (!s->shared.valid || operation != FES_EMBEDDED_SD_QUERY)) {
+        result[0] = FES_EMBEDDED_SD_BUSY;
+        return;
+    }
     if (operation == FES_EMBEDDED_SD_QUERY) {
         if (scope(s)) { result[0] = FES_EMBEDDED_SD_ERROR; return; }
         success(s, result);
@@ -110,19 +156,23 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
         (operation == FES_EMBEDDED_SD_PREPARE && (!s->active || s->prepared)) ||
         (operation == FES_EMBEDDED_SD_STOP && !s->active)) return;
     result[0] = FES_EMBEDDED_SD_ERROR;
-    if (s->bridges->state.generation == UINT64_MAX ||
-        (operation == FES_EMBEDDED_SD_RESUME && s->bridges->state.generation > UINT64_MAX-3)) {
+    if (expected_generation == UINT64_MAX ||
+        (operation == FES_EMBEDDED_SD_RESUME && expected_generation > UINT64_MAX-3)) {
         retire(s, -75); return;
     }
     if (scope(s)) return;
     if (operation == FES_EMBEDDED_SD_RESUME) {
         /* Reserve before the first write; a partial release retains this lease. */
-        if (!s->bridges->state.never_enabled &&
-            !returned(s, &s->return_generation)) {
-            retire(s, -1); return;
+        if (s->shared.valid) {
+            s->active = s->reservation = 1;
+        } else {
+            if (!s->bridges->state.never_enabled &&
+                !returned(s, &s->return_generation)) {
+                retire(s, -1); return;
+            }
+            s->grant_generation = s->bridges->state.generation;
+            s->active = s->bridges->device_lease = 1;
         }
-        s->grant_generation = s->bridges->state.generation;
-        s->active = s->bridges->device_lease = 1;
         error = s->ops.resume(s->ops.context);
         if (error) { retire(s, error); return; }
         if (scope(s)) return;
@@ -138,24 +188,44 @@ void fes_nano_sd_sip(struct fes_nano_sd *s, uint64_t operation, uint64_t owner,
          * old cold ownership while the SD controller might still be active. */
         error = s->ops.scope(s->ops.context, s->owner, s->epoch, 0);
         if (error) { retire(s, error); return; }
-        s->bridges->device_lease = 0;
-        if (fes_nano_bridges_observe(s->bridges, &restored)) {
-            s->bridges->device_lease = 1;
-            retire(s, -1);
-            return;
+        if (s->shared.valid) {
+            s->active = s->prepared = s->reservation = 0;
+            if (healthy(s)) { s->reservation = 1; return; }
+        } else {
+            s->bridges->device_lease = 0;
+            if (fes_nano_bridges_observe(s->bridges, &restored)) {
+                s->bridges->device_lease = 1;
+                retire(s, -1);
+                return;
+            }
+            s->active = s->prepared = 0;
         }
-        s->active = s->prepared = 0;
     }
-    s->bridges->state.generation++;
-    if (operation == FES_EMBEDDED_SD_STOP)
-        s->stopped_generation = s->bridges->state.generation;
+    if (s->shared.valid) {
+        s->generation++;
+    } else {
+        s->bridges->state.generation++;
+        if (operation == FES_EMBEDDED_SD_STOP)
+            s->stopped_generation = s->bridges->state.generation;
+    }
     success(s, result);
+}
+
+int fes_nano_sd_gate(struct fes_nano_sd *s, unsigned for_config)
+{
+    if (!s || !s->attempted || !s->shared.valid) return 0;
+    if (!s->initialized || s->failed || healthy(s)) return -1;
+    if (s->active && !s->prepared) return 1;
+    if (for_config && s->active && !s->shared.allow_during_config) return 1;
+    int error = s->shared.contained(s->shared.context, s->owner, s->epoch, s->active, s->prepared);
+    if (error || healthy(s)) return retire(s, error);
+    return 0;
 }
 
 int fes_nano_sd_returned(struct fes_nano_sd *s, uint64_t owner,
                          uint64_t return_generation, uint64_t generation)
 {
-    if (!s || !s->initialized || s->active || s->prepared || !return_generation ||
+    if (!s || !s->initialized || s->shared.valid || s->active || s->prepared || !return_generation ||
         s->owner != owner || s->return_generation != return_generation ||
         s->stopped_generation != generation || generation <= return_generation ||
         !s->bridges || s->bridges->state.generation != generation)

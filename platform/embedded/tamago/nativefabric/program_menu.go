@@ -122,7 +122,13 @@ func (p *programService) loadMenu(ctx context.Context) error {
 	if _, err = m.session.PresentFrame(ctx, m.frame); err != nil {
 		return err
 	}
-	return p.observeMenu(nil)
+	if err = p.observeMenu(nil); err != nil {
+		return err
+	}
+	if p.store.Shared() {
+		return p.store.Resume()
+	}
+	return nil
 }
 
 func (p *programService) restoreMenu() error {
@@ -145,6 +151,15 @@ func (p *programService) closeMenu(resume bool) error {
 		return err
 	}
 	if !resume {
+		return nil
+	}
+	if p.store.Shared() {
+		active, err := p.store.ActiveReceipt()
+		if err != nil || !active.Shared || active.Owner != returned.After.Owner {
+			return errors.Join(err, errors.New("native program menu: shared storage lost its owned return"))
+		}
+		p.rearm = true
+		m.returned = m.session
 		return nil
 	}
 	if err = m.session.ResumeStorageAfterReturn(); err != nil {
@@ -261,19 +276,39 @@ func (s *ProgramService) ParkMenu(ctx context.Context) (result error) {
 		state := p.preferences.PreferenceSaveState()
 		checkpoint = state.Pending && !state.Failed
 	}
-	if err := p.closeMenu(checkpoint); err != nil {
-		return p.fail(err)
-	}
-	if checkpoint {
-		write, cancel := context.WithTimeout(ctx, 100*time.Second)
-		err := p.checkpointPreferences(write)
-		cancel()
-		if _, activeErr := p.store.ActiveReceipt(); activeErr != nil {
-			return p.fail(errors.Join(err, activeErr))
-		}
-		err = errors.Join(err, p.store.Quiesce())
-		if err != nil {
+	if p.store.Shared() {
+		if err := p.closeMenu(false); err != nil {
 			return p.fail(err)
+		}
+		if checkpoint {
+			write, cancel := context.WithTimeout(ctx, 100*time.Second)
+			err := p.checkpointPreferences(write)
+			cancel()
+			if err != nil {
+				return p.fail(err)
+			}
+		}
+		if _, activeErr := p.store.ActiveReceipt(); activeErr != nil {
+			return p.fail(activeErr)
+		}
+		if err := p.store.Quiesce(); err != nil {
+			return p.fail(err)
+		}
+	} else {
+		if err := p.closeMenu(checkpoint); err != nil {
+			return p.fail(err)
+		}
+		if checkpoint {
+			write, cancel := context.WithTimeout(ctx, 100*time.Second)
+			err := p.checkpointPreferences(write)
+			cancel()
+			if _, activeErr := p.store.ActiveReceipt(); activeErr != nil {
+				return p.fail(errors.Join(err, activeErr))
+			}
+			err = errors.Join(err, p.store.Quiesce())
+			if err != nil {
+				return p.fail(err)
+			}
 		}
 	}
 	view.State = ProgramParked

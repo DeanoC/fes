@@ -2,8 +2,10 @@
 
 `sdcontrol.Session` joins [sdhci.Device](../sdhci/README.md) to the EL3
 [embedded-sd lease contract](../../../../sources/mister-packages/docs/embedded-sd.md)
-(`0xc2000302`), enforcing closed-bridge mutual exclusion between SD I/O and
-FPGA reconfiguration.
+(`0xc2000302`), enforcing either closed-bridge mutual exclusion
+(`NewClient` / `Config{Shared: false}`) or opt-in shared concurrency
+(`NewSharedClient` / `Config{Shared: true, BootOwner: ...}`) with active FPGA
+bridges and confirmed Ethernet under private SD generations.
 
 - **Called by:** [board/de25nano](../board/README.md), `cmd/fpgaload`,
   [packagestore](../packagestore/README.md), `cmd/sdfile`, and `cmd/sdwrite`.

@@ -142,6 +142,25 @@ func (s *ProgramService) install(ctx context.Context, generation uint64, plan *P
 	if view.State != ProgramReady || view.Generation != generation || generation > math.MaxUint64-2 || plan == nil || plan.loader != p.loader || plan.content == nil {
 		return ErrProgramSession
 	}
+	if p.store.Shared() {
+		work, cancel := context.WithTimeout(ctx, 100*time.Second)
+		defer cancel()
+		err = p.checkpointPreferences(work)
+		if err == nil {
+			err = p.store.Install(work, plan.content, plan.record)
+		}
+		if _, storageErr := p.store.ActiveReceipt(); storageErr != nil {
+			return p.fail(errors.Join(err, storageErr))
+		}
+		view.Generation++
+		if err != nil {
+			view.Error = err.Error()
+		} else {
+			view.Error = ""
+		}
+		p.publish(view)
+		return err
+	}
 	if err := p.pauseNetwork(ctx); err != nil {
 		return err
 	}
