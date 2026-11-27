@@ -297,8 +297,9 @@ other HPS/EMIF or boot-data changes still fail. This profile removes the DDR
 probe instance/control window/export and the memory JTAG master/export/address
 window. In this isolated profile only, the ID-preserving adapter's AXI
 read and combined credits are raised from one to sixteen, matching the selected
-HPS interface. Write credits remain one. Generation verifies both adapter
-interfaces and the HPS read/combined limits from their actual handoff metadata.
+HPS interface. Write credits remain one for scanout-only machines, and rise to
+sixteen when the HPS window shares the adapter. Generation verifies both adapter
+interfaces and the HPS limits from their actual handoff metadata.
 Other JTAG/OCM/F2H paths remain. Generation requires exactly one route
 into the F2SDRAM adapter, from scanout's memory crossing, and exactly one adapter
 route into HPS F2SDRAM; retained probe/debug instances, duplicate/extra masters,
