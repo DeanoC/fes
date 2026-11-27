@@ -36,6 +36,24 @@ GOWORK=off go -C platform/embedded/tamago run ./cmd/stage-installer \
   `FES/PREFS.JSON` (`preferences_recovery.snapshot_preferences` snapshots it
   read-only; `upload.py --purpose preferences` uploads bounded 64 KiB updates).
 
+### Pair the launcher with FogCast
+
+In FogCast target settings, prepare the named target's ID. Create a private
+JSON file containing that lowercase UUID as `target_id`, the same target's
+bearer credential as `token`, and a numeric TCP `port` (for example, 8080).
+Pass its absolute path to `stage-installer --agent-config` alongside the
+menu export. Keep the resulting staging directory and SD image private.
+The image assembler reserves `FES/AGENT.JSN` for this per-board record.
+Omit the option for a local-only launcher.
+
+On an Ethernet-enabled launcher, FogCast browses `_fogcast._tcp.local.`
+when a bound target's address changes. It authenticates health, matches the
+target UUID, then reads `/v1/kit/lease` and `/v1/status`. The local launcher
+reports owner `native-tenfoot` in MENU and during a game. The host can
+observe both states without claiming the kit. The current CBL SD profile
+has Ethernet disabled. Its UART reports `ethernet-disabled` when a pairing
+file is present. [Native Ethernet qualification](../tamago/network/README.md#de25-nano-target-discovery)
+
 ## 2. Build the matched native boot chain
 
 Build all linked artifacts from the same checked contracts:

@@ -80,6 +80,51 @@ driver using the pinned `lneto` TCP/IP stack
   `de25nano.NetworkEnabled()` is false. Enabling Nano Ethernet requires a
   network-enabled profile plus a qualified EL3 MAC lease/drain supplier.
 
+## DE25-Nano target discovery
+
+The paired `fpgaload` launcher reads an optional `FES/AGENT.JSN` while it
+owns the SD card. On a qualified Ethernet profile, its read-only target API
+and `_fogcast._tcp` advertisement share the interface that the native
+`ProgramService` pauses and drains during configuration. The MAC installs
+the mDNS multicast hash filter before packet workers start. The service uses
+the provisioned target UUID for pairing and a fresh, hardware-random boot UUID
+for host reboot detection. The lease observation binds that boot UUID to the
+SPL-derived owner and the launcher's current state and generation. The target
+API requires a hardware entropy source because the architectural counter used
+in the SPL owner can repeat after cold reset.
+MENU retains the local lease while idle. A provisioned launcher on the
+current SD profile emits `FES_NATIVE_AGENT_UNAVAILABLE reason=ethernet-disabled`
+and continues to the local UI.
+
+CBL’s factory cold-boot UART recorded Linux binding `socfpga-dwmac` to
+`10810000.ethernet`, reporting user ID `0x76`, Synopsys ID `0x31` and
+XGMAC2. U-Boot reported assigning a random MAC address. The wire capture’s
+SHA-256 is `e0fb20231ef46620ccd34f18bd74ff35df74230d5f4364d28201fddf1a9e5333`.
+The recovery loader on the same serial, TRWU8CBL, read MDIO registers 2/3
+at PHY address 1 as `0x0022`/`0x1622` (KSZ9031, ID `0x00221622`).
+It obtained a DHCP lease with a deliberately assigned MAC and transferred
+data. [CBL MDIO and DHCP capture](../../../../docs/validation/2026-11-02-de25-atf-handoff/boot-upload-result.json)
+and [recovery-loader SD readback](../../../../docs/validation/2026-10-31-de25-ethernet-sd/README.md).
+
+The native R1 cold-boot capture (SHA-256
+`a5b973468e117773cc57806e31626e15fb98311056985f633a4a027853675d5b`)
+records MAC control `3`, read/write stream ID `1`
+(`mac_ids=10001`), and secure and nonsecure SMMU CR0/CR0ACK all zero at
+cold admission. The same observation explicitly reports `access=unqualified`.
+A native supplier still needs to establish exclusive EMAC clock/reset and
+SMMU/firewall ownership, contain descriptor and buffer DMA within the
+pinned window, and prove outstanding MAC transactions have drained before
+returning the CPU to FPGA or SD operations. See the [driver's hardware
+requirements](../xgmac/README.md) and [firmware lease contract](../maccontrol/README.md).
+
+The next CBL qualification needs a source-bound supplier and an independently
+observable stop/drain boundary for that port. On a leased board, verify the
+grant, bounded packet transfer, drain and restart with a provisioned unicast
+MAC, then repeat across the local MENU/core and SD transitions. A separate
+LAN host can then discover the provisioned UUID, read authenticated health and
+kit lease, check the core and generation across launch/return, and observe
+the mDNS goodbye on Quit and Park.
+
 ## Verification
 
 ```sh

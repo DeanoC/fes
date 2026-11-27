@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import socket
 import struct
@@ -23,7 +24,8 @@ import sys
 import time
 import threading
 from urllib.parse import urlparse, unquote
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from host_support import Guest, LocalDNSServer, LocalSNTPServer, frames, network_catalog
 
@@ -207,7 +209,7 @@ def main():
         parser.error("storage requires --disk with an existing FAT32 regular-file image")
     if "," in str(output) or "," in str(disk):
         parser.error("output/disk paths cannot contain a comma (QEMU option separator)")
-    output.mkdir(parents=True)
+    output.mkdir(parents=True, mode=0o700)
     compiler, qemu = args.compiler.resolve(), args.qemu.resolve()
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0",
                GOOSPKG="github.com/usbarmory/tamago", GOTOOLCHAIN="local",
@@ -739,10 +741,11 @@ def main():
         else:
             lock_disk()
             agent_target_id = "11111111-2222-4333-8444-555555555555"
+            agent_token = secrets.token_urlsafe(32)
             agent_boot = {
                 "agent_port": 8080,
                 "agent_target_id": agent_target_id,
-                "agent_allow_unauthenticated": True,
+                "agent_token": agent_token,
                 "agent_mdns": True,
                 "agent_instance": "FES-QEMU",
                 "agent_host": "fes-qemu.local",
@@ -754,6 +757,12 @@ def main():
             screenshots = record["screenshots"] = []
             boot_started = datetime.now(timezone.utc)
             agent_host_port = _free_tcp_port()
+            def read_agent(path):
+                req = Request(f"http://127.0.0.1:{agent_host_port}" + path,
+                              headers={"Authorization": "Bearer " + agent_token})
+                with urlopen(req, timeout=args.timeout) as response:
+                    return json.load(response)
+
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display,
                        usb=args.input == "usb", hostfwd=f"tcp:127.0.0.1:{agent_host_port}-:8080") as guest:
                 first = ready(guest, initial)
@@ -768,18 +777,29 @@ def main():
                         raise RuntimeError("missing tenfoot agent startup marker: FES_AGENT_READY")
                     agent_base = f"http://127.0.0.1:{agent_host_port}"
                     with urlopen(f"{agent_base}/v1/health", timeout=args.timeout) as resp:
-                        agent_health = json.load(resp)
-                    if not agent_health.get("ready") or agent_health.get("target_id") != agent_target_id:
+                        public_health = json.load(resp)
+                    if public_health.get("target_id") or public_health.get("boot_id"):
+                        raise RuntimeError("public health exposed the target or boot identity")
+                    try:
+                        with urlopen(f"{agent_base}/v1/kit/lease", timeout=args.timeout):
+                            raise RuntimeError("guest agent accepted an anonymous lease read")
+                    except HTTPError as err:
+                        if err.code != 401:
+                            raise
+                    agent_health = read_agent("/v1/health")
+                    if (not agent_health.get("ready") or agent_health.get("target_id") != agent_target_id or
+                            agent_health.get("api_version") != "v1" or not agent_health.get("boot_id")):
                         raise RuntimeError(f"unexpected guest agent /v1/health: {agent_health}")
-                    with urlopen(f"{agent_base}/v1/status", timeout=args.timeout) as resp:
-                        agent_status = json.load(resp)
+                    lease_status = read_agent("/v1/kit/lease")
+                    if lease_status.get("state") != "blocked" or not lease_status.get("reason"):
+                        raise RuntimeError("network-only frontend must report local execution unavailable")
+                    agent_status = read_agent("/v1/status")
                     if agent_status.get("state") != "idle":
                         raise RuntimeError(f"unexpected guest agent /v1/status: {agent_status}")
                     diag_deadline = time.monotonic() + min(5.0, args.timeout)
                     agent_diag = {}
                     while True:
-                        with urlopen(f"{agent_base}/v1/diagnostics", timeout=args.timeout) as resp:
-                            agent_diag = json.load(resp)
+                        agent_diag = read_agent("/v1/diagnostics")
                         if agent_diag.get("mdns", {}).get("announcements", 0) >= 1:
                             break
                         if time.monotonic() >= diag_deadline:
@@ -787,6 +807,7 @@ def main():
                         time.sleep(0.1)
                     record["agent_http"] = {
                         "health": agent_health,
+                        "lease": lease_status,
                         "status": agent_status,
                         "diagnostics": agent_diag,
                     }
@@ -835,8 +856,14 @@ def main():
                     raise RuntimeError(f"FAT32 preference timestamp did not advance past {initial_mtime.isoformat()}")
                 if len({s["sha256"] for s in screenshots}) != 3:
                     raise RuntimeError("QMP screenshots did not change with navigation and layout")
-                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
+                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display,
+                           usb=args.input == "usb", hostfwd=f"tcp:127.0.0.1:{agent_host_port}-:8080") as guest:
                     ready(guest, expected)
+                    reboot_health = read_agent("/v1/health")
+                    if (reboot_health.get("target_id") != agent_target_id or not reboot_health.get("boot_id") or
+                            reboot_health["boot_id"] == agent_health["boot_id"]):
+                        raise RuntimeError("guest agent identity did not distinguish the fresh boot of this target")
+                    record["agent_http"]["reboot_health"] = reboot_health
                     screenshots.append(guest.screenshot("restored"))
                     record["second_boot_frames"] = frames(guest.text)
                 reboot_prefs, reboot_mtime = preferences("preferences-after-reboot")

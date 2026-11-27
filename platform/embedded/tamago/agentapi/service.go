@@ -16,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/targethttp"
 	"github.com/DeanoC/fes/platform/embedded/tamago/mdns"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/google/uuid"
 )
 
 func defaultMDNSNames(targetID string) (instance, host string) {
@@ -92,6 +93,7 @@ func (e linkEndpoint) NewHTTPServer(cfg network.ServerConfig) (*network.HTTPServ
 type StateControllerConfig struct {
 	Board   string
 	Address string
+	BootID  string // Optional boot identity supplied by the platform handoff.
 }
 
 // StateController implements targethttp.Controller and targethttp.DiagnosticsProvider
@@ -104,8 +106,16 @@ type StateController struct {
 	coreID string
 }
 
+var bootID = sync.OnceValue(uuid.NewString)
+
+// BootID identifies this firmware boot across controller and network service restarts.
+func BootID() string { return bootID() }
+
 // NewStateController constructs a StateController initialized to StateIdle.
 func NewStateController(cfg StateControllerConfig) *StateController {
+	if cfg.BootID == "" {
+		cfg.BootID = BootID()
+	}
 	return &StateController{
 		cfg:   cfg,
 		state: protocol.StateIdle,
@@ -115,7 +125,8 @@ func NewStateController(cfg StateControllerConfig) *StateController {
 // Health reports agent readiness and version information.
 func (c *StateController) Health(agentVersion string) protocol.Health {
 	return protocol.Health{
-		APIVersion:   "1",
+		APIVersion:   "v1",
+		BootID:       c.cfg.BootID,
 		AgentVersion: agentVersion,
 		Ready:        true,
 	}
@@ -180,6 +191,8 @@ type ServiceConfig struct {
 	Packages             targethttp.PackageStore
 	Launcher             targethttp.Launcher
 	Diagnostics          targethttp.DiagnosticsProvider
+	KitLease             targethttp.KitLeaseProvider
+	ReadOnly             bool
 	MaxUploadBytes       int64
 
 	AdvertiseMDNS bool
@@ -293,6 +306,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		Packages:             cfg.Packages,
 		Launcher:             cfg.Launcher,
 		Diagnostics:          diag,
+		KitLease:             cfg.KitLease,
+		ReadOnly:             cfg.ReadOnly,
 		MaxUploadBytes:       cfg.MaxUploadBytes,
 	})
 	if err != nil {

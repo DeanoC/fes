@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CONTROL = {'FES/CORESEL.JSN', 'FES/UI.JSON', 'FES/INSTALL.JSN',
            'FES/MENU.FCP', 'FES/MENU.JSN', 'FES/MENUSEL.JSN', 'FES/PREFS.JSON'}
 PROTECTED = {'u-boot.itb', 'FES/RECOVERY.JSON', EXPERIMENTAL_FILE, 'FES/BOOTCHAIN.JSON'}
+AGENT_CONFIG = 'FES/AGENT.JSN'
 
 
 def regular(path, limit):
@@ -84,11 +85,24 @@ def staging(directory):
             not isinstance(catalog['programs'], list) or not 1 <= len(catalog['programs']) <= 32):
         raise ValueError('explicit bounded install catalog required')
     required = set(CONTROL)
+    if AGENT_CONFIG in payload:
+        raw = payload[AGENT_CONFIG]
+        if len(raw) > 8192:
+            raise ValueError('oversized FogCast agent provisioning')
+        cfg = record(raw)
+        if (not isinstance(cfg, dict) or set(cfg) != {'target_id', 'token', 'port'} or
+                type(cfg['port']) is not int or not 1 <= cfg['port'] <= 65535 or
+                not isinstance(cfg['target_id'], str) or
+                not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', cfg['target_id']) or
+                not isinstance(cfg['token'], str) or not re.fullmatch(r'[a-zA-Z0-9._~+/-]+=*', cfg['token'])):
+            raise ValueError('invalid FogCast agent provisioning')
+        required.add(AGENT_CONFIG)
     for program in catalog['programs']:
         if not isinstance(program, dict) or not isinstance(program.get('files'), dict):
             raise ValueError('complete install source file inventory required')
         for name, expected in program['files'].items():
-            if name not in payload or name in CONTROL or hashlib.sha256(payload[name]).hexdigest() != expected:
+            if (name not in payload or name in CONTROL or name.casefold() == AGENT_CONFIG.casefold() or
+                    hashlib.sha256(payload[name]).hexdigest() != expected):
                 raise ValueError('staged install input differs')
             required.add(name)
     menus = record(payload['FES/MENUSEL.JSN'])

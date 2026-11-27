@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -108,11 +109,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
-	cleanupNetwork, err := startProgramNetwork(activeGIC)
+	cleanupNetwork, err := startProgramNetwork(activeGIC, startup.Agent)
 	if err != nil {
 		panic(err)
 	}
-	defer cleanupNetwork()
+	stopNetworkServices := sync.OnceFunc(cleanupNetwork)
+	defer stopNetworkServices()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
@@ -278,6 +280,8 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	// ProgramSerialPlatform turns Quit during a running core into owned Stop,
 	// then waits for Ready or terminal containment before exiting the App.
+	// Publish the mDNS goodbye and close listeners before final MAC containment.
+	stopNetworkServices()
 	status := programService.Status()
 	if status.State != nativefabric.ProgramReady && status.State != nativefabric.ProgramRebootRequired && status.State != nativefabric.ProgramParked {
 		panic("Tenfoot exited without a completed owned transition")

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -28,7 +29,8 @@ type fakeController struct {
 
 func (c *fakeController) Health(agentVersion string) protocol.Health {
 	return protocol.Health{
-		APIVersion:   "1",
+		APIVersion:   "v1",
+		BootID:       "test-boot",
 		AgentVersion: agentVersion,
 		Ready:        true,
 		Software:     c.software,
@@ -226,7 +228,7 @@ func TestRoutesAuthRedactionInventoryReconcileAndStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = r.Body.Close()
-	if r.StatusCode != http.StatusOK || health.TargetID != "" || health.Software != nil || health.AgentVersion != "tamago-test" {
+	if r.StatusCode != http.StatusOK || health.TargetID != "" || health.BootID != "" || health.Software != nil || health.AgentVersion != "tamago-test" {
 		t.Fatalf("unauthenticated health must redact TargetID and Software: status=%d %+v", r.StatusCode, health)
 	}
 
@@ -234,7 +236,7 @@ func TestRoutesAuthRedactionInventoryReconcileAndStats(t *testing.T) {
 	r = authReq(http.MethodGet, "/v1/health", "", nil, "test-token-123")
 	_ = json.NewDecoder(r.Body).Decode(&health)
 	_ = r.Body.Close()
-	if health.TargetID != "11111111-2222-4333-8444-555555555555" || health.Software == nil || health.Software.ActiveBundle != "bundle-1" {
+	if health.TargetID != "11111111-2222-4333-8444-555555555555" || health.BootID != "test-boot" || health.Software == nil || health.Software.ActiveBundle != "bundle-1" {
 		t.Fatalf("authenticated health missing TargetID/Software: %+v", health)
 	}
 
@@ -337,5 +339,111 @@ func TestRoutesAuthRedactionInventoryReconcileAndStats(t *testing.T) {
 	stats := h.Stats()
 	if stats.Requests < 10 || stats.AuthFailures != 1 || stats.Errors < 3 || stats.ActiveRequests != 0 {
 		t.Fatalf("unexpected stats: %+v", stats)
+	}
+}
+
+type leaseReporter struct {
+	status kitlease.Status
+	calls  int
+}
+
+func (l *leaseReporter) Status() kitlease.Status {
+	l.calls++
+	return l.status
+}
+
+func TestLeaseUsesCurrentAuthorityAndRequiresBearerEvenInOpenMode(t *testing.T) {
+	const token = "a+/._~-=="
+	lease := &leaseReporter{}
+	handler, err := New(Config{Controller: &fakeController{}, KitLease: lease, Token: token, AllowUnauthenticated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, headers := range [][]string{nil, {"Bearer "}, {"Bearer =invalid"}, {"Bearer wrong"}, {"Bearer " + token, "Bearer " + token}} {
+		req := httptest.NewRequest(http.MethodGet, "/v1/kit/lease", nil)
+		for _, v := range headers {
+			req.Header.Add("Authorization", v)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized || lease.calls != 0 {
+			t.Fatalf("unauthenticated lease status %d, authority reads %d", w.Code, lease.calls)
+		}
+	}
+	for _, state := range []kitlease.Status{{State: "held", Generation: "g1", Owner: "local", Purpose: "playing"}, {State: "blocked", Generation: "g2", Reason: "card removed"}} {
+		lease.status = state
+		req := httptest.NewRequest(http.MethodGet, "/v1/kit/lease", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		var got kitlease.Status
+		if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &got) != nil || got != state {
+			t.Fatalf("lease response %d: %s", w.Code, w.Body.String())
+		}
+	}
+	if lease.calls != 2 {
+		t.Fatalf("authority reads = %d", lease.calls)
+	}
+}
+
+func TestOpenHealthPublishesTargetAndSoftwareWithPrivateBootID(t *testing.T) {
+	const target = "11111111-2222-4333-8444-555555555555"
+	controller := &fakeController{software: &protocol.Identity{ActiveBundle: "open-bundle"}}
+	handler, err := New(Config{Controller: controller, TargetID: target, AllowUnauthenticated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
+	var health protocol.Health
+	if err := json.Unmarshal(w.Body.Bytes(), &health); err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != http.StatusOK || health.TargetID != target || health.Software == nil || health.Software.ActiveBundle != "open-bundle" || health.BootID != "" {
+		t.Fatalf("open health %d: %+v", w.Code, health)
+	}
+}
+
+func TestMissingLeaseProviderAndReadOnlyMutations(t *testing.T) {
+	controller := &fakeController{state: protocol.StateActive, coreID: "zx81"}
+	h, err := New(Config{Controller: controller, Token: "fixture", ReadOnly: true, Packages: newFakeStore(), Launcher: &fakeLauncher{ctrl: controller}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		method, path string
+		code         int
+	}{
+		{"GET", "/v1/kit/lease", http.StatusServiceUnavailable},
+		{"POST", "/v1/stop", http.StatusNotFound},
+		{"POST", "/v1/launch", http.StatusNotFound},
+		{"POST", "/v1/core-packages", http.StatusMethodNotAllowed},
+		{"PUT", "/v1/core-selections/zx81", http.StatusNotFound},
+		{"POST", "/v1/kit/claim", http.StatusNotFound},
+	} {
+		req := httptest.NewRequest(test.method, test.path, nil)
+		req.Header.Set("Authorization", "Bearer fixture")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != test.code {
+			t.Errorf("%s %s = %d, want %d", test.method, test.path, w.Code, test.code)
+		}
+	}
+	if controller.Status().State != protocol.StateActive {
+		t.Fatal("read-only agent stopped the core")
+	}
+}
+
+func TestConfiguredBearerUsesWireSyntax(t *testing.T) {
+	for _, token := range []string{"=", "a=b", "two words", "line\nbreak", "value:secret"} {
+		if ValidBearerToken(token) {
+			t.Fatal("invalid configured bearer accepted")
+		}
+		if _, err := New(Config{Controller: &fakeController{}, Token: token}); !errors.Is(err, ErrInvalidConfig) || strings.Contains(err.Error(), token) {
+			t.Fatal("expected a redacted configuration error")
+		}
+	}
+	if ValidBearerToken("") || !ValidBearerToken("Aaz09._-~+/==") {
+		t.Fatal("bearer grammar boundary")
 	}
 }

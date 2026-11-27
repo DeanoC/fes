@@ -14,6 +14,7 @@ import (
 
 // Models platform ownership only; these callbacks are not physical DMA proof.
 type programNetwork struct {
+	link              *network.Link
 	paused            atomic.Bool
 	stops, starts     int
 	stopErr, startErr error
@@ -29,6 +30,7 @@ func newProgramNetwork(t *testing.T, lifetime ...context.Context) (*programNetwo
 	if err != nil {
 		t.Fatal(err)
 	}
+	n.link = l
 	c, err := network.NewController(l, network.DMAControl{
 		Stop: func(ctx context.Context) error {
 			n.stops++

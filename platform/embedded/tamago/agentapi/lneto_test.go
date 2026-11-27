@@ -57,7 +57,7 @@ type tamagoController struct {
 
 func (c *tamagoController) Health(agentVersion string) protocol.Health {
 	return protocol.Health{
-		APIVersion:   "1",
+		APIVersion:   "v1",
 		AgentVersion: agentVersion,
 		Ready:        true,
 	}
@@ -193,7 +193,7 @@ func TestFogCastTargetHTTPOverRealLnetoEthernetFrames(t *testing.T) {
 	var health protocol.Health
 	_ = json.NewDecoder(healthResp.Body).Decode(&health)
 	_ = healthResp.Body.Close()
-	if healthResp.StatusCode != http.StatusOK || health.TargetID == "" {
+	if healthResp.StatusCode != http.StatusOK || !health.Ready || health.TargetID != "11111111-2222-4333-8444-555555555555" || health.BootID != "" {
 		t.Fatalf("health over lneto frames = %d %+v", healthResp.StatusCode, health)
 	}
 }

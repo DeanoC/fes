@@ -56,7 +56,7 @@ func (f *choiceTestFile) Read(out []byte) (int, error) {
 
 func TestProgramSelectionReadsOnlyBoundedCompleteRequestsAndClosesFiles(t *testing.T) {
 	choice := programChoice{Path: "FES/ONE.BIN", PackageID: strings.Repeat("a", 64), MetadataPath: "FES/ONE.JSN", MetadataSHA256: strings.Repeat("b", 64)}
-	for _, fault := range []string{"pass", "empty", "too-many", "path", "package", "metadata", "unknown", "duplicate", "missing", "oversized", "stall", "count", "cancel", "close"} {
+	for _, fault := range []string{"pass", "empty", "too-many", "path", "private-config", "package", "metadata", "unknown", "duplicate", "missing", "oversized", "stall", "count", "cancel", "close"} {
 		t.Run(fault, func(t *testing.T) {
 			selected := programChoices{1, "nano-program-selection-v1", []programChoice{choice, choice}}
 			switch fault {
@@ -66,6 +66,8 @@ func TestProgramSelectionReadsOnlyBoundedCompleteRequestsAndClosesFiles(t *testi
 				selected.Programs = make([]programChoice, 17)
 			case "path":
 				selected.Programs[0].Path = "../outside"
+			case "private-config":
+				selected.Programs[0].MetadataPath = "fes/Agent.Jsn"
 			case "package":
 				selected.Programs[0].PackageID = "bad"
 			case "metadata":

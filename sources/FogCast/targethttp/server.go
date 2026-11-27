@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -70,6 +71,11 @@ type DiagnosticsProvider interface {
 	Diagnostics(ctx context.Context) (any, *protocol.APIError)
 }
 
+// KitLeaseProvider reports the target owner's current execution lease.
+type KitLeaseProvider interface {
+	Status() kitlease.Status
+}
+
 // AgentStats summarizes cumulative HTTP requests, auth rejections, and errors.
 type AgentStats struct {
 	Requests       uint64
@@ -83,11 +89,13 @@ type Config struct {
 	Controller           Controller
 	Token                string // Bearer token; constant-time SHA-256 comparison
 	AllowUnauthenticated bool   // Explicit opt-in for open LAN game-appliance deployments
-	TargetID             string // Exposed in /v1/health when authenticated or AllowUnauthenticated
+	TargetID             string // Exposed in /v1/health with a valid bearer or in explicit open mode
 	AgentVersion         string // Reported in /v1/health (default "tamago-agent")
 	Packages             PackageStore
 	Launcher             Launcher
 	Diagnostics          DiagnosticsProvider
+	KitLease             KitLeaseProvider
+	ReadOnly             bool  // Advertise observation routes only.
 	MaxUploadBytes       int64 // Max archive upload size (default corepackage.MaxArchiveSize; <0 invalid)
 }
 
@@ -111,6 +119,9 @@ func New(cfg Config) (*Handler, error) {
 	}
 	if cfg.Token == "" && !cfg.AllowUnauthenticated {
 		return nil, fmt.Errorf("%w: token required unless AllowUnauthenticated is true", ErrInvalidConfig)
+	}
+	if cfg.Token != "" && !ValidBearerToken(cfg.Token) {
+		return nil, fmt.Errorf("%w: invalid bearer token", ErrInvalidConfig)
 	}
 	if cfg.MaxUploadBytes < 0 || cfg.MaxUploadBytes > corepackage.MaxArchiveSize {
 		return nil, fmt.Errorf("%w: MaxUploadBytes out of range", ErrInvalidConfig)
@@ -158,19 +169,23 @@ func (h *Handler) Stats() AgentStats {
 
 func (h *Handler) registerRoutes() {
 	h.mux.HandleFunc("GET /v1/health", h.handleHealth)
-	h.mux.Handle("GET /v1/status", h.authenticate(http.HandlerFunc(h.handleStatus)))
-	h.mux.Handle("POST /v1/stop", h.authenticate(http.HandlerFunc(h.handleStop)))
-	h.mux.Handle("GET /v1/core-packages", h.authenticate(http.HandlerFunc(h.handleListCorePackages)))
-	h.mux.Handle("GET /v1/core-selections", h.authenticate(http.HandlerFunc(h.handleListCoreSelections)))
-	h.mux.Handle("POST /v1/core-packages", h.authenticate(http.HandlerFunc(h.handleInstallCorePackage)))
-	h.mux.Handle("PUT /v1/core-selections/{core_id}", h.authenticate(http.HandlerFunc(h.handleSelectCorePackage)))
-	h.mux.Handle("POST /v1/launch", h.authenticate(http.HandlerFunc(h.handleLaunch)))
-	h.mux.Handle("GET /v1/diagnostics", h.authenticate(http.HandlerFunc(h.handleDiagnostics)))
+	h.mux.Handle("GET /v1/status", h.authenticate(h.handleStatus))
+	h.mux.Handle("GET /v1/core-packages", h.authenticate(h.handleListCorePackages))
+	h.mux.Handle("GET /v1/core-selections", h.authenticate(h.handleListCoreSelections))
+	h.mux.Handle("GET /v1/diagnostics", h.authenticate(h.handleDiagnostics))
+	h.mux.Handle("GET /v1/kit/lease", h.requireBearer(h.handleKitLease))
+	if h.cfg.ReadOnly {
+		return
+	}
+	h.mux.Handle("POST /v1/stop", h.authenticate(h.handleStop))
+	h.mux.Handle("POST /v1/core-packages", h.authenticate(h.handleInstallCorePackage))
+	h.mux.Handle("PUT /v1/core-selections/{core_id}", h.authenticate(h.handleSelectCorePackage))
+	h.mux.Handle("POST /v1/launch", h.authenticate(h.handleLaunch))
 }
 
-func (h *Handler) isAuthenticated(r *http.Request) bool {
-	if h.cfg.AllowUnauthenticated {
-		return true
+func (h *Handler) hasBearer(r *http.Request) bool {
+	if h.cfg.Token == "" {
+		return false
 	}
 	authz := r.Header.Values("Authorization")
 	if len(authz) != 1 {
@@ -184,9 +199,16 @@ func (h *Handler) isAuthenticated(r *http.Request) bool {
 	return subtle.ConstantTimeCompare(actual[:], h.tokenDigest[:]) == 1
 }
 
-func (h *Handler) authenticate(next http.Handler) http.Handler {
+func (h *Handler) authenticate(next http.HandlerFunc) http.Handler {
+	if h.cfg.AllowUnauthenticated {
+		return next
+	}
+	return h.requireBearer(next)
+}
+
+func (h *Handler) requireBearer(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !h.isAuthenticated(r) {
+		if !h.hasBearer(r) {
 			h.authFailures.Add(1)
 			writeAPIError(w, http.StatusUnauthorized, &protocol.APIError{
 				Code:    protocol.CodeUnauthorized,
@@ -200,20 +222,29 @@ func (h *Handler) authenticate(next http.Handler) http.Handler {
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := h.cfg.Controller.Health(h.cfg.AgentVersion)
-	software := health.Software
-	health.TargetID = ""
-	health.Software = nil
-	if h.isAuthenticated(r) {
-		if h.cfg.TargetID != "" {
-			health.TargetID = h.cfg.TargetID
+	health.TargetID = h.cfg.TargetID
+	if !h.hasBearer(r) {
+		health.BootID = ""
+		if !h.cfg.AllowUnauthenticated {
+			health.TargetID = ""
+			health.Software = nil
 		}
-		health.Software = software
 	}
 	writeJSON(w, http.StatusOK, health)
 }
 
 func (h *Handler) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.cfg.Controller.Status())
+}
+
+func (h *Handler) handleKitLease(w http.ResponseWriter, _ *http.Request) {
+	if h.cfg.KitLease == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, &protocol.APIError{
+			Code: protocol.CodeUnavailable, Message: "kit lease status is unavailable",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, h.cfg.KitLease.Status())
 }
 
 func (h *Handler) handleStop(w http.ResponseWriter, r *http.Request) {
@@ -421,14 +452,15 @@ func exactContentType(r *http.Request, want string) bool {
 }
 
 func parseBearerToken(authorization string) (string, bool) {
-	const prefix = "Bearer "
-	if !strings.HasPrefix(authorization, prefix) {
+	token, ok := strings.CutPrefix(authorization, "Bearer ")
+	if !ok || !ValidBearerToken(token) {
 		return "", false
 	}
-	token := authorization[len(prefix):]
-	if token == "" {
-		return "", false
-	}
+	return token, true
+}
+
+// ValidBearerToken reports whether token can be sent as an RFC 6750 bearer credential.
+func ValidBearerToken(token string) bool {
 	hasData := false
 	padding := false
 	for i := 0; i < len(token); i++ {
@@ -439,11 +471,11 @@ func parseBearerToken(authorization string) (string, bool) {
 		}
 		valid := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strings.ContainsRune("-._~+/", rune(c))
 		if padding || !valid {
-			return "", false
+			return false
 		}
 		hasData = true
 	}
-	return token, hasData
+	return hasData
 }
 
 func writePackageStoreUnavailable(w http.ResponseWriter) {

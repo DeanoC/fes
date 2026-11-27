@@ -122,6 +122,19 @@ class LauncherImageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'fresh private'):
             self.prepare()
 
+    def test_private_agent_record_survives_fat_assembly_and_is_reserved(self):
+        cfg = {'target_id': '12345678-2222-4333-8444-555555555555', 'port': 8182, 'token': 'integration-example'}
+        self.payload[image.AGENT_CONFIG] = encoded(cfg)
+        self.write_staging()
+        result = self.prepare()
+        self.assertEqual(result['files'][image.AGENT_CONFIG]['sha256'], digest(encoded(cfg)))
+        self.assertNotIn(cfg['token'], json.dumps(result))
+        manifest = json.loads(self.payload['FES/INSTALL.JSN'])
+        manifest['programs'][0]['files'][image.AGENT_CONFIG] = digest(encoded(cfg))
+        (self.staged/'FES/INSTALL.JSN').write_bytes(encoded(manifest))
+        with self.assertRaisesRegex(ValueError, 'staged install input differs'):
+            image.staging(self.staged)
+
     def test_packaging_readback_rejects_substituted_payloads_and_extra_files(self):
         receipt = self.prepare()
         disk = self.output/'native-launcher-sd.img'

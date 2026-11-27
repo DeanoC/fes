@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
@@ -77,13 +78,28 @@ func prepareProgramNetwork(v *nativefabric.HPSContextVerifier) error {
 	return nil
 }
 
-func startProgramNetwork(g *gic.Controller) (func(), error) {
+func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (func(), error) {
 	spec, err := parseProgramNetworkSpec()
 	if err != nil {
 		return func() {}, err
 	}
 	if !de25nano.NetworkEnabled() {
+		if provision != nil {
+			fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=ethernet-disabled")
+		}
 		return func() {}, nil
+	}
+	// CNTPCT may repeat after cold reset. The physical target uses one fresh
+	// UUID for this boot, independent of the stable SD-provisioned target ID.
+	var bootID string
+	if provision != nil {
+		if de25nano.EntropySource().IsHardware() {
+			bootID = agentapi.BootID()
+		}
+		if bootID == "" || !de25nano.EntropySource().IsHardware() {
+			fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=boot-entropy-unavailable")
+			provision = nil
+		}
 	}
 	startupTimeout := 5 * time.Second
 	if spec.DHCP {
@@ -94,6 +110,7 @@ func startProgramNetwork(g *gic.Controller) (func(), error) {
 	netOpts := de25nano.NetworkOptions{
 		Allow100Full:    spec.Allow100Full,
 		RecoverLinkLoss: spec.RecoverLinkLoss,
+		ReceiveMDNS:     provision != nil,
 		OnLinkChange: func(up bool, speed xgmac.LinkSpeed) {
 			fmt.Printf("FES_NATIVE_NETWORK_LINK up=%t speed=%d\n", up, speed)
 			if up {
@@ -104,7 +121,9 @@ func startProgramNetwork(g *gic.Controller) (func(), error) {
 		},
 	}
 	var iface *network.Interface
+	var networkLifetime context.Context
 	err = programService.StartNetworkWithTimeout(context.Background(), startupTimeout, programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+		networkLifetime = lifetime
 		var control *network.Controller
 		var err error
 		if spec.DHCP {
@@ -192,5 +211,25 @@ func startProgramNetwork(g *gic.Controller) (func(), error) {
 		}
 	}
 
+	if provision != nil {
+		target, err := programService.NewTargetService(iface, *provision, programNetworkBootOwner, bootID, func(err error) {
+			fmt.Printf("FES_NATIVE_AGENT_ERROR err=%q\n", err)
+		})
+		if err == nil {
+			err = target.Start(networkLifetime)
+		}
+		if err != nil {
+			runCleanups()
+			return func() {}, err
+		}
+		cleanups = append(cleanups, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := target.Stop(ctx); err != nil {
+				fmt.Printf("FES_NATIVE_AGENT_STOP_ERROR err=%q\n", err)
+			}
+		})
+		fmt.Printf("FES_NATIVE_AGENT_READY addr=%s target_id=%s\n", target.Addr(), provision.TargetID)
+	}
 	return runCleanups, nil
 }

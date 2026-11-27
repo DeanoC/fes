@@ -6,9 +6,11 @@ package de25nano
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/mdns"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/xgmac"
 )
@@ -46,6 +48,7 @@ func NetworkEnabled() bool { return profileNetworkEnabled }
 type NetworkOptions struct {
 	Allow100Full    bool
 	RecoverLinkLoss bool
+	ReceiveMDNS     bool
 	OnLinkChange    func(up bool, speed xgmac.LinkSpeed)
 }
 
@@ -133,6 +136,10 @@ func openControlledNetwork(
 			RecoverLinkLoss: opts.RecoverLinkLoss,
 			OnLinkChange:    opts.OnLinkChange,
 		})
+		if err == nil && opts.ReceiveMDNS {
+			group := mdns.MulticastMAC()
+			err = ownedNetworkDevice.SetMulticastMACs([]net.HardwareAddr{group[:]})
+		}
 		if err == nil {
 			err = ctx.Err()
 		}

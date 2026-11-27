@@ -4,7 +4,9 @@ package nativefabric
 import (
 	"context"
 	"errors"
+	"io/fs"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -17,6 +19,7 @@ type ProgramStartup struct {
 	Staged          []*StagedProgram
 	StagedError     error
 	PreferencesMode string
+	Agent           *agentapi.Provisioning
 }
 
 // ReadProgramStartup uses only the current active store. writable and paired
@@ -53,7 +56,22 @@ func ReadProgramStartup(ctx context.Context, store *packagestore.Store, writable
 	}
 	startup := &ProgramStartup{Entries: entries, PreferencesMode: "ram"}
 	if paired {
-		raw, err := store.ReadStagingRecord(ctx, "FES/MENUSEL.JSN")
+		raw, err := store.ReadStagingRecord(ctx, agentapi.ProvisioningPath)
+		if err == nil {
+			provision, err := agentapi.ParseProvisioning(raw)
+			clear(raw)
+			if err != nil {
+				return nil, err
+			}
+			startup.Agent = &provision
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+		// ReadStagingRecord may join a missing file with a lease failure.
+		if _, err := store.ActiveReceipt(); err != nil {
+			return nil, err
+		}
+		raw, err = store.ReadStagingRecord(ctx, "FES/MENUSEL.JSN")
 		if err != nil {
 			return nil, err
 		}
