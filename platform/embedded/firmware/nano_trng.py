@@ -89,5 +89,6 @@ def verify(image, source, installed):
         if loads != [bytes(size)]:
             raise ValueError(f"{name} must be sealed file-backed zeros")
         placement[name] = {"address": address, "bytes": size}
-    return {"source": "SDM FCS_RANDOM_GEN", "cold_bytes": 128, "runtime_mailbox_calls": 0,
+    return {"source": "SDM FCS_RANDOM_GEN", "protocol": "agilex5-fcs-session",
+            "cold_bytes": 128, "runtime_mailbox_calls": 0,
             "placement": placement, "installed": installed}

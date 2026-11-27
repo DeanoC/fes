@@ -46,6 +46,12 @@ menu export. Keep the resulting staging directory and SD image private.
 The image assembler reserves `FES/AGENT.JSN` for this per-board record.
 Omit the option for a local-only launcher.
 
+The matched Agilex 5 boot firmware opens an SDM crypto session to obtain a
+fresh boot ID. The serial marker `FES_NANO_TRNG ready bytes=128` confirms
+the boot entropy pool is ready. If the launcher reports
+`boot-entropy-unavailable`, MENU remains usable locally and FogCast discovery
+is disabled for that boot.
+
 On an Ethernet-enabled launcher, FogCast browses `_fogcast._tcp.local.`
 when a bound target's address changes. It authenticates health, matches the
 target UUID, then reads `/v1/kit/lease` and `/v1/status`. The local launcher

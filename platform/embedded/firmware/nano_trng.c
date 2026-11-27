@@ -37,57 +37,103 @@ struct {
     bool available;
 } fes_nano_boot_entropy BOOT_DATA;
 
-/* bl31_main runs platform and SDM setup before standard services, and only
- * then enters BL33. No outstanding command or stale response may be reused. */
+/* A completed command must retire exactly its request and reply. A late
+ * reply must never alias a later FPGA programming transaction. */
+static int entropy_command(unsigned cmd, uint32_t *args, unsigned nargs,
+                           uint32_t *reply, unsigned *words)
+{
+    unsigned capacity = *words;
+    uint32_t cin = mmio_read_32(MBOX_OFFSET + MBOX_CIN);
+    uint32_t rout = mmio_read_32(MBOX_OFFSET + MBOX_ROUT);
+    int status = mailbox_send_cmd(ENTROPY_JOB, cmd, args, nargs, CMD_CASUAL, reply, words);
+    if (!fes_nano_sdm_control_mailbox_idle())
+        panic();
+    uint32_t next_cin = mmio_read_32(MBOX_OFFSET + MBOX_CIN);
+    uint32_t next_rout = mmio_read_32(MBOX_OFFSET + MBOX_ROUT);
+    if (status && next_cin == cin && next_rout == rout) {
+        *words = 0; /* The command was never submitted. */
+    } else if (*words > capacity ||
+               next_cin != (cin + 1U + nargs) % MBOX_CMD_BUFFER_SIZE ||
+               next_rout != (rout + 1U + *words) % MBOX_RESP_BUFFER_SIZE) {
+        panic();
+    }
+    if (status != MBOX_RET_OK)
+        NOTICE("FES_NANO_TRNG command=%x status=%d words=%u\n", cmd, status, *words);
+    return status;
+}
+
+/* Agilex 5 FCS uses a crypto session. The three-word reply prefix carries
+ * the session ID, context ID and crypto parameters. It is never entropy. */
+static bool entropy_block(uint32_t session, unsigned block)
+{
+    enum { HEADER_WORDS = 3, REPLY_WORDS = HEADER_WORDS + FCS_RANDOM_WORD_SIZE };
+    uint32_t args[] = {session, block + 1U,
+        (FCS_CS_FIELD_FLAG_INIT | FCS_CS_FIELD_FLAG_FINALIZE) << FCS_CS_FIELD_FLAG_OFFSET,
+        FCS_RANDOM_WORD_SIZE * sizeof(uint32_t)};
+    uint32_t reply[REPLY_WORDS] = {0};
+    unsigned words = REPLY_WORDS;
+    bool valid = false;
+    if (entropy_command(MBOX_FCS_RANDOM_GEN, args, 4U, reply, &words) != MBOX_RET_OK)
+        goto done;
+    if (words != REPLY_WORDS || reply[0] != session || reply[1] != args[1]) {
+        NOTICE("FES_NANO_TRNG rejected-reply block=%u words=%u\n", block, words);
+        goto done;
+    }
+
+    uint32_t *data = reply + HEADER_WORDS;
+    uint32_t nonzero = 0U;
+    for (unsigned i = 0; i < FCS_RANDOM_WORD_SIZE; ++i)
+        nonzero |= data[i];
+    if (!nonzero)
+        goto done;
+    for (unsigned prior = 0; prior < block; ++prior) {
+        uint32_t different = 0U;
+        for (unsigned i = 0; i < FCS_RANDOM_WORD_SIZE; ++i)
+            different |= data[i] ^ fes_nano_boot_entropy.words[prior][i];
+        if (!different)
+            goto done;
+    }
+    for (unsigned i = 0; i < FCS_RANDOM_WORD_SIZE; ++i)
+        fes_nano_boot_entropy.words[block][i] = data[i];
+    valid = true;
+done:
+    zeromem(reply, sizeof(reply));
+    return valid;
+}
+
+/* bl31_main runs platform and SDM setup before standard services. Complete
+ * and close the session before making any random bytes available to BL33. */
 void plat_entropy_setup(void)
 {
     if (fes_nano_boot_entropy.attempted)
         return;
     fes_nano_boot_entropy.attempted = true;
-    if (!fes_nano_sdm_control_mailbox_idle())
+    if (!fes_nano_sdm_control_mailbox_idle()) {
+        NOTICE("FES_NANO_TRNG unavailable mailbox-busy\n");
         return;
+    }
 
-    for (unsigned block = 0; block < BOOT_BLOCKS; ++block) {
-        unsigned length = FCS_RANDOM_WORD_SIZE;
-        uint32_t cin = mmio_read_32(MBOX_OFFSET + MBOX_CIN);
-        uint32_t rout = mmio_read_32(MBOX_OFFSET + MBOX_ROUT);
-        int status = mailbox_send_cmd(ENTROPY_JOB, MBOX_FCS_RANDOM_GEN, NULL, 0,
-                                      CMD_CASUAL, fes_nano_boot_entropy.words[block], &length);
+    uint32_t session = 0;
+    unsigned words = 1;
+    if (entropy_command(MBOX_FCS_OPEN_CS_SESSION, NULL, 0U, &session, &words) != MBOX_RET_OK)
+        return;
+    if (words != 1U)
+        panic(); /* An opened session cannot be closed without its ID. */
 
-        /* A late reply must never alias a programming transaction. Only a
-         * completely consumed response or a proven non-submission can return
-         * control to BL33. Do not clear or reinitialize an uncertain FIFO. */
-        if (!fes_nano_sdm_control_mailbox_idle())
-            panic();
-        uint32_t next_cin = mmio_read_32(MBOX_OFFSET + MBOX_CIN);
-        uint32_t next_rout = mmio_read_32(MBOX_OFFSET + MBOX_ROUT);
-        if (status && next_cin == cin && next_rout == rout)
-            goto unavailable;
-        if (length > FCS_RANDOM_WORD_SIZE ||
-            next_cin != (cin + 1U) % MBOX_CMD_BUFFER_SIZE ||
-            next_rout != (rout + 1U + length) % MBOX_RESP_BUFFER_SIZE)
-            panic();
-        if (status != MBOX_RET_OK || length != FCS_RANDOM_WORD_SIZE)
-            goto unavailable;
-        uint32_t nonzero = 0U;
-        for (unsigned i = 0; i < length; ++i)
-            nonzero |= fes_nano_boot_entropy.words[block][i];
-        if (!nonzero)
-            goto unavailable;
-        for (unsigned prior = 0; prior < block; ++prior) {
-            uint32_t different = 0U;
-            for (unsigned i = 0; i < length; ++i)
-                different |= fes_nano_boot_entropy.words[block][i] ^ fes_nano_boot_entropy.words[prior][i];
-            if (!different)
-                goto unavailable;
-        }
+    unsigned block = 0;
+    while (block < BOOT_BLOCKS && entropy_block(session, block))
+        ++block;
+    words = 0;
+    if (entropy_command(MBOX_FCS_CLOSE_CS_SESSION, &session, 1U, NULL, &words) != MBOX_RET_OK)
+        panic();
+    if (block != BOOT_BLOCKS) {
+        zeromem(fes_nano_boot_entropy.words, sizeof(fes_nano_boot_entropy.words));
+        NOTICE("FES_NANO_TRNG unavailable block=%u\n", block);
+        return;
     }
     fes_nano_boot_entropy.available = true;
     plat_trng_uuid = fes_sdm_rng_uuid;
-    return;
-
-unavailable:
-    zeromem(fes_nano_boot_entropy.words, sizeof(fes_nano_boot_entropy.words));
+    NOTICE("FES_NANO_TRNG ready bytes=%u\n", (unsigned)sizeof(fes_nano_boot_entropy.words));
 }
 
 /* TRNG's generic entropy pool holds its spinlock across every invocation. */
