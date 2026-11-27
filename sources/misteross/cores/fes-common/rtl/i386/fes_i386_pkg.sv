@@ -113,6 +113,7 @@ package fes_i386_pkg;
         logic        valid;
         logic        uncond;
         logic        call;
+        logic        call16;  // a near CALL pushes only the low 16 bits of EIP
         logic        ret;
         logic [1:0]  ctr;
         logic [3:0]  last;
