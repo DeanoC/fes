@@ -150,6 +150,8 @@ if "--selection-only" in sys.argv:
                   ({name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
                    if sys.argv[1].startswith("boards.de25nano.")
                    else {"selection-only": "not authenticated"}))
+    if "--quartus-yosys" in sys.argv and not hasattr(producer, "selection_identities"):
+        identities = {"quartus": "selection-only", "yosys": "selection-only"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
     tools = authenticate(root, cache_root=cache_root)
@@ -177,7 +179,9 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
                "--producer-script", recipe.producer_script,
-               *license_arguments, *(["--selection-only"] if selection_only else [])]
+               *license_arguments, *(["--selection-only"] if selection_only else []),
+               *(["--quartus-yosys"] if selection_only and recipe.toolchain == "quartus"
+                 and recipe.front_end == "yosys" else [])]
     try:
         child_env = package_build_environment(env, recipe=recipe)
         record = (_bounded_pc386_canonical(command, source, child_env)

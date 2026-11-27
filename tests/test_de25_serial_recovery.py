@@ -1,8 +1,11 @@
+import contextlib
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import call, patch
 
 
@@ -13,6 +16,63 @@ SPEC.loader.exec_module(recovery)
 
 
 class De25SerialRecoveryTests(unittest.TestCase):
+    def _make_sysfs(self, sys_root, tty_name, serial, interface):
+        bus = '3-11.1' if serial == 'TRWU8CBL' else '3-11.3'
+        usb_device = (sys_root / 'devices/pci0000:80/0000:80:14.0/usb3' / bus)
+        usb_device.mkdir(parents=True)
+        for name, value in (
+                ('serial', serial), ('idVendor', '09fb'), ('idProduct', '6026'),
+                ('product', 'DE25-Nano')):
+            (usb_device / name).write_text(value + '\n')
+        interface_path = usb_device / f'{bus}:1.{int(interface)}'
+        interface_path.mkdir()
+        (interface_path / 'bInterfaceNumber').write_text(interface + '\n')
+        tty_path = interface_path / tty_name
+        tty_path.mkdir()
+        class_device = sys_root / 'class/tty' / tty_name / 'device'
+        class_device.parent.mkdir(parents=True)
+        class_device.symlink_to(tty_path)
+
+    def _run_probe(self, *, port=1, serial='TRWU8J8G', interface='02',
+                   target_name=None, link_exists=True, opened_rdev=0):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dev_root = root / 'dev'
+            sys_root = root / 'sys'
+            dev_root.mkdir()
+            sys_root.mkdir()
+            target_name = target_name or f'ttyUSB{port}'
+            target = dev_root / target_name
+            target.write_bytes(b'fixture device node')
+
+            if target_name.startswith('ttyUSB'):
+                self._make_sysfs(sys_root, target_name, serial, interface)
+            by_id = dev_root / Path(recovery.J8G_DEVICE).relative_to('/dev')
+            if link_exists:
+                by_id.parent.mkdir(parents=True)
+                by_id.symlink_to(Path('../..') / target_name)
+
+            output = root / 'observation.json'
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (patch.object(recovery, 'DEV_ROOT', dev_root),
+                  patch.object(recovery, 'SYS_ROOT', sys_root),
+                  patch.object(recovery.os, 'open', return_value=41) as mocked_open,
+                  patch.object(recovery.os, 'fstat', return_value=SimpleNamespace(st_rdev=opened_rdev)),
+                  patch.object(recovery.os, 'close') as mocked_close,
+                  patch.object(recovery.termios, 'tcgetattr', return_value=[0] * 7),
+                  patch.object(recovery.termios, 'tcsetattr'),
+                  patch.object(recovery, 'capture', return_value=b'Linux version fixture')):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    status = recovery.main([
+                        '--probe', '--serial', 'TRWU8J8G', '--output', str(output),
+                        '--observe-seconds', '0.01',
+                    ])
+                observation = json.loads(output.read_text()) if output.exists() else None
+                open_calls = mocked_open.call_args_list
+                close_calls = mocked_close.call_args_list
+            return status, observation, open_calls, close_calls, stderr.getvalue()
+
     def test_detects_linux_boot_marker(self):
         result = recovery.classify_console(b'Linux version 6.12.11-fes-de25-owner')
         self.assertEqual(result['state'], 'linux-boot')
@@ -47,15 +107,108 @@ class De25SerialRecoveryTests(unittest.TestCase):
             call(7, recovery.LINUX_TIOCCBRK),
         ])
 
-    def test_receipt_requires_a_detected_boot_and_distinct_network_boot_ids(self):
+    @patch.object(recovery, 'open_j8g')
+    def test_reboot_without_verified_menu_never_opens_the_console(self, open_j8g):
+        with self.assertRaises(SystemExit) as raised:
+            recovery.main(['--reboot', '--serial', 'TRWU8J8G', '--output', 'serial.json'])
+        self.assertEqual(raised.exception.code, 2)
+        open_j8g.assert_not_called()
+
+    @patch.object(recovery.os, 'close')
+    @patch.object(recovery, 'sysrq_reboot')
+    @patch.object(recovery, 'capture', side_effect=[b'', b'Starting kernel'])
+    @patch.object(recovery, 'open_j8g', return_value=(7, {"resolved_device": "/dev/ttyUSB1", "usb_interface": "02", "usb_serial": "TRWU8J8G", "sysfs_device": "/sys/devices/fake"}))
+    def test_verified_menu_reboot_records_serial_boot(self, open_j8g, _capture, reboot, _close):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'serial.json'
+            self.assertEqual(recovery.main([
+                '--reboot', '--menu-confirmed', '--serial', 'TRWU8J8G', '--output', str(output),
+            ]), 0)
+            value = json.loads(output.read_text())
+        open_j8g.assert_called_once_with(writable=True)
+        reboot.assert_called_once_with(7)
+        self.assertTrue(value['input_sent'])
+        self.assertTrue(value['after']['linux_boot_seen'])
+
+    def test_j8g_interface_02_is_accepted_on_ttyusb1_and_ttyusb2(self):
+        for port in (1, 2):
+            with self.subTest(port=port):
+                status, observation, open_calls, _close_calls, error = self._run_probe(port=port)
+                self.assertEqual(status, 0, error)
+                self.assertEqual(len(open_calls), 1)
+                self.assertEqual(observation['resolved_device'], f'/dev/ttyUSB{port}')
+                self.assertEqual(observation['usb_interface'], '02')
+                self.assertEqual(observation['usb_serial'], 'TRWU8J8G')
+                self.assertIn('/sys/devices/', observation['sysfs_device'])
+
+    def test_cbl_board_is_refused_explicitly(self):
+        status, observation, open_calls, _close_calls, error = self._run_probe(
+            port=0, serial='TRWU8CBL')
+        self.assertEqual(status, 2)
+        self.assertIsNone(observation)
+        self.assertEqual(open_calls, [])
+        self.assertIn('TRWU8CBL', error)
+
+    def test_j8g_interface_03_is_refused(self):
+        status, observation, open_calls, _close_calls, error = self._run_probe(
+            port=2, interface='03')
+        self.assertEqual(status, 2)
+        self.assertIsNone(observation)
+        self.assertEqual(open_calls, [])
+        self.assertIn('expected 02', error)
+
+    def test_missing_by_id_link_is_refused(self):
+        status, observation, open_calls, _close_calls, error = self._run_probe(link_exists=False)
+        self.assertEqual(status, 2)
+        self.assertIsNone(observation)
+        self.assertEqual(open_calls, [])
+        self.assertIn('link is missing', error)
+
+    def test_non_ttyusb_resolution_is_refused(self):
+        status, observation, open_calls, _close_calls, error = self._run_probe(target_name='ttyS0')
+        self.assertEqual(status, 2)
+        self.assertIsNone(observation)
+        self.assertEqual(open_calls, [])
+        self.assertIn('/dev/ttyUSB<number>', error)
+
+    def test_opened_fd_device_number_must_match_verified_path(self):
+        status, observation, open_calls, close_calls, error = self._run_probe(opened_rdev=1)
+        self.assertEqual(status, 2)
+        self.assertIsNone(observation)
+        self.assertEqual(len(open_calls), 1)
+        self.assertEqual(close_calls, [call(41)])
+        self.assertIn('does not match verified device', error)
+
+    def test_receipt_from_legacy_observation_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             observed = root / 'console.json'
             receipt = root / 'recovery.json'
             observed.write_text(json.dumps({
-                'serial': 'TRWU8J8G', 'device': recovery.J8G_DEVICE,
+                'serial': recovery.J8G_SERIAL, 'device': recovery.J8G_DEVICE,
                 'resolved_device': '/dev/ttyUSB2', 'command': 'serial-sysrq-break-b',
                 'input_sent': True, 'after': {'linux_boot_seen': True},
+            }))
+            with contextlib.redirect_stderr(io.StringIO()):
+                status = recovery.main([
+                    '--receipt-from', str(observed), '--serial', 'TRWU8J8G',
+                    '--output', str(receipt), '--before-boot-id', 'before',
+                    '--after-boot-id', 'after', '--target-id', 'j8g-target',
+                ])
+            self.assertEqual(status, 2)
+            self.assertFalse(receipt.exists())
+
+    def test_receipt_accepts_ttyusb1_with_verified_interface_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observed = root / 'console.json'
+            receipt = root / 'recovery.json'
+            observed.write_text(json.dumps({
+                'serial': recovery.J8G_SERIAL, 'device': recovery.J8G_DEVICE,
+                'resolved_device': '/dev/ttyUSB1', 'usb_serial': 'TRWU8J8G',
+                'usb_interface': '02', 'sysfs_device': '/sys/devices/fixture/ttyUSB1',
+                'command': 'serial-sysrq-break-b', 'input_sent': True,
+                'after': {'linux_boot_seen': True},
             }))
             self.assertEqual(recovery.main([
                 '--receipt-from', str(observed), '--serial', 'TRWU8J8G',
@@ -67,11 +220,37 @@ class De25SerialRecoveryTests(unittest.TestCase):
             self.assertEqual(value['after_boot_id'], 'after')
             self.assertTrue(value['linux_boot_seen'])
 
-            self.assertEqual(recovery.main([
-                '--receipt-from', str(observed), '--serial', 'TRWU8J8G',
-                '--output', str(receipt), '--before-boot-id', 'same',
-                '--after-boot-id', 'same', '--target-id', 'j8g-target',
-            ]), 2)
+            with contextlib.redirect_stderr(io.StringIO()):
+                status = recovery.main([
+                    '--receipt-from', str(observed), '--serial', 'TRWU8J8G',
+                    '--output', str(receipt), '--before-boot-id', 'same',
+                    '--after-boot-id', 'same', '--target-id', 'j8g-target',
+                ])
+            self.assertEqual(status, 2)
+
+    def test_receipt_rejects_mismatched_tty_or_usb_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observed = root / 'console.json'
+            receipt = root / 'recovery.json'
+            valid = {
+                'serial': recovery.J8G_SERIAL, 'device': recovery.J8G_DEVICE,
+                'resolved_device': '/dev/ttyUSB1', 'usb_serial': 'TRWU8J8G',
+                'usb_interface': '02', 'command': 'serial-sysrq-break-b',
+                'input_sent': True, 'after': {'linux_boot_seen': True},
+            }
+            for field, bad_value in (
+                    ('resolved_device', '/dev/ttyS0'), ('usb_serial', 'TRWU8CBL'),
+                    ('usb_interface', '03')):
+                with self.subTest(field=field):
+                    observed.write_text(json.dumps({**valid, field: bad_value}))
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        status = recovery.main([
+                            '--receipt-from', str(observed), '--serial', 'TRWU8J8G',
+                            '--output', str(receipt), '--before-boot-id', 'before',
+                            '--after-boot-id', 'after', '--target-id', 'j8g-target',
+                        ])
+                    self.assertEqual(status, 2)
 
 
 if __name__ == '__main__':

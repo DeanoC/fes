@@ -199,6 +199,45 @@ def retarget_at_core(source):
                                             for b, a, n in AT_CORE])
 
 
+def retarget_window_guard(source):
+    """Discard an old bus epoch when the DE25 response path is reset."""
+    pinned = "583572b89a4b4a645981e57e7af3c7ae7e29fe7386814452a1dab150523d8ebf"
+    if sha(source) != pinned:
+        raise ValueError("review the DE25 reset against the changed DDR guard")
+    changes = (
+        (b"    input  wire                hold,", b"    input  wire                reset, hold,"),
+        (b"    localparam integer BE_W = DATA_W / 8;\n",
+         b"    localparam integer BE_W = DATA_W / 8;\n"
+         b"\n"
+         b"    // The PLL may stop across the entire HPS reset pulse. Hold the\n"
+         b"    // guard in reset through the first two local clock edges.\n"
+         b"    (* async_reg = \"true\" *) reg [1:0] reset_pipe = 2'b11;\n"
+         b"    always @(posedge clk or posedge reset)\n"
+         b"        if (reset) reset_pipe <= 2'b11;\n"
+         b"        else reset_pipe <= {reset_pipe[0], 1'b0};\n"
+         b"    wire reset_pending = reset_pipe[1];\n"),
+        (b"assign m_read = present", b"assign m_read = ~reset_pending & present"),
+        (b"assign m_write = present", b"assign m_write = ~reset_pending & present"),
+        (b"assign waitrequest = skid", b"assign waitrequest = reset_pending | skid"),
+        (b"wire filler = finishing", b"wire filler = ~reset_pending & finishing"),
+        (b"        readdatavalid <= returned & ~hold & ~draining;\n",
+         b"        readdatavalid <= returned & ~hold & ~draining;\n"
+         b"        // The bridge also resets, so this epoch will never receive its responses.\n"
+         b"        if (reset_pending) begin\n"
+         b"            head <= 1'b0; tail <= 1'b0; present <= 1'b0; skid <= 1'b0;\n"
+         b"            beats_owed <= 8'd0; owed_zero <= 1'b1; owed_one <= 1'b0;\n"
+         b"            reads_owed <= 12'd0; finishing <= 1'b0; draining <= 1'b0;\n"
+         b"            returned <= 1'b0; readdatavalid <= 1'b0;\n"
+         b"        end\n"),
+    )
+    result = source
+    for before, after in changes:
+        if result.count(before) != 1:
+            raise ValueError("DE25 DDR guard reset anchor changed")
+        result = result.replace(before, after)
+    return result, _record(source, result, [{"before": b.decode(), "after": a.decode()} for b, a in changes])
+
+
 # The 486DX model's CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only
 # derivation, which keeps its parameters and ports.
 SYSTEM_CPU_BEFORE = b"    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D), .I486(I486)) cpu (\n"

@@ -129,6 +129,26 @@ class ArtifactFixture(unittest.TestCase):
         self.write_manifest()
 
 class ImageArtifactsTests(ArtifactFixture):
+    @needs_readelf
+    def test_nightly_bootstrap_selection_uses_real_runtime_interfaces(self):
+        import nightly_qualification as nightly
+        store = self.root / 'qualified'
+        menu = store / 'objects' / 'menu' / 'menu-package'
+        menu.mkdir(parents=True)
+        (store / 'evidence').mkdir()
+        manifest = menu / 'manifest.toml'
+        release = dict(board='de10-nano', cores=['fes.menu'],
+                       software_sha256=artifacts.sha(self.root / 'artifacts.json'))
+        selection = dict(release=release, packages=[{'prepared': 'objects/menu/prepared.json'}])
+        manifest.write_text(menu_manifest(MENU_INTERFACES))
+        result = nightly.bootstrap_admission(store, selection, self.root)
+        self.assertEqual(result['verdict'], 'PASS')
+        self.assertEqual(result['request_sha256'], nightly.digest(nightly.encoded(selection)))
+        nightly.verify_evidence(store, result)
+        manifest.write_text(menu_manifest([('fes.video.menu-display', 7, 0)]))
+        with self.assertRaises(nightly.IncompatibleSelection):
+            nightly.bootstrap_admission(store, selection, self.root)
+
     def test_explicit_de25_reaches_all_package_recipe_lookups(self):
         self.select_de25()
         selection = self.manifest['packages'][0]['selection']

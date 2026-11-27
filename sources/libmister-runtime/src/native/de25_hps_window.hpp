@@ -13,7 +13,8 @@
 #include <vector>
 
 namespace mister { namespace native {
-// A cached observation of one fes.fabric.de25-hps-window grant. The kernel
+class Clock;
+// An observation of one fes.fabric.de25-hps-window grant. The kernel
 // owner allocates the window, publishes it to the control block and reports
 // what it published; no CPU or DMA address is ever part of it. The window
 // block has no build register: build_id is the identity the owner observed
@@ -69,14 +70,14 @@ public:
  // is safely retired.
  bool IsOpen() const;
  bool Ready() const;
- // Reads the kernel's cached report; a latched fault is returned as an
+ // Reads the kernel's report; a latched fault is returned as an
  // error naming the ports and the reason, and poisons the window.
  Error Check();
  // Every range must have been revoked and closed first.
  Error Release();
- // Retire after the caller has successfully quiesced the machine. This may
- // release a window poisoned by Check; the owner still proves its ports drain.
- Error ReleaseAfterQuiesce();
+ // After execution hold is acknowledged, wait for this grant's ports to
+ // be held and drained before asking the owner to revoke it.
+ Error ReleaseAfterQuiesce(const Clock&, std::uint64_t deadline);
  // Refuses while a window that faulted or failed its release is held: it
  // stays poisoned, and nothing may be programmed over it. Touches no owner.
  Error Blocking() const;

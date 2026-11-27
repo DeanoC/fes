@@ -14,6 +14,7 @@ from package import checked_native, sha
 from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
 from upload import load_kit, PREFIX_SIZE
 from recovery_return_package import load_kit as load_return_trace_kit
+from usb_selection import protocols
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTROL = {'FES/CORESEL.JSN', 'FES/UI.JSON', 'FES/INSTALL.JSN',
@@ -120,6 +121,17 @@ def verify_protected_layout(disk, image, prefix_sha256):
         current.seek(PREFIX_SIZE+backup*512); original.seek(PREFIX_SIZE+backup*512)
         if original.read(512) != boot_sector or current.read(512) != boot_sector:
             raise ValueError('FAT backup boot sector changed')
+        # A directory walk still succeeds with a damaged FSInfo sector. The
+        # native FAT writer checks its signatures before allocating clusters.
+        info_sector = struct.unpack_from('<H', boot_sector, 48)[0]
+        if info_sector not in (0, 0xffff):
+            if info_sector >= struct.unpack_from('<H', boot_sector, 14)[0]:
+                raise ValueError('FAT FSInfo outside reserved sectors')
+            current.seek(PREFIX_SIZE + info_sector * 512)
+            info = current.read(512)
+            if (info[:4] != b'RRaA' or info[484:488] != b'rrAa' or
+                    info[508:] != b'\x00\x00\x55\xaa'):
+                raise ValueError('invalid FAT FSInfo signatures')
 
 
 def verify_prepared_image(disk, receipt, inputs, fit_data, output, run):
@@ -157,15 +169,16 @@ def verify_prepared_image(disk, receipt, inputs, fit_data, output, run):
             raise ValueError('launcher disk payload differs: '+name)
 
 
-def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='standard', recovery_source_root=None):
+def checked_recovery(recovery, recovery_profile, recovery_source_root):
     if recovery_profile not in ('standard', 'return-trace') or (recovery_profile == 'standard' and recovery_source_root is not None):
         raise ValueError('explicit supported recovery profile and producer root required')
-    def checked_recovery():
-        return (load_kit(recovery) if recovery_profile == 'standard' else
-                load_return_trace_kit(recovery, source_root=recovery_source_root))
-    if ('..' in output.parts or output.exists() or not output.is_relative_to(ROOT/'out') or
-            any(p.is_symlink() for p in (output, *output.parents))):
-        raise ValueError('output must be a fresh private directory below out/')
+    if recovery_profile == 'return-trace':
+        return load_return_trace_kit(recovery, source_root=recovery_source_root)
+    return load_kit(recovery)
+
+
+def admit_inputs(uboot, entry, sdk, recovery, files, *, recovery_profile='standard', recovery_source_root=None):
+    """Bind the native boot, SDK, recovery and staging bytes used by the card."""
     payload = staging(files)
     for name in ('result.json', 'RECOVERY.JSON', 'u-boot.itb', 'nano-recovery-sd.img'):
         path = recovery/name
@@ -175,12 +188,14 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
         (uboot/'result.json', 1 << 20), (entry/'result.json', 1 << 20),
         (sdk/'result.json', 1 << 20), (recovery/'result.json', 131072),
         (recovery/'RECOVERY.JSON', 16384), (recovery/'u-boot.itb', 8 << 20))}
-    receipt_inputs.update({str(p): sha(p) for p in (Path(__file__), Path(__file__).with_name('package.py'),
-                          Path(__file__).with_name('upload.py'), Path(__file__).with_name('cold_profile.py'))})
-    base = checked_recovery()
+    producer = Path(__file__).resolve()
+    for name in (producer.name, 'package.py', 'upload.py', 'cold_profile.py', 'usb_selection.py'):
+        path = producer.with_name(name)
+        receipt_inputs[str(path)] = sha(path)
+    base = checked_recovery(recovery, recovery_profile, recovery_source_root)
     if recovery_profile == 'return-trace':
         for name in ('recovery_return_package.py', 'recovery_return_trace.py', 'recovery_package.py', 'recovery.py'):
-            path = Path(__file__).with_name(name)
+            path = producer.with_name(name)
             receipt_inputs[str(path)] = sha(path)
     image = recovery/'nano-recovery-sd.img'
     receipt_inputs[str(image)] = base['image_sha256']
@@ -191,11 +206,13 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
     if (hashlib.sha256(selected_raw).hexdigest() != loaded.get('native_build_sha256') or
             selected.get('status') != 'cross-built' or selected.get('program') != 'fpgaload' or
             selected.get('elf_sha256') != loaded.get('payload_sha256') or
-            selected.get('usb_shared') is not True or selected.get('usb_input') != 'boot-keyboard' or
+            selected.get('usb_shared') is not True or loaded.get('usb_shared') is not True or
+            selected.get('usb_input') not in protocols(True) or selected['usb_input'] != loaded.get('usb_input') or
+            selected.get('tenfoot_uart_only', False) is not False or
             selected.get('hps_menu_program') != loaded.get('hps_menu_program') or
             not isinstance(selected.get('hps_menu_program'), dict) or
             native.get('startup', {}).get('mode') != 'autoboot'):
-        raise ValueError('matched autoboot, paired menu and shared keyboard SDK required')
+        raise ValueError('matched autoboot, paired menu and shared USB launcher SDK required')
     plan = selected.get('writable_storage_plan')
     with image.open('rb') as source:
         mbr = source.read(512)
@@ -219,7 +236,17 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
     inputs[str(fit)] = boot['fit_sha256']
     inputs.update({str(files/name): hashlib.sha256(data).hexdigest() for name, data in payload.items()})
     if any(sha(Path(name)) != expected for name, expected in inputs.items()):
-        raise ValueError('launcher inputs changed before assembly')
+        raise ValueError('launcher inputs changed during admission')
+    return payload, inputs, base, native, fit_data
+
+
+def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='standard', recovery_source_root=None):
+    if ('..' in output.parts or output.exists() or not output.is_relative_to(ROOT/'out') or
+            any(p.is_symlink() for p in (output, *output.parents))):
+        raise ValueError('output must be a fresh private directory below out/')
+    payload, inputs, base, native, fit_data = admit_inputs(
+        uboot, entry, sdk, recovery, files, recovery_profile=recovery_profile, recovery_source_root=recovery_source_root)
+    image = recovery/'nano-recovery-sd.img'
     output.mkdir(mode=0o700, parents=True)
     disk = output/'native-launcher-sd.img'
     shutil.copyfile(image, disk)
@@ -256,7 +283,7 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
     if any(sha(Path(name)) != expected for name, expected in inputs.items()):
         raise ValueError('launcher inputs changed during assembly')
     checked_native(uboot, entry)
-    if checked_recovery() != base:
+    if checked_recovery(recovery, recovery_profile, recovery_source_root) != base:
         raise ValueError('recovery package changed during image assembly')
     result = dict(format=1, status='prepared', classification='regular-file native launcher SD image; hardware unqualified',
                   recovery_profile=recovery_profile,
@@ -271,17 +298,24 @@ def prepare(uboot, entry, sdk, recovery, files, output, *, recovery_profile='sta
     return result
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def parse_args(description):
+    parser = argparse.ArgumentParser(description=description)
     for name in ('uboot-build', 'entry-build', 'native-build', 'recovery-kit', 'launcher-staging', 'output'):
         parser.add_argument('--'+name, required=True, type=Path)
     parser.add_argument('--recovery-profile', choices=('standard', 'return-trace'), default='standard')
     parser.add_argument('--recovery-source-root', type=Path)
     args = parser.parse_args()
-    result = prepare(*(getattr(args, name).absolute() for name in
-                       ('uboot_build', 'entry_build', 'native_build', 'recovery_kit', 'launcher_staging', 'output')),
-                     recovery_profile=args.recovery_profile, recovery_source_root=args.recovery_source_root)
-    print('Prepared regular SD image:', args.output, result['image_sha256'])
+    return dict(uboot=args.uboot_build.absolute(), entry=args.entry_build.absolute(),
+                sdk=args.native_build.absolute(), recovery=args.recovery_kit.absolute(),
+                files=args.launcher_staging.absolute(), output=args.output.absolute(),
+                recovery_profile=args.recovery_profile,
+                recovery_source_root=args.recovery_source_root.absolute() if args.recovery_source_root else None)
+
+
+def main():
+    args = parse_args(__doc__)
+    result = prepare(**args)
+    print('Prepared regular SD image:', args['output'], result['image_sha256'])
 
 
 if __name__ == '__main__':

@@ -28,7 +28,8 @@ static uint32_t fault_copy() {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     t = new Vfes_de25_hps_window_control;
-    t->reset_n = 0; tick(); t->reset_n = 1; tick();
+    t->reset_n = 0; t->machine_reset_n = 0; tick();
+    t->reset_n = 1; t->machine_reset_n = 1; tick();
     expect(read(0x00) == 0x44325748, "identity");
     expect(read(0x04) == 0x00010000, "version");
     t->machine_drained = 1; t->machine_held = 1; settle();
@@ -68,6 +69,34 @@ int main(int argc, char **argv) {
     t->fault_port = 0; t->fault_outside = 0; settle();
     expect(!t->grant_valid, "Clear withdraws the grant");
     expect((read(0x24) & 0x707) == 0, "Clear clears the fault record");
+    // An HPS reset can stop both clocks with a live grant. Neither the
+    // stale control registers nor the machine-clock copy may reopen a window.
+    expect(write(0x0c, 1) == 0, "grant a live window before HPS reset");
+    settle();
+    expect(t->grant_valid, "live grant before reset");
+    t->fault_port = 1; t->fault_no_grant = 1;
+    settle();
+    expect(read(0x08) & 8, "live fault before reset");
+    t->fault_port = 4; t->fault_no_grant = 0; t->fault_outside = 1;
+    tick(); // Start the next fault transfer before resetting both sides.
+    t->reset_n = 0;
+    t->machine_reset_n = 0;
+    t->eval();
+    expect(!t->grant_valid, "reset removes the live grant without a machine clock");
+    expect(fault_copy() == 0, "reset clears the receiving fault record");
+    t->fault_port = 0; t->fault_outside = 0; // The window's machine-domain reset clears its record.
+    t->reset_n = 1;
+    settle();
+    expect((read(0x08) & 1) == 0 && read(0x10) == 0 && read(0x1c) == 0,
+           "reset clears the published grant, base and generation");
+    t->machine_reset_n = 1;
+    settle();
+    expect(!t->grant_valid, "clock restart cannot restore the old grant");
+    expect(read(0x08) == 6 && read(0x24) == 0,
+           "both fault handshake sides restart clean before another grant");
+    expect(write(0x0c, 1) == 2, "grant requires fresh owner parameters after reset");
+    write(0x18, 0x10000000);
+    write(0x1c, 8);
     // A span that ends exactly at 4 GiB is accepted.
     write(0x10, 0xf0000000); expect(write(0x0c, 1) == 0, "accept a span that ends at 4 GiB");
     settle(); expect(t->grant_valid && t->grant_base == 0xf0000000, "the top grant reaches the machine");

@@ -87,25 +87,35 @@ The SDK's optional `--lifecycle-trace` records launch checkpoints and the
 Ctrl, Alt, Escape and menu Quit states relevant to USB shortcut diagnosis.
 It leaves the normal build default off and excludes ordinary typed input.
 
-## 3. Assemble the SD image
+## 3. Build and verify the SD image
 
-After the matched chain passes source and file admission:
+Run both commands from the same FES checkout with mtools on PATH. The
+receipt binds the producer sources as well as the matched builds, recovery
+kit and staging files at their original paths. The verify target checks
+images assembled with this workflow.
 
 ```sh
-python3 platform/embedded/nano/launcher_image.py \
-  --uboot-build /absolute/native-uboot --entry-build /absolute/native-entry \
-  --native-build /absolute/native-sdk --recovery-kit /absolute/recovery-kit \
-  --launcher-staging /absolute/new-launcher-staging \
-  --output out/native-launcher-image
+export DE25_EMBEDDED_ARGS="--uboot-build /absolute/native-uboot \
+  --entry-build /absolute/native-entry --native-build /absolute/native-sdk \
+  --recovery-kit /absolute/recovery-kit --launcher-staging /absolute/new-launcher-staging"
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 make de25-embedded-image
+make verify-de25-embedded-image
 ```
 
-`launcher_image.py` copies the recovery template into a fresh `out/` directory,
-writes `FES/UPLOAD.BIN` and the closed launcher file set into
-`native-launcher-sd.img`, reads back every added file, verifies protected
-recovery files, raw prefix, and FAT boot sectors, and publishes `result.json`
-only on full verification (it never writes to a block device or QSPI). Pass
-`--recovery-profile return-trace` (with `--recovery-source-root` if needed) to
-select the Ethernet return-trace recovery template instead of standard recovery.
+Assembly writes `native-launcher-sd.img` and `result.json` under a fresh
+`out/de25-nano-embedded/`. Set `DE25_EMBEDDED_OUTPUT` for both commands to
+choose a different fresh directory under `out/`. Verification checks the
+recorded image digest, re-admits the boot chain and MENU, enumerates the FAT
+directories, and compares the installed files, protected raw prefix and boot
+sectors with the original inputs. It prints the verified SHA-256 and performs
+its readbacks in temporary storage. For a return-trace recovery kit, pass
+`--recovery-profile return-trace` and its optional `--recovery-source-root`
+to both commands.
+
+The SD image accepts the shared input mode compiled into its matched SDK and
+entry. Choose `--shared-usb-input boot-keyboard`, `gamepad` or `multi` when
+building the SDK. The `multi` launcher supports a USB hub. The optional
+`--initial-tape` profile currently accepts `boot-keyboard` and `gamepad`.
 
 ## 4. Controls and clean-reboot persistence
 
@@ -132,8 +142,11 @@ GOWORK=off go -C platform/embedded/tamago test -race -count=1 -timeout=120s \
   ./nativefabric -run 'TestProgramLauncher|TestProgramStartup|TestProgramPreferences'
 ```
 
-Remaining physical qualification (repeated/injected failures, standalone SD
-power-on, physical HDMI/keyboard behavior on matched artifacts, and QSPI
-factory rollback) is tracked in [Issue #1867](https://github.com/DeanoC/fes/issues/1867).
+An earlier matched R1 image cold-booted to Tenfoot twice, launched and
+returned from ZX81 by keyboard, and retained the List layout. Factory
+restore, a factory cold boot and native reinstall are still open. Each new
+image needs its own board evidence.
+[R1 trial](https://github.com/DeanoC/fes/pull/2026) ·
+[Lifecycle qualification](https://github.com/DeanoC/fes/issues/1867)
 Standard DE25 HIL uses Kit D25 (`TRWU8J8G`) on Linux; never access `TRWU8CBL`
 without an explicit assignment and lease.

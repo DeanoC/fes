@@ -479,8 +479,11 @@ def verify_scanout_memory_handoff(project, window_master=None):
     if adapter is None:
         raise ValueError("scanout-only F2SDRAM adapter missing")
     ports = component_ports(adapter, "axi4_sub")
+    data_bits = 128 if window_master is not None else 256
     if any(ports.get(name) != expected for name, expected in {
-            "rdata": ("Output", 256), "araddr": ("Input", 32), "rresp": ("Output", 2)}.items()):
+            "rdata": ("Output", data_bits), "wdata": ("Input", data_bits),
+            "wstrb": ("Input", data_bits // 8),
+            "araddr": ("Input", 32), "rresp": ("Output", 2)}.items()):
         raise ValueError("scanout-only F2SDRAM adapter ports differ")
     lw = [c for c in connections if c.get("kind") == "avalon" and
           c.get("start") == "subsys_hps_agilex_hps.lwhps2fpga" and
@@ -490,6 +493,7 @@ def verify_scanout_memory_handoff(project, window_master=None):
         raise ValueError("scanout-only LW slave map missing")
     window = {"window_master": window_master} if window_master is not None else {}
     return {"master": ingress[0].get("start"), "master_count": len(masters), **window,
+            "f2sdram_data_bits": data_bits,
             "removed_masters": list(forbidden),
             "scope": "scanout and window F2SDRAM paths" if window else "scanout-only F2SDRAM path",
             "peripheral_slave_map": peripheral_slave_map(address_map, None),
@@ -559,6 +563,10 @@ def reviewed_hps_parameter_changes(inputs):
         expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"},
                              "f2s_data_width": {"before": "256", "after": "0"},
                              "H2F_Width": {"before": "128", "after": "0"}}}
+        if inputs.get("f2sdram_master_profile") == "scanout+window":
+            adapter_ip = "hps_subsys/ip/hps_subsys/f2sdram_adapter.ip"
+            expected[hps_ip]["f2sdram_data_width"] = {"before": "256", "after": "128"}
+            expected[adapter_ip] = {"DATA_WIDTH": {"before": "256", "after": "128"}}
     if allowed != expected:
         raise ValueError("unsupported expected HPS/EMIF parameter change")
     return allowed
