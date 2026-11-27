@@ -8,7 +8,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 | 1. HDMI picture: lit, live and changing | **PASS** (launch A and fresh-session launch B) |
 | 1b. Relaunch in the same session (recorded only, not a gate) | **FAIL**, reproduced for the third time today: [#2353](https://github.com/DeanoC/fes/issues/2353) |
 | 2. Warm reset with a window machine loaded (#2246) | **PASS for an orderly `reboot`**: recovered in about 31 s, no SMMU events, owner probed, network and agent up, MENU on HDMI. **Not measured** for the #2245 case: an abrupt reset while the fabric is still mastering. The orderly shutdown stopped the machine first, so #2246's fabric reset was never exercised under mastering. |
-| 3. HPS-window path (#2214, #2215, #2226) | **PARTIAL: not a full pass.** Rules 3a, 3c and 3e pass: ABI 1.1 admission with the window interfaces, FreeDOS from ATA, and after Stop no window fd, a free lease and no SMMU faults. **Not measurable:** rule 3b (the window's base and span observed inside the pool), because the owner ABI exposes no address, and rule 3d (a hold/drain/release sequence in the runtime events), because the runtime does not log those steps. Both are carried forward as open checks. |
+| 3. HPS-window path (#2214, #2215, #2226) | **PARTIAL: not a full pass.** Rules 3a and 3c pass: ABI 1.1 admission with the window interfaces, and FreeDOS from ATA. Rule 3e's "no arm-smmu faults" part passes. **Not measurable:** rule 3b (window base and span observed inside the pool), because the owner ABI exposes no address; rule 3d (a hold/drain/release sequence in the runtime events), because the runtime does not log those steps; and rule 3e's "owner reports no window allocated", because the owner was never queried. Only the runtime's fd closing was observed, and later allocations from the one-window pool succeeded. All three are carried forward as open checks. |
 | Restore | **Pass.** The baseline bundle and image are back. The baseline `boot_id` was rebased with Deano's OK, `de25_restore.py` passes, and `KIT D25 FREE (baseline verified)` was logged at 14:33:07+02:00. |
 
 ## Exactly what ran
@@ -24,7 +24,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 - **Image:** the J8G baseline `a1c51ac3…` (kernel `6.12.11-fes-de25-owner`, reserved `fes-window-pool`). Nothing was flashed. Everything #2246 and #2344 changed since that image is on the fabric side (`hps/build.py`, `scanout/linux_dma.py`, `bridge_reset.py`, RTL), so it is in the package.
 - **Disk:** the FreeDOS `pmode` image `b4be6e29…` (128 MiB, 260/16/63).
 
-## Item 3: the HPS-window path (partial: 3b and 3d not measurable)
+## Item 3: the HPS-window path (partial: 3b, 3d and part of 3e not measurable)
 
 Launch A (session 1) — [kit/driver-a.log](kit/driver-a.log), [kit/kitstate-a-running.txt](kit/kitstate-a-running.txt), [kit/status-a-running.txt](kit/status-a-running.txt) (status with ABI and `build_id`, plus the runtime's open window fd):
 
@@ -40,7 +40,7 @@ Launch A (session 1) — [kit/driver-a.log](kit/driver-a.log), [kit/kitstate-a-r
   - After Stop the runtime held no `fes-de25-window` fds ([kit/a-after-stop-window-fds.txt](kit/a-after-stop-window-fds.txt)), and the lease went to `free`.
   - Launch B's Stop repeated this: no window fds and lease free ([kit/b-end-release.txt](kit/b-end-release.txt)).
   - **Pass rule 3d's "hold/drain/release sequence in the runtime events": not measurable.** The runtime events log fence and FIFO operations but no window hold, drain or revoke steps.
-  - What the release does show: the fd closed. Three later window allocations succeeded: the in-session relaunch, launch B and launch C. The pool holds exactly one window, so each of those needed the earlier window released.
+  - **Rule 3e, "the owner reports no window allocated": not measured.** The owner was not queried after Stop. Supporting context only: the fd closed. Three later window allocations succeeded: the in-session relaunch, launch B and launch C. The pool holds exactly one window, so each of those needed the earlier window released.
 - **SMMU:** dmesg held only the 4 arm-smmu probe lines throughout, with 0 events or faults (`kitstate-*.txt`).
 
 ## Item 1: HDMI picture
