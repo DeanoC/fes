@@ -44,7 +44,7 @@ def private_path(path):
             not any(p.is_symlink() for p in (path, *path.parents)))
 
 
-def checked_bl31(bl31_build, cold_profile=None):
+def checked_bl31(bl31_build, cold_profile=None, *, require_sdm_trng=False):
     receipt_path = bl31_build / "result.json"
     component = bl31_build / "source/build/agilex5/release/bl31.bin"
     elf = bl31_build / "source/build/agilex5/release/bl31/bl31.elf"
@@ -67,6 +67,12 @@ def checked_bl31(bl31_build, cold_profile=None):
             receipt.get("bl31_bin_size") != len(blob) or receipt.get("bl31_bin_sha256") != hashlib.sha256(blob).hexdigest() or
             receipt.get("bl31_elf_sha256") != hashlib.sha256(image_elf).hexdigest()):
         raise ValueError("BL31 component differs from its pinned vendor build receipt")
+    if require_sdm_trng or "boot_entropy" in receipt:
+        import nano_trng
+        binding = receipt.get("boot_entropy")
+        if (not isinstance(binding, dict) or not cold_profile or not cold_profile.get("sdm_input_transfer")
+                or binding != nano_trng.verify(image_elf, bl31_build / "source", binding.get("installed"))):
+            raise ValueError("matched SDM entropy component required")
     ram = build_terasic.nano_firmware_ram.checked(cold_profile)
     entry, segments = build_terasic.bl31_load_segments(image_elf,firmware_ram=ram,
         cold_chain=cold_profile['chain_sha256'] if ram else None)
@@ -135,6 +141,7 @@ def main():
     parser.add_argument("--cross-prefix", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--nano-sdm-trng", action="store_true", help="require the linked hardware boot entropy service in the selected BL31")
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
     parser.add_argument("--native-autoboot", action="store_true",
@@ -198,7 +205,7 @@ def main():
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
         cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff)
-    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
+    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile,require_sdm_trng=args.nano_sdm_trng)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Terasic U-Boot checkout must be clean and at the pinned revision")

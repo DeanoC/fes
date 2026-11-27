@@ -52,6 +52,13 @@ def install(source):
 
 
 def verify(image, source, installed):
+    expected = {
+        str(MAKEFILE): "3a783774a9dbcb22bd4d3b860be33fea2babc25e8a35577b6b2ec257d89e8694",
+        str(POOL): "c51bc6dd3aa7b192774ec92b0278d5276e0cc9b455a6af04e25606afedf33d4d",
+        str(BACKEND): digest(SOURCE),
+    }
+    if installed != expected:
+        raise ValueError("unexpected SDM boot entropy source selection")
     if any(digest(source / path) != expected for path, expected in installed.items()):
         raise ValueError("installed TRNG source changed during compilation")
     table = nano_firmware_ram.symbols(image)
