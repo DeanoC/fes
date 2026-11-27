@@ -41,7 +41,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fes.menu` | Firmware | OSS | Quartus | HDMI | [README](../sources/misteross/cores/fes-menu/README.md) |
 | splash / idle | Firmware | OSS | — | HDMI | [README](../sources/misteross/cores/fes-splash/README.md) |
 | `fes.pong` | Stale | OSS | — | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `fes.ramtest` | Current | OSS | — | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
+| `fes.ramtest` | Current | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
 | ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | Quartus | Quartus (fes.zx81 only) | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.coleco` | Aging | OSS | — | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
 | `fes.sms` | Aging | OSS | — | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
