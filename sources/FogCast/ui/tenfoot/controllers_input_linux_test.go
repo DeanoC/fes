@@ -385,9 +385,13 @@ func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
 		t.Fatal("releasing chord quit")
 	}
 
-	// Select then Start closes Settings, leaving layout unchanged on full unwind.
+	// Select then Start closes Settings without cycling layout.
+	layoutBefore := app.Snapshot().Grid.Mode
 	in.button(app, ButtonBack, 1, now)
 	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("pressing Select with Settings chord enabled cycled layout eagerly: got %v, want %v", got, layoutBefore)
+	}
 	in.button(app, ButtonStart, 1, now)
 	if ins.applyButtons(app, now) {
 		t.Fatal("Select -> Start quit instead of closing Settings")
@@ -395,10 +399,28 @@ func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
 	if app.SettingsOpen() {
 		t.Fatal("Select -> Start did not close Settings")
 	}
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("Select -> Start chord changed layout from %v to %v", layoutBefore, got)
+	}
 	in.button(app, ButtonBack, 0, now)
 	in.button(app, ButtonStart, 0, now)
 	_ = ins.applyButtons(app, now)
-	if in.menuChordFired || in.menuSelectDown || in.menuStartDown {
+	if in.menuChordFired || in.menuSelectDown || in.menuSelectPending || in.menuStartDown {
 		t.Fatalf("stale chord state remained after release: %+v", in)
+	}
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("unwinding Select -> Start changed layout from %v to %v", layoutBefore, got)
+	}
+
+	// A solo Select tap waits until release, then cycles layout normally.
+	in.button(app, ButtonBack, 1, now)
+	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("solo Select cycled layout before release: got %v, want %v", got, layoutBefore)
+	}
+	in.button(app, ButtonBack, 0, now)
+	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got == layoutBefore {
+		t.Fatalf("solo Select release did not cycle layout from %v", layoutBefore)
 	}
 }

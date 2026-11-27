@@ -33,6 +33,7 @@ type sdlPad struct {
 	remap         *inputmap.Remapper
 	profileGen    uint64
 	settingsCombo bool
+	selectPending bool
 	chordFired    bool
 	// sent remembers the remapped code pressed while a physical button is down so
 	// profile reloads release the same logical code that went down.
@@ -190,6 +191,7 @@ func (s *sdlPadSet) syncProfiles(app *App) {
 		entry.remap, _ = profileRemap(profile)
 		entry.settingsCombo = padSettingsComboEnabled(entry.info, profile)
 		if !entry.settingsCombo {
+			entry.selectPending = false
 			entry.chordFired = false
 		}
 		entry.profileGen = gen
@@ -368,16 +370,29 @@ func pollGamepads(app *App, pads *sdlPadSet, held map[Command]bool, stick *stick
 				delete(entry.sent, button)
 			}
 		}
-		chordActive := entry.settingsCombo && selectDown && startDown
-		if chordActive {
-			entry.chordFired = true
-			pressed[CmdSettings] = true
-		} else if entry.chordFired && !selectDown && !startDown {
-			entry.chordFired = false
+		if entry.settingsCombo {
+			if selectDown && startDown {
+				entry.chordFired = true
+				entry.selectPending = false
+				pressed[CmdSettings] = true
+			} else if entry.chordFired {
+				entry.selectPending = false
+				if !selectDown && !startDown {
+					entry.chordFired = false
+				}
+			} else if selectDown {
+				// Defer Select so Select -> Start opens Settings without first
+				// cycling the layout; a solo tap fires on release instead.
+				entry.selectPending = true
+			} else if entry.selectPending {
+				entry.selectPending = false
+				app.NoteInput(InputGamepad, int(id))
+				app.Press(CmdLayoutCycle, now)
+				app.Release(CmdLayoutCycle)
+			}
 		}
-		suppressSelect := entry.settingsCombo && (chordActive || entry.chordFired)
 		for _, code := range padButtons {
-			if entry.settingsCombo && (code == remoteinput.ButtonStart || (code == remoteinput.ButtonSelect && suppressSelect)) {
+			if entry.settingsCombo && (code == remoteinput.ButtonStart || code == remoteinput.ButtonSelect) {
 				continue
 			}
 			if cmd := CommandFromLogical(remoteinput.Event{Kind: remoteinput.KindButton, Code: code}); cmd != CmdNone {

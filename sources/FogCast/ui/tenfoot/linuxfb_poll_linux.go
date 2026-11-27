@@ -317,6 +317,7 @@ func (ins *nativeInputs) dropMenuEdges(app *App) {
 		in.controls = nil
 		in.axes = nil
 		in.menuSelectDown = false
+		in.menuSelectPending = false
 		in.menuStartDown = false
 		in.menuChordFired = false
 	}
@@ -404,18 +405,34 @@ func (ins *nativeInputs) padEvents(app *App, in *nativeInput, events []remoteinp
 const menuSettingsChordControl uint16 = 0xffff
 
 // handleMenuSettingsChord turns Select+Start into CmdSettings in menus when
-// enabled on the pad (default on pads without a Guide button). Returns true when
-// the event has been handled or suppressed by the chord state machine.
-func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, down bool) bool {
+// enabled on the pad (default on pads without a Guide button). Select is
+// deferred on press so a Select -> Start chord toggles Settings without first
+// cycling the layout; a solo Select press fires on release instead. Returns true
+// when the event has been handled or suppressed by the chord state machine.
+func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, down bool, now time.Time) bool {
 	if !in.settingsCombo || e.Kind != remoteinput.KindButton {
 		return false
 	}
+	var releaseSelectTap bool
 	switch e.Code {
 	case remoteinput.ButtonSelect:
-		if down && app.localPadCommand(e) == CmdSelect {
+		if down {
+			if !in.menuSelectDown && !in.menuStartDown && !in.menuChordFired && app.localPadCommand(e) == CmdSelect {
+				return false
+			}
+			in.menuSelectDown = true
+			if !in.menuStartDown && !in.menuChordFired {
+				in.menuSelectPending = true
+			}
+			return true
+		}
+		if !in.menuSelectDown && !in.menuSelectPending && !in.menuChordFired {
 			return false
 		}
-		in.menuSelectDown = down
+		wasPending := in.menuSelectPending
+		in.menuSelectDown = false
+		in.menuSelectPending = false
+		releaseSelectTap = wasPending && !in.menuChordFired
 	case remoteinput.ButtonStart:
 		in.menuStartDown = down
 	default:
@@ -427,6 +444,7 @@ func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, do
 				delete(in.controls, k)
 			}
 		}
+		in.menuSelectPending = false
 		in.menuChordFired = true
 		in.setButton(menuSettingsChordControl, CmdSettings, true)
 		app.NoteInput(InputGamepad, in.fd)
@@ -436,6 +454,17 @@ func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, do
 		in.setButton(menuSettingsChordControl, CmdSettings, false)
 		if !in.menuSelectDown && !in.menuStartDown {
 			in.menuChordFired = false
+		}
+		return true
+	}
+	if releaseSelectTap {
+		if cmd := app.localPadCommand(e); cmd != CmdNone {
+			if in.player == noLocalPlayer && !app.portlessPadReachesMenu(e.Code) {
+				return true
+			}
+			app.NoteInput(InputGamepad, in.fd)
+			app.Press(cmd, now)
+			app.Release(cmd)
 		}
 		return true
 	}
@@ -464,7 +493,7 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		// a machine. It presses menu controls only where a pad with a port
 		// would, and its releases always clear them. Keypad Select follows the
 		// focused launcher's confirmation mapping too.
-		if in.handleMenuSettingsChord(app, e, value != 0) {
+		if in.handleMenuSettingsChord(app, e, value != 0, now) {
 			return
 		}
 		if value == 0 || app.portlessPadReachesMenu(e.Code) {
@@ -509,7 +538,7 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		}
 		return
 	}
-	if in.handleMenuSettingsChord(app, e, value != 0) {
+	if in.handleMenuSettingsChord(app, e, value != 0, now) {
 		return
 	}
 	in.setButton(uint16(button), app.localPadCommand(e), value != 0)

@@ -170,6 +170,50 @@ func TestSDLControllersVirtualGamepadUIAndSwapAB(t *testing.T) {
 	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, false)
 	pollGamepads(app, pads, held, &stick, now.Add(220*time.Millisecond))
 
+	// Select then Start closes Settings without cycling layout.
+	layoutBefore := app.Snapshot().Grid.Mode
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, true); err != nil {
+		t.Fatal(err)
+	}
+	pollGamepads(app, pads, held, &stick, now.Add(240*time.Millisecond))
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("pressing Select with Settings chord enabled cycled layout eagerly: got %v, want %v", got, layoutBefore)
+	}
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, true); err != nil {
+		t.Fatal(err)
+	}
+	if pollGamepads(app, pads, held, &stick, now.Add(260*time.Millisecond)) {
+		t.Fatal("Select -> Start quit instead of closing Settings")
+	}
+	if app.SettingsOpen() {
+		t.Fatal("Select -> Start did not close Settings on SDL pad")
+	}
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("Select -> Start chord changed layout from %v to %v", layoutBefore, got)
+	}
+	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, false)
+	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, false)
+	pollGamepads(app, pads, held, &stick, now.Add(280*time.Millisecond))
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("unwinding Select -> Start changed layout from %v to %v", layoutBefore, got)
+	}
+
+	// A solo Select tap waits until release, then cycles layout normally.
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, true); err != nil {
+		t.Fatal(err)
+	}
+	pollGamepads(app, pads, held, &stick, now.Add(300*time.Millisecond))
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("solo Select cycled layout before release: got %v, want %v", got, layoutBefore)
+	}
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, false); err != nil {
+		t.Fatal(err)
+	}
+	pollGamepads(app, pads, held, &stick, now.Add(320*time.Millisecond))
+	if got := app.Snapshot().Grid.Mode; got == layoutBefore {
+		t.Fatalf("solo Select release did not cycle layout from %v", layoutBefore)
+	}
+
 	// Detach clears Settings › Controllers.
 	cleanupPad()
 	if pads.len() != 0 {

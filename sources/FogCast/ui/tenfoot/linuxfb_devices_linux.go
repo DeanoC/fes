@@ -67,10 +67,11 @@ type nativeInput struct {
 	ledPlayer int
 	// settingsCombo enables Select+Start in menus to toggle Settings, and its
 	// menu* fields track chord/unwind state while the pad isn't owned by a core.
-	settingsCombo  bool
-	menuSelectDown bool
-	menuStartDown  bool
-	menuChordFired bool
+	settingsCombo     bool
+	menuSelectDown    bool
+	menuSelectPending bool
+	menuStartDown     bool
+	menuChordFired    bool
 }
 
 type nativeInputs struct {
@@ -380,6 +381,7 @@ func (ins *nativeInputs) syncProfiles(app *App) {
 		in.settingsCombo = padSettingsComboEnabled(in.info, profile)
 		if !in.settingsCombo {
 			in.menuSelectDown = false
+			in.menuSelectPending = false
 			in.menuStartDown = false
 			in.menuChordFired = false
 		}
