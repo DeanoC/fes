@@ -1399,3 +1399,17 @@ The integrated `a12785b3` candidate includes this fix. With Verilator
 5.054, the DE25 PC/XT standard-shell simulation, video lint mutation,
 and PPI reset handshake all passed. The log SHA-256 is
 `d1179cf39d714f415a61db066c9cb3b69e7390e5278a78405684dfe2f23427e7`.
+
+The broader `make test-changed` run on `3cca3818` used Verilator 5.054
+and passed 2,673 parent tests. The FPGA suite ran 2,944 tests with
+15 failures and 91 skips. All 15 reproduced on frozen main `2f19382b`.
+Twelve stopped on fatal lint warnings in existing fixtures. Two cases
+of the 486 model elaboration test stopped because this Verilator version
+lacks `--xml-only`. The combined ZX81 test exceeded the Unix socket
+path limit with the temporary directory used by the broad run.
+
+On the published checkpoint `63c64af4`, the 486SX and 486DX elaboration
+and model clock checks passed under Verilator 5.032. The combined ZX81
+test passed on both frozen main and `3cca3818` with short temporary
+directories. The exact failure comparison and retest manifest SHA-256
+is `9be39bf29c1c6b2c5e3019bbc7f1bd877db7a49125be1713e3276ae3e820e789`.
