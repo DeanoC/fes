@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/DeanoC/FogCast/targethttp"
 	"github.com/DeanoC/fes/platform/embedded/tamago/mdns"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/ota"
 )
 
 func defaultMDNSNames(targetID string) (instance, host string) {
@@ -181,6 +183,7 @@ type ServiceConfig struct {
 	Launcher             targethttp.Launcher
 	Diagnostics          targethttp.DiagnosticsProvider
 	MaxUploadBytes       int64
+	OTA                  *ota.Manager
 
 	AdvertiseMDNS bool
 	MDNSInstance  string
@@ -196,6 +199,7 @@ type DiagnosticsSnapshot struct {
 	HTTP     HTTPDiagnosticsSnapshot `json:"http"`
 	Agent    targethttp.AgentStats   `json:"agent"`
 	MDNS     MDNSDiagnosticsSnapshot `json:"mdns"`
+	OTA      *ota.State              `json:"ota,omitempty"`
 }
 
 // HTTPDiagnosticsSnapshot reports lneto HTTPServer listener state.
@@ -300,9 +304,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 	svc.handler = handler
 
+	var rootHandler http.Handler = handler
+	if cfg.OTA != nil {
+		rootHandler = newOTAMux(handler, cfg.OTA, cfg.Token, cfg.AllowUnauthenticated, cfg.MaxUploadBytes)
+	}
+
 	httpSrv, err := cfg.Endpoint.NewHTTPServer(network.ServerConfig{
 		Port:      cfg.Port,
-		Handler:   handler,
+		Handler:   rootHandler,
 		TLSConfig: cfg.TLSConfig,
 	})
 	if err != nil {
@@ -456,6 +465,11 @@ func (s *Service) DiagnosticsSnapshot() DiagnosticsSnapshot {
 	if targetID == "" {
 		targetID = s.cfg.MDNSInfo.TargetID
 	}
+	var otaState *ota.State
+	if s.cfg.OTA != nil {
+		cp := s.cfg.OTA.Status()
+		otaState = &cp
+	}
 	return DiagnosticsSnapshot{
 		TargetID: targetID,
 		Addr:     st.Addr.String(),
@@ -475,5 +489,6 @@ func (s *Service) DiagnosticsSnapshot() DiagnosticsSnapshot {
 			QueriesReceived: st.MDNS.QueriesReceived,
 			ResponsesSent:   st.MDNS.ResponsesSent,
 		},
+		OTA: otaState,
 	}
 }
