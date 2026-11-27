@@ -360,13 +360,21 @@
           }
         },
         {
+          "keys": [
+            "enter"
+          ],
+          "settle": 2
+        },
+        {
           "name": "beep_tone",
           "covers": [
             "fes.audio.pcm-s16-stereo-48k"
           ],
           "settle": 3,
           "keys": [
-            "text:beep 2,9",
+            "text:beep 2",
+            "ctrl+n",
+            "text:9",
             "enter"
           ],
           "expect": {
@@ -382,6 +390,20 @@
     "fes.pentagon": {
       "steps": [
         {
+          "name": "menu_reaches_basic",
+          "covers": [
+            "fes.keyboard.hid"
+          ],
+          "settle": 3,
+          "keys": [
+            "down",
+            "enter"
+          ],
+          "expect": {
+            "change": 0.0003
+          }
+        },
+        {
           "name": "tape_mounts",
           "covers": [
             "fes.media.spectrum-tape"
@@ -392,14 +414,16 @@
           ]
         },
         {
-          "name": "tape_loader_runs",
+          "name": "tape_loads",
           "covers": [
-            "fes.keyboard.hid",
             "fes.media.spectrum-tape",
             "fes.audio.pcm-s16-stereo-48k"
           ],
           "settle": 30,
           "keys": [
+            "text:load",
+            "ctrl+p",
+            "ctrl+p",
             "enter"
           ],
           "expect": {
@@ -426,6 +450,12 @@
             "change-disk",
             "trdos-fes-blank.trd"
           ]
+        },
+        {
+          "keys": [
+            "enter"
+          ],
+          "settle": 2
         },
         {
           "keys": [
