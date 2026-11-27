@@ -136,3 +136,17 @@ discovery still requires the native launcher.
 After a physical power cycle with the original 4 GB card, C64 reached Ready,
 accepted Quit and parked at generation 1. The operator verified the return
 and released CBL. [C64 recovery and board release](bidi04-c64-release.json)
+
+## Two request/reply rounds in one boot
+
+The standalone diagnostic completed two unicast request/reply exchanges
+across the physical switch during one boot. An independent receiver matched
+both requests and reported zero drops. After each reply the target verified
+the channel stop acknowledgements, drained the shared DMA path, restored the
+PHY configuration, revoked the grant and checked that the retired receive
+buffer remained unchanged. It completed the first retirement before creating
+the second grant. The original C64 launcher subsequently reached Ready and
+Park and the kit was released.
+
+The normal launcher still needs separate hardware acceptance for Ethernet
+alongside its MENU and core transitions and for authenticated FogCast discovery.
