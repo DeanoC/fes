@@ -500,7 +500,7 @@ jobs:
     outputs:
       simulated_sha: ${{ needs.plan.result == 'success' && needs.plan.outputs.sim_tier == 'full' && needs.fpga-simulation.result == 'success' && needs.fpga-producer.result == 'success' && github.sha || '' }}
     if: always()
-    needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation, tamago]
+    needs: [plan, parent-tests, consistency, host, host-sdl3, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation, tamago]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
