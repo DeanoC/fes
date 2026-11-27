@@ -424,15 +424,15 @@ func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, do
 			if !in.menuStartDown && !in.menuChordFired {
 				in.menuSelectPending = true
 			}
-			return true
+		} else {
+			if !in.menuSelectDown && !in.menuSelectPending && !in.menuChordFired {
+				return false
+			}
+			wasPending := in.menuSelectPending
+			in.menuSelectDown = false
+			in.menuSelectPending = false
+			releaseSelectTap = wasPending && !in.menuChordFired
 		}
-		if !in.menuSelectDown && !in.menuSelectPending && !in.menuChordFired {
-			return false
-		}
-		wasPending := in.menuSelectPending
-		in.menuSelectDown = false
-		in.menuSelectPending = false
-		releaseSelectTap = wasPending && !in.menuChordFired
 	case remoteinput.ButtonStart:
 		in.menuStartDown = down
 	default:
@@ -468,7 +468,7 @@ func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, do
 		}
 		return true
 	}
-	return e.Code == remoteinput.ButtonStart
+	return true
 }
 
 func (in *nativeInput) button(app *App, button Button, value int32, now time.Time) {
