@@ -1,0 +1,8 @@
+[   26.247319] Bluetooth: hci0: Received unexpected HCI Event 0x00
+ntpd: setting time to 2026-11-25 08:05:58.302667 (offset +1795593927.672773s)
+[   67.726377] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[   69.834024] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[   69.844323] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[   70.127395] input: FogCast Virtual Gamepad as /devices/virtual/input/input1
+[  526.459896] reboot: Restarting system
+[  527.525668] arm-smmu-v3 16000000.iommu: CMD_SYNC timeout at 0x0000c1d2 [hwprod 0x0000c1d3, hwcons 0x0000c1d1]

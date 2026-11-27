@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "after_boot_id": false,
+    "after_bundle": true,
+    "after_image": true,
+    "after_kit": true,
+    "after_lease_free": true,
+    "after_ready": true,
+    "after_runtime_idle": true,
+    "after_serial": true,
+    "after_target_id": true,
+    "before_boot_id": true,
+    "before_bundle": true,
+    "before_image": true,
+    "before_kit": true,
+    "before_lease_free": true,
+    "before_ready": true,
+    "before_runtime_idle": true,
+    "before_serial": true,
+    "before_target_id": true,
+    "native_state_hash_unchanged": false,
+    "native_state_matches_baseline": true,
+    "native_state_unchanged": false
+  },
+  "kit_id": "de25-j8g",
+  "passed": false,
+  "serial": "TRWU8J8G"
+}

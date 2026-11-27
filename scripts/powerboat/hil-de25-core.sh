@@ -89,20 +89,29 @@ N_PKGS=${#PKGS[@]}
 NEEDS_CORE_SMOKE=0
 for CORE_ID in "${CORE_IDS[@]}"; do [ "$CORE_ID" = fes.menu ] || NEEDS_CORE_SMOKE=1; done
 if [ "$NEEDS_CORE_SMOKE" = 1 ]; then
-  SMOKE_DRIVER=$TMPDIR_PATH/hil-de25-core.py
-  cp "$Q/hilcore.py" "$SMOKE_DRIVER"
-  python3 - "$SMOKE_DRIVER" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
+  cp "$Q/hilcore.py" "$Q/hil-de25-core.py"
+  python3 - "$Q/hil-de25-core.py" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); s=p.read_text(); old='ORIGIN = "http://127.0.0.1:8787"'; new='ORIGIN = os.environ.get("C_API", "http://127.0.0.1:8787")'
 if old not in s: raise SystemExit('HIL smoke API declaration changed')
 s=s.replace(old,new,1)
+old_rom = '    plan = hil_rom.rom_plan(R["descriptor"], entry.get("core_id"), req(f"/api/v1/library/core-entries/{game}/rom", "rom-before"))'
+new_rom = """    rom = (R[\"descriptor\"] or {}).get(\"rom\") or {}
+    if rom.get(\"id\"):
+        current = req(f\"/api/v1/library/core-entries/{game}/rom?rom_id={rom['id']}\", \"rom-before\")
+        plan = hil_rom.rom_plan(R[\"descriptor\"], entry.get(\"core_id\"), current)
+    else:
+        plan = None"""
+# The HILQ engine now carries this ROM selection itself; patch only older copies.
+if new_rom not in s:
+    if old_rom not in s: raise SystemExit('HIL smoke ROM selection declaration changed')
+    s=s.replace(old_rom,new_rom,1)
 old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-control.sock http://local-control/v1/local/status")
     check("idle_after_stop", '"phase":"idle"' in lc, lc[:160])"""
 new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
 if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
 s=s.replace(old_idle,new_idle,1)
-# Include installation, launch and initial captures in the RAM test budget.
 old_install = '    inst = cli("core-install", "core-install", str(PKG)); pid = inst.get("package_id"); R["package_id"] = pid'
 if old_install not in s: raise SystemExit('HIL smoke install declaration changed')
 s=s.replace(old_install, '    ramtest_deadline = time.monotonic() + 900\n' + old_install, 1)
@@ -111,8 +120,8 @@ new_frames = old_frames + """
     tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
     core_id = os.environ.get("C_CORE_ID", "")
     if core_id == "fes.ramtest":
-        # Bind the RUNNING -> PASS transition to one observed package and
-        # runtime generation. A repeated stale PASS cannot satisfy this gate.
+        # Bind RAM Tester progress to one package and runtime generation.
+        # Repeated stale PASS frames cannot satisfy this gate.
         deadline = ramtest_deadline
         identity, end_identity = None, None
         stable, count, running_seen, continuity = 0, 0, False, False
@@ -189,42 +198,30 @@ if old_frames not in s: raise SystemExit('HIL smoke core frame capture changed')
 s=s.replace(old_frames,new_frames,1)
 old_video = '    check("core_video", ok, f"{s1} / {s2} (bright_frac info only)")'
 new_video = old_video + """
-    # Type one key through the host's supported input path: the launch
-    # attaches remote input, then a confirmed HID tap. A raw frame on the
-    # kit's local-input socket is not this path, because managed kits fence
-    # raw keys there by design. ZX81 K mode turns P into PRINT on the edit
-    # line at the bottom of the screen, outside center_sha, so compare whole
-    # frames with a noise-tolerant pixel diff.
-    def frame_delta(a, b):
-        def rgb(n):
-            return subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(FR / (n + ".png")), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
-        x, y = rgb(a), rgb(b)
-        if not x or len(x) != len(y):
-            return None
-        n = d = 0
-        for i in range(0, len(x) - 2, 12):
-            n += 1
-            d += abs(x[i] - y[i]) + abs(x[i + 1] - y[i + 1]) + abs(x[i + 2] - y[i + 2]) > 96
-        return d / n
-    tap_code = {"fes.zx81": 0x1013}.get(os.environ.get("C_CORE_ID", ""))
-    if tap_code:
-        inp = {}
-        for _ in range(10):
-            inp = req("/api/v1/session/input", "input-before-type")
-            if inp.get("state") == "attached" and inp.get("ready") and inp.get("session_id"):
-                break
-            time.sleep(1)
-        idle = frame_delta("10-core", "11-core")
-        typed = req("/api/v1/session/input/tap", "input-tap", {"session_id": inp.get("session_id"),
-            "event": {"Player": 0, "Device": 0, "Kind": 0, "Action": 1, "Code": tap_code, "Value": 0}})
-        grab("12-typed", 2)
-        delta = frame_delta("11-core", "12-typed")
-        check("keyboard_reaches_core", typed.get("ok") is True and idle is not None and delta is not None and idle < 0.0001 and delta > 0.0003,
-            f"tap={tap_code:#x} idle_delta={idle} typed_delta={delta}")"""
+    # Conformance steps from config/de25-conformance.json: HID taps through the
+    # host's confirmed tap, a relative mouse move, and media changes through
+    # the FogCast CLI, each judged on the HDMI capture. Exit 3 means the core
+    # has no steps yet. Declared media and mouse interfaces that no step
+    # covers are recorded as pending rather than passed.
+    tool = os.environ.get("C_CONFORMANCE_TOOL", "")
+    if tool and os.path.isfile(tool):
+        cf = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), "--package", str(PKG),
+            "--api", ORIGIN, "--fogcast", FOGCAST, "--video", VID, "--out", str(OUT / "conformance")],
+            capture_output=True, text=True, timeout=900)
+        (OUT / "conformance.log").write_text(cf.stdout + cf.stderr)
+        if cf.returncode != 3:
+            try:
+                report = json.loads(cf.stdout)
+            except ValueError:
+                report = {}
+            R["conformance_pending"] = report.get("pending")
+            for name, v in (report.get("checks") or {}).items():
+                check(name, v.get("ok") is True, str(v.get("detail", ""))[:400])
+            check("conformance", cf.returncode == 0 and report.get("verdict") == "PASS", f"rc={cf.returncode}")"""
 if old_video not in s: raise SystemExit('HIL smoke core video check changed')
 s=s.replace(old_video,new_video,1)
 compile(s, str(p), 'exec')
-if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s or 'keyboard_reaches_core' not in s: raise SystemExit('D25 smoke patch verification failed')
+if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s or 'C_CONFORMANCE_TOOL' not in s or 'ramtest_sdram' not in s or 'ramtest_deadline' not in s: raise SystemExit('D25 smoke patch verification failed')
 p.write_text(s)
 PY
 fi
@@ -345,8 +342,8 @@ for i in "${!PKGS[@]}"; do
       timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   else
-    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_TARGET_ID="$TARGET_ID" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
-      timeout 1800 python3 "$SMOKE_DRIVER" >"$SMOKE_LOG" 2>&1
+    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+      timeout 1800 python3 "$Q/hil-de25-core.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   fi
   set -e

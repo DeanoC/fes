@@ -1,0 +1,122 @@
+2026-11-27 14:14:32 agent idle lease free
+2026-11-27 14:14:32 lease held f7f7c6e676fc1f5cffae011b5d86048e3a713a9a77cb46e935949d8c2f936682
+2026-11-27 14:14:32 run 1 {"op": "grab", "name": "00-before-load"}
+2026-11-27 14:14:32 grab 00-before-load 327195
+2026-11-27 14:14:32 done 1 {"ok": true}
+2026-11-27 14:14:32 run 2 {"op": "load"}
+2026-11-27 14:14:43 done 2 {"load": {"state": "active"}, "seconds": 10.81, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:14:43 run 3 {"op": "sleep", "s": 10}
+2026-11-27 14:14:53 done 3 {}
+2026-11-27 14:14:53 run 4 {"op": "grab", "name": "t10"}
+2026-11-27 14:14:53 grab t10 421047
+2026-11-27 14:14:53 done 4 {"ok": true}
+2026-11-27 14:14:53 run 5 {"op": "sleep", "s": 10}
+2026-11-27 14:15:03 done 5 {}
+2026-11-27 14:15:03 run 6 {"op": "grab", "name": "t20"}
+2026-11-27 14:15:04 grab t20 420817
+2026-11-27 14:15:04 done 6 {"ok": true}
+2026-11-27 14:15:04 run 7 {"op": "sleep", "s": 10}
+2026-11-27 14:15:14 done 7 {}
+2026-11-27 14:15:14 run 8 {"op": "grab", "name": "t30"}
+2026-11-27 14:15:14 grab t30 420817
+2026-11-27 14:15:14 done 8 {"ok": true}
+2026-11-27 14:15:14 run 9 {"op": "sleep", "s": 15}
+2026-11-27 14:15:29 done 9 {}
+2026-11-27 14:15:29 run 10 {"op": "grab", "name": "t45"}
+2026-11-27 14:15:30 grab t45 420808
+2026-11-27 14:15:30 done 10 {"ok": true}
+2026-11-27 14:15:30 run 11 {"op": "sleep", "s": 15}
+2026-11-27 14:15:45 done 11 {}
+2026-11-27 14:15:45 run 12 {"op": "grab", "name": "t60"}
+2026-11-27 14:15:45 grab t60 421040
+2026-11-27 14:15:45 done 12 {"ok": true}
+2026-11-27 14:15:45 run 13 {"op": "type", "text": "ver\n"}
+2026-11-27 14:15:45 input attached
+2026-11-27 14:15:46 done 13 {}
+2026-11-27 14:15:46 run 14 {"op": "sleep", "s": 2}
+2026-11-27 14:15:48 done 14 {}
+2026-11-27 14:15:48 run 15 {"op": "grab", "name": "t-ver"}
+2026-11-27 14:15:48 grab t-ver 399186
+2026-11-27 14:15:48 done 15 {"ok": true}
+2026-11-27 14:16:25 run 16 {"op": "type", "text": "cd \\doom\n"}
+2026-11-27 14:16:26 done 16 {}
+2026-11-27 14:16:26 run 17 {"op": "sleep", "s": 2}
+2026-11-27 14:16:28 done 17 {}
+2026-11-27 14:16:28 run 18 {"op": "type", "text": "doom\n"}
+2026-11-27 14:16:29 done 18 {}
+2026-11-27 14:16:29 run 19 {"op": "sleep", "s": 20}
+2026-11-27 14:16:49 done 19 {}
+2026-11-27 14:16:49 run 20 {"op": "grab", "name": "d1-doom"}
+2026-11-27 14:16:50 grab d1-doom 2362420
+2026-11-27 14:16:50 done 20 {"ok": true}
+2026-11-27 14:16:50 run 21 {"op": "sleep", "s": 3}
+2026-11-27 14:16:53 done 21 {}
+2026-11-27 14:16:53 run 22 {"op": "grab", "name": "d2-doom"}
+2026-11-27 14:16:53 grab d2-doom 1027419
+2026-11-27 14:16:53 done 22 {"ok": true}
+2026-11-27 14:16:53 run 23 {"op": "sleep", "s": 3}
+2026-11-27 14:16:56 done 23 {}
+2026-11-27 14:16:56 run 24 {"op": "grab", "name": "d3-doom"}
+2026-11-27 14:16:56 grab d3-doom 939901
+2026-11-27 14:16:56 done 24 {"ok": true}
+2026-11-27 14:16:56 run 25 {"op": "stop"}
+2026-11-27 14:16:56 input detached
+2026-11-27 14:16:59 done 25 {"state": "idle"}
+2026-11-27 14:16:59 run 26 {"op": "sleep", "s": 3}
+2026-11-27 14:17:02 done 26 {}
+2026-11-27 14:17:02 run 27 {"op": "grab", "name": "s1-after-stop"}
+2026-11-27 14:17:03 grab s1-after-stop 327195
+2026-11-27 14:17:03 done 27 {"ok": true}
+2026-11-27 14:17:17 run 28 {"op": "load"}
+2026-11-27 14:17:26 done 28 {"load": {"state": "active"}, "seconds": 8.62, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:17:26 run 29 {"op": "grab", "name": "r00"}
+2026-11-27 14:17:26 grab r00 6154
+2026-11-27 14:17:26 done 29 {"ok": true}
+2026-11-27 14:17:26 run 30 {"op": "sleep", "s": 5}
+2026-11-27 14:17:31 done 30 {}
+2026-11-27 14:17:31 run 31 {"op": "grab", "name": "r05"}
+2026-11-27 14:17:32 grab r05 6154
+2026-11-27 14:17:32 done 31 {"ok": true}
+2026-11-27 14:17:32 run 32 {"op": "sleep", "s": 5}
+2026-11-27 14:17:37 done 32 {}
+2026-11-27 14:17:37 run 33 {"op": "grab", "name": "r10"}
+2026-11-27 14:17:37 grab r10 6154
+2026-11-27 14:17:37 done 33 {"ok": true}
+2026-11-27 14:17:37 run 34 {"op": "sleep", "s": 10}
+2026-11-27 14:17:47 done 34 {}
+2026-11-27 14:17:47 run 35 {"op": "grab", "name": "r20"}
+2026-11-27 14:17:48 grab r20 6154
+2026-11-27 14:17:48 done 35 {"ok": true}
+2026-11-27 14:17:48 run 36 {"op": "sleep", "s": 10}
+2026-11-27 14:17:58 done 36 {}
+2026-11-27 14:17:58 run 37 {"op": "grab", "name": "r30"}
+2026-11-27 14:17:58 grab r30 6154
+2026-11-27 14:17:58 done 37 {"ok": true}
+2026-11-27 14:17:58 run 38 {"op": "sleep", "s": 15}
+2026-11-27 14:18:13 done 38 {}
+2026-11-27 14:18:13 run 39 {"op": "grab", "name": "r45"}
+2026-11-27 14:18:14 grab r45 6154
+2026-11-27 14:18:14 done 39 {"ok": true}
+2026-11-27 14:18:14 run 40 {"op": "sleep", "s": 15}
+2026-11-27 14:18:29 done 40 {}
+2026-11-27 14:18:29 run 41 {"op": "grab", "name": "r60"}
+2026-11-27 14:18:29 grab r60 6154
+2026-11-27 14:18:29 done 41 {"ok": true}
+2026-11-27 14:18:29 run 42 {"op": "type", "text": "ver\n"}
+2026-11-27 14:18:29 input attached
+2026-11-27 14:18:29 done 42 {}
+2026-11-27 14:18:29 run 43 {"op": "sleep", "s": 2}
+2026-11-27 14:18:31 done 43 {}
+2026-11-27 14:18:31 run 44 {"op": "grab", "name": "r-ver"}
+2026-11-27 14:18:32 grab r-ver 6154
+2026-11-27 14:18:32 done 44 {"ok": true}
+2026-11-27 14:18:49 run 45 {"op": "stop"}
+2026-11-27 14:18:49 input detached
+2026-11-27 14:18:52 done 45 {"state": "idle"}
+2026-11-27 14:18:52 run 46 {"op": "sleep", "s": 3}
+2026-11-27 14:18:55 done 46 {}
+2026-11-27 14:18:55 run 47 {"op": "grab", "name": "s2-after-stop"}
+2026-11-27 14:18:55 grab s2-after-stop 327195
+2026-11-27 14:18:55 done 47 {"ok": true}
+2026-11-27 14:18:55 session closed {"state": "revoking", "reason": "owner released lease"}
+2026-11-27 14:18:55 after {"agent": "idle", "lease": "revoking"}
