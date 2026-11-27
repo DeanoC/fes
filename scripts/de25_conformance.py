@@ -252,16 +252,67 @@ def normalise(text: str) -> str:
     return "".join(ch for ch in text.upper() if ch.isalnum())
 
 
+def text_rows(raw: bytes, width: int, min_edges: int = 6, pad: int = 4) -> list[tuple[int, int]]:
+    """Bands of scanlines that carry text, found by colour edges along each line.
+
+    Borders and plain fields give a handful of edges per line; a line through
+    characters gives many.  Bands are padded and clipped to the frame.
+    """
+    height = len(raw) // (3 * width)
+    inked = []
+    for y in range(height):
+        row = raw[y * width * 3:(y + 1) * width * 3]
+        edges = 0
+        for x in range(6, width * 3 - 2, 6):
+            edges += abs(row[x] - row[x - 6]) + abs(row[x + 1] - row[x - 5]) + abs(row[x + 2] - row[x - 4]) > 96
+        inked.append(edges >= min_edges)
+    runs, start = [], None
+    for y, ink in enumerate(inked + [False]):
+        if ink and start is None:
+            start = y
+        elif not ink and start is not None:
+            if y - start >= 8:
+                runs.append((start, y))
+            start = None
+    if not runs:
+        return []
+    # Rows with no gap between them (a reverse-video line above a text line)
+    # merge into one run: cut runs taller than 1.5 rows into row-sized pieces.
+    row = sorted(b - a for a, b in runs)[len(runs) // 2]
+    bands = []
+    for a, b in runs:
+        pieces = max(1, round((b - a) / row)) if b - a > 1.5 * row else 1
+        for k in range(pieces):
+            top, bottom = a + (b - a) * k // pieces, a + (b - a) * (k + 1) // pieces
+            bands.append((max(0, top - pad), min(height, bottom + pad)))
+    return bands
+
+
+def tesseract(png: Path, psm: int) -> str:
+    return subprocess.run(["tesseract", str(png), "-", "--psm", str(psm)], capture_output=True, text=True).stdout
+
+
 def ocr(path: Path) -> str:
-    """Read the frame twice, as captured and inverted, and join both readings."""
+    """Every reading of the frame, joined: the whole frame as captured,
+    inverted and at half size, then each text row on its own.  Tesseract
+    misreads blocky machine fonts in a full-screen layout (a reverse-video
+    line can swallow the line below it) but reads them reliably one row at
+    a time."""
+    work = path.with_suffix(".ocr")
+    work.mkdir(exist_ok=True)
     texts = []
-    for invert in (False, True):
-        filt = "format=gray" + (",negate" if invert else "")
-        png = path.with_suffix(".ocr-%d.png" % invert)
+    for n, filt in enumerate(("format=gray", "format=gray,negate", "format=gray,scale=iw/2:-1:flags=area")):
+        png = work / f"frame-{n}.png"
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(path), "-vf", filt, str(png)],
                        capture_output=True)
-        r = subprocess.run(["tesseract", str(png), "-", "--psm", "6"], capture_output=True, text=True)
-        texts.append(r.stdout)
+        texts.append(tesseract(png, 6))
+    raw = rgb(path)
+    width = 1920 if len(raw) >= 1920 * 1080 * 3 else 1280
+    for top, bottom in text_rows(raw, width):
+        png = work / f"row-{top:04d}.png"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(path), "-vf",
+                        f"crop=iw:{bottom - top}:0:{top},format=gray", str(png)], capture_output=True)
+        texts.append(tesseract(png, 7))
     return "\n".join(texts)
 
 
@@ -308,6 +359,12 @@ class Host:
         except ValueError:
             value = {}
         return r.returncode, value, text
+
+
+def media_unit_states(session: dict) -> dict[str, str]:
+    """Interface id -> unit state from a session or CLI status reply."""
+    units = ((session.get("core_package") or {}).get("media_units")) or []
+    return {u.get("interface", {}).get("id", ""): u.get("state", "") for u in units if isinstance(u, dict)}
 
 
 # ---------------------------------------------------------------- run
@@ -367,9 +424,16 @@ def run(core: str, steps: list[dict], interfaces: list[str], host: Host, video: 
             rc, value, text = host.cli(*args)
             ok = rc == 0
             if ok and rest:
-                media = f"{value.get('media_name', '')} {value.get('media', '')}"
-                ok = Path(rest[0]).stem in media and not value.get("media_ejected")
-                detail.append(f"media={media.strip()[:80]} ejected={value.get('media_ejected')}")
+                units = media_unit_states(value)
+                wanted = [c for c in step.get("covers", []) if c in units]
+                for _ in range(20):  # a unit reads "loading" until the core has the image
+                    if not wanted or all(units[c] == "ready" for c in wanted):
+                        break
+                    time.sleep(1)
+                    units = media_unit_states(host.req("/api/v1/session"))
+                ok = bool(wanted) and all(units[c] == "ready" for c in wanted)
+                detail.append("units " + ", ".join(f"{c}={units[c]}" for c in wanted) if wanted
+                              else f"no unit for {step.get('covers')} in {sorted(units)}")
             detail.append(f"{' '.join(args[:1] + [Path(a).name for a in args[1:]])} rc={rc} {text[:160]}")
         time.sleep(step.get("settle", 1))
         after = out / f"f{index:02d}-{name}.png"

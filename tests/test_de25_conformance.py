@@ -126,17 +126,34 @@ class Spec(unittest.TestCase):
             "fes.spectrum128": ["fes.media.spectrum-tape"],
             "fes.c64": ["fes.media.c64-disk"],
             "fes.atari-st": ["fes.mouse.relative", "fes.media.atari-st-floppy",
-                             "fes.media.atari-st-floppy-write", "fes.media.atari-st-floppy-geometry"],
+                             "fes.media.atari-st-floppy-geometry"],
         }
         spec = conf.load_spec()["cores"]
         for core, interfaces in declared.items():
             self.assertEqual(conf.pending_interfaces(spec[core]["steps"], interfaces), [], core)
-        # ZX81 cassette SAVE is declared but not yet checked; it must show as pending.
+        # Writes are declared but not yet checked; they must show as pending.
         self.assertEqual(conf.pending_interfaces(spec["fes.zx81"]["steps"], ["fes.media.zx81-tape-write"]),
                          ["fes.media.zx81-tape-write"])
+        self.assertEqual(conf.pending_interfaces(spec["fes.atari-st"]["steps"], ["fes.media.atari-st-floppy-write"]),
+                         ["fes.media.atari-st-floppy-write"])
 
 
 class Frames(unittest.TestCase):
+    def test_text_rows_finds_and_splits_rows(self):
+        width, height = 64, 60
+        raw = bytearray(width * height * 3)
+        def stripes(y0, y1):
+            for y in range(y0, y1):
+                for x in range(0, width, 4):
+                    i = (y * width + x) * 3
+                    raw[i:i + 6] = bytes([255]) * 6
+        stripes(2, 12)    # one row
+        stripes(20, 30)   # another
+        stripes(36, 56)   # two rows with no gap between them
+        bands = conf.text_rows(bytes(raw), width, min_edges=4, pad=0)
+        self.assertEqual(bands, [(2, 12), (20, 30), (36, 46), (46, 56)])
+        self.assertEqual(conf.text_rows(bytes(width * height * 3), width), [])
+
     def test_frame_delta(self):
         a = bytes(300)
         self.assertEqual(conf.frame_delta(a, a), 0.0)
@@ -149,10 +166,19 @@ class Frames(unittest.TestCase):
         self.assertIn(conf.normalise("blocks free"), conf.normalise("664 BLOCKS\nFREE."))
 
 
+def units(state, interface="fes.media.x-disk"):
+    return {"state": "active", "core_package": {"media_units": [
+        {"unit": 0, "interface": {"id": interface, "major": 1, "minor": 0}, "state": state}]}}
+
+
 class FakeHost:
-    def __init__(self, tap_ok=True, cli_rc=0, media_name=""):
+    def __init__(self, tap_ok=True, cli_rc=0, unit_state="ready", later=None):
         self.taps, self.calls = [], []
-        self.tap_ok, self.cli_rc, self.media_name = tap_ok, cli_rc, media_name
+        self.tap_ok, self.cli_rc, self.unit_state = tap_ok, cli_rc, unit_state
+        self.later = list(later or [])
+
+    def req(self, path):
+        return units(self.later.pop(0) if self.later else self.unit_state)
 
     def input_session(self):
         return "s1"
@@ -163,7 +189,7 @@ class FakeHost:
 
     def cli(self, *args):
         self.calls.append(args)
-        return self.cli_rc, {"media_name": self.media_name, "media_ejected": False}, "ok"
+        return self.cli_rc, units(self.unit_state), "ok"
 
 
 class Run(unittest.TestCase):
@@ -191,17 +217,21 @@ class Run(unittest.TestCase):
         report = self.run_steps(steps, FakeHost(tap_ok=False), [still, still, still, moved])
         self.assertFalse(report["checks"]["k"]["ok"])
 
-    def test_media_needs_the_fixture_mounted(self):
+    def test_media_needs_the_unit_ready(self):
         steps = [{"name": "m", "media": ["change-disk", "c64-fes-blank.d64"], "covers": ["fes.media.x-disk"]}]
-        host = FakeHost(media_name="c64-fes-blank")
+        host = FakeHost()
         report = self.run_steps(steps, host, [])
         self.assertTrue(report["checks"]["m"]["ok"], report)
         self.assertEqual(report["pending"], [])
         self.assertEqual(host.calls[0][0], "change-disk")
         self.assertTrue(host.calls[0][1].endswith("c64-fes-blank.d64"))
         self.assertTrue(Path(host.calls[0][1]).is_file())
-        self.assertFalse(self.run_steps(steps, FakeHost(media_name="other"), [])["checks"]["m"]["ok"])
-        self.assertFalse(self.run_steps(steps, FakeHost(cli_rc=1, media_name="c64-fes-blank"), [])["checks"]["m"]["ok"])
+        loading = FakeHost(unit_state="loading", later=["loading", "ready"])
+        self.assertTrue(self.run_steps(steps, loading, [])["checks"]["m"]["ok"], "loading then ready")
+        self.assertFalse(self.run_steps(steps, FakeHost(unit_state="empty"), [])["checks"]["m"]["ok"])
+        self.assertFalse(self.run_steps(steps, FakeHost(cli_rc=1), [])["checks"]["m"]["ok"])
+        other = [{"name": "m", "media": ["change-disk", "c64-fes-blank.d64"], "covers": ["fes.media.y-disk"]}]
+        self.assertFalse(self.run_steps(other, FakeHost(), [])["checks"]["m"]["ok"], "no unit for the covered kind")
 
     def test_ocr_expectation(self):
         steps = [{"name": "o", "keys": ["enter"], "expect": {"ocr": "BLOCKS FREE"}}]
