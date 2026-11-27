@@ -200,8 +200,10 @@ RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
 # The 111.90 MHz DX fits reported this mixed duplicate spelling for cpu_halted
 # and cpu_int_wait. Both require the same live proof as the retimed sites.
+# The merged C28 seed 1 fit also reported the proved decoder state bit below.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
-                             + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate)')
+                             + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate'
+                             + r'|machine_at_decoder_state\[1\]~DUPLICATE_Duplicate_12)')
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '

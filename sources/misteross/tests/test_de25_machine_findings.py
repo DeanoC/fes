@@ -68,6 +68,7 @@ class PerRuleCoverageTests(unittest.TestCase):
 class RegisteredTensionTests(unittest.TestCase):
     def test_registered_builds_gate_retiming_by_recorded_model(self):
         retimed = '_17339_~1_R6_X56_Y33_N0_I13_dff'
+        decoder_duplicate = 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12'
         cases = (
             ('486sx', '486sx', 'cpu_md_busy', False, None),
             ('486dx', '486dx', 'cpu_md_busy', False, None),
@@ -81,6 +82,9 @@ class RegisteredTensionTests(unittest.TestCase):
             ('486dx', '486dx', 'cpu_halted~DUPLICATE_Duplicate', True, None),
             ('486sx', '486sx', 'cpu_halted~DUPLICATE_Duplicate', False, 'matches 0 bases'),
             ('486dx', '486dx', 'cpu_int_wait~DUPLICATE_Duplicate', True, None),
+            ('486dx', '486dx', decoder_duplicate, True, None),
+            ('486dx', '486dx', decoder_duplicate, True, 'fixture trace failed'),
+            ('486sx', '486sx', decoder_duplicate, False, 'matches 0 bases'),
             ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
             ('486dx', '486sx', retimed, False, 'differs from prepared model'),
             ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
@@ -567,6 +571,12 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'cpu_m1_out_reg[1178]~DUPLICATE_ENA_dff',
             S + 'cpu_m2_load~ACLR_dff',
             S + 'cpu_m2_load~1SCLR_dff',
+            S + 'machine_at_decoder_state[0]~DUPLICATE_Duplicate_12',
+            S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_11',
+            S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_13',
+            S + 'machine_at_decoder_phase[1]~DUPLICATE_Duplicate_12',
+            S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12|q',
+            S.replace('system|', 'window_control|') + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12',
             S + 'machine_presenter_loaded_flag~SCLR_dff',
             S + 'cpu_wb_deliver~DUPLICATEENA_dff_extra',
             S + '_36689_[*]~SCLR_dff',
