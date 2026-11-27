@@ -518,10 +518,10 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		// a machine. It presses menu controls only where a pad with a port
 		// would, and its releases always clear them. Keypad Select follows the
 		// focused launcher's confirmation mapping too.
-		if in.handleMenuSettingsChord(app, e, value != 0) {
-			return
-		}
 		if value == 0 || app.portlessPadReachesMenu(e.Code) {
+			if in.handleMenuSettingsChord(app, e, value != 0) {
+				return
+			}
 			in.setButton(uint16(button), app.localPadCommand(e), value != 0)
 		}
 		if value != 0 {

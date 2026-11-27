@@ -434,3 +434,32 @@ func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
 		t.Fatal("solo Start release did not quit on desktop")
 	}
 }
+
+func TestPortlessPadSettingsChordBlockedDuringActiveSession(t *testing.T) {
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	in := &nativeInput{fd: 9, kind: InputGamepad, player: noLocalPlayer, settingsCombo: true}
+	ins := &nativeInputs{devices: []*nativeInput{in}}
+	now := time.Now()
+
+	in.button(app, ButtonBack, 1, now)
+	in.button(app, ButtonStart, 1, now)
+	_ = ins.applyButtons(app, now)
+	if app.SettingsOpen() || len(in.controls) != 0 || len(feed.events) != 0 {
+		t.Fatalf("portless Settings chord acted during gameplay: settings=%v controls=%v feed=%+v",
+			app.SettingsOpen(), in.controls, feed.events)
+	}
+	in.button(app, ButtonBack, 0, now)
+	in.button(app, ButtonStart, 0, now)
+	_ = ins.applyButtons(app, now)
+
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.mu.Unlock()
+	in.button(app, ButtonBack, 1, now)
+	in.button(app, ButtonStart, 1, now)
+	_ = ins.applyButtons(app, now)
+	if !app.SettingsOpen() {
+		t.Fatal("portless Settings chord did not open Settings in idle menu")
+	}
+}
