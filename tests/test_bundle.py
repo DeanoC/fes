@@ -216,7 +216,9 @@ for core_id, module_name, script, options in json.loads(sys.argv[1]):
             for core in ('fes.pong', 'fes.sms', 'fes.coleco'):
                 recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
                 with patch.object(module, 'authenticate_misteross_origin'), \
-                        patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):
+                        patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])), \
+                        patch.object(module.selected_gpu_router.__globals__['shutil'], 'which',
+                                     side_effect=lambda name, path=None: '/tool/hipcc' if name == 'hipcc' else None):
                     with self.assertRaises(ValueError) as failure:
                         module.canonical_package_record(source, recipe=recipe)
                 message = str(failure.exception)
@@ -228,6 +230,27 @@ for core_id, module_name, script, options in json.loads(sys.argv[1]):
                     'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
                     'make', '-C', str(source), 'toolchain'])
                 self.assertIn('manual provisioning command inherits', message)
+
+    def test_missing_compiler_guidance_names_cuda_for_cuda_selection(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            recipe = module.recipe_for('fes.pong')
+            def which(name, path=None):
+                return '/tool/nvcc' if name == 'nvcc' else None
+            with patch.object(module, 'authenticate_misteross_origin'), \
+                    patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])), \
+                    patch.object(module.selected_gpu_router.__globals__['shutil'], 'which', side_effect=which):
+                with self.assertRaises(ValueError) as failure:
+                    module.canonical_package_record(source, recipe=recipe)
+            message = str(failure.exception)
+            command = message.split('slot is missing, run ', 1)[1].split('; then rerun', 1)[0]
+            self.assertEqual(shlex.split(command), ['env',
+                'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
+                'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
+                'FES_TOOLCHAIN_GPU_ROUTER=CUDA',
+                'FES_TOOLCHAIN_CUDA_ARCHITECTURES=86',
+                'make', '-C', str(source), 'toolchain'])
 
     def test_unknown_origins_are_rejected_without_forging_provenance(self):
         module = self.module()

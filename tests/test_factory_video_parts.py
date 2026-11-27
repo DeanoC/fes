@@ -33,6 +33,17 @@ class VideoIndexTests(unittest.TestCase):
     def publish(self, index=None):
         return video._publish(self.tree, self.files | {"index.json": video.canonical(index or self.index)})
 
+    def test_inspector_payload_uses_resolved_cuda_router(self):
+        recipe = video.recipes.recipe_for('fes.coleco')
+        completed = subprocess.CompletedProcess([], 0, stdout=b'{}', stderr=b'')
+        with patch.object(video.recipes.shutil, 'which',
+                          side_effect=lambda name, path=None: '/tool/nvcc' if name == 'nvcc' else None), \
+                patch.object(video.subprocess, 'run', return_value=completed) as run:
+            self.assertEqual(video._inspect(self.root, 'part', {'profile': 'direct'}, recipe, {}), {})
+        self.assertEqual(json.loads(run.call_args.kwargs['input'])['gpu_router'], 'CUDA')
+        self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_GPU_ROUTER'], 'CUDA')
+        self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_CUDA_ARCHITECTURES'], '86')
+
     def rewrite(self, name, data):
         path = self.tree / name
         path.chmod(0o644)

@@ -15,7 +15,8 @@ _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 from recipes import (FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment,
-                     recipe_for, require_private_audit_cache)
+                     recipe_for, require_private_audit_cache, selected_gpu_router,
+                     CUDA_ROUTER, CUDA_ARCHITECTURES)
 import artifact_cache
 import optional_cores
 from module_sources import normalize_known_origin
@@ -184,6 +185,12 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
                  and recipe.front_end == "yosys" else [])]
     try:
         child_env = package_build_environment(env, recipe=recipe)
+        selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
+        router_architecture = None
+        if selected_router == CUDA_ROUTER:
+            router_architecture = 'FES_TOOLCHAIN_CUDA_ARCHITECTURES=' + CUDA_ARCHITECTURES
+        elif recipe.hip_architectures:
+            router_architecture = 'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures
         record = (_bounded_pc386_canonical(command, source, child_env)
                   if recipe.core_id == 'fes.pc386' and not selection_only else
                   subprocess.check_output(command, cwd=source, env=child_env))
@@ -202,8 +209,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
             + shlex.join(['env',
                 'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
                 'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
-                'FES_TOOLCHAIN_GPU_ROUTER=' + recipe.gpu_router,
-                'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
+                'FES_TOOLCHAIN_GPU_ROUTER=' + selected_router,
+                router_architecture,
                 'make', '-C', str(source), 'toolchain']) +
             '; then rerun the original FES command. Use a shell without compiler/toolchain '
             'overrides: FES producer_environment sanitizes those overrides for producers, '
