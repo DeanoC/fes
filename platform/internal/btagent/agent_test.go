@@ -283,7 +283,9 @@ func TestPairTimeoutCancelsBeforeRestoringPairability(t *testing.T) {
 
 			peerErr := make(chan error, 1)
 			go func() { peerErr <- fakePairTimeoutBlueZ(server, tc.cancelFails) }()
-			err := a.pairDeviceWithTimeout(context.Background(), devInfo{Path: gamepadPath}, 100*time.Millisecond)
+			res := a.runPairDevice(context.Background(), bluezDest, devInfo{Path: gamepadPath}, 100*time.Millisecond)
+			a.applyPairOutcome(res)
+			err := res.pairErr
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("Pair error = %v, want client timeout", err)
 			}

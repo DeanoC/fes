@@ -40,6 +40,7 @@ const (
 	pairCallTimeout     = 35 * time.Second
 	pairCleanupTimeout  = 10 * time.Second
 	maxReconnects       = 4
+	maxPairs            = 4
 )
 
 type dbusError struct {
@@ -286,6 +287,8 @@ func RunWithControl(ctx context.Context, raw io.ReadWriteCloser, ctrl *ControlSe
 		staleBondRemoved:         map[string]struct{}{},
 		staleBondRemovalAttempts: map[string]int{},
 		reconnectDone:            make(chan reconnectResult, maxReconnects),
+		pairDone:                 make(chan pairResult, maxPairs),
+		activePairAdapters:       map[string]struct{}{},
 		deviceGeneration:         map[string]uint64{},
 		forgotten:                map[string]struct{}{},
 		controlCh:                make(chan controlRequest, 8),
@@ -322,6 +325,11 @@ type agent struct {
 	reconnects               int
 	reconnectCtx             context.Context
 	reconnectCancel          context.CancelFunc
+	pairDone                 chan pairResult
+	pairs                    int
+	activePairAdapters       map[string]struct{}
+	pairingCtx               context.Context
+	pairingCancel            context.CancelFunc
 	deviceGeneration         map[string]uint64
 
 	pairingUntil time.Time
@@ -341,6 +349,18 @@ type reconnectResult struct {
 	trustErr   error
 	err        error
 	generation uint64
+}
+
+type pairResult struct {
+	dev                    devInfo
+	owner                  string
+	generation             uint64
+	pairErr                error
+	pendingCancel          bool
+	restoreFailedAfterPair bool
+	restoreErr             error
+	trustErr               error
+	connectErr             error
 }
 
 func (a *agent) clock() time.Time {
@@ -389,8 +409,10 @@ func (a *agent) pairingTimerChan() <-chan time.Time {
 
 func (a *agent) run(ctx context.Context) error {
 	a.resetReconnectContext(ctx)
+	a.resetPairingContext(ctx)
 	defer func() {
 		a.reconnectCancel()
+		a.pairingCancel()
 		a.stopPairingTimer()
 	}()
 	if _, err := a.call(ctx, dbusDest, dbusPath, dbusIface, "Hello", "", nil, 10*time.Second); err != nil {
@@ -435,11 +457,16 @@ func (a *agent) run(ctx context.Context) error {
 			if err := a.handleReconnectResult(ctx, result); err != nil {
 				return err
 			}
+		case result := <-a.pairDone:
+			if err := a.handlePairResult(ctx, result); err != nil {
+				return err
+			}
 		case req := <-a.controlCh:
 			a.handleControl(ctx, req)
 		case <-a.pairingTimerChan():
 			if !a.pairingUntil.IsZero() && !a.clock().Before(a.pairingUntil) {
 				a.pairingUntil = time.Time{}
+				a.resetPairingContext(ctx)
 				a.stopDiscoveryAll(ctx)
 				a.publishSnapshot()
 			}
@@ -580,6 +607,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 		}
 		previousOwner := a.bluezOwner
 		a.resetReconnectContext(ctx)
+		a.resetPairingContext(ctx)
 		a.bluezOwner = newOwner
 		a.registeredOwner = ""
 		a.adapters = map[string]adapterInfo{}
@@ -739,6 +767,9 @@ func isStopDiscoveryBenign(err error) bool {
 }
 
 func (a *agent) adapterHasPendingPairing(adapterPath string) bool {
+	if _, active := a.activePairAdapters[adapterPath]; active {
+		return true
+	}
 	for devicePath := range a.pendingPairingCancel {
 		if path.Dir(devicePath) == adapterPath {
 			return true
@@ -784,7 +815,7 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if what == actionIgnore {
 		return
 	}
-	if what == actionPair && (!a.pairingActive(a.clock()) || a.isForgotten(dev) || a.adapterHasPendingPairing(path.Dir(dev.Path))) {
+	if what == actionPair && (!a.pairingActive(a.clock()) || a.isForgotten(dev) || a.adapterHasPendingPairing(path.Dir(dev.Path)) || a.pairs >= maxPairs || a.bluezOwner == "") {
 		return
 	}
 	if what == actionConnect && (a.reconnects >= maxReconnects || a.bluezOwner == "") {
@@ -805,31 +836,19 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 		go a.reconnect(workerCtx, dev, a.bluezOwner, a.deviceGeneration[dev.Path])
 		return
 	}
-	pairSucceeded := what != actionPair
-	defer func() { a.attempts.Finish(dev.Path, pairSucceeded, time.Now()) }()
-	if what == actionPair {
-		log.Printf("bluetooth: pairing %s %s", dev.Path, dev.Name)
-		if err := a.pairDevice(ctx, dev); err != nil {
-			a.logf("pair:"+dev.Path, "bluetooth: pair %s: %v", dev.Path, err)
-			return
-		}
-		pairSucceeded = true
-		a.resetStaleBondRemoval(dev.Path)
-		dev.Paired = true
-		a.devices[dev.Path] = dev
-		a.publishSnapshot()
+	// Keep the event loop free to serve control requests (including
+	// POST /pairing/stop) and timer expiry while BlueZ waits on Pair.
+	a.pairs++
+	if a.activePairAdapters == nil {
+		a.activePairAdapters = map[string]struct{}{}
 	}
-	if err := a.callVoid(ctx, bluezDest, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second); err != nil {
-		a.logf("trust:"+dev.Path, "bluetooth: trust %s: %v", dev.Path, err)
+	a.activePairAdapters[path.Dir(dev.Path)] = struct{}{}
+	workerCtx := a.pairingCtx
+	if workerCtx == nil {
+		workerCtx = ctx
 	}
-	log.Printf("bluetooth: connecting %s %s", dev.Path, dev.Name)
-	if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second); err != nil && !isName(err, "org.bluez.Error.AlreadyConnected") {
-		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
-		return
-	}
-	dev.Connected = true
-	a.devices[dev.Path] = dev
-	a.publishSnapshot()
+	log.Printf("bluetooth: pairing %s %s", dev.Path, dev.Name)
+	go a.pairAndConnect(workerCtx, dev, a.bluezOwner, a.deviceGeneration[dev.Path])
 }
 
 // An outstanding operation belongs to one BlueZ owner. Cancellation frees a
@@ -840,6 +859,13 @@ func (a *agent) resetReconnectContext(ctx context.Context) {
 		a.reconnectCancel()
 	}
 	a.reconnectCtx, a.reconnectCancel = context.WithCancel(ctx)
+}
+
+func (a *agent) resetPairingContext(ctx context.Context) {
+	if a.pairingCancel != nil {
+		a.pairingCancel()
+	}
+	a.pairingCtx, a.pairingCancel = context.WithCancel(ctx)
 }
 
 func (a *agent) invalidateDevice(devicePath string) {
@@ -905,78 +931,177 @@ func (a *agent) finishReconnect(ctx context.Context, result reconnectResult) {
 	a.logf("connect:"+result.dev.Path, "bluetooth: connect %s: %v", result.dev.Path, result.err)
 }
 
-// pairDevice enables the adapter's bondable state only while pairing an
+func (a *agent) pairAndConnect(ctx context.Context, dev devInfo, owner string, generation uint64) {
+	res := a.runPairDevice(ctx, owner, dev, pairCallTimeout)
+	res.generation = generation
+	if res.pairErr != nil {
+		a.pairDone <- res
+		return
+	}
+	if ctx.Err() != nil {
+		res.connectErr = ctx.Err()
+		a.pairDone <- res
+		return
+	}
+	res.trustErr = a.callVoid(ctx, owner, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second)
+	if ctx.Err() != nil {
+		res.connectErr = ctx.Err()
+		a.pairDone <- res
+		return
+	}
+	log.Printf("bluetooth: connecting %s %s", dev.Path, dev.Name)
+	res.connectErr = a.callVoid(ctx, owner, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second)
+	a.pairDone <- res
+}
+
+func (a *agent) handlePairResult(ctx context.Context, result pairResult) error {
+	if err := a.handleSignals(ctx); err != nil {
+		return err
+	}
+	a.finishPair(result)
+	return nil
+}
+
+func (a *agent) finishPair(result pairResult) {
+	a.pairs--
+	delete(a.activePairAdapters, path.Dir(result.dev.Path))
+	if result.owner != a.bluezOwner || result.generation != a.deviceGeneration[result.dev.Path] {
+		a.attempts.Finish(result.dev.Path, false, time.Now())
+		return
+	}
+	pairSucceeded := result.pairErr == nil
+	a.attempts.Finish(result.dev.Path, pairSucceeded, time.Now())
+	a.applyPairOutcome(result)
+	if !pairSucceeded {
+		a.logf("pair:"+result.dev.Path, "bluetooth: pair %s: %v", result.dev.Path, result.pairErr)
+		return
+	}
+	a.resetStaleBondRemoval(result.dev.Path)
+	dev := result.dev
+	if existing, ok := a.devices[result.dev.Path]; ok {
+		dev = existing
+	}
+	dev.Paired = true
+	if result.trustErr != nil {
+		a.logf("trust:"+dev.Path, "bluetooth: trust %s: %v", dev.Path, result.trustErr)
+	}
+	if result.connectErr != nil && !isName(result.connectErr, "org.bluez.Error.AlreadyConnected") {
+		a.devices[dev.Path] = dev
+		a.publishSnapshot()
+		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, result.connectErr)
+		return
+	}
+	dev.Connected = true
+	a.devices[dev.Path] = dev
+	a.publishSnapshot()
+}
+
+func (a *agent) applyPairOutcome(result pairResult) {
+	adapterPath := path.Dir(result.dev.Path)
+	if result.pendingCancel {
+		if a.pendingPairingCancel == nil {
+			a.pendingPairingCancel = map[string]struct{}{}
+		}
+		a.pendingPairingCancel[result.dev.Path] = struct{}{}
+		delete(a.configuredAdapters, adapterPath)
+		return
+	}
+	if result.restoreFailedAfterPair {
+		delete(a.configuredAdapters, adapterPath)
+		a.logf("restore-pairable:"+adapterPath, "bluetooth: restore adapter pairability %s after successful pairing: %v", adapterPath, result.restoreErr)
+	}
+}
+
+// runPairDevice enables the adapter's bondable state only while pairing an
 // unpaired, policy-approved controller. BlueZ otherwise can complete a
 // temporary pairing without persisting its link key. Restore the idle state
 // even if Pair fails or the caller is cancelled.
-func (a *agent) pairDevice(ctx context.Context, dev devInfo) error {
-	return a.pairDeviceWithTimeout(ctx, dev, pairCallTimeout)
-}
-
-func (a *agent) pairDeviceWithTimeout(ctx context.Context, dev devInfo, timeout time.Duration) error {
-	adapterPath := path.Dir(dev.Path)
-	if err := a.setAdapterPairable(ctx, adapterPath, true); err != nil {
-		enableErr := fmt.Errorf("enable adapter bondability: %w", err)
-		if restoreErr := a.restoreAdapterPairable(adapterPath); restoreErr != nil {
-			return errors.Join(enableErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
-		}
-		return enableErr
+func (a *agent) runPairDevice(ctx context.Context, dest string, dev devInfo, timeout time.Duration) pairResult {
+	if dest == "" {
+		dest = bluezDest
 	}
-	pairErr := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, timeout)
+	adapterPath := path.Dir(dev.Path)
+	res := pairResult{dev: dev, owner: dest}
+	if err := a.setAdapterPairableDest(ctx, dest, adapterPath, true); err != nil {
+		enableErr := fmt.Errorf("enable adapter bondability: %w", err)
+		if restoreErr := a.restoreAdapterPairableDest(dest, adapterPath); restoreErr != nil {
+			res.pairErr = errors.Join(enableErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
+			return res
+		}
+		res.pairErr = enableErr
+		return res
+	}
+	pairErr := a.callVoid(ctx, dest, dev.Path, deviceIface, "Pair", "", nil, timeout)
 	if pairErr != nil {
 		var bluezErr *dbusError
 		if !errors.As(pairErr, &bluezErr) {
-			if cancelErr := a.cancelPairing(dev.Path); cancelErr != nil {
-				if a.pendingPairingCancel == nil {
-					a.pendingPairingCancel = map[string]struct{}{}
-				}
-				a.pendingPairingCancel[dev.Path] = struct{}{}
-				delete(a.configuredAdapters, adapterPath)
-				return errors.Join(pairErr, fmt.Errorf("cancel pairing before restoring adapter bondability: %w", cancelErr))
+			if cancelErr := a.cancelPairingDest(dest, dev.Path); cancelErr != nil {
+				res.pairErr = errors.Join(pairErr, fmt.Errorf("cancel pairing before restoring adapter bondability: %w", cancelErr))
+				res.pendingCancel = true
+				return res
 			}
 		}
 	}
-	restoreErr := a.restoreAdapterPairable(adapterPath)
+	restoreErr := a.restoreAdapterPairableDest(dest, adapterPath)
 	if pairErr != nil {
 		if restoreErr != nil {
-			return errors.Join(pairErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
+			res.pairErr = errors.Join(pairErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
+			return res
 		}
-		return pairErr
+		res.pairErr = pairErr
+		return res
 	}
 	if restoreErr != nil {
 		// Pair has already created the bond. Retry transient restoration errors,
 		// but keep the successful pairing path moving even if BlueZ still refuses
 		// to restore its idle state. The next adapter refresh will configure it
 		// again because this entry is no longer marked configured.
-		if retryErr := a.restoreAdapterPairable(adapterPath); retryErr != nil {
+		if retryErr := a.restoreAdapterPairableDest(dest, adapterPath); retryErr != nil {
 			restoreErr = errors.Join(restoreErr, retryErr)
 		} else {
-			return nil
+			return res
 		}
-		delete(a.configuredAdapters, adapterPath)
-		a.logf("restore-pairable:"+adapterPath, "bluetooth: restore adapter pairability %s after successful pairing: %v", adapterPath, restoreErr)
+		res.restoreFailedAfterPair = true
+		res.restoreErr = restoreErr
 	}
-	return nil
+	return res
 }
 
 func (a *agent) restoreAdapterPairable(adapterPath string) error {
+	return a.restoreAdapterPairableDest(bluezDest, adapterPath)
+}
+
+func (a *agent) restoreAdapterPairableDest(dest, adapterPath string) error {
+	if dest == "" {
+		dest = bluezDest
+	}
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), pairCleanupTimeout)
 	defer cancel()
-	return a.setAdapterPairable(cleanupCtx, adapterPath, false)
+	return a.setAdapterPairableDest(cleanupCtx, dest, adapterPath, false)
 }
 
 func (a *agent) cancelPairing(devicePath string) error {
+	return a.cancelPairingDest(bluezDest, devicePath)
+}
+
+func (a *agent) cancelPairingDest(dest, devicePath string) error {
+	if dest == "" {
+		dest = bluezDest
+	}
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), pairCleanupTimeout)
 	defer cancel()
-	err := a.callVoid(cleanupCtx, bluezDest, devicePath, deviceIface, "CancelPairing", "", nil, pairCleanupTimeout)
+	err := a.callVoid(cleanupCtx, dest, devicePath, deviceIface, "CancelPairing", "", nil, pairCleanupTimeout)
 	if isName(err, "org.bluez.Error.DoesNotExist") {
 		return nil
 	}
 	return err
 }
 
-func (a *agent) setAdapterPairable(ctx context.Context, adapterPath string, pairable bool) error {
-	return a.callVoid(ctx, bluezDest, adapterPath, propsIface, "Set", "ssv",
+func (a *agent) setAdapterPairableDest(ctx context.Context, dest, adapterPath string, pairable bool) error {
+	if dest == "" {
+		dest = bluezDest
+	}
+	return a.callVoid(ctx, dest, adapterPath, propsIface, "Set", "ssv",
 		bodyProp(adapterIface, "Pairable", "b", pairable, 0), 10*time.Second)
 }
 
@@ -1530,6 +1655,7 @@ func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Statu
 func (a *agent) stopPairing(ctx context.Context) Status {
 	a.stopPairingTimer()
 	a.pairingUntil = time.Time{}
+	a.resetPairingContext(ctx)
 	a.stopDiscoveryAll(ctx)
 	a.publishSnapshot()
 	return a.snapshot()
@@ -1567,17 +1693,19 @@ func (a *agent) forgetDevice(ctx context.Context, address string) (Status, error
 	if target == nil {
 		return a.snapshot(), &controlError{code: http.StatusNotFound, err: fmt.Errorf("bluetooth device %s not found", addr)}
 	}
+	if a.bluezOwner == "" {
+		return a.snapshot(), &controlError{code: http.StatusServiceUnavailable, err: errors.New("bluetooth service unavailable")}
+	}
+	err := a.callVoid(ctx, a.bluezOwner, path.Dir(target.Path), adapterIface, "RemoveDevice", "o", bodyPath(target.Path), 10*time.Second)
+	if err != nil && !isName(err, "org.bluez.Error.DoesNotExist") {
+		a.logf("forget:"+target.Path, "bluetooth: remove forgotten device %s: %v", target.Path, err)
+		return a.snapshot(), &controlError{code: http.StatusInternalServerError, err: fmt.Errorf("remove bluetooth device %s: %w", addr, err)}
+	}
 	a.forgotten[addr] = struct{}{}
 	a.invalidateDevice(target.Path)
 	delete(a.devices, target.Path)
 	a.attempts.AllowPairAfterBondRemoval(target.Path)
 	a.resetStaleBondRemoval(target.Path)
-	if a.bluezOwner != "" {
-		err := a.callVoid(ctx, a.bluezOwner, path.Dir(target.Path), adapterIface, "RemoveDevice", "o", bodyPath(target.Path), 10*time.Second)
-		if err != nil && !isName(err, "org.bluez.Error.DoesNotExist") {
-			a.logf("forget:"+target.Path, "bluetooth: remove forgotten device %s: %v", target.Path, err)
-		}
-	}
 	a.publishSnapshot()
 	return a.snapshot(), nil
 }
