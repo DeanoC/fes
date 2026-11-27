@@ -695,6 +695,27 @@ class STResolverTransactionTests(ResolverTransactionTests):
         self.assertEqual(self.builder.call_count, 2)
 
 
+class VideoPartProducerLaunchTests(unittest.TestCase):
+    def test_producer_launch_forwards_selected_cuda_router(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            archive = source / "build/video-parts/direct/part.tar"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"fixture archive")
+            completed = subprocess.CompletedProcess([], 0, stdout=str(archive) + "\n")
+            recipe = video.recipes.recipe_for("fes.coleco")
+            with patch.object(video.subprocess, "run", return_value=completed) as run, \
+                    patch.object(video.recipes.shutil, "which",
+                                 side_effect=lambda name, path=None: "/tool/nvcc" if name == "nvcc" else None):
+                result = video._build_part(source, source / "shell", source / "package",
+                                           "direct", recipe, {"PATH": "/tool"})
+            args = [str(part) for part in run.call_args.args[0]]
+            self.assertEqual(result, archive)
+            self.assertIn("--gpu-router", args)
+            self.assertEqual(args[args.index("--gpu-router") + 1], "CUDA")
+            self.assertEqual(run.call_args.kwargs["env"]["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
+
+
 class VideoPartProducerFailureTests(unittest.TestCase):
     def test_process_failure_is_a_value_error(self):
         def fail(args, **kwargs):

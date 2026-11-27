@@ -884,6 +884,21 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', run.call_args.kwargs['env'])
             self.assertIn('--cache-root', [str(part) for part in run.call_args.args[0]])
 
+    def test_package_producer_launch_forwards_selected_cuda_router(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            recipe = module.recipe_for('fes.pong')
+            completed = subprocess.CompletedProcess(['python'], 0)
+            with patch.object(module.subprocess, 'run', return_value=completed) as run, \
+                    patch.object(module.selected_gpu_router.__globals__['shutil'], 'which',
+                                 side_effect=self._which(nvcc=True)):
+                module._build_package(source, recipe=recipe, env={'PATH': '/tool'})
+            args = [str(part) for part in run.call_args.args[0]]
+            self.assertIn('--gpu-router', args)
+            self.assertEqual(args[args.index('--gpu-router') + 1], 'CUDA')
+            self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_GPU_ROUTER'], 'CUDA')
+
     def test_package_resolution_opts_into_shared_toolchain_cache(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:

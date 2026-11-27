@@ -463,11 +463,14 @@ def _inspect(source, mode, arguments, recipe, env):
 def _build_part(source, shell, package, profile, recipe, env):
     seed_arguments = (["--seed", str(ST_VIDEO_PART_SEED)]
                       if recipe.core_id == "fes.atari-st" else [])
+    child_env = recipes.producer_environment(env, recipe=recipe)
+    selected_router = recipes.selected_gpu_router(recipe, path=child_env.get("PATH"))
     try:
         result = subprocess.run([sys.executable, ("scripts/build_atari_st_video_part.py" if recipe.core_id == "fes.atari-st" else "scripts/build_video_part.py"), "--root", str(source),
                                  "--shell", str(shell), "--package", str(package),
-                                 "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0", *seed_arguments],
-                                cwd=source, env=recipes.producer_environment(env, recipe=recipe),
+                                 "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0", *seed_arguments,
+                                 *(["--gpu-router", selected_router] if selected_router == recipes.CUDA_ROUTER else [])],
+                                cwd=source, env=child_env,
                                 stdout=subprocess.PIPE, check=True, text=True)
     except subprocess.CalledProcessError as error:
         raise OptionalBuildFailure(f"video part producer failed with status {error.returncode}") from error

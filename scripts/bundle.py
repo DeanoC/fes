@@ -439,14 +439,19 @@ def _build_package(source, recipe=None, env=None):
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     report_path = Path(source) / "build" / optional_cores.PRODUCER_REPORT_NAME
     _discard_producer_report(report_path)
+    child_env = package_build_environment(env, recipe=recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
     try:
         subprocess.run(
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
              "--identity-version", "2", *recipe.producer_arguments,
+             # Keep the historical HIP default, but make the selected CUDA
+             # backend explicit to producers whose command-line default is HIP.
+             *(["--gpu-router", selected_router] if selected_router == CUDA_ROUTER else []),
              *_de25_license_arguments(env, recipe)],
-            cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
+            cwd=source, check=True, env=child_env)
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)
         _discard_producer_report(report_path)
