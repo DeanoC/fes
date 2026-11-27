@@ -114,5 +114,8 @@ setting. [UART trace](tx12-uart.gz) · [Received bytes](tx12-wire.bin) ·
 [Independent packet count](tx12-wire.json)
 
 The initial C64 handback encountered a JTAG chain break after programming
-started. The board claim was retained pending a separately verified
-C64 Ready and Park.
+started. After a confirmed cold power cycle with the original 4 GB card, the
+operator loaded the original C64 image. C64 reached Ready with boot ID
+`af4407e48b21634e` and RAM preferences. It accepted Quit, parked at
+generation 1, and released all board handles.
+[C64 recovery and board release](tx12-c64-release.json)
