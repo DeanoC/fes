@@ -1128,6 +1128,9 @@ constraints matched in order and value, and no other rung or final
 timing phase emitted a new target. The fixture receipt SHA-256 is
 `6518f16da90053f03bdffef55b81e06788c3428ab88b1a35fa4d3edff92a2adc`.
 The registered QSF stayed byte-identical to the prior placement trial.
+The fresh DE10 netlist and four identities matched `2f19382b`, and all
+seven DE25 D12 input selections matched both `2f19382b` and
+`4fe7bada`.
 
 ## Integrated C0 = 28 fallback
 
@@ -1152,7 +1155,32 @@ Seed 1 passed the raw numerical timing checks. The producer refused
 one unmatched naming form,
 `machine_at_decoder_state[1]~DUPLICATE_Duplicate_12`, among 47 subjects
 for the DX fitted proof. The copied numerical run passed all 1,316
-checks. Exact topology and unconstrained-path checks are in progress.
+checks. Raw setup was +0.339 ns and independent LOADED was 2.617 ns.
+The seed 1 summary SHA-256 is
+`c3917741af2d0add2d75b2db76772a6dfd533b846893d69ae09fb8d1e2d7b2db`.
+Seed 3 passed ordinary timing and sealed, with +0.303 ns worst setup
+and 2.396 ns independent LOADED. It used 44,858.3 ALMs and 42 DSPs.
+Its summary SHA-256 is
+`fc3b9120fe51ab8c89ff66daac1f8eb440c2dfed16244d33e2c7b82ff30d1cbf`.
+Seed 4 also passed and sealed. Its worst setup was +0.164 ns and
+independent LOADED was 3.331 ns. It used 44,843.5 ALMs and 42 DSPs.
+Its summary SHA-256 is
+`ff975920043d6d25ded22e4a14aeb6b2d03e3f3cd9678181fee5520ab6ad0954`,
+and the four-seed summary SHA-256 is
+`7b67d90554fea2e6dd9113ab92ca1af4ed971a562f61e5de56ffd6eb6f69954f`.
+
+The copied seed 1 database reproduced all 28 timing rows for the
+decoder-state register, with +1.999 ns worst setup and +0.076 ns worst
+hold. All eight keeper checks passed, and the unconstrained-path report
+contained no instance of the register. The structural receipt SHA-256 is
+`f92ec8a0c5aab34299985b611e20c12fb71ab854823e317339ee9d7266b857b9`.
+Revision `2bc8a55e333bfc124c5dca3901ef813e083ee543` recognizes only this
+name for the existing DX fitted proof. It passed `make check` and 55
+focused tests. The DE10 netlist and all four identities matched
+`2f19382b`, and all seven D12 selections matched `2f19382b` and
+`7c7d1a99`. The preparation receipt SHA-256 is
+`b306b24220de5500495c522b9bfe4f4732dd60b9b0f6d065fde27e9371a4ea9e`.
+New four-seed qualification is pending on this source.
 
 ## Running a seed on either builder
 

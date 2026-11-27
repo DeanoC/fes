@@ -259,6 +259,11 @@ also matched all tracked and regenerated game inputs against the
 compiled-input receipt SHA-256 is
 `8874124bf3c98158451d89d5b271e72a68ad0b627d28822175d6b3568fe83320`.
 
+The pre-route targets in `4bf35867e371979dac168a9377bac66f7110304b`
+also reproduced all compiled game inputs and rehashed both retained
+binaries against the `4fe7bada` launch. The comparison receipt SHA-256 is
+`787bc40775a01b2d518bbc28e019abbe673e19c4a0d1590cd31943c85dc77fbb`.
+
 ## Integrated C0 = 28 fallback
 
 The replay for `7c7d1a991b5ed629b050630309c48ea38acc0aad` uses
@@ -273,3 +278,9 @@ checks, 23,795 transcendental checks and 3,356,352 TestFloat vectors.
 All 84 TestFloat streams match their pinned references. Both the direct
 unit and TestFloat unit measured 13 clocks through FMUL, matching the
 single-stage x87. G4 and G5 are running on this source.
+
+Revision `2bc8a55e333bfc124c5dca3901ef813e083ee543` reproduced the 78
+tracked and generated game inputs, ordered dependency lists, guest
+rates, ATA media and x87 selection against `7c7d1a99`. The compiled-input
+receipt SHA-256 is
+`a0e2e99eb5af8ae6d32ffb1db038e9834a91dbacffdba00b71894e114ba27c82`.
