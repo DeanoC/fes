@@ -50,14 +50,14 @@ const (
 	txSpeed100MII    = uint32(4 << 29) // DW XGMAC XGMAC_CONFIG_SS_100_MII
 	linkPollUp       = 500 * time.Millisecond
 	linkPollDown     = 250 * time.Millisecond
-	ringSize         = 4
+	bufferCount      = 4
+	agilexRingSize   = 32 // Agilex 5 can prefetch up to 32 descriptors per channel.
 	bufferSize       = 1600
 	maxFrame         = 1514
 	txRing           = uint32(0)
-	rxRing           = uint32(64)
 	txBuffers        = uint32(4096)
-	rxBuffers        = txBuffers + ringSize*bufferSize
-	RequiredBytes    = uint64(rxBuffers + ringSize*bufferSize)
+	rxBuffers        = txBuffers + bufferCount*bufferSize
+	RequiredBytes    = uint64(rxBuffers + bufferCount*bufferSize)
 	own              = uint32(1 << 31)
 	contextDesc      = uint32(1 << 30)
 	first            = uint32(1 << 29)
@@ -160,7 +160,7 @@ type Device struct {
 	linkDown                       bool
 	configuredSpeed                LinkSpeed
 	dmaBase, dmaBytes              uint64
-	rx, tx                         uint32
+	rx, tx, ringEntries            uint32
 	nextLink                       time.Time
 	received, transmitted, dropped atomic.Uint64
 	linkSpeed                      atomic.Uint32
@@ -365,8 +365,20 @@ func (d *Device) applySpeedLocked(speed LinkSpeed) error {
 }
 
 func (d *Device) initialize(mac net.HardwareAddr) error {
-	if d.io.Read32(version)&255 != 0x21 || d.io.Read32(features0)&(1<<5|1<<1) != (1<<5|1<<1) {
-		return fmt.Errorf("xgmac: unsupported core version/GMII/MDIO capabilities")
+	id := d.io.Read32(version)
+	switch {
+	case id&0xff == 0x21:
+		d.ringEntries = bufferCount
+	case id&0xffff == 0x7631: // Agilex 5 XGMAC2 DEVID 0x76, SNPSVER 0x31
+		if d.config.RXBufferShift != 1 {
+			return fmt.Errorf("xgmac: Agilex 5 XGMAC2 requires RX buffer byte count at bit 1")
+		}
+		d.ringEntries = agilexRingSize
+	default:
+		return fmt.Errorf("xgmac: unsupported core version %#x", id)
+	}
+	if d.io.Read32(features0)&(1<<5|1<<1) != (1<<5 | 1<<1) {
+		return fmt.Errorf("xgmac: missing GMII/MDIO capabilities")
 	}
 	count := d.io.Read32(features2)
 	if (count>>18)&15 > 7 || (count>>12)&15 > 7 {
@@ -464,15 +476,15 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	for offset := uint32(0); uint64(offset) < RequiredBytes; offset += 4 {
 		d.memory.Write32(offset, 0)
 	}
-	for i := uint32(0); i < ringSize; i++ {
+	for i := uint32(0); i < bufferCount; i++ {
 		d.post(i)
 	}
 	d.io.Write32(0x3110, 0)
 	d.io.Write32(txList, uint32(d.memory.Base())+txRing)
 	d.io.Write32(0x3118, 0)
-	d.io.Write32(rxList, uint32(d.memory.Base())+rxRing)
-	d.io.Write32(0x3130, ringSize-1)
-	d.io.Write32(0x3134, ringSize-1)
+	d.io.Write32(rxList, uint32(d.memory.Base())+d.rxDescriptor(0))
+	d.io.Write32(0x3130, d.ringEntries-1)
+	d.io.Write32(0x3134, d.ringEntries-1)
 	d.io.Write32(channelStatus, 0xffffffff)
 	d.memory.Barrier()
 	d.started = true // all failures from here retain uncertain DMA ownership
@@ -480,12 +492,22 @@ func (d *Device) initialize(mac net.HardwareAddr) error {
 	d.io.Write32(rxControl, d.io.Read32(rxControl)|1)
 	d.io.Write32(txConfig, d.io.Read32(txConfig)|1)
 	d.io.Write32(rxConfig, d.io.Read32(rxConfig)|1)
-	d.io.Write32(rxTail, uint32(d.memory.Base())+rxRing+(ringSize-1)*16)
+	d.publishRXTail(bufferCount - 1)
 	return nil
 }
+func (d *Device) rxDescriptor(index uint32) uint32 { return (d.ringEntries + index) * 16 }
+
+func (d *Device) publishRXTail(lastPosted uint32) {
+	if d.ringEntries == agilexRingSize {
+		// The Agilex tail is the descriptor just beyond the available buffers.
+		lastPosted = (lastPosted + 1) % d.ringEntries
+	}
+	d.io.Write32(rxTail, uint32(d.memory.Base())+d.rxDescriptor(lastPosted))
+}
+
 func (d *Device) post(index uint32) {
-	desc := rxRing + index*16
-	d.memory.Write32(desc, uint32(d.memory.Base())+rxBuffers+index*bufferSize)
+	desc := d.rxDescriptor(index)
+	d.memory.Write32(desc, uint32(d.memory.Base())+rxBuffers+index%bufferCount*bufferSize)
 	d.memory.Write32(desc+4, 0)
 	d.memory.Write32(desc+8, 0)
 	d.memory.Barrier()
@@ -570,7 +592,7 @@ func (d *Device) Receive(dst []byte) (int, error) {
 		runtime.Gosched()
 		return 0, nil
 	}
-	desc := rxRing + d.rx*16
+	desc := d.rxDescriptor(d.rx)
 	state := d.memory.Read32(desc + 12)
 	if state&own != 0 {
 		if d.irqActive.Load() {
@@ -592,13 +614,16 @@ func (d *Device) Receive(dst []byte) (int, error) {
 	if state&(1<<15) != 0 || length < 14 || length > maxFrame || length > len(dst) {
 		d.dropped.Add(1)
 	} else {
-		d.memory.Read(rxBuffers+d.rx*bufferSize, dst[:length])
+		d.memory.Read(rxBuffers+d.rx%bufferCount*bufferSize, dst[:length])
 		d.received.Add(1)
 	}
 	dropped := state&(1<<15) != 0 || length < 14 || length > maxFrame || length > len(dst)
-	d.post(d.rx)
-	d.io.Write32(rxTail, uint32(d.memory.Base())+desc)
-	d.rx = (d.rx + 1) % ringSize
+	// Only these four buffers can be owned at once. Move the one just
+	// consumed to the next free descriptor before advancing the tail.
+	repost := (d.rx + bufferCount) % d.ringEntries
+	d.post(repost)
+	d.publishRXTail(repost)
+	d.rx = (d.rx + 1) % d.ringEntries
 	if dropped {
 		return 0, nil
 	}
@@ -625,7 +650,7 @@ func (d *Device) Transmit(frame []byte) error {
 	if d.memory.Read32(desc+12)&own != 0 {
 		return d.fail(errors.New("xgmac: TX descriptor still device-owned"))
 	}
-	offset := txBuffers + d.tx*bufferSize
+	offset := txBuffers + d.tx%bufferCount*bufferSize
 	d.memory.Write(offset, frame)
 	d.memory.Write32(desc, uint32(d.memory.Base())+offset)
 	d.memory.Write32(desc+4, 0)
@@ -633,7 +658,7 @@ func (d *Device) Transmit(frame []byte) error {
 	d.memory.Barrier()
 	d.memory.Write32(desc+12, own|first|last|uint32(len(frame)))
 	d.memory.Barrier()
-	next := (d.tx + 1) % ringSize
+	next := (d.tx + 1) % d.ringEntries
 	d.io.Write32(txTail, uint32(d.memory.Base())+txRing+next*16)
 	end := d.io.Now().Add(100 * time.Millisecond)
 	for n := 0; n < 1000000; n++ {
