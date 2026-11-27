@@ -126,8 +126,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
   `fogcast eject-disk`. The ZX Spectrum models use `fogcast change-cassette` and
-  `fogcast eject-cassette`. A stored media ID follows the active unit's
-  size. See
+  `fogcast eject-cassette`; the +3 and Pentagon also take a `.dsk` or a
+  `.trd`/`.scl` disk through `fogcast change-disk`, which the host converts
+  for their drive (`eject-disk` does not eject it). A stored media ID follows
+  the active unit's size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
   Its keyboard is `fes.keyboard.hid`: the browser (**Capture keyboard**),
   tenfoot and the kit forward physical keys as USB HID usages through

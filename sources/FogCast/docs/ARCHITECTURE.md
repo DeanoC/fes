@@ -1243,17 +1243,21 @@ household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
 legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80`, `.sna` or
-`.szx` name, or no name, inserts the Spectrum cassette on unit 0, and a `.trd`
-or `.scl` name the TR-DOS disk on unit 1. Clear does not eject the TR-DOS
-disk, and the CLI's disk commands do not handle it; a live insert replaces it.
+`.szx` name, or no name, inserts the Spectrum cassette on unit 0. A `.trd`
+or `.scl` name inserts the TR-DOS disk on unit 1, and a `.dsk` name the +3
+disk there when the package has a +3 drive. Clear does not eject the Spectrum
+disk, and neither does `fogcast eject-disk`; a live insert replaces it.
 Library disk inserts retain the confirmed session filename on failures before
 target dispatch. After dispatch, the target's `no_change` result determines
 whether the host can retain that filename.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
-`fogcast eject-cassette` for a Spectrum tape. A stored
-media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
-so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
+`fogcast eject-cassette` for a Spectrum tape. `fogcast change-disk` also
+inserts a Spectrum `.trd`, `.scl` or `.dsk` image of up to 1 MiB into the
+unit-1 disk, which the host converts for the package's drive. A stored
+media ID is named `disk.dsk`, `disk.d64`, `disk.st` or `disk.img` from the active unit,
+so the host checks the declared disk size or discrete ST geometry against that generation;
+on a Spectrum it is `disk.dsk` for a +3 drive and `disk.trd` for a TR-DOS drive. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
