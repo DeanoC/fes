@@ -157,11 +157,15 @@ baseline unchanged.
 ### J8G serial-checked recovery
 
 The only recovery console in this procedure is
-`/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0` (J8G, observed
-as `/dev/ttyUSB2`). Start with a receive-only probe using
+`/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0` (J8G). The tool
+checks that the link resolves to a `ttyUSB` device whose sysfs USB identity is
+J8G interface 02 on a DE25-Nano. The kernel's `ttyUSB` number can change and
+is recorded with the observation rather than pinned. Start with a receive-only
+probe using
 `python3 scripts/de25_serial_recovery.py --probe --serial TRWU8J8G --output
 <evidence>/serial-probe.json`. The tool refuses any other serial identity or
-resolved port. It records Linux boot output and whether a login prompt exists;
+USB interface. It records the resolved port and USB identity, Linux boot output
+and whether a login prompt exists;
 the production image removes the serial getty, so recovery uses the enabled
 kernel SysRq console path rather than an assumed login.
 
