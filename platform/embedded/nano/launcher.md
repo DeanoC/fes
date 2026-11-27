@@ -117,6 +117,49 @@ entry. Choose `--shared-usb-input boot-keyboard`, `gamepad` or `multi` when
 building the SDK. The `multi` launcher supports a USB hub. The optional
 `--initial-tape` profile currently accepts `boot-keyboard` and `gamepad`.
 
+## Prototype a C64 disk set
+
+Add `--c64-disk-swap` to a shared-shell Tenfoot build with paired HDMI, the shared USB boot keyboard, an initial
+`--c64-d64`, and the sealed native C64 package containing the text overlay.
+Add one to three extra read-only 35-track D64 files to `FES/` and
+create `FES/DISKSET.JSON` with the exact catalogue game ID and SHA-256 for
+each extra disk. For a catalogue entry named `c64` and a second disk named
+`SIDE2.D64`, run this from the host directory containing `FES/`.
+
+```sh
+disk_sha=$(sha256sum FES/SIDE2.D64 | cut -d ' ' -f 1)
+jq -cnS --arg sha "$disk_sha" \
+  '{game_id:"c64",disks:[{name:"SIDE2.D64",sha256:$sha}]}' >FES/DISKSET.JSON
+```
+
+The startup reader validates and retains the set in RAM before the paired menu
+contains SD. Tenfoot's existing in-play selector receives the set through the
+same API as the Linux backend. A swap binds to the captured session, target,
+package and native generation. It uses the owned unit-0 mailbox under the
+five-second control limit. A failed transfer leaves the native service retired
+with SD contained.
+
+While C64 runs, press Ctrl+Alt+M to open Tenfoot's media selector. Use Up and
+Down to select a disk, Enter to insert it, or Escape to dismiss the selector.
+The native shell draws a text panel over the active C64 video. The panel uses
+one M20K for two text buffers and switches between them at vertical blanking.
+The CPU writes through the existing control bridge, so the panel requires no
+FPGA DDR access.
+
+The native C64 picker extends the scanout control aperture in previously
+unused access directions. It reads tagged picker status at `0x0c` and
+writes picker data and commands at `0x64` and `0x68`. Scanout command
+writes, build ID reads and first-fault reads still use the scanout endpoint.
+The runtime requires the tagged picker status before it writes any overlay
+data.
+
+The host test exercises Tenfoot and its keyboard controls with a regular
+FAT32 image and a modeled mailbox. The native C64 RTL simulation checks the
+panel on the active video stream, both disk commits, and continuing
+instruction fetches. The [TRWU8CBL prototype result](../../../docs/validation/2026-11-25-de25-c64-live-selector/README.md)
+records both swaps on the earlier BRAM-backed C64 package. The SDRAM-backed
+package requires a fresh fit and board run.
+
 ## 4. Controls and clean-reboot persistence
 
 - **Navigate & launch:** Arrows + Enter (on fresh media, first open

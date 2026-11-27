@@ -110,6 +110,8 @@ def main():
     parser.add_argument("--initial-tape", action="store_true", help="select the matched secure initial-tape service; requires native computer ROM, shared USB and selected Tenfoot")
     parser.add_argument("--retain-configuration", action="store_true", help="retain the first program source and metadata after completion; reject reuse until reboot")
     parser.add_argument("--tenfoot-serial", action="store_true", help="run the full native Tenfoot app with explicit state-only UART output; requires --selected-programs, no HDMI grant")
+    parser.add_argument("--c64-disk-swap", action="store_true",
+                        help="opt in to retaining a native C64 disk set from FES/DISKSET.JSON")
     parser.add_argument("--lifecycle-trace", action="store_true",
                         help="record native launch checkpoints and USB shortcut state changes (Nano fpgaload only)")
     parser.add_argument("--watchdog-timeout", type=int, default=0,
@@ -165,7 +167,7 @@ def main():
             parser.error(str(error))
         return
     if any((args.shared_core_shell, args.spectrum48_build, args.spectrum48_package, args.spectrum48_rom, args.spectrum48_tape,
-            args.c64_build, args.c64_package, args.c64_rom, args.c64_d64, args.zx81_tape, args.tenfoot_uart_only)):
+            args.c64_build, args.c64_package, args.c64_rom, args.c64_d64, args.c64_disk_swap, args.zx81_tape, args.tenfoot_uart_only)):
         parser.error('native upload shell requires --board de25-nano')
     if args.arm64_features:
         parser.error('--arm64-features requires --board de25-nano')
