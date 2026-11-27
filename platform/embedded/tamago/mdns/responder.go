@@ -129,6 +129,13 @@ type ResponderStats struct {
 	PausedDrops      uint64
 }
 
+type probeNameState struct {
+	probing    bool
+	claimed    bool
+	attempts   int
+	nextAction time.Time
+}
+
 // Responder probes unique mDNS names, answers DNS-SD queries, and sends
 // unsolicited startup announcements and Stop goodbye packets.
 type Responder struct {
@@ -148,6 +155,8 @@ type Responder struct {
 	started           bool
 	stopped           bool
 	nameMu            sync.Mutex
+	hostProbe         probeNameState
+	instanceProbe     probeNameState
 	probing           bool
 	claimed           bool
 	conflicted        bool
@@ -368,73 +377,125 @@ func (r *Responder) run(ctx context.Context) {
 }
 
 func (r *Responder) probe(ctx context.Context) bool {
-outer:
+	initialDelay := r.initialProbeDelay
+	if initialDelay <= 0 {
+		initialDelay = time.Duration(rand.Int64N(int64(probeInterval)))
+	}
+	startAt := time.Now().Add(initialDelay)
+
+	// RFC 6762 §8.1: initialize independent per-name probe schedules so a
+	// tie-break loss on one name restarts only that name's probing while
+	// preserving progress (or claim state) on other names.
+	r.nameMu.Lock()
+	if r.conflicted {
+		r.nameMu.Unlock()
+		return false
+	}
+	r.hostProbe = probeNameState{nextAction: startAt}
+	r.instanceProbe = probeNameState{nextAction: startAt}
+	r.probing = false
+	r.nameMu.Unlock()
+	drainSignal(r.tieBreakCh)
+
 	for {
-		initialDelay := r.initialProbeDelay
-		if initialDelay <= 0 {
-			initialDelay = time.Duration(rand.Int64N(int64(probeInterval)))
-		}
-		// RFC 6762 §8.1: before the first probe packet is transmitted, do not treat
-		// pre-existing responses or probes as conflicts.
-		if !r.waitForProbe(ctx, initialDelay) {
+		if ctx.Err() != nil {
 			return false
 		}
-		drainSignal(r.tieBreakCh)
+		now := time.Now()
+		var sendHost, sendInst bool
+		var nextWake time.Time
 
 		r.nameMu.Lock()
 		if r.conflicted {
 			r.nameMu.Unlock()
 			return false
 		}
-		r.probing = true
+		if r.hostProbe.probing && r.hostProbe.attempts >= probeAttempts && !now.Before(r.hostProbe.nextAction) {
+			r.hostProbe.probing = false
+			r.hostProbe.claimed = true
+		}
+		if r.instanceProbe.probing && r.instanceProbe.attempts >= probeAttempts && !now.Before(r.instanceProbe.nextAction) {
+			r.instanceProbe.probing = false
+			r.instanceProbe.claimed = true
+		}
+		if r.hostProbe.claimed && r.instanceProbe.claimed {
+			r.probing = false
+			r.claimed = true
+			r.nameMu.Unlock()
+			return true
+		}
+
+		if !r.hostProbe.claimed && r.hostProbe.attempts < probeAttempts {
+			if !now.Before(r.hostProbe.nextAction) {
+				r.hostProbe.probing = true
+				sendHost = true
+			} else if nextWake.IsZero() || r.hostProbe.nextAction.Before(nextWake) {
+				nextWake = r.hostProbe.nextAction
+			}
+		}
+		if !r.instanceProbe.claimed && r.instanceProbe.attempts < probeAttempts {
+			if !now.Before(r.instanceProbe.nextAction) {
+				r.instanceProbe.probing = true
+				sendInst = true
+			} else if nextWake.IsZero() || r.instanceProbe.nextAction.Before(nextWake) {
+				nextWake = r.instanceProbe.nextAction
+			}
+		}
+		if !sendHost && !sendInst {
+			if r.hostProbe.probing && !r.hostProbe.claimed && (nextWake.IsZero() || r.hostProbe.nextAction.Before(nextWake)) {
+				nextWake = r.hostProbe.nextAction
+			}
+			if r.instanceProbe.probing && !r.instanceProbe.claimed && (nextWake.IsZero() || r.instanceProbe.nextAction.Before(nextWake)) {
+				nextWake = r.instanceProbe.nextAction
+			}
+		}
+		r.probing = r.hostProbe.probing || r.instanceProbe.probing
 		r.nameMu.Unlock()
 
-		for i := 0; i < probeAttempts; i++ {
-			if !r.isProbing() {
-				return false
-			}
-			if err := r.sendProbe(); err != nil {
+		if sendHost || sendInst {
+			if err := r.sendProbeFor(sendHost, sendInst); err != nil {
+				retryAt := time.Now().Add(probeInterval)
 				r.nameMu.Lock()
-				r.probing = false
+				if sendHost && !r.hostProbe.claimed {
+					r.hostProbe.probing = false
+					r.hostProbe.attempts = 0
+					r.hostProbe.nextAction = retryAt
+				}
+				if sendInst && !r.instanceProbe.claimed {
+					r.instanceProbe.probing = false
+					r.instanceProbe.attempts = 0
+					r.instanceProbe.nextAction = retryAt
+				}
+				r.probing = r.hostProbe.probing || r.instanceProbe.probing
 				r.nameMu.Unlock()
 				if errors.Is(err, network.ErrPaused) {
 					r.pausedDrops.Add(1)
-					if !r.waitForProbe(ctx, probeInterval) {
-						return false
-					}
-					continue outer
+					continue
 				}
 				if r.onError != nil {
 					r.onError(err)
 				}
 				return false
 			}
-			tieLost, ok := r.waitForProbeStep(ctx, probeInterval)
-			if !ok {
-				return false
+			sentAt := time.Now()
+			r.nameMu.Lock()
+			if sendHost && r.hostProbe.probing && !r.hostProbe.claimed {
+				r.hostProbe.attempts++
+				r.hostProbe.nextAction = sentAt.Add(probeInterval)
 			}
-			if tieLost {
-				// RFC 6762 §8.2: wait 1 second after losing a simultaneous probe tie-break,
-				// then restart probing from scratch.
-				r.nameMu.Lock()
-				r.probing = false
-				r.nameMu.Unlock()
-				if !r.waitForProbe(ctx, r.tieBreakDelay) {
-					return false
-				}
-				continue outer
+			if sendInst && r.instanceProbe.probing && !r.instanceProbe.claimed {
+				r.instanceProbe.attempts++
+				r.instanceProbe.nextAction = sentAt.Add(probeInterval)
 			}
+			r.probing = r.hostProbe.probing || r.instanceProbe.probing
+			r.nameMu.Unlock()
+			continue
 		}
 
-		r.nameMu.Lock()
-		if !r.probing || r.conflicted {
-			r.nameMu.Unlock()
+		delay := time.Until(nextWake)
+		if !r.waitProbeUntil(ctx, delay) {
 			return false
 		}
-		r.probing = false
-		r.claimed = true
-		r.nameMu.Unlock()
-		return true
 	}
 }
 
@@ -448,7 +509,7 @@ func drainSignal(ch <-chan struct{}) {
 	}
 }
 
-func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool {
+func (r *Responder) waitProbeUntil(ctx context.Context, delay time.Duration) bool {
 	if delay <= 0 {
 		select {
 		case <-r.stopCh:
@@ -457,6 +518,8 @@ func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool 
 			return false
 		case <-ctx.Done():
 			return false
+		case <-r.tieBreakCh:
+			return true
 		default:
 			return true
 		}
@@ -465,6 +528,8 @@ func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool 
 	defer timer.Stop()
 	select {
 	case <-timer.C:
+		return true
+	case <-r.tieBreakCh:
 		return true
 	case <-r.stopCh:
 		return false
@@ -475,38 +540,26 @@ func (r *Responder) waitForProbe(ctx context.Context, delay time.Duration) bool 
 	}
 }
 
-func (r *Responder) waitForProbeStep(ctx context.Context, delay time.Duration) (tieLost, ok bool) {
-	select {
-	case <-r.stopCh:
-		return false, false
-	case <-r.conflictCh:
-		return false, false
-	case <-ctx.Done():
-		return false, false
-	case <-r.tieBreakCh:
-		return true, true
-	default:
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return false, true
-	case <-r.tieBreakCh:
-		return true, true
-	case <-r.stopCh:
-		return false, false
-	case <-r.conflictCh:
-		return false, false
-	case <-ctx.Done():
-		return false, false
-	}
+func (r *Responder) hostProbingLocked() bool {
+	return !r.conflicted && (r.hostProbe.probing || (r.probing && !r.hostProbe.claimed && !r.instanceProbe.probing && !r.instanceProbe.claimed))
 }
 
-func (r *Responder) isProbing() bool {
+func (r *Responder) instanceProbingLocked() bool {
+	return !r.conflicted && (r.instanceProbe.probing || (r.probing && !r.instanceProbe.claimed && !r.hostProbe.probing && !r.hostProbe.claimed))
+}
+
+func (r *Responder) hostClaimedLocked() bool {
+	return !r.conflicted && (r.hostProbe.claimed || r.claimed)
+}
+
+func (r *Responder) instanceClaimedLocked() bool {
+	return !r.conflicted && (r.instanceProbe.claimed || r.claimed)
+}
+
+func (r *Responder) claimedNames() (hostClaimed, instClaimed bool) {
 	r.nameMu.Lock()
 	defer r.nameMu.Unlock()
-	return r.probing && !r.conflicted
+	return r.hostClaimedLocked(), r.instanceClaimedLocked()
 }
 
 func (r *Responder) isClaimed() bool {
@@ -515,21 +568,38 @@ func (r *Responder) isClaimed() bool {
 	return r.claimed && !r.conflicted
 }
 
-func (r *Responder) probeRecords() []dnsRecord {
-	records := []dnsRecord{r.aRecord(r.svc.TTL), r.srvRecord(r.svc.TTL), r.txtRecord(r.svc.TTL)}
-	for i := range records {
-		records[i].CacheFlush = false
-	}
-	return records
+func (r *Responder) hostProbeRecords() []dnsRecord {
+	rec := r.aRecord(r.svc.TTL)
+	rec.CacheFlush = false
+	return []dnsRecord{rec}
 }
 
-func (r *Responder) sendProbe() error {
+func (r *Responder) instanceProbeRecords() []dnsRecord {
+	srv := r.srvRecord(r.svc.TTL)
+	srv.CacheFlush = false
+	txt := r.txtRecord(r.svc.TTL)
+	txt.CacheFlush = false
+	return []dnsRecord{srv, txt}
+}
+
+func (r *Responder) probeRecords() []dnsRecord {
+	return append(r.hostProbeRecords(), r.instanceProbeRecords()...)
+}
+
+func (r *Responder) sendProbeFor(sendHost, sendInst bool) error {
+	var questions []dnsQuestion
+	var authorities []dnsRecord
+	if sendHost {
+		questions = append(questions, dnsQuestion{Name: r.hostFQDN, Type: TypeANY, Class: ClassIN})
+		authorities = append(authorities, r.hostProbeRecords()...)
+	}
+	if sendInst {
+		questions = append(questions, dnsQuestion{Name: r.instanceFQDN, Type: TypeANY, Class: ClassIN})
+		authorities = append(authorities, r.instanceProbeRecords()...)
+	}
 	msg := dnsMessage{
-		Questions: []dnsQuestion{
-			{Name: r.hostFQDN, Type: TypeANY, Class: ClassIN},
-			{Name: r.instanceFQDN, Type: TypeANY, Class: ClassIN},
-		},
-		Authorities: r.probeRecords(),
+		Questions:   questions,
+		Authorities: authorities,
 	}
 	payload, err := encodeMDNSMessage(msg)
 	if err != nil {
@@ -551,18 +621,55 @@ func (r *Responder) markNameConflictLocked() {
 	}
 	r.conflicted = true
 	r.probing = false
+	r.hostProbe.probing = false
+	r.instanceProbe.probing = false
 	close(r.conflictCh)
 }
 
 func (r *Responder) handleProbeConflict(proposed []dnsRecord) {
-	if !r.isProbing() {
+	r.nameMu.Lock()
+	hostProbing := r.hostProbingLocked()
+	instProbing := r.instanceProbingLocked()
+	r.nameMu.Unlock()
+	if !hostProbing && !instProbing {
 		return
 	}
-	conflict, localWins := compareProbeRecords(r.probeRecords(), proposed)
-	if !conflict || localWins {
+
+	var activeLocal []dnsRecord
+	if hostProbing {
+		activeLocal = append(activeLocal, r.hostProbeRecords()...)
+	}
+	if instProbing {
+		activeLocal = append(activeLocal, r.instanceProbeRecords()...)
+	}
+	outcomes := compareProbeRecordSets(activeLocal, proposed)
+	hostLost := hostProbing && outcomes[strings.ToLower(strings.TrimSuffix(r.hostFQDN, "."))] < 0
+	instLost := instProbing && outcomes[strings.ToLower(strings.TrimSuffix(r.instanceFQDN, "."))] < 0
+	if !hostLost && !instLost {
 		return
 	}
-	if r.isProbing() {
+
+	retryAt := time.Now().Add(r.tieBreakDelay)
+	signal := false
+	r.nameMu.Lock()
+	if !r.conflicted {
+		if hostLost && r.hostProbingLocked() {
+			r.hostProbe.probing = false
+			r.hostProbe.attempts = 0
+			r.hostProbe.nextAction = retryAt
+			signal = true
+		}
+		if instLost && r.instanceProbingLocked() {
+			r.instanceProbe.probing = false
+			r.instanceProbe.attempts = 0
+			r.instanceProbe.nextAction = retryAt
+			signal = true
+		}
+		r.probing = r.hostProbe.probing || r.instanceProbe.probing
+	}
+	r.nameMu.Unlock()
+
+	if signal {
 		select {
 		case r.tieBreakCh <- struct{}{}:
 		default:
@@ -572,41 +679,70 @@ func (r *Responder) handleProbeConflict(proposed []dnsRecord) {
 
 func (r *Responder) handleResponseConflict(msg dnsMessage) {
 	r.nameMu.Lock()
-	if r.conflicted || (!r.probing && !r.claimed) {
+	if r.conflicted {
 		r.nameMu.Unlock()
 		return
 	}
-	isProbing := r.probing
+	hostProbing := r.hostProbingLocked()
+	instProbing := r.instanceProbingLocked()
+	hostClaimed := r.hostClaimedLocked()
+	instClaimed := r.instanceClaimedLocked()
+	if !hostProbing && !instProbing && !hostClaimed && !instClaimed {
+		r.nameMu.Unlock()
+		return
+	}
 	r.nameMu.Unlock()
 
-	local := r.probeRecords()
 	remote := make([]dnsRecord, 0, len(msg.Answers)+len(msg.Authorities)+len(msg.Additional))
 	remote = append(remote, msg.Answers...)
 	remote = append(remote, msg.Authorities...)
 	remote = append(remote, msg.Additional...)
-	if isProbing {
-		if !probeResponseConflicts(local, remote) {
-			return
-		}
-	} else if !recordSetsConflict(local, remote) {
+
+	var probingLocal []dnsRecord
+	if hostProbing {
+		probingLocal = append(probingLocal, r.hostProbeRecords()...)
+	}
+	if instProbing {
+		probingLocal = append(probingLocal, r.instanceProbeRecords()...)
+	}
+	var claimedLocal []dnsRecord
+	if hostClaimed {
+		claimedLocal = append(claimedLocal, r.hostProbeRecords()...)
+	}
+	if instClaimed {
+		claimedLocal = append(claimedLocal, r.instanceProbeRecords()...)
+	}
+	probeConflict := len(probingLocal) > 0 && probeResponseConflicts(probingLocal, remote)
+	claimedConflict := len(claimedLocal) > 0 && recordSetsConflict(claimedLocal, remote)
+	if !probeConflict && !claimedConflict {
 		return
 	}
 
 	defend := false
 	relinquish := false
 	sendGoodbye := false
+	defendHost := false
+	defendInst := false
 	r.nameMu.Lock()
 	if r.conflicted {
 		r.nameMu.Unlock()
 		return
 	}
-	if r.probing {
-		if probeResponseConflicts(local, remote) {
-			r.markNameConflictLocked()
-			relinquish = true
+	if (r.hostProbingLocked() && probeResponseConflicts(r.hostProbeRecords(), remote)) ||
+		(r.instanceProbingLocked() && probeResponseConflicts(r.instanceProbeRecords(), remote)) {
+		r.markNameConflictLocked()
+		relinquish = true
+	} else {
+		defendHost = r.hostClaimedLocked()
+		defendInst = r.instanceClaimedLocked()
+		var activeClaimed []dnsRecord
+		if defendHost {
+			activeClaimed = append(activeClaimed, r.hostProbeRecords()...)
 		}
-	} else if r.claimed {
-		if recordSetsConflict(local, remote) {
+		if defendInst {
+			activeClaimed = append(activeClaimed, r.instanceProbeRecords()...)
+		}
+		if len(activeClaimed) > 0 && recordSetsConflict(activeClaimed, remote) {
 			now := time.Now()
 			if !r.lastDefense.IsZero() && now.Sub(r.lastDefense) <= conflictDefendInterval {
 				r.markNameConflictLocked()
@@ -624,16 +760,52 @@ func (r *Responder) handleResponseConflict(msg dnsMessage) {
 	r.nameMu.Unlock()
 
 	if defend {
-		if err := r.sendAnnouncement(r.svc.TTL, false); err != nil && !errors.Is(err, network.ErrPaused) && r.onError != nil {
+		if err := r.sendClaimedRecords(defendHost, defendInst, r.svc.TTL, false); err != nil && !errors.Is(err, network.ErrPaused) && r.onError != nil {
 			r.onError(err)
 		}
 	}
 	if relinquish {
 		r.reportNameConflict()
 		if sendGoodbye {
-			_ = r.sendAnnouncement(0, true)
+			_ = r.sendClaimedRecords(defendHost, defendInst, 0, true)
 		}
 	}
+}
+
+func (r *Responder) sendClaimedRecords(hostClaimed, instClaimed bool, ttl uint32, goodbye bool) error {
+	if hostClaimed && instClaimed {
+		return r.sendAnnouncement(ttl, goodbye)
+	}
+	var answers []dnsRecord
+	if instClaimed {
+		answers = append(answers, r.srvRecord(ttl), r.txtRecord(ttl))
+	}
+	if hostClaimed {
+		answers = append(answers, r.aRecord(ttl))
+	}
+	if len(answers) == 0 {
+		return nil
+	}
+	payload, err := encodeMDNSMessage(dnsMessage{
+		Response: true,
+		Answers:  answers,
+	})
+	if err != nil {
+		return err
+	}
+	frame := buildMDNSFrame(r.localMAC, multicastMACBytes, r.localIP, multicastIPv4Bytes, Port, Port, uint16(r.ipID.Add(1)), payload)
+	if err := r.port.SendRawFrame(frame); err != nil {
+		if errors.Is(err, network.ErrPaused) {
+			r.pausedDrops.Add(1)
+		}
+		return err
+	}
+	if goodbye {
+		r.goodbyes.Add(1)
+	} else {
+		r.announcements.Add(1)
+	}
+	return nil
 }
 
 func (r *Responder) sendAnnouncement(ttl uint32, goodbye bool) error {
@@ -732,7 +904,8 @@ func (r *Responder) handleFrame(frame []byte) {
 	if len(pkt.msg.Authorities) > 0 {
 		r.handleProbeConflict(pkt.msg.Authorities)
 	}
-	if !r.isClaimed() || len(pkt.msg.Questions) == 0 {
+	hostClaimed, instClaimed := r.claimedNames()
+	if (!hostClaimed && !instClaimed) || len(pkt.msg.Questions) == 0 {
 		return
 	}
 	r.queriesReceived.Add(1)
@@ -766,12 +939,12 @@ func (r *Responder) handleFrame(frame []byte) {
 		}
 		qName := strings.TrimSuffix(q.Name, ".")
 		switch {
-		case strings.EqualFold(qName, r.metaServiceFQDN) && (q.Type == TypePTR || q.Type == TypeANY):
+		case hostClaimed && instClaimed && strings.EqualFold(qName, r.metaServiceFQDN) && (q.Type == TypePTR || q.Type == TypeANY):
 			if q.WantQU {
 				wantUnicast = true
 			}
 			addAns("meta-ptr", r.metaPTRRecord(ttl))
-		case strings.EqualFold(qName, r.serviceFQDN) && (q.Type == TypePTR || q.Type == TypeANY):
+		case hostClaimed && instClaimed && strings.EqualFold(qName, r.serviceFQDN) && (q.Type == TypePTR || q.Type == TypeANY):
 			if q.WantQU {
 				wantUnicast = true
 			}
@@ -779,11 +952,13 @@ func (r *Responder) handleFrame(frame []byte) {
 			addAdd("srv", r.srvRecord(ttl))
 			addAdd("txt", r.txtRecord(ttl))
 			addAdd("a", r.aRecord(ttl))
-		case strings.EqualFold(qName, r.instanceFQDN):
+		case instClaimed && strings.EqualFold(qName, r.instanceFQDN):
 			matched := false
 			if q.Type == TypeSRV || q.Type == TypeANY {
 				addAns("srv", r.srvRecord(ttl))
-				addAdd("a", r.aRecord(ttl))
+				if hostClaimed {
+					addAdd("a", r.aRecord(ttl))
+				}
 				matched = true
 			}
 			if q.Type == TypeTXT || q.Type == TypeANY {
@@ -793,7 +968,7 @@ func (r *Responder) handleFrame(frame []byte) {
 			if matched && q.WantQU {
 				wantUnicast = true
 			}
-		case strings.EqualFold(qName, r.hostFQDN) && (q.Type == TypeA || q.Type == TypeANY):
+		case hostClaimed && strings.EqualFold(qName, r.hostFQDN) && (q.Type == TypeA || q.Type == TypeANY):
 			if q.WantQU {
 				wantUnicast = true
 			}
@@ -944,6 +1119,28 @@ func recordSetsConflict(local, remote []dnsRecord) bool {
 }
 
 func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
+	outcomes := compareProbeRecordSets(local, remote)
+	if len(outcomes) == 0 {
+		return false, false
+	}
+	names := make([]string, 0, len(outcomes))
+	for name := range outcomes {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		cmp := outcomes[name]
+		if cmp < 0 {
+			return true, false
+		}
+		if cmp > 0 {
+			conflict = true
+		}
+	}
+	return conflict, conflict
+}
+
+func compareProbeRecordSets(local, remote []dnsRecord) map[string]int {
 	type tieRecord struct {
 		class uint16
 		typ   uint16
@@ -994,7 +1191,7 @@ func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
 		}
 	}
 	if len(remoteByName) == 0 {
-		return false, false
+		return nil
 	}
 
 	names := make([]string, 0, len(remoteByName))
@@ -1003,6 +1200,7 @@ func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
 	}
 	slices.Sort(names)
 
+	outcomes := make(map[string]int, len(names))
 	for _, name := range names {
 		ours, theirs := localByName[name], remoteByName[name]
 		sortTieRecords(ours)
@@ -1023,14 +1221,9 @@ func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
 				nameCmp = 1
 			}
 		}
-		if nameCmp < 0 {
-			return true, false
-		}
-		if nameCmp > 0 {
-			conflict = true
-		}
+		outcomes[name] = nameCmp
 	}
-	return conflict, conflict
+	return outcomes
 }
 
 func recordRData(rr dnsRecord) []byte {

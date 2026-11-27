@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1114,7 +1115,8 @@ func TestCompareProbeRecordsCrossRRTypeTieBreak(t *testing.T) {
 }
 
 func TestCompareProbeRecordsPerNameArbitration(t *testing.T) {
-	// Win on a-host.local (higher IP) must not mask a loss on z-svc._fogcast._tcp.local (lower SRV port).
+	// Split tie-break outcomes must be reported independently per normalized name:
+	// winning on a-host.local must not mask losing on z-svc._fogcast._tcp.local.
 	localWinEarlyLoseLate := []dnsRecord{
 		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.20")},
 		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 8000, SRVTarget: "a-host.local"},
@@ -1123,12 +1125,14 @@ func TestCompareProbeRecordsPerNameArbitration(t *testing.T) {
 		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
 		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 9000, SRVTarget: "b-host.local"},
 	}
-	if conflict, localWins := compareProbeRecords(localWinEarlyLoseLate, remoteLoseEarlyWinLate); !conflict || localWins {
-		t.Fatalf("win earlier + lose later = conflict:%v localWins:%v, want true/false", conflict, localWins)
+
+	outcomes := compareProbeRecordSets(localWinEarlyLoseLate, remoteLoseEarlyWinLate)
+	if outcomes["a-host.local"] <= 0 || outcomes["z-svc._fogcast._tcp.local"] >= 0 {
+		t.Fatalf("split outcomes = %+v, want a-host.local > 0 and z-svc._fogcast._tcp.local < 0", outcomes)
 	}
-	// Loss on earlier name + win on later name must also lose overall.
-	if conflict, localWins := compareProbeRecords(remoteLoseEarlyWinLate, localWinEarlyLoseLate); !conflict || localWins {
-		t.Fatalf("lose earlier + win later = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	revOutcomes := compareProbeRecordSets(remoteLoseEarlyWinLate, localWinEarlyLoseLate)
+	if revOutcomes["a-host.local"] >= 0 || revOutcomes["z-svc._fogcast._tcp.local"] <= 0 {
+		t.Fatalf("reverse split outcomes = %+v, want a-host.local < 0 and z-svc._fogcast._tcp.local > 0", revOutcomes)
 	}
 
 	// Win on one name + identical record on the second name -> local wins overall.
@@ -1140,14 +1144,188 @@ func TestCompareProbeRecordsPerNameArbitration(t *testing.T) {
 		t.Fatalf("win earlier + identical later = conflict:%v localWins:%v, want true/true", conflict, localWins)
 	}
 
-	// Win on both names -> local wins overall.
-	remoteLoseBoth := []dnsRecord{
-		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
-		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 7000, SRVTarget: "a-host.local"},
+	// Identical sets yield 0 for each name and no conflict.
+	eq := compareProbeRecordSets(localWinEarlyLoseLate, localWinEarlyLoseLate)
+	if eq["a-host.local"] != 0 || eq["z-svc._fogcast._tcp.local"] != 0 {
+		t.Fatalf("identical outcomes = %+v, want 0/0", eq)
 	}
-	if conflict, localWins := compareProbeRecords(localWinEarlyLoseLate, remoteLoseBoth); !conflict || !localWins {
-		t.Fatalf("win both names = conflict:%v localWins:%v, want true/true", conflict, localWins)
-	}
+}
+
+func TestResponderSplitProbeTieBreakConvergesWithoutLivelock(t *testing.T) {
+	t.Run("simultaneous-split-claim-winner-and-conflict-loser", func(t *testing.T) {
+		hub := newWireHub()
+		epA := hub.newEndpoint()
+		epB := hub.newEndpoint()
+		errA := make(chan error, 4)
+		errB := make(chan error, 4)
+
+		// respA has higher IP (wins shared-host.local A) and lower SRV port (loses SplitSvc SRV).
+		respA, err := NewResponder(ResponderConfig{
+			Port:          epA,
+			LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xee, 0x01},
+			Service:       Service{Instance: "SplitSvc", ServiceType: "_test._tcp", Host: "shared-host.local", Port: 7000, IP: netip.MustParseAddr("192.0.2.20")},
+			AnnounceCount: 1,
+			OnError:       func(e error) { errA <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		respA.initialProbeDelay = 15 * time.Millisecond
+		respA.tieBreakDelay = 800 * time.Millisecond
+
+		// respB has lower IP (loses shared-host.local A) and higher SRV port (wins SplitSvc SRV).
+		respB, err := NewResponder(ResponderConfig{
+			Port:          epB,
+			LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xee, 0x02},
+			Service:       Service{Instance: "SplitSvc", ServiceType: "_test._tcp", Host: "shared-host.local", Port: 9000, IP: netip.MustParseAddr("192.0.2.10")},
+			AnnounceCount: 1,
+			OnError:       func(e error) { errB <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		respB.initialProbeDelay = 15 * time.Millisecond
+		respB.tieBreakDelay = 800 * time.Millisecond
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := respA.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		defer respA.Stop()
+		if err := respB.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		defer respB.Stop()
+
+		// Both must claim the name they won without backing off, and then resolve
+		// cleanly within 3s without livelocking (either one relinquishes and the
+		// survivor claims both names, or both relinquish on each other's defense).
+		waitForCondition(t, 2*time.Second, func() bool {
+			hostA, _ := respA.claimedNames()
+			_, instB := respB.claimedNames()
+			return hostA && instB
+		}, "split tie-break responders did not independently claim the names they won")
+
+		var settledA, confA, claimA bool
+		var settledB, confB, claimB bool
+		updateOutcome := func(r *Responder, errCh <-chan error, settled, conf, claim *bool, name string) {
+			if *settled {
+				return
+			}
+			select {
+			case e := <-errCh:
+				if !errors.Is(e, ErrResponderNameConflict) {
+					t.Fatalf("%s unexpected error: %v", name, e)
+				}
+				*settled = true
+				*conf = true
+				return
+			default:
+			}
+			if r.isClaimed() {
+				*settled = true
+				*claim = true
+			}
+		}
+
+		waitForCondition(t, 3*time.Second, func() bool {
+			updateOutcome(respA, errA, &settledA, &confA, &claimA, "respA")
+			updateOutcome(respB, errB, &settledB, &confB, &claimB, "respB")
+			return settledA && settledB
+		}, "split tie-break responders did not converge out of probing")
+		if claimA && claimB {
+			t.Fatal("both responders claimed the same service after split tie-break")
+		}
+		if !confA && !confB {
+			t.Fatalf("expected at least one responder conflict, got A(conf=%v claim=%v) B(conf=%v claim=%v)", confA, claimA, confB, claimB)
+		}
+	})
+
+	t.Run("one-name-tie-break-loss-preserves-other-name", func(t *testing.T) {
+		hub := newWireHub()
+		ep := hub.newEndpoint()
+		peer := hub.newEndpoint()
+		errCh := make(chan error, 4)
+
+		resp, err := NewResponder(ResponderConfig{
+			Port:          ep,
+			LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xee, 0x11},
+			Service:       Service{Instance: "SplitSingle", ServiceType: "_test._tcp", Host: "split-single.local", Port: 7000, IP: netip.MustParseAddr("192.0.2.20")},
+			AnnounceCount: 1,
+			OnError:       func(e error) { errCh <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.initialProbeDelay = 10 * time.Millisecond
+		resp.tieBreakDelay = 120 * time.Millisecond
+
+		var injected atomic.Bool
+		var hostProbes atomic.Int32
+		var instOnlyProbes atomic.Int32
+		unsub := peer.AddTap(func(raw []byte) {
+			pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+			if !ok || pkt.msg.Response || len(pkt.msg.Authorities) == 0 {
+				return
+			}
+			hasHost, hasInst := false, false
+			for _, q := range pkt.msg.Questions {
+				switch {
+				case strings.EqualFold(strings.TrimSuffix(q.Name, "."), "split-single.local"):
+					hasHost = true
+				case strings.EqualFold(strings.TrimSuffix(q.Name, "."), "splitsingle._test._tcp.local"):
+					hasInst = true
+				}
+			}
+			if hasHost {
+				hostProbes.Add(1)
+			}
+			if hasInst && !hasHost {
+				instOnlyProbes.Add(1)
+			}
+			if !injected.CompareAndSwap(false, true) {
+				return
+			}
+			// Lose on instance SRV (port 9000 > 7000) while winning on host A (192.0.2.10 < 192.0.2.20).
+			payload, err := encodeMDNSMessage(dnsMessage{
+				Questions: pkt.msg.Questions,
+				Authorities: []dnsRecord{
+					{Name: "split-single.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+					{Name: "splitsingle._test._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 9000, SRVTarget: "split-single.local"},
+				},
+			})
+			if err != nil {
+				return
+			}
+			frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xee, 0x12}, MulticastMAC(), [4]byte{192, 0, 2, 10}, multicastIPv4Bytes, Port, Port, 4, payload)
+			go func() { _ = peer.SendRawFrame(frame) }()
+		})
+		defer unsub()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := resp.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Stop()
+
+		waitForCondition(t, 2*time.Second, func() bool {
+			return resp.isClaimed() && resp.Stats().Announcements >= 1
+		}, "responder did not finish claiming and announcing after single-name tie-break backoff")
+
+		if got := hostProbes.Load(); got != int32(probeAttempts) {
+			t.Fatalf("host probe count = %d, want %d (must not restart on instance tie-break loss)", got, probeAttempts)
+		}
+		if got := instOnlyProbes.Load(); got < int32(probeAttempts) {
+			t.Fatalf("instance-only retry probes = %d, want at least %d", got, probeAttempts)
+		}
+		select {
+		case e := <-errCh:
+			t.Fatalf("unexpected responder error: %v", e)
+		default:
+		}
+	})
 }
 
 func TestSRVPriorityAndWeightWireAndTieBreak(t *testing.T) {
