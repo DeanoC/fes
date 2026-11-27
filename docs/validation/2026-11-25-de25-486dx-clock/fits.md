@@ -1132,6 +1132,24 @@ The fresh DE10 netlist and four identities matched `2f19382b`, and all
 seven DE25 D12 input selections matched both `2f19382b` and
 `4fe7bada`.
 
+The routed seed 2 matched all 18 assigned FF sites. Ordinary setup
+passed at +0.035 ns, hold at 0.000 ns, and independent LOADED at
+2.695 ns. The producer refused eight datapath misses, with −0.149 ns
+worst slack and −0.826 ns total negative slack. Of the eight failing
+paths, only bit 26 had a fitter-only target. The result SHA-256 is
+`63a5d11ff34658f293598b53b73509828cdf971cf54f367d5f2855318eca3976`.
+
+Across all 372 native measurements in the three donors, each of the
+31 command bits has an effective-delay witness below 5.046 ns.
+The smallest common cap supported by those individual witnesses is
+4.935 ns. Revision `37390013bec3ef2d9a3fee4a48f9d2e60b1bbbad` tests a
+single 4.990 ns fitter-only target for the C26 bus. It starts from the
+unplaced High Performance Effort candidate with the fitted LRTM proof.
+The registered QSF matches that candidate byte for byte. The phase
+fixture preserves all 110 ordinary constraints in the final phases.
+Fresh DE10, seven D12 selections, and compiled game input checks passed.
+The fit must still close the original timing bounds on the whole bus.
+
 ## Integrated C0 = 28 fallback
 
 Revision `7c7d1a991b5ed629b050630309c48ea38acc0aad` merges the earlier
@@ -1181,6 +1199,10 @@ focused tests. The DE10 netlist and all four identities matched
 `7c7d1a99`. The preparation receipt SHA-256 is
 `b306b24220de5500495c522b9bfe4f4732dd60b9b0f6d065fde27e9371a4ea9e`.
 New four-seed qualification is pending on this source.
+Refreshed seed 1 passed admission and sealed with +0.082 ns worst
+setup and 2.719 ns independent LOADED. It used 45,204.5 ALMs and 42
+DSPs. Its summary SHA-256 is
+`2d53a9835f7a397970023f02dc2c922d349046c00305aa124ef86cbdd73251a9`.
 
 ## Running a seed on either builder
 

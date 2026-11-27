@@ -264,6 +264,11 @@ also reproduced all compiled game inputs and rehashed both retained
 binaries against the `4fe7bada` launch. The comparison receipt SHA-256 is
 `787bc40775a01b2d518bbc28e019abbe673e19c4a0d1590cd31943c85dc77fbb`.
 
+The common-target candidate `37390013bec3ef2d9a3fee4a48f9d2e60b1bbbad`
+matched the same compiled game inputs and both retained binary hashes.
+Its receipt SHA-256 is
+`32029d7ef73a537182ec514104854ecb38bf6736eac1241a8b049bed50c4ddda`.
+
 ## Integrated C0 = 28 fallback
 
 The replay for `7c7d1a991b5ed629b050630309c48ea38acc0aad` uses
