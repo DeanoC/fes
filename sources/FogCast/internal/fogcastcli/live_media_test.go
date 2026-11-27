@@ -292,3 +292,91 @@ func TestChangeDiskDigestUsesTheActiveDisk(t *testing.T) {
 		})
 	}
 }
+
+// A running Spectrum's disk is unit 1, beside the cassette on unit 0. #2367:
+// change-disk refused every such session as BUSY before posting.
+func TestChangeDiskInsertsASpectrumDisk(t *testing.T) {
+	for _, drive := range []struct {
+		system, file, digestName string
+		size                     int64
+	}{{protocol.SpectrumDiskPlus3InterfaceID, "blank.dsk", "disk.dsk", 92416},
+		{protocol.SpectrumDiskTrdosInterfaceID, "blank.trd", "disk.trd", 655360},
+		{protocol.SpectrumDiskTrdosInterfaceID, "game.scl", "disk.trd", 2304}} {
+		t.Run(drive.file, func(t *testing.T) { testChangeSpectrumDisk(t, drive.system, drive.file, drive.digestName, drive.size) })
+	}
+}
+
+func testChangeSpectrumDisk(t *testing.T, system, file, digestName string, size int64) {
+	t.Helper()
+	pkg := strings.Repeat("a", 64)
+	mediaID := strings.Repeat("c", 64)
+	tape, disk := protocol.SpectrumTapeInterface(), protocol.SpectrumDiskInterface()
+	session := map[string]any{
+		"id": "host-one", "target": "dev", "state": "active", "execution": "fpga_native",
+		"core_package": map[string]any{
+			"package_id": pkg, "generation": 3,
+			"abi": map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
+			"active_interfaces": []map[string]any{{"id": "fes.keyboard.hid", "major": 1, "minor": 0},
+				{"id": tape.ID, "major": tape.Major, "minor": tape.Minor}, {"id": disk.ID, "major": disk.Major, "minor": disk.Minor},
+				{"id": system, "major": 1, "minor": 0}},
+			"media_units": []map[string]any{
+				{"unit": protocol.SpectrumTapeUnit, "interface": map[string]any{"id": tape.ID, "major": tape.Major, "minor": tape.Minor},
+					"min_bytes": 1, "max_bytes": protocol.SpectrumTapeMaxBytes, "chunk_bytes": 512, "state": "empty"},
+				{"unit": protocol.SpectrumDiskUnit, "interface": map[string]any{"id": disk.ID, "major": disk.Major, "minor": disk.Minor},
+					"min_bytes": protocol.SpectrumDiskMinBytes, "max_bytes": protocol.SpectrumDiskMaxBytes, "chunk_bytes": 512, "state": "empty"}},
+		},
+	}
+	var names []string
+	var clears int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/core-media":
+			if r.ContentLength != size {
+				t.Fatalf("import size %d", r.ContentLength)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"media_id": mediaID, "size": size})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_ = json.NewEncoder(w).Encode(session)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media":
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["media_id"] != mediaID {
+				t.Fatalf("body=%v err=%v", body, err)
+			}
+			names = append(names, body["name"])
+			_ = json.NewEncoder(w).Encode(session)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media/clear":
+			clears++
+			_ = json.NewEncoder(w).Encode(session)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	path := filepath.Join(dir, file)
+	if err := os.WriteFile(path, make([]byte, int(size)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", path}); result.err != nil {
+		t.Fatalf("change-disk %s: %v", file, result.err)
+	}
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", mediaID}); result.err != nil {
+		t.Fatalf("change-disk digest: %v", result.err)
+	}
+	if len(names) != 2 || names[0] != file || names[1] != digestName {
+		t.Fatalf("names=%v", names)
+	}
+	// Images over the host's conversion limit are refused before import.
+	huge := filepath.Join(dir, "huge"+filepath.Ext(file))
+	if err := os.WriteFile(huge, make([]byte, int(protocol.SpectrumDiskImageMaxBytes)+1), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-disk", huge}); result.err == nil || len(names) != 2 {
+		t.Fatalf("oversized image posted: %v", result.err)
+	}
+	// The host's clear would eject the cassette, so eject-disk refuses.
+	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"eject-disk"}); result.err == nil || clears != 0 {
+		t.Fatalf("eject-disk posted to a Spectrum session: %v", result.err)
+	}
+}

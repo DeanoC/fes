@@ -35,7 +35,7 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 		return diskDataThroughHostAPI(ctx, origin, args[1], args[2])
 	case "change-disk":
 		if len(args) != 2 {
-			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st-path>"))
+			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st/.img/.ima/.trd/.scl-path>"))
 		}
 		return changeDiskThroughHostAPI(ctx, origin, args[1])
 	case "eject-disk":
@@ -234,8 +234,12 @@ var (
 	// native; the legacy blob mailbox remains a development load.
 	tapeMedia = sessionMediaForm{capable: protocol.LiveMediaCapable, native: true}
 	// A recognized fes.computer library launch runs as native play.
-	diskMedia     = sessionMediaForm{capable: diskCapable, native: true}
-	cassetteMedia = sessionMediaForm{capable: cassetteCapable, native: true}
+	diskMedia = sessionMediaForm{capable: diskCapable, native: true}
+	// change-disk also inserts into a running Spectrum's unit-1 disk.
+	// eject-disk stays on diskMedia: the host's clear ejects a Spectrum's
+	// cassette, not its disk.
+	changeDiskMedia = sessionMediaForm{capable: func(p *protocol.CorePackageStatus) bool { return diskCapable(p) || spectrumDiskCapable(p) }, native: true}
+	cassetteMedia   = sessionMediaForm{capable: cassetteCapable, native: true}
 )
 
 // postSessionMedia performs one session read or live-media mutation and
@@ -311,6 +315,13 @@ func diskCapable(p *protocol.CorePackageStatus) bool {
 		unit.Interface == protocol.PcxtFloppyInterface()
 }
 
+// spectrumDiskCapable reports a running Spectrum with its unit-1 disk drive
+// beside the cassette.
+func spectrumDiskCapable(p *protocol.CorePackageStatus) bool {
+	unit, ok := protocol.MediaUnit(p, protocol.SpectrumDiskUnit)
+	return ok && unit.Interface == protocol.SpectrumDiskInterface()
+}
+
 func cassetteCapable(p *protocol.CorePackageStatus) bool {
 	unit, ok := protocol.MediaUnit(p, protocol.SpectrumTapeUnit)
 	return ok && unit.Interface == protocol.SpectrumTapeInterface()
@@ -321,7 +332,7 @@ func cassetteCapable(p *protocol.CorePackageStatus) bool {
 func changeDiskThroughHostAPI(ctx context.Context, origin, arg string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	client := hostJSONClient()
-	prior, err := fetchDiskSession(ctx, client, origin)
+	prior, err := fetchSession(ctx, client, origin, changeDiskMedia)
 	if err != nil {
 		return fail(err)
 	}
@@ -331,7 +342,7 @@ func changeDiskThroughHostAPI(ctx context.Context, origin, arg string) commandRe
 	}
 	b := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
 	payload, _ := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
-	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media", payload, &b, prior.ID, diskMedia)
+	after, err := postSessionMedia(ctx, hostMutationClient(), origin, "/api/v1/session/live-media", payload, &b, prior.ID, changeDiskMedia)
 	if err != nil {
 		return fail(err)
 	}
@@ -425,7 +436,11 @@ func resolveCassetteArgument(ctx context.Context, origin, arg string) (mediaID, 
 }
 
 func fetchDiskSession(ctx context.Context, client *http.Client, origin string) (liveMediaSession, error) {
-	session, err := postSessionMedia(ctx, client, origin, "/api/v1/session", nil, nil, "", diskMedia)
+	return fetchSession(ctx, client, origin, diskMedia)
+}
+
+func fetchSession(ctx context.Context, client *http.Client, origin string, form sessionMediaForm) (liveMediaSession, error) {
+	session, err := postSessionMedia(ctx, client, origin, "/api/v1/session", nil, nil, "", form)
 	if err == nil && !(protocol.DevelopmentMediaBinding{PackageID: session.CorePackage.PackageID, Generation: session.CorePackage.Generation}).Valid() {
 		err = protocol.MediaUnitIdentityError()
 	}
@@ -442,7 +457,9 @@ func diskResult(prior, after liveMediaSession, b protocol.DevelopmentMediaBindin
 
 // resolveDiskArgument accepts a stored media ID or snapshots an exact disk
 // file and imports it through POST /api/v1/core-media. A stored ID takes its
-// name from the active unit so the host checks the C64 or Apple II size.
+// name from the active unit so the host checks the C64 or Apple II size. On a
+// package with a Spectrum disk drive a .trd, .scl or .dsk is a Spectrum disk
+// image of any admitted size, which the host converts for that drive.
 func resolveDiskArgument(ctx context.Context, origin, arg string, active *protocol.CorePackageStatus) (mediaID, name string, err error) {
 	if protocol.ValidateDigest(arg) == nil {
 		name, ok := syntheticDiskName(active)
@@ -455,6 +472,10 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 	base := filepath.Base(arg)
 	var limit int64
 	switch {
+	case spectrumDiskCapable(active) && protocol.AdmitSpectrumDiskName(base):
+		if err == nil && protocol.AdmitSpectrumDiskSize(before.Size()) {
+			limit = before.Size()
+		}
 	case protocol.AdmitDiskMediaName(base):
 		limit = protocol.Apple2FloppyBytes
 	case protocol.AdmitC64DiskName(base):
@@ -488,8 +509,20 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 }
 
 // syntheticDiskName names a stored object after the disk the running
-// generation accepts. All supported home-computer disks occupy unit 0.
+// generation accepts. Home-computer disks occupy unit 0; a Spectrum disk is
+// unit 1, named for its +3 or TR-DOS drive.
 func syntheticDiskName(active *protocol.CorePackageStatus) (string, bool) {
+	if spectrumDiskCapable(active) {
+		for _, i := range active.ActiveInterfaces {
+			switch i.ID {
+			case protocol.SpectrumDiskPlus3InterfaceID:
+				return "disk.dsk", true
+			case protocol.SpectrumDiskTrdosInterfaceID:
+				return "disk.trd", true
+			}
+		}
+		return "", false
+	}
 	unit, ok := protocol.MediaUnit(active, protocol.Apple2FloppyUnit)
 	if !ok {
 		return "", false
