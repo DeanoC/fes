@@ -30,9 +30,17 @@ class RegistryTests(unittest.TestCase):
         self.assertIn('fes.menu', recipes)
         self.assertIn('fes.spectrum', recipes)
         self.assertIn('fes.atari-st', recipes)
+        self.assertIn('fes.pc386', recipes)
         for recipe in recipes.values():
             self.assertTrue(recipe.producer_script.startswith('boards/de25nano/producers/'))
             self.assertTrue((ROOT / 'sources/misteross' / recipe.producer_script).is_file())
+
+    def test_pc386_recipe_exposes_selection_identities_and_both_models(self):
+        recipes = sp.registered()
+        self.assertEqual(sp.parse_selection('fes.pc386', recipes), [('fes.pc386', None)])
+        sealer = (ROOT / 'scripts/powerboat/de25-seal-auto.sh').read_text()
+        self.assertIn('build_pc386_firmware.py', sealer)
+        self.assertIn('--gpu-router', sealer)
 
     def test_a_non_pro_recipe_is_refused(self):
         recipe = sp.registered()['fes.menu']

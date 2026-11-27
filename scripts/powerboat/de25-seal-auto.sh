@@ -66,6 +66,22 @@ while IFS=$'\t' read -r SLUG SRC MODEL CORE; do
   L=$B/logs/de25-quartus-$SLUG.log
   rm -rf "$OUT" "$PKG_OUT"; mkdir -p "$PKG_OUT" "$(dirname "$OUT")"
   MODEL_ARGS=(); [ "$MODEL" = - ] || MODEL_ARGS=(--model "$MODEL")
+  if [ "$CORE" = fes.pc386 ]; then
+    if [ ! -f build/firmware/pc386/pc386-rom.hex ]; then
+      python3 scripts/build_pc386_firmware.py --download > "$B/logs/de25-pc386-firmware-$SLUG.log" 2>&1 || \
+        fail "pc386 firmware build failed: $(tail -n 1 "$B/logs/de25-pc386-firmware-$SLUG.log")"
+    fi
+    ROUTER=${FES_GPU_ROUTER:-}
+    if [ -z "$ROUTER" ]; then
+      if command -v nvcc >/dev/null 2>&1 || [ -x /usr/local/cuda/bin/nvcc ]; then
+        PATH="/usr/local/cuda/bin:$PATH"
+        ROUTER=CUDA
+      else
+        ROUTER=HIP
+      fi
+    fi
+    MODEL_ARGS+=(--gpu-router "$ROUTER")
+  fi
   printf 'started %s %s %s model=%s\n' "$(date -Is)" "$SLUG" "$SRC" "$MODEL" >> "$B/logs/de25-seal.log"
   set +e
   timeout --signal=TERM --kill-after=60s "$PRODUCER_TIME_CAP" python3 "$SRC" \

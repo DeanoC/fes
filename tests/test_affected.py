@@ -193,6 +193,8 @@ class AffectedTests(unittest.TestCase):
                             ('producers/build_c64_package.py', ['c64']),
                             ('pcxt/derive.py', ['pcxt']), ('pcxt/pcxt-clocks.sdc', ['pcxt']),
                             ('producers/build_pcxt_package.py', ['pcxt']),
+                            ('pc386/derive.py', ['pc386']), ('pc386/pc386-clocks.sdc', ['pc386']),
+                            ('producers/build_pc386_package.py', ['pc386']),
                             ('producers/build_machine_package.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
                             ('machine/board.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),

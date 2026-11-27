@@ -341,6 +341,8 @@ def fpga_cores(path):
                 return ('atari-st',), 'DE25 Atari ST package producer'
             if name == 'build_c64_package.py':
                 return ('c64',), 'DE25 C64 package producer'
+            if name == 'build_pc386_package.py':
+                return ('pc386',), 'DE25 pc386 package producer'
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
         if parts[2] == 'spectrum':
@@ -354,6 +356,8 @@ def fpga_cores(path):
             return ('c64',), 'DE25 C64 integration and its derivations'
         if parts[2] == 'pcxt':
             return ('pcxt',), 'DE25 PC/XT integration and its derivations'
+        if parts[2] == 'pc386':
+            return ('pc386',), 'DE25 pc386 integration and its derivations'
         if parts[2] == 'machine':
             return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':

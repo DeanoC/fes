@@ -776,23 +776,30 @@ class SupportMatrixTests(unittest.TestCase):
         data = SUPPORT_MATRIX.load_json(ROOT)
         cells = {cid: m['cells'] for m in data['de25_tier1']['machines'] for cid in m['cells']}
         cells['fes.zx80']['fes.zx80'] = 'builds'
-        cells['fes.pc386']['fes.pc386'] = 'sealed'
         cells['fes.c64']['fes.c64'] = 'none'
         cells['fes.atari-st']['fes.atari-st'] = 'kit-accepted'
         cells['fes.pcxt-dos']['fes.pcxt-dos'] = 'shipped'
         errors = SUPPORT_MATRIX.validate(ROOT, data)
         self.assertIn('de25_tier1 fes.zx80 says builds but no DE25 producer builds it', errors)
-        self.assertIn('de25_tier1 fes.pc386 says sealed without a registered DE25 recipe', errors)
         self.assertIn('de25_tier1 fes.c64 says none but a DE25 producer builds it', errors)
         self.assertIn('de25_tier1 fes.atari-st says kit-accepted without the package that ran on Kit D25', errors)
         self.assertIn("de25_tier1 fes.pcxt-dos state 'shipped' is not a DE25 state", errors)
+        # A built cell cannot claim sealed unless its recipe is also registered for DE25.
+        cells['fes.pc386']['fes.pc386'] = 'sealed'
+        original = SUPPORT_MATRIX.de25_registered_ids
+        SUPPORT_MATRIX.de25_registered_ids = lambda root: original(root) - {'fes.pc386'}
+        try:
+            errors = SUPPORT_MATRIX.validate(ROOT, data)
+        finally:
+            SUPPORT_MATRIX.de25_registered_ids = original
+        self.assertIn('de25_tier1 fes.pc386 says sealed without a registered DE25 recipe', errors)
 
     def test_de25_registered_ids_include_models_of_registered_producers_only(self):
         registered = SUPPORT_MATRIX.de25_registered_ids(ROOT)
         built = SUPPORT_MATRIX.de25_core_ids(ROOT)
         self.assertIn('fes.pentagon', registered)
         self.assertIn('fes.pc386', built)
-        self.assertNotIn('fes.pc386', registered)
+        self.assertIn('fes.pc386', registered)
 
     def test_de25_progress_renders_states_per_machine(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

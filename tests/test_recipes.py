@@ -68,7 +68,7 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(zx81.toolchain, 'quartus')
         self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
         for core, name in (('fes.spectrum', 'spectrum'), ('fes.atari-st', 'atari_st'), ('fes.c64', 'c64'),
-                           ('fes.pcxt-dos', 'pcxt')):
+                           ('fes.pcxt-dos', 'pcxt'), ('fes.pc386', 'pc386')):
             machine = recipes.recipe_for(core, board='de25-nano')
             self.assertEqual(machine.producer_module, f'boards.de25nano.producers.build_{name}_package')
             self.assertEqual((machine.toolchain, machine.board), ('quartus', 'de25-nano'))
@@ -405,7 +405,7 @@ class RecipeDataTest(unittest.TestCase):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
         self.assertEqual(set(self.load_document(document, board='de25-nano')),
-                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64', 'fes.pcxt-dos'})
+                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64', 'fes.pcxt-dos', 'fes.pc386'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.
