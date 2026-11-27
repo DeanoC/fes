@@ -99,3 +99,20 @@ status was `0x7949`, partner gigabit status was `0x0c00` and neither
 PCS link bit was set. Transmission was withheld. The protected DMA grant
 was revoked and the original C64 launcher reached Ready and Park.
 [PHY samples](tx11-uart.gz) · [C64 return receipt](tx11-release.json)
+
+## First packet received by Powerboat
+
+At 15:06:57 UTC the physical switch carried CBL's 60-byte unicast frame to
+Powerboat. The host capture on `enp130s0` counted one matching inbound
+frame and zero drops. The wire bytes matched the nonce and expected
+SHA-256 `7ee41bf8106911e90054c4452a3621e0418bd7636e24780976ea7816b2b8c217`.
+On CBL, the successful descriptor writeback was `0x3000003c`. The SPL
+observed a fresh TX stop acknowledgement, idle DMA and transmit queue,
+revoked the mapping and put MAC0 back in reset. It also verified the original
+PHY timing, MMD selector and BMCR following the temporary 16 ms link-pulse
+setting. [UART trace](tx12-uart.gz) · [Received bytes](tx12-wire.bin) ·
+[Independent packet count](tx12-wire.json)
+
+The initial C64 handback encountered a JTAG chain break after programming
+started. The board claim was retained pending a separately verified
+C64 Ready and Park.
