@@ -660,6 +660,180 @@ func TestResponderLegacyUnicastAndKnownAnswerSuppression(t *testing.T) {
 	}
 }
 
+func TestResponderPromotesAdditionalForLaterQuestion(t *testing.T) {
+	hub := newWireHub()
+	serverEP := hub.newEndpoint()
+	clientEP := hub.newEndpoint()
+	serverMAC := [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x53}
+	clientMAC := [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x54}
+	clientIP := netip.MustParseAddr("192.0.2.99")
+	service := Service{Instance: "Multi", ServiceType: "_test._tcp", Host: "multi-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.50"), TXT: []string{"id=multi"}}
+	resp, err := NewResponder(ResponderConfig{Port: serverEP, LocalMAC: serverMAC, Service: service, AnnounceCount: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.running.Store(true)
+	resp.nameMu.Lock()
+	resp.claimed = true
+	resp.nameMu.Unlock()
+	removeResponderTap := serverEP.AddTap(resp.handleFrame)
+	defer removeResponderTap()
+
+	responses := make(chan dnsMessage, 1)
+	removeClientTap := clientEP.AddTap(func(frame []byte) {
+		pkt, ok := parseMDNSFrame(frame, clientMAC, clientIP.As4(), true)
+		if ok && pkt.msg.Response {
+			select {
+			case responses <- pkt.msg:
+			default:
+			}
+		}
+	})
+	defer removeClientTap()
+
+	svc, _, _, _, err := service.normalized()
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err := encodeMDNSMessage(dnsMessage{Questions: []dnsQuestion{
+		{Name: svc.ServiceType + "." + svc.Domain, Type: TypePTR, Class: ClassIN},
+		{Name: svc.Instance + "." + svc.ServiceType + "." + svc.Domain, Type: TypeSRV, Class: ClassIN},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := buildMDNSFrame(clientMAC, multicastMACBytes, clientIP.As4(), multicastIPv4Bytes, Port, Port, 3, query)
+	if err := clientEP.SendRawFrame(frame); err != nil {
+		t.Fatal(err)
+	}
+	var reply dnsMessage
+	select {
+	case reply = <-responses:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for multi-question response")
+	}
+
+	countSRV := func(records []dnsRecord) int {
+		count := 0
+		for _, rr := range records {
+			if rr.Type == TypeSRV {
+				count++
+			}
+		}
+		return count
+	}
+	if countSRV(reply.Answers) != 1 || countSRV(reply.Additional) != 0 {
+		t.Fatalf("SRV requested by later question must appear once as an Answer: answers=%+v additional=%+v", reply.Answers, reply.Additional)
+	}
+}
+
+func TestBrowseTTLZeroGoodbyeGraceAndRescue(t *testing.T) {
+	tests := []struct {
+		name       string
+		rescue     bool
+		advance    time.Duration
+		wantActive bool
+	}{
+		{name: "retained during grace", advance: 500 * time.Millisecond, wantActive: true},
+		{name: "positive records rescue goodbye", rescue: true, advance: 1100 * time.Millisecond, wantActive: true},
+		{name: "expires after grace", advance: 1100 * time.Millisecond},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hub := newWireHub()
+			clientEP := hub.newEndpoint()
+			clientMAC := [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x55}
+			clientIP := netip.MustParseAddr("192.0.2.99")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var clockMu sync.Mutex
+			fakeNow := time.Date(2026, time.November, 27, 12, 0, 0, 0, time.UTC)
+			nowFn := func() time.Time {
+				clockMu.Lock()
+				defer clockMu.Unlock()
+				return fakeNow
+			}
+
+			type browseResult struct {
+				services []DiscoveredService
+				err      error
+			}
+			done := make(chan browseResult, 1)
+			go func() {
+				services, err := Browse(ctx, clientEP, BrowseConfig{
+					LocalMAC: clientMAC,
+					LocalIP:  clientIP,
+					Now:      nowFn,
+				}, "_test._tcp")
+				done <- browseResult{services: services, err: err}
+			}()
+
+			deadline := time.Now().Add(time.Second)
+			for {
+				frames, _ := clientEP.sentFrames()
+				if len(frames) > 0 {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("Browse did not send its initial query")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+
+			serverMAC := [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0x56}
+			serverIP := netip.MustParseAddr("192.0.2.50").As4()
+			instance := "Test._test._tcp.local"
+			host := "test-host.local"
+			addr := netip.MustParseAddr("192.0.2.10")
+			deliver := func(id uint16, msg dnsMessage) {
+				t.Helper()
+				payload, err := encodeMDNSMessage(msg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				clientEP.deliver(buildMDNSFrame(serverMAC, multicastMACBytes, serverIP, multicastIPv4Bytes, Port, Port, id, payload))
+			}
+			live := dnsMessage{Response: true,
+				Answers: []dnsRecord{{Name: "_test._tcp.local", Type: TypePTR, Class: ClassIN, TTL: 120, PTR: instance}},
+				Additional: []dnsRecord{
+					{Name: instance, Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 8080, SRVTarget: host},
+					{Name: instance, Type: TypeTXT, Class: ClassIN, TTL: 120, TXT: []string{"id=test"}},
+					{Name: host, Type: TypeA, Class: ClassIN, TTL: 120, A: addr},
+				},
+			}
+			deliver(1, live)
+
+			goodbye := dnsMessage{Response: true, Answers: []dnsRecord{
+				{Name: "_test._tcp.local", Type: TypePTR, Class: ClassIN, TTL: 0, PTR: instance},
+				{Name: instance, Type: TypeSRV, Class: ClassIN, CacheFlush: true, TTL: 0, SRVPort: 8080, SRVTarget: host},
+				{Name: instance, Type: TypeTXT, Class: ClassIN, CacheFlush: true, TTL: 0, TXT: []string{"id=test"}},
+				{Name: host, Type: TypeA, Class: ClassIN, CacheFlush: true, TTL: 0, A: addr},
+			}}
+			deliver(2, goodbye)
+
+			if tt.rescue {
+				clockMu.Lock()
+				fakeNow = fakeNow.Add(500 * time.Millisecond)
+				clockMu.Unlock()
+				deliver(3, live)
+			}
+			clockMu.Lock()
+			fakeNow = fakeNow.Add(tt.advance)
+			clockMu.Unlock()
+			cancel()
+			result := <-done
+			if tt.wantActive {
+				if result.err != nil || len(result.services) != 1 || len(result.services[0].Addrs) != 1 || result.services[0].Addrs[0] != addr {
+					t.Fatalf("Browse result during/after goodbye grace = %+v, err=%v", result.services, result.err)
+				}
+			} else if len(result.services) != 0 || !errors.Is(result.err, context.Canceled) {
+				t.Fatalf("Browse result after goodbye grace = %+v, err=%v; want no service and context cancellation", result.services, result.err)
+			}
+		})
+	}
+}
+
 func TestBrowseRetransmitsWithBackoffAndKnownAnswers(t *testing.T) {
 	hub := newWireHub()
 	clientEP := hub.newEndpoint()

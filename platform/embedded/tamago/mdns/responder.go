@@ -932,6 +932,8 @@ func (r *Responder) handleFrame(frame []byte) {
 	}
 
 	hasAnswer := make(map[string]bool)
+	hasAdditional := make(map[string]bool)
+	additionalKeys := make([]string, 0)
 	addAns := func(key string, rr dnsRecord) {
 		if !hasAnswer[key] {
 			hasAnswer[key] = true
@@ -939,8 +941,9 @@ func (r *Responder) handleFrame(frame []byte) {
 		}
 	}
 	addAdd := func(key string, rr dnsRecord) {
-		if !hasAnswer[key] {
-			hasAnswer[key] = true
+		if !hasAnswer[key] && !hasAdditional[key] {
+			hasAdditional[key] = true
+			additionalKeys = append(additionalKeys, key)
 			additionals = append(additionals, rr)
 		}
 	}
@@ -987,6 +990,16 @@ func (r *Responder) handleFrame(frame []byte) {
 			addAns("a", r.aRecord(ttl))
 		}
 	}
+	// A DNS record first selected as an Additional may be requested directly
+	// by a later question in this packet. Keep its Answer occurrence and drop
+	// the duplicate from Additional after processing all questions.
+	filteredAdditionals := additionals[:0]
+	for i, rr := range additionals {
+		if !hasAnswer[additionalKeys[i]] {
+			filteredAdditionals = append(filteredAdditionals, rr)
+		}
+	}
+	additionals = filteredAdditionals
 
 	answers = filterRecords(answers, func(rr dnsRecord) bool {
 		return !knownAnswerSuppresses(rr, pkt.msg.Answers)

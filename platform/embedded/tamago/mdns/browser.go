@@ -30,18 +30,20 @@ type cachedAddress struct {
 }
 
 type browseInstanceRecord struct {
-	instance   string
-	ptrTarget  string
-	ptrExpires time.Time
-	ptrTTL     uint32
-	hasPTR     bool
-	srvHost    string
-	srvPort    uint16
-	srvExpires time.Time
-	hasSRV     bool
-	txt        []string
-	txtExpires time.Time
-	hasTXT     bool
+	instance    string
+	ptrTarget   string
+	ptrExpires  time.Time
+	ptrTTL      uint32
+	hasPTR      bool
+	srvHost     string
+	srvPriority uint16
+	srvWeight   uint16
+	srvPort     uint16
+	srvExpires  time.Time
+	hasSRV      bool
+	txt         []string
+	txtExpires  time.Time
+	hasTXT      bool
 }
 
 // BrowseConfig configures active mDNS browsing and host resolution over a RawFramePort.
@@ -226,8 +228,10 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				key := strings.ToLower(instFQDN)
 				if rr.TTL == 0 {
 					if rec := instances[key]; rec != nil {
-						rec.hasPTR = false
-						rec.ptrExpires = time.Time{}
+						if rec.hasPTR && now.Before(rec.ptrExpires) && strings.EqualFold(rec.ptrTarget, instFQDN) {
+							rec.ptrTTL = 0
+							rec.ptrExpires = now.Add(cacheFlushGrace)
+						}
 					}
 					return
 				}
@@ -244,8 +248,10 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				key := strings.ToLower(name)
 				if rr.TTL == 0 {
 					if rec := instances[key]; rec != nil {
-						rec.hasSRV = false
-						rec.srvExpires = time.Time{}
+						if rec.hasSRV && now.Before(rec.srvExpires) && rec.srvPriority == rr.SRVPriority && rec.srvWeight == rr.SRVWeight &&
+							rec.srvPort == rr.SRVPort && strings.EqualFold(rec.srvHost, strings.TrimSuffix(rr.SRVTarget, ".")) {
+							rec.srvExpires = now.Add(cacheFlushGrace)
+						}
 					}
 					return
 				}
@@ -255,25 +261,27 @@ func Browse(ctx context.Context, port network.RawFramePort, cfg BrowseConfig, se
 				}
 				rec := getInst(key, display)
 				rec.hasSRV = true
+				rec.srvPriority = rr.SRVPriority
+				rec.srvWeight = rr.SRVWeight
 				rec.srvPort = rr.SRVPort
 				rec.srvHost = strings.TrimSuffix(rr.SRVTarget, ".")
 				rec.srvExpires = exp
 			case TypeTXT:
 				key := strings.ToLower(name)
+				if rr.TTL == 0 {
+					if rec := instances[key]; rec != nil && rec.hasTXT && now.Before(rec.txtExpires) && slices.Equal(rec.txt, rr.TXT) {
+						rec.txtExpires = now.Add(cacheFlushGrace)
+					}
+					return
+				}
 				display := name
 				if idx := strings.IndexByte(name, '.'); idx > 0 {
 					display = name[:idx]
 				}
 				rec := getInst(key, display)
-				if rr.TTL == 0 {
-					rec.hasTXT = false
-					rec.txt = nil
-					rec.txtExpires = time.Time{}
-				} else {
-					rec.hasTXT = true
-					rec.txt = append([]string(nil), rr.TXT...)
-					rec.txtExpires = exp
-				}
+				rec.hasTXT = true
+				rec.txt = append([]string(nil), rr.TXT...)
+				rec.txtExpires = exp
 			}
 		}
 
@@ -366,6 +374,16 @@ func applyARecordPacket(cache map[string]map[netip.Addr]cachedAddress, records [
 	for host, hostRecords := range byHost {
 		addrMap := cache[host]
 		if addrMap == nil {
+			hasLiveRecord := false
+			for _, rr := range hostRecords {
+				if rr.TTL != 0 {
+					hasLiveRecord = true
+					break
+				}
+			}
+			if !hasLiveRecord {
+				continue
+			}
 			addrMap = make(map[netip.Addr]cachedAddress)
 			cache[host] = addrMap
 		}
@@ -373,7 +391,11 @@ func applyARecordPacket(cache map[string]map[netip.Addr]cachedAddress, records [
 		flush := false
 		for _, rr := range hostRecords {
 			if rr.TTL == 0 {
-				delete(addrMap, rr.A)
+				if record, ok := addrMap[rr.A]; ok && now.Before(record.expires) {
+					record.expires = now.Add(cacheFlushGrace)
+					record.ttl = 0
+					addrMap[rr.A] = record
+				}
 				continue
 			}
 			incoming[rr.A] = struct{}{}
