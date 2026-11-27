@@ -45,6 +45,30 @@ void fes_jent_clock_raw(uint64_t *value)
 }
 #endif
 
+#ifdef READ_CAP
+struct rand_data;
+extern void jent_get_nstime(uint64_t *value);
+
+unsigned int jent_measure_jitter(struct rand_data *collector, uint64_t loops,
+                                 uint64_t *delta, int health)
+{
+    uint64_t value;
+    (void)collector;
+    (void)loops;
+    (void)delta;
+    if (!health) {
+        jent_get_nstime(&value);
+        return 0;
+    }
+    /* Each read must be counted even when its value never advances. The
+     * watchdog must unwind this in-flight call before it can return. */
+    for (unsigned int i = 0; i < 32000001U; i++)
+        jent_get_nstime(&value);
+    assert(!"capture exceeded its maximum raw timer reads");
+    return 0;
+}
+#endif
+
 #ifdef SEED
 static void cleared(const unsigned char *bytes, size_t size)
 {
@@ -131,11 +155,19 @@ static void run(const char *name)
         assert(fes_nano_jitter_record_open() == 0);
         assert(fes_nano_jitter_record_sample(&delta) == 0);
         assert(fes_nano_jitter_record_close(&m) == 0);
+    } else if (strcmp(name, "close-backward") == 0 || strcmp(name, "close-deadline") == 0) {
+        assert(fes_nano_jitter_record_sample(&delta) == 0);
+        style = strcmp(name, "close-backward") == 0 ? BACKWARD : DEADLINE;
+        assert(fes_nano_jitter_record_close(&m) == OVER_BUDGET);
+        assert(m.status == OVER_BUDGET && fes_jent_heap_empty());
+        assert(fes_nano_jitter_record_open() == BAD_CLOCK);
     } else {
         if (strcmp(name,"backward") == 0)
             style = BACKWARD;
         else if (strcmp(name,"deadline") == 0)
             style = DEADLINE;
+        else if (strcmp(name, "read-cap") == 0)
+            style = HELD;
         else {
             assert(strcmp(name,"held-deadline") == 0);
             style = HELD;
@@ -148,6 +180,8 @@ static void run(const char *name)
             delta = UINT64_MAX;
             rc = fes_nano_jitter_record_sample(&delta);
         } while (!rc);
+        if (strcmp(name, "read-cap") == 0)
+            assert(calls == 32000003U); /* start + 32,000,001 reads + finish */
         assert(rc == OVER_BUDGET && delta == UINT64_MAX && fes_jent_heap_empty());
         assert(fes_nano_jitter_record_close(&m) == BAD_CALL);
         assert(fes_nano_jitter_record_open() == BAD_CLOCK);
