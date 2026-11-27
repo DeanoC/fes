@@ -186,23 +186,42 @@ class AffectedTests(unittest.TestCase):
 
     def test_de25_machine_paths_select_their_machines(self):
         board = 'sources/misteross/boards/de25nano/'
-        for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
+        for path, cores in (('spectrum/derive.py', ['c64', 'pc386', 'spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
                             ('atari-st/derive.py', ['atari-st', 'pcxt']), ('atari-st/sim.py', ['atari-st']),
                             ('atari-st/build.py', ['atari-st']),
                             ('c64/derive.py', ['c64']), ('c64/c64-clocks.sdc', ['c64']),
                             ('producers/build_c64_package.py', ['c64']),
                             ('pcxt/derive.py', ['pcxt']), ('pcxt/pcxt-clocks.sdc', ['pcxt']),
                             ('producers/build_pcxt_package.py', ['pcxt']),
-                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
-                            ('machine/board.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
+                            ('pc386/derive.py', ['pc386']), ('pc386/pc386-clocks.sdc', ['pc386']),
+                            ('producers/build_pc386_package.py', ['pc386']),
+                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'de25-ramtest', 'pc386', 'pcxt', 'spectrum']),
+                            ('machine/board.py', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
                             ('shared-rtl/fes_c64_core.v', ['c64']),
                             ('shared-rtl/fes_c64_firmware_rom.v', ['c64']),
                             ('shared-rtl/fes_pcxt_core.v', ['pcxt']),
                             ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
-                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pcxt', 'spectrum']),
-                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pcxt', 'spectrum'])):
+                            ('shared-rtl/generated/fes_firmware_upload.vh', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_de25_machine_audio.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_menu_reader.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_menu_video.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_menu_control.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_computer_mailbox.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_display_plane.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_zx81_core.v', ['zx81']),
+                            ('scanout/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('scanout/fes_de25_scanout.v', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('zx81-hps/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('zx81-hps/fes_de25_computer.v', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('display/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('combined/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('hps/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('quartus.lock', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 
@@ -562,14 +581,15 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
 
     def test_de25_local_producers_select_only_their_package_consumers(self):
+        standard = {'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'}
         cases = {
-            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81', *standard},
             'boards/de25nano/producers/build_zx81_package.py': {'zx81'},
             'boards/de25nano/producers/build_zx81_static_package.py': {'zx81'},
             'boards/de25nano/producers/export_static_persona.py': {'zx81'},
-            'boards/de25nano/producers/review_audio_clocks.py': {'zx81'},
-            'boards/de25nano/package/core_package.py': {'menu', 'zx81'},
-            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/review_audio_clocks.py': {'zx81', *standard},
+            'boards/de25nano/package/core_package.py': {'menu', 'zx81', *standard},
+            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81', *standard},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

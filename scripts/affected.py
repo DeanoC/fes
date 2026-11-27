@@ -334,12 +334,13 @@ def fpga_cores(path):
         if len(parts) >= 4 and parts[2] == 'producers':
             name = parts[3]
             if name in ('build_menu_package.py', 'core_package.py', 'export_core_package.py'):
-                return ('menu', 'zx81'), 'DE25 package producer and format implementation'
-            if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
-                        'export_static_persona.py', 'review_audio_clocks.py'):
-                return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+                return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 package producer and format implementation'
+            if name in ('build_zx81_package.py', 'build_zx81_static_package.py', 'export_static_persona.py'):
+                return ('zx81',), 'DE25 ZX81 package producer'
+            if name == 'review_audio_clocks.py':
+                return ('zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 qualified audio clock review'
             if name == 'build_machine_package.py':
-                return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine package producer'
+                return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 standard machine package producer'
             if name == 'build_pcxt_package.py':
                 return ('pcxt',), 'DE25 PC/XT package producer'
             if name == 'build_spectrum_package.py':
@@ -348,9 +349,14 @@ def fpga_cores(path):
                 return ('atari-st',), 'DE25 Atari ST package producer'
             if name == 'build_c64_package.py':
                 return ('c64',), 'DE25 C64 package producer'
+            if name == 'build_pc386_package.py':
+                return ('pc386',), 'DE25 pc386 package producer'
         if len(parts) >= 4 and parts[2] == 'package':
-            return ('menu', 'zx81'), 'DE25 package format implementation'
+            return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 package format implementation'
         if parts[2] == 'spectrum':
+            # C64 native and pc386 reuse the Spectrum transport derivation.
+            if parts[3:] == ('derive.py',):
+                return ('spectrum', 'c64', 'pc386'), 'DE25 Spectrum derivations, shared with C64 native and pc386'
             return ('spectrum',), 'DE25 Spectrum integration and its derivations'
         if parts[2] == 'atari-st':
             # The PC/XT takes the ST's SDRAM clock and transport derivations.
@@ -361,12 +367,14 @@ def fpga_cores(path):
             return ('c64',), 'DE25 C64 integration and its derivations'
         if parts[2] == 'pcxt':
             return ('pcxt',), 'DE25 PC/XT integration and its derivations'
+        if parts[2] == 'pc386':
+            return ('pc386',), 'DE25 pc386 integration and its derivations'
         if parts[2] == 'machine':
-            return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine builder'
+            return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 standard machine builder'
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
-                return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+                return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 local display, menu and standard machine consumers'
             if name in ('fes_spectrum_core.v', 'fes_spectrum_firmware_rom.v'):
                 return ('spectrum',), 'DE25 Spectrum machine shell'
             if name in ('fes_atari_st_core.v', 'fes_st_rom_sdram.v'):
@@ -377,12 +385,17 @@ def fpga_cores(path):
                 return ('pcxt',), 'DE25 PC/XT machine shell'
             if name == 'fes_media_sdram.v':
                 return ('spectrum', 'atari-st'), 'DE25 board SDRAM media store'
-            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v'):
-                return ('spectrum', 'atari-st', 'c64', 'pcxt'), 'DE25 uploaded-firmware machine shell'
-            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
-                        'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
+            if (parts[3:] == ('generated', 'fes_firmware_upload.vh')
+                    or name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v')):
+                return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 standard machine shell'
+            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v'):
+                return ('zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 computer mailbox and display-plane consumers'
+            if name in ('fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):
                 return ('zx81',), 'DE25 local ZX81 computer consumer'
+        if (parts[2] in ('scanout', 'zx81-hps', 'zx81', 'display', 'combined', 'hps')
+                or parts[2:] in (('build.py',), ('quartus.lock',), ('producers', '__init__.py'))):
+            return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'shared DE25 board, scanout, HPS and Quartus closure'
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'

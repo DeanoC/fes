@@ -2190,3 +2190,25 @@ edition = "pro"
 device_family = "agilex5"
 seeds = [1]
 threads = 2
+
+[[recipes]]
+core_id = "fes.pc386"
+board = "de25-nano"
+toolchain = "quartus"
+front_end = "yosys"
+identity_version = 2
+producer_script = "boards/de25nano/producers/build_pc386_package.py"
+producer_module = "boards.de25nano.producers.build_pc386_package"
+authenticate = "_authenticate_tools"
+lock_path = "boards/de25nano/quartus.lock"
+selection_filename = "fes-pc386.package-selection.toml"
+package_dir_env = "FES_PC386_PACKAGE_DIR"
+package_selection_env = "FES_PC386_PACKAGE_SELECTION"
+quartus_role = "primary DE25 HPS-window pc386 package producer"
+
+[recipes.quartus]
+version = "26.3.0"
+edition = "pro"
+device_family = "agilex5"
+seeds = [1]
+threads = 2

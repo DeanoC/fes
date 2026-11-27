@@ -129,11 +129,12 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(zx81.toolchain, 'quartus')
         self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
         for core, name in (('fes.spectrum', 'spectrum'), ('fes.atari-st', 'atari_st'), ('fes.c64', 'c64'),
-                           ('fes.pcxt-dos', 'pcxt')):
+                           ('fes.pcxt-dos', 'pcxt'), ('fes.pc386', 'pc386')):
             machine = recipes.recipe_for(core, board='de25-nano')
             self.assertEqual(machine.producer_module, f'boards.de25nano.producers.build_{name}_package')
             self.assertEqual((machine.toolchain, machine.board), ('quartus', 'de25-nano'))
             self.assertEqual(recipes.recipe_for(core).board, 'de10-nano')
+        self.assertEqual(recipes.recipe_for('fes.pc386', board='de25-nano').front_end, 'yosys')
         for core, board in (('fes.zx80', 'de25-nano'), ('fes.menu', 'unknown')):
             with self.subTest(core=core, board=board), self.assertRaises(ValueError):
                 recipes.recipe_for(core, board=board)
@@ -507,7 +508,7 @@ class RecipeDataTest(unittest.TestCase):
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
         self.assertEqual(set(self.load_document(document, board='de25-nano')),
                          {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64',
-                          'fes.pcxt-dos', 'fes.ramtest'})
+                          'fes.pcxt-dos', 'fes.ramtest', 'fes.pc386'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.
@@ -545,18 +546,19 @@ class RecipeDataTest(unittest.TestCase):
     def test_a_quartus_row_names_a_front_end_that_fits_its_edition_and_device(self):
         # The front end selects the Quartus edition and device family, and the
         # core's quartus.lock holds the same pair (#1581 S7).
-        for front_end, (edition, family) in recipes.FRONT_ENDS.items():
-            with self.subTest(front_end=front_end):
-                document = self.document()
-                row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
-                row['front_end'] = front_end
-                row['quartus'] = dict(row['quartus'], edition=edition, device_family=family)
-                self.assertEqual(self.load_document(document)['fes.pcxt-dos'].front_end, front_end)
+        for front_end, pairs in recipes.FRONT_ENDS.items():
+            for edition, family in pairs:
+                with self.subTest(front_end=front_end, edition=edition, family=family):
+                    document = self.document()
+                    row = next(r for r in document['recipes'] if r['core_id'] == 'fes.pcxt-dos')
+                    row['front_end'] = front_end
+                    row['quartus'] = dict(row['quartus'], edition=edition, device_family=family)
+                    self.assertEqual(self.load_document(document)['fes.pcxt-dos'].front_end, front_end)
 
     def test_a_quartus_row_that_misstates_its_front_end_is_rejected(self):
         cases = (
-            # Yosys on Pro/Agilex 5 is design decision D3 and is not taken.
-            {'front_end': 'yosys', 'quartus': {'edition': 'pro', 'device_family': 'agilex5'}},
+            {'front_end': 'yosys', 'quartus': {'edition': 'pro', 'device_family': 'cyclonev'}},
+            {'front_end': 'yosys', 'quartus': {'edition': 'lite', 'device_family': 'agilex5'}},
             {'front_end': 'quartus-pro', 'quartus': {'edition': 'lite', 'device_family': 'cyclonev'}},
             {'front_end': 'quartus-lite', 'quartus': {'device_family': 'agilex5'}},
             {'front_end': 'quartus-standard', 'quartus': {}},
