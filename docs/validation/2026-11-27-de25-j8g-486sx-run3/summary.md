@@ -8,7 +8,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 | 1. HDMI picture: lit, live and changing | **PASS** (launch A and fresh-session launch B) |
 | 1b. Relaunch in the same session (recorded only, not a gate) | **FAIL**, reproduced for the third time today: [#2353](https://github.com/DeanoC/fes/issues/2353) |
 | 2. Warm reset with a window machine loaded (#2246) | **PASS for an orderly `reboot`**: recovered in about 31 s, no SMMU events, owner probed, network and agent up, MENU on HDMI. **Not measured** for the #2245 case: an abrupt reset while the fabric is still mastering. The orderly shutdown stopped the machine first, so #2246's fabric reset was never exercised under mastering. |
-| 3. HPS-window path (#2214, #2215, #2226) | **PARTIAL: not a full pass.** Rules 3a, 3b, 3c and 3e pass: reserved-pool window, ABI 1.1 admission, FreeDOS from ATA, and after Stop no window fd, a free lease and no SMMU faults. Rule 3d (a hold/drain/release sequence in the runtime events) is **not measurable**: the runtime does not log those steps. It is carried forward as an open check. |
+| 3. HPS-window path (#2214, #2215, #2226) | **PARTIAL: not a full pass.** Rules 3a, 3c and 3e pass: ABI 1.1 admission with the window interfaces, FreeDOS from ATA, and after Stop no window fd, a free lease and no SMMU faults. **Not measurable:** rule 3b (the window's base and span observed inside the pool), because the owner ABI exposes no address, and rule 3d (a hold/drain/release sequence in the runtime events), because the runtime does not log those steps. Both are carried forward as open checks. |
 | Restore | **Pass.** The baseline bundle and image are back. The baseline `boot_id` was rebased with Deano's OK, `de25_restore.py` passes, and `KIT D25 FREE (baseline verified)` was logged at 14:33:07+02:00. |
 
 ## Exactly what ran
@@ -24,12 +24,12 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 - **Image:** the J8G baseline `a1c51ac3…` (kernel `6.12.11-fes-de25-owner`, reserved `fes-window-pool`). Nothing was flashed. Everything #2246 and #2344 changed since that image is on the fabric side (`hps/build.py`, `scanout/linux_dma.py`, `bridge_reset.py`, RTL), so it is in the package.
 - **Disk:** the FreeDOS `pmode` image `b4be6e29…` (128 MiB, 260/16/63).
 
-## Item 3: the HPS-window path (partial: 3d not measurable)
+## Item 3: the HPS-window path (partial: 3b and 3d not measurable)
 
 Launch A (session 1) — [kit/driver-a.log](kit/driver-a.log), [kit/kitstate-a-running.txt](kit/kitstate-a-running.txt), [kit/status-a-running.txt](kit/status-a-running.txt) (status with ABI and `build_id`, plus the runtime's open window fd):
 
 - **Load and admission:** the load acked `active` in 10.81 s. `/v1/status` showed `observed_core: fes.pc386` and `abi fes.computer 1.1`, which is #2215's FogCast admission. The active interfaces included `fes.memory.hps-ddr 1.0` and `fes.fabric.de25-hps-window 1.0`.
-- **The window came from the reserved pool:**
+- **Rule 3b, window inside the reserved pool: not measurable.** The rule required the window's base and span to be observed inside the pool, and no address was observed. What follows is supporting context, not 3b evidence:
   - The kernel reserves `0x85800000..0x957fffff (262144 KiB) map non-reusable fes-window-pool` at boot, and `/proc/iomem` lists that range as reserved.
   - The owner (`fes-de25-dma`, bound to `20010200.dma-owner`, iommu group 0) allocates the window from that pool. The pool holds exactly one window (`image/kernel/de25-dma/de25_dma_window.c`).
   - During the run, `mister-runtime` held an `anon_inode:fes-de25-window` fd.
