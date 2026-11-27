@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
-"""DE10 MENU's volatile load and HDMI home restore under hil-core.sh's kit lease."""
+"""Verify the booted DE10 idle MENU and its HDMI output under the kit claim."""
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
-import time
+import tarfile
+import re
 import urllib.request
 
 API = "http://127.0.0.1:8787"
 out = Path(os.environ["C_OUT"])
 pkg = Path(os.environ["C_PKG"])
-
-
-def api(path, payload=None):
-    data = json.dumps(payload).encode() if payload is not None else None
-    request = urllib.request.Request(API + path, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
 
 
 def capture(name):
@@ -31,20 +25,37 @@ def capture(name):
     return hashlib.sha256(frame.read_bytes()).hexdigest()
 
 
-home = capture("home-before")
-try:
-    loaded = subprocess.check_output([os.environ["C_FOGCAST"], "--api", API, "--json",
-                                      "core-load", pkg], timeout=240)
-    session = api("/api/v1/session")
-    if (json.loads(loaded)["core_package"]["package_id"] != pkg.stem or
-            session.get("state") != "active" or session.get("execution") != "fpga_development"
-            or session["core_package"]["package_id"] != pkg.stem):
-        raise ValueError("exact MENU firmware did not become active")
-finally:
-    api("/api/v1/session/stop", {"target": os.environ["C_TARGET"]})
-time.sleep(5)
-if api("/api/v1/session").get("state") != "idle":
-    raise ValueError("MENU stop did not return to idle")
-after = capture("home-after")
+def booted_menu():
+    package_id = pkg.stem
+    if not re.fullmatch(r"[a-f0-9]{64}", package_id):
+        raise ValueError("invalid staged MENU identity")
+    directory = "/usr/share/mister-runtime/core-packages/" + package_id
+    probe = r"""
+set -eu
+set -- $(pidof mister-runtime)
+test "$#" = 1
+cat /proc/sys/kernel/random/boot_id
+sha256sum DIRECTORY/manifest.toml DIRECTORY/core.rbf
+tr '\000' '\n' < "/proc/$1/cmdline" | tail -n 3
+""".replace("DIRECTORY", directory)
+    result = subprocess.check_output([Path.home() / "lander-hilq/kits/kssh", os.environ["C_KIT"], probe],
+                                     text=True, timeout=30).splitlines()
+    with tarfile.open(pkg, "r:") as archive:
+        expected = [hashlib.sha256(archive.extractfile(name).read()).hexdigest() + "  " + directory + "/" + name
+                    for name in ("manifest.toml", "core.rbf")]
+    if (len(result) != 6 or not re.fullmatch(r"[a-f0-9-]{36}", result[0])
+            or result[1:] != [*expected, "--menu-package", directory, package_id]):
+        raise ValueError("booted runtime and staged MENU differ")
+    with urllib.request.urlopen(API + "/api/v1/session", timeout=10) as response:
+        if json.load(response).get("state") != "idle":
+            raise ValueError("kit is running a session")
+    return result
+
+
+before = booted_menu()
+frame = capture("booted-menu")
+if booted_menu() != before:
+    raise ValueError("MENU boot identity changed during HDMI capture")
 (out / "result.json").write_text(json.dumps(dict(verdict="PASS", kit=os.environ["C_KIT"],
-    head=os.environ["C_HEAD"], package_id=pkg.stem, session=session, before=home, after=after)))
+    head=os.environ["C_HEAD"], package_id=pkg.stem, boot_id=before[0], installed=before[1:3],
+    hdmi_sha256=frame)))

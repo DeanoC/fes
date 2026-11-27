@@ -89,6 +89,23 @@ class NightlyTest(unittest.TestCase):
                                                  restored=True, evidence_sha256=nightly.digest(evidence.read_bytes()))))
         nightly.record_verdict(self.store, verdict, evidence)
 
+    def test_superseded_gate_reuses_only_the_exact_staged_candidate(self):
+        self.run_batch()
+        binding, original = next((b, r) for b, r in self.requests() if r["core"] == "fes.menu")
+        recipe = nightly.recipes.recipe_for("fes.menu")
+        args = self.store, self.sha, recipe, None, original["inputs"], None
+        builds = list(self.built)
+        replacement = nightly.qualify(*args, replaces=binding, spool_only=True)
+        request = nightly.read(self.store / "requests" / replacement)["request"]
+        self.assertEqual(request, dict(original, replaces=binding))
+        self.assertNotEqual(binding, replacement)
+        self.answer(replacement)
+        obj = nightly.qualify(*args, replaces=binding)
+        self.assertEqual(nightly.read(self.store / "objects" / obj / "qualification.json")["request"], request)
+        with self.assertRaisesRegex(ValueError, "candidate missing"):
+            nightly.qualify(*args[:4], "missing", None, replaces=binding)
+        self.assertEqual(self.built, builds)
+
     def seed(self):
         self.assertEqual(self.run_batch(), 1)
         for identity, request in self.requests():

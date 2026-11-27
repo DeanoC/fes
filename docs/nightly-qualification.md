@@ -162,3 +162,14 @@ the coordinator consider earlier complete sets. The release owner may also
 submit an exact request-bound verdict using `record` after a separate
 release-matched kit run. The bootstrap-only release uses its existing
 Linux MENU admission path.
+
+For an operator-approved correction to a kit gate, run
+`retry-staged --request OLD_KIT_REQUEST_SHA256 --config /absolute/releases.json`
+with the protected store and the checked-out corrected policy. It validates the
+original request against its staged files and spools a distinct request with a
+`replaces` reference. Exit 4 identifies the replacement waiting for hardware.
+Run its registered check on the designated kit, restore the baseline and import
+the exact request-bound evidence with `record`. Repeat `retry-staged` to promote
+the retained bytes under the corrected gate. The store checkpoint must still
+match the staged main. DE10 MENU acceptance uses the image's booted idle MENU,
+both installed member digests, the runtime process arguments and visible HDMI.
