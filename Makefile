@@ -38,6 +38,8 @@ CORE_DEV_ARGS ?=
 CORE_DEV_ACCEPT_ARGS ?=
 TEST_CHANGED_ARGS ?= --base origin/main
 DE25_LINUX_ARGS ?=
+DE25_EMBEDDED_ARGS ?=
+DE25_EMBEDDED_OUTPUT ?= out/de25-nano-embedded
 EMBEDDED_ARGS ?=
 # The native experiment is never selected by BOARD, build, image or release.
 .PHONY: embedded
@@ -53,6 +55,7 @@ help:
 	@printf '%s\n' 'make kit-sdk: ensure the selected compiler SDK in the toolchain cache, without an image or core build; DE25 requires BOARD=de25-nano DE25_IMAGE=/absolute/verified-image.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
+	@printf '%s\n' 'make de25-embedded-image builds the TamaGo launcher SD image with FES_EXPERIMENTAL_DE25_EMBEDDED=1. Run make verify-de25-embedded-image with the same inputs to verify it.' 'Supply --uboot-build, --entry-build, --native-build, --recovery-kit and --launcher-staging in DE25_EMBEDDED_ARGS. DE25_EMBEDDED_OUTPUT defaults to out/de25-nano-embedded. See platform/embedded/nano/launcher.md.'
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
 	@printf '%s\n' 'make release | bootstrap | appliance-media APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/factory: require the verified DE25 factory; card commands also need APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot.'
 	@printf '%s\n' 'make image BOARD=de25-nano IMAGE_ARTIFACTS=/absolute/artifacts IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: assemble the DE25 factory; make verify checks its recorded inputs. IMAGE_OUTPUT overrides out/de25-nano/factory.'
@@ -73,6 +76,13 @@ verify-de25-linux:
 	$(PYTHON) image/de25-nano/build.py verify $(DE25_LINUX_ARGS)
 smoke-de25-linux:
 	$(PYTHON) image/de25-nano/build.py smoke $(DE25_LINUX_ARGS)
+
+.PHONY: de25-embedded-image verify-de25-embedded-image
+de25-embedded-image:
+	@$(PYTHON) platform/embedded/experiment.py
+	$(PYTHON) platform/embedded/nano/launcher_image.py $(DE25_EMBEDDED_ARGS) --output "$(DE25_EMBEDDED_OUTPUT)"
+verify-de25-embedded-image:
+	$(PYTHON) platform/embedded/nano/launcher_image_verify.py $(DE25_EMBEDDED_ARGS) --output "$(DE25_EMBEDDED_OUTPUT)"
 
 .PHONY: smoke-de25-runtime
 smoke-de25-runtime:
