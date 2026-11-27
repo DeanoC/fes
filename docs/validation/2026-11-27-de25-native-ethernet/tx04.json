@@ -1,0 +1,67 @@
+{
+  "diagnostic_id": "93604db663af4e1a",
+  "format": 1,
+  "host_cleanup": {
+    "clock_restored": true,
+    "errors": [],
+    "owned_server_stopped": true,
+    "transport_cleaned": true,
+    "usb_permissions_restored": true
+  },
+  "host_stop_sha256": "4fcb196a6a1e4f7f37f8d8da002d61237556b02f6ee0b8a5b6770f1e7be7de5e",
+  "measurement": {
+    "error": "missing terminal hardware closure",
+    "finished_utc": "2026-11-27T13:33:54.623757+00:00",
+    "freeze_sha256": "05f3482943fb242eebced4608ad887354e37e68411fb5dbae7a265aa0ebe5634",
+    "handles_clear": true,
+    "image_sha256": "f363ec0fa55db93fa3f1504657dd6831a6aaa804889afaf3bba0ee72ddb78fc9",
+    "program_verified": true,
+    "started_utc": "2026-11-27T13:33:35.215243+00:00",
+    "status": "stopped",
+    "uart_closed": true,
+    "uart_sha256": "113c3f4c0f0cd345f9d1e6fc777e8e0acfd5f37a61103d328f8816b3740e7ba8"
+  },
+  "parser_sha256": "9a152dd2c97214cd1a3168aa1a3aacbbf4d1362bf3234037d4b6d3548dd56a62",
+  "prior_c64_return": {
+    "boot_id": "af4407e48b21634e",
+    "finished_utc": "2026-11-27T13:18:46.763956+00:00",
+    "generation": 1,
+    "image_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+    "measurement_result_sha256": "2490faf1e52bb20b9e39884ea9678e56e3f843a586758900bc3803f5512e1f34",
+    "parked": true,
+    "ready": true,
+    "result_sha256": "ff726f87821e3e36fdcf3d004fbf01feeda38d881e8a516cd2caaea0e81dec99",
+    "status": "passed"
+  },
+  "receiver": {
+    "armed_utc": "2026-11-27T13:33:34.218317+00:00",
+    "closed_utc": "2026-11-27T13:33:56.894252+00:00",
+    "drops": 0,
+    "kernel_packets": 0,
+    "matched": 0,
+    "record_sha256": "15fbb89d916c948cd88fe18b55f011c7fdf956f4333fa800edbd0e61cd8c352f",
+    "userspace_packets": 0,
+    "window_closed_utc": "2026-11-27T13:33:56.865791+00:00"
+  },
+  "result_sha256": "f2d85f1827cd39226027ae5b9189801694a072822407c0562204b1fd79743db7",
+  "scope": "bounded translated single-frame diagnostic",
+  "serial": "TRWU8CBL",
+  "terminal": {
+    "arm": 0,
+    "dispatch": 0,
+    "disposition": "cold-recovery",
+    "mac": 0,
+    "mapped": 0,
+    "parked": true,
+    "possible": 0,
+    "rc": -1,
+    "reset": 0,
+    "revoked": 0,
+    "stage": 0,
+    "terminal_registers_valid": false,
+    "tps": 0,
+    "writes": 0
+  },
+  "uart_bytes": 4596,
+  "v04_restore_dispatched": false
+}
