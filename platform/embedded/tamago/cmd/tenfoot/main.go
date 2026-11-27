@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -13,7 +14,7 @@ import (
 	"runtime"
 	"time"
 
-	"errors"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
@@ -40,6 +41,14 @@ type bootConfig struct {
 	AgentMDNS     bool   `json:"agent_mdns"`
 	AgentInstance string `json:"agent_instance"`
 	AgentHost     string `json:"agent_host"`
+}
+
+// This Tenfoot frontend runs games on its configured remote host. It never
+// acquires a local execution lease, even while its own HTTP server is up.
+type remoteFrontendLease struct{}
+
+func (remoteFrontendLease) Status() kitlease.Status {
+	return kitlease.Status{State: "blocked", Reason: "this frontend only runs remote sessions"}
 }
 
 type observedTransport struct{ base http.RoundTripper }
@@ -405,6 +414,8 @@ func run() (result error) {
 			MDNSInstance:         config.AgentInstance,
 			MDNSHost:             config.AgentHost,
 			Controller:           agentCtrl,
+			KitLease:             remoteFrontendLease{},
+			ReadOnly:             true,
 			OnError: func(err error) {
 				fmt.Printf("FES_AGENT_ERROR err=%q\n", err)
 			},

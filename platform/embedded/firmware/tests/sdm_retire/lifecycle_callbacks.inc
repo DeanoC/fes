@@ -27,6 +27,10 @@ static int window_gate(void){return smmu_owns(&provider) && !provider.ddr_expect
 static uint32_t lifecycle_read(uint64_t address)
 {
  lifecycle_endpoint_reads++;
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+ if(address>=FES_NANO_SPECTRUM48_SCANOUT_BASE && address<FES_NANO_SPECTRUM48_SCANOUT_BASE+0x100)
+  return scanout_read((unsigned)(address-FES_NANO_SPECTRUM48_SCANOUT_BASE));
+#endif
  if(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_PROBE_CPU_BASE)
   return lifecycle_registers[(address-FES_NANO_CONTROL_BASE)/4];
  if(!(address>=FES_NANO_PROBE_CPU_BASE && address<FES_NANO_PROBE_CPU_BASE+0x100))
@@ -41,6 +45,13 @@ static uint32_t lifecycle_read(uint64_t address)
 }
 static void lifecycle_write(uint64_t address,uint32_t value)
 {
+#if defined(FES_NANO_SPECTRUM48) && FES_NANO_SPECTRUM48
+ if(address==FES_NANO_SPECTRUM48_SCANOUT_BASE+0x0c){
+  assert(value==2 || value==8);
+  if(value==2)scanout_status|=0x80000000U;else scanout_serial++;
+  return;
+ }
+#endif
  assert(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_PROBE_CPU_BASE);
  lifecycle_endpoint_writes++;
  unsigned offset=address-FES_NANO_CONTROL_BASE;
@@ -139,6 +150,9 @@ static void lifecycle_return(void)
 {
  uint64_t r[4];unsigned menu=configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU;
  assert(lifecycle_control(FES_EMBEDDED_BRIDGE_CONTROL,17,configuration.generation,r)==1 && !r[0]);
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(!menu)test_c64_window();
+#endif
  if(menu){
   assert(lifecycle_control(FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT),17,r[3],r)==1 && !r[0]);
  }

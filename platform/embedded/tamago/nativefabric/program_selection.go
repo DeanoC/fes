@@ -7,7 +7,9 @@ import (
 	"io"
 	"io/fs"
 	"runtime"
+	"strings"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
@@ -123,14 +125,18 @@ func decodeProgramSelectionMode(ctx context.Context, data []byte, allowEmpty boo
 }
 
 // Boot choices and installed entries use the same request decoder.
+func validProgramFile(name string) bool {
+	return name != "." && fs.ValidPath(name) && !strings.EqualFold(name, agentapi.ProvisioningPath)
+}
+
 func requestForProgramChoice(p programChoice) (packagestore.Request, error) {
-	if p.Path == "." || p.MetadataPath == "." || !fs.ValidPath(p.Path) || !fs.ValidPath(p.MetadataPath) ||
+	if !validProgramFile(p.Path) || !validProgramFile(p.MetadataPath) ||
 		!nonzeroDigest(p.PackageID) || !nonzeroDigest(p.MetadataSHA256) {
 		return packagestore.Request{}, errors.New("native fabric: incomplete program choice")
 	}
 	r := packagestore.Request{Path: p.Path, PackageID: p.PackageID, MetadataPath: p.MetadataPath, MetadataSHA256: p.MetadataSHA256}
 	if p.Tape != nil {
-		if *p.Tape == (packagestore.TapeRequest{}) || p.Tape.Validate() != nil {
+		if !validProgramFile(p.Tape.Path) || p.Tape.Validate() != nil {
 			return packagestore.Request{}, errors.New("native fabric: complete bounded tape choice required")
 		}
 		r.Tape = *p.Tape
@@ -140,7 +146,7 @@ func requestForProgramChoice(p programChoice) (packagestore.Request, error) {
 			return packagestore.Request{}, errors.New("native fabric: one retained firmware source and receipt required")
 		}
 		s := p.Sources[0]
-		if s.ID == "" || len(s.ID) > 96 || s.Role != "firmware" || s.Path == "." || !fs.ValidPath(s.Path) || !nonzeroDigest(s.SHA256) {
+		if s.ID == "" || len(s.ID) > 96 || s.Role != "firmware" || !validProgramFile(s.Path) || !nonzeroDigest(s.SHA256) {
 			return packagestore.Request{}, errors.New("native fabric: incomplete retained ROM source choice")
 		}
 		r.ReceiptSHA256 = p.ROMReceiptSHA256

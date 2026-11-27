@@ -127,7 +127,8 @@ def install(source, profile, ram_binding=None):
     anchor = '*(SORT_BY_ALIGNMENT(.data*))'
     if common.count(anchor) != 1:
         raise ValueError('MMU witness initialized data context changed')
-    common = common.replace(anchor, anchor+' *(.fes_mmu_witness)')
+    # The optional capture-only 1 MB buffer follows every short-range EL3 control symbol.
+    common = common.replace(anchor, anchor+' *(.fes_mmu_witness) *(.fes_jitter_capture)')
     entry_name = 'bl31/aarch64/bl31_entrypoint.S'
     entry = (source/entry_name).read_text()
     anchor = '\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n\tb\tel3_exit\n'

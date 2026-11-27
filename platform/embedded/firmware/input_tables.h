@@ -20,6 +20,36 @@ struct nano_sdm_input_binding {
  uint8_t digest384[48];
  uint32_t idr0,idr1,idr5;
 };
+/* The device may read (bit 0) or write (bit 1) this Normal Non-cacheable,
+ * outer-shareable 4 KiB page. The callers bind the full physical address. */
+static inline uint64_t nano_stage2_page(uint64_t address, unsigned access)
+{
+ if ((address & 4095U) || address > UINT32_MAX || access<1 || access>3)
+  return 0;
+ return address | (UINT64_C(3)<<53) | (1U<<10) | (2U<<8) | ((uint64_t)access<<6) | (5U<<2) | 3U;
+}
+/* A valid Non-secure S2-only stream. Encode the same architectural fields
+ * for the retained SDM and the private MAC VMID/table. */
+static inline uint64_t nano_stage2_ste_word(unsigned word,uint16_t vmid,uint64_t root)
+{
+ switch(word){
+ case 0: return 13;
+ case 1: return UINT64_C(1)<<44;
+ case 2: return vmid | (UINT64_C(0x2060)<<32) | (UINT64_C(1)<<51) | (UINT64_C(1)<<54) | (UINT64_C(1)<<58);
+ case 3: return root;
+ default: return 0;
+ }
+}
+#define NANO_MAC_POOL_BASE UINT64_C(0x95c00000)
+/* Prospective MAC SID 1 view. No address outside the five whole pages of
+ * the XGMAC driver allocation resolves. A descriptor value grants no DMA. */
+static inline uint64_t nano_mac_stage2_leaf(uint64_t address)
+{
+ if (address<NANO_MAC_POOL_BASE || address>=NANO_MAC_POOL_BASE+5*4096U || (address&4095U))
+  return 0;
+ unsigned page=(unsigned)((address-NANO_MAC_POOL_BASE)/4096U);
+ return nano_stage2_page(address, page==0 ? 3U : page<3 ? 1U : 2U);
+}
 int nano_sdm_input_validate(const struct nano_sdm_input_binding *);
 int nano_sdm_input_same(const struct nano_sdm_input_binding *,const struct nano_sdm_input_binding *);
 /* Pure descriptor values, at most256 output bytes, no I/O/publication/cache

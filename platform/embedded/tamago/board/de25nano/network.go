@@ -6,9 +6,13 @@ package de25nano
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/mdns"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/xgmac"
 )
@@ -40,12 +44,43 @@ var ownedNetworkController *network.Controller
 // firmware MAC/DMA contract; disabled profiles must never invoke it.
 func NetworkEnabled() bool { return profileNetworkEnabled }
 
+// NetworkAdapter identifies the explicitly selected paired launcher adapter.
+func NetworkAdapter() string { return profileNetworkAdapter }
+
+// NetworkInMenuOnly keeps this adapter contained while a core owns the GP port.
+func NetworkInMenuOnly() bool { return profileNetworkInMenuOnly }
+
+// C64NetworkScope is populated exclusively by the matched package build.
+func C64NetworkScope() (string, func() (maccontrol.Receipt, bool)) {
+	if profileC64NetworkScope == "" {
+		return "", nil
+	}
+	// Build and entry validate both full digests and the complete ELF marker.
+	parts := strings.Split(profileC64NetworkScope, "/")
+	if len(parts) != 3 || parts[0] != "fes-c64-gp-v1" || len(parts[1]) != 64 || len(parts[2]) != 64 {
+		panic("invalid compiled C64 network scope")
+	}
+	return parts[1], func() (maccontrol.Receipt, bool) {
+		networkLock.Lock()
+		defer networkLock.Unlock()
+		return ownedNetworkDevice.MACReceipt()
+	}
+}
+
+// NetworkStartupTimeout includes the selected physical device open and, when
+// requested, the subsequent DHCP acquisition. It does not bound stack lifetime.
+func NetworkStartupTimeout(dhcp bool) time.Duration {
+	return networkStartupTimeout(profileNetworkBase, profileNetworkPHY, profileNetworkPHYID, dhcp)
+}
+
 // NetworkOptions configures opt-in XGMAC link speed and link-flap recovery
 // behaviors forwarded from trusted board startup. Zero values preserve strict
 // 1000BASE-T full-duplex, fail-closed carrier enforcement.
 type NetworkOptions struct {
+	TargetID        string // Stable validated SD pairing for the matched DHCP adapter.
 	Allow100Full    bool
 	RecoverLinkLoss bool
+	ReceiveMDNS     bool
 	OnLinkChange    func(up bool, speed xgmac.LinkSpeed)
 }
 
@@ -81,6 +116,10 @@ func OpenNetworkWithControlDHCPOptions(ctx, lifetime context.Context, bootOwner 
 	if err := network.ValidateDHCPConfig(dhcpCfg); err != nil {
 		return nil, nil, err
 	}
+	// The matched profile starts DHCP's own ten-second window after training.
+	if NetworkStartupTimeout(false) > defaultDeviceTimeout && (dhcpCfg.Timeout == 0 || dhcpCfg.Timeout > dhcpStartupBudget) {
+		dhcpCfg.Timeout = dhcpStartupBudget
+	}
 	return openControlledNetwork(ctx, lifetime, bootOwner, opts, func(factory func() (network.Device, error)) (*network.Interface, error) {
 		return network.OpenDeviceDHCPWithStartup(ctx, lifetime, factory, dhcpCfg)
 	})
@@ -95,6 +134,13 @@ func openControlledNetwork(
 	if !profileNetworkEnabled || ctx == nil || lifetime == nil || bootOwner == 0 {
 		return nil, nil, fmt.Errorf("de25-nano: controlled Ethernet profile and trusted boot owner required")
 	}
+	// The device open has its own deadline even when the outer startup
+	// context also reserves time for subsequent DHCP acquisition.
+	if timeout := NetworkStartupTimeout(false); timeout > defaultDeviceTimeout {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -106,8 +152,19 @@ func openControlledNetwork(
 	if networkAttempted {
 		return nil, nil, fmt.Errorf("de25-nano: Ethernet initialization already attempted")
 	}
+	station := profileNetworkMAC
+	if profileNetworkAdapter != "" {
+		var err error
+		station, err = pairedStation(opts.TargetID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if profileNetworkPoolBytes != xgmac.RequiredBytes {
+			return nil, nil, fmt.Errorf("de25-nano: MAC pool differs from the matched five-page layout")
+		}
+	}
 	networkAttempted = true
-	pool, err := NewUncachedPool(profileNetworkDMAStart, profileNetworkDMABytes)
+	pool, err := NewUncachedPool(profileNetworkDMAStart, profileNetworkPoolBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +180,8 @@ func openControlledNetwork(
 			return nil, err
 		}
 		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, mem, xgmac.Config{
-			MAC:             profileNetworkMAC,
+			MAC:             station,
+			ExpectedVersion: profileNetworkMACVersion,
 			PHYAddress:      profileNetworkPHY,
 			PHYID:           profileNetworkPHYID,
 			CSRClockHz:      profileNetworkClock,
@@ -133,6 +191,10 @@ func openControlledNetwork(
 			RecoverLinkLoss: opts.RecoverLinkLoss,
 			OnLinkChange:    opts.OnLinkChange,
 		})
+		if err == nil && opts.ReceiveMDNS {
+			group := mdns.MulticastMAC()
+			err = ownedNetworkDevice.SetMulticastMACs([]net.HardwareAddr{group[:]})
+		}
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -141,6 +203,7 @@ func openControlledNetwork(
 	if err != nil {
 		return nil, nil, err
 	}
+	control.ResumeTimeout = NetworkStartupTimeout(false)
 	ownedNetworkController, err = ownedNetworkInterface.BindControl(control)
 	if err != nil {
 		return nil, nil, err

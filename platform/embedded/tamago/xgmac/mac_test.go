@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// Layout of the existing 0x21 fixture.
+const (
+	ringSize = bufferCount
+	rxRing   = uint32(ringSize * 16)
+)
+
 type memory struct {
 	data      []byte
 	published bool
@@ -19,7 +25,7 @@ func (m *memory) Base() uint64           { return 0x92000000 }
 func (m *memory) Size() uint64           { return uint64(len(m.data)) }
 func (m *memory) Read32(o uint32) uint32 { return binary.LittleEndian.Uint32(m.data[o : o+4]) }
 func (m *memory) Write32(o, v uint32) {
-	if (o < 64 || o >= rxRing && o < rxRing+64) && o%16 == 12 && v&own != 0 && !m.published {
+	if o < txBuffers && o%16 == 12 && v&own != 0 && !m.published {
 		panic("ownership published before descriptor barrier")
 	}
 	m.writes++
@@ -118,24 +124,25 @@ func (h *hardware) Write32(reg, value uint32) {
 		if !h.mem.published {
 			panic("TX tail before publication barrier")
 		}
-		base := uint32(h.mem.Base()) + txRing
-		if value < base || value >= base+ringSize*16 || (value-base)%16 != 0 {
+		base := h.regs[txList]
+		count := h.regs[0x3130] + 1
+		if value < base || value >= base+count*16 || (value-base)%16 != 0 {
 			panic("invalid TX tail")
 		}
-		index := ((value-base)/16 + ringSize - 1) % ringSize
+		index := ((value-base)/16 + count - 1) % count
 		if index != h.txIndex {
 			panic("TX ring ordering violation")
 		}
-		desc := txRing + index*16
+		desc := base - uint32(h.mem.Base()) + index*16
 		state := h.mem.Read32(desc + 12)
 		if state&(own|first|last|contextDesc) != own|first|last {
 			panic("TX descriptor not complete/owned")
 		}
 		size := h.mem.Read32(desc+8) & 0x3fff
-		if size < 14 || size > 1514 || state&0x7fff != size || h.mem.Read32(desc+4) != 0 || h.mem.Read32(desc) != uint32(h.mem.Base())+txBuffers+index*bufferSize {
+		offset := h.mem.Read32(desc) - uint32(h.mem.Base())
+		if size < 14 || size > 1514 || state&0x7fff != size || h.mem.Read32(desc+4) != 0 || offset != txBuffers+index%bufferCount*bufferSize {
 			panic("bad TX buffer/length")
 		}
-		offset := txBuffers + index*bufferSize
 		frame := bytes.Clone(h.mem.data[offset : offset+size])
 		h.frames = append(h.frames, frame)
 		if h.mode == "timeout" {
@@ -145,11 +152,18 @@ func (h *hardware) Write32(reg, value uint32) {
 			h.regs[channelStatus] |= 1 << 12
 			return
 		}
-		if h.mode == "completion" {
+		switch h.mode {
+		case "missing-first":
+			state &^= first
+		case "completion":
 			state &^= last
+		case "context":
+			state |= contextDesc
+		case "descriptor-error":
+			state |= txDescError
 		}
 		h.mem.deviceWrite32(desc+12, state&^own)
-		h.txIndex = (h.txIndex + 1) % ringSize
+		h.txIndex = (h.txIndex + 1) % count
 		if h.wireOut != nil {
 			select {
 			case h.wireOut <- frame:
@@ -171,7 +185,11 @@ func (h *hardware) receive() {
 	if len(h.rxQueue) == 0 {
 		return
 	}
-	desc := rxRing + h.rxIndex*16
+	head := h.regs[rxList] + h.rxIndex*16
+	if h.regs[version]&0xffff == 0x7631 && head == h.regs[rxTail] {
+		return
+	}
+	desc := head - uint32(h.mem.Base())
 	if h.mem.Read32(desc+12)&own == 0 {
 		return
 	}
@@ -180,10 +198,14 @@ func (h *hardware) receive() {
 	if len(frame) > bufferSize {
 		panic("model RX overflow")
 	}
-	copy(h.mem.data[rxBuffers+h.rxIndex*bufferSize:], frame)
+	offset := h.mem.Read32(desc) - uint32(h.mem.Base())
+	if offset != rxBuffers+h.rxIndex%bufferCount*bufferSize {
+		panic("RX descriptor buffer outside posted window")
+	}
+	copy(h.mem.data[offset:], frame)
 	h.mem.deviceWrite32(desc, 0xfeedface) // RX writeback may replace buffer-address words
-	h.mem.deviceWrite32(desc+12, last|uint32(len(frame)))
-	h.rxIndex = (h.rxIndex + 1) % ringSize
+	h.mem.deviceWrite32(desc+12, first|last|uint32(len(frame)))
+	h.rxIndex = (h.rxIndex + 1) % (h.regs[0x3134] + 1)
 }
 func configuration() Config {
 	return Config{MAC: "02:12:34:56:78:90", PHYAddress: 4, PHYID: 0x001cc916, CSRClockHz: 125000000, RXBufferShift: 4}
@@ -197,12 +219,26 @@ func open(t *testing.T, h *hardware) *Device {
 	return d
 }
 func TestDMAFrameRoundTripAndWrap(t *testing.T) {
-	for _, shift := range []uint8{1, 4} {
-		t.Run(string(rune('0'+shift)), func(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		id    uint32
+		shift uint8
+		ring  uint32
+	}{
+		{"2.10-linux", 0x21, 1, 4},
+		{"2.10-uboot", 0x21, 4, 4},
+		{"Agilex-CS-R1", 0x107631, 1, 32},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			h := newHardware()
-			h.layout = shift
+			h.layout = tc.shift
+			h.regs[version] = tc.id
+			if tc.id == 0x107631 {
+				// Read-only reset values in the Altera CS/R1 register map.
+				h.regs[features0], h.regs[features1], h.regs[features2] = 0xca7d5b3f, 0x49ef7a27, 0x221c71c7
+			}
 			c := configuration()
-			c.RXBufferShift = shift
+			c.RXBufferShift = tc.shift
 			d, err := Open(h, h.mem, c)
 			if err != nil {
 				t.Fatal(err)
@@ -210,7 +246,14 @@ func TestDMAFrameRoundTripAndWrap(t *testing.T) {
 			if h.regs[packetFilter] != 0 || h.regs[channelInterrupt] != 0 || h.regs[0x3100] != 0 {
 				t.Fatal("unexpected promiscuous/IRQ/descriptor mode")
 			}
-			for n := 0; n < 13; n++ {
+			if h.regs[0x3130]+1 != tc.ring || h.regs[0x3134]+1 != tc.ring {
+				t.Fatal("wrong TX/RX descriptor ring lengths")
+			}
+			if tc.id == 0x107631 && (h.regs[rxControl]&0x7ff0 != 0xc80 || h.regs[rxList] != h.regs[txList]+32*16 || h.regs[rxTail] != h.regs[rxList]+bufferCount*16) {
+				t.Fatalf("Agilex RBSZ or initial pinned rings: %#v", h.regs)
+			}
+			packets := int(2*tc.ring + 5)
+			for n := 0; n < packets; n++ {
 				frame := bytes.Repeat([]byte{byte(n + 1)}, 100+n)
 				h.rxQueue = append(h.rxQueue, frame)
 				dst := make([]byte, 1600)
@@ -226,7 +269,7 @@ func TestDMAFrameRoundTripAndWrap(t *testing.T) {
 				}
 			}
 			stats := d.Statistics()
-			if stats.Received != 13 || stats.Transmitted != 13 || stats.Dropped != 0 {
+			if stats.Received != uint64(packets) || stats.Transmitted != uint64(packets) || stats.Dropped != 0 {
 				t.Fatal(stats)
 			}
 			if d.MAC() != configuration().MAC || d.Err() != nil {
@@ -235,22 +278,40 @@ func TestDMAFrameRoundTripAndWrap(t *testing.T) {
 		})
 	}
 }
+func TestAgilexRejectsUnknownDeviceRevisionAndRXBufferLayoutBeforeWrites(t *testing.T) {
+	for _, tc := range []struct {
+		id    uint32
+		shift uint8
+	}{
+		{0x7631, 4}, {0x7531, 1}, {0x31, 1}, {0x7630, 1}, {0x7632, 1},
+	} {
+		h := newHardware()
+		h.regs[version] = tc.id
+		c := configuration()
+		c.RXBufferShift = tc.shift
+		if _, err := Open(h, h.mem, c); err == nil || len(h.writes) != 0 || h.mem.writes != 0 {
+			t.Fatalf("id %#x shift %d: err=%v, MMIO writes=%d DMA writes=%d", tc.id, tc.shift, err, len(h.writes), h.mem.writes)
+		}
+	}
+}
 func TestRXDropsAndOwnershipFaults(t *testing.T) {
-	for _, mode := range []string{"crc", "oversize", "short", "destination", "context", "fragment"} {
+	for _, mode := range []string{"crc", "oversize", "short", "destination", "context", "missing-first", "missing-last"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newHardware()
 			d := open(t, h)
-			state := last | 100
+			state := first | last | 100
 			switch mode {
 			case "crc":
 				state |= 1 << 15
 			case "oversize":
-				state = last | 1515
+				state = first | last | 1515
 			case "short":
-				state = last | 4
+				state = first | last | 4
 			case "context":
 				state |= contextDesc
-			case "fragment":
+			case "missing-first":
+				state &^= first
+			case "missing-last":
 				state &^= last
 			}
 			h.mem.deviceWrite32(rxRing+12, state)
@@ -259,7 +320,7 @@ func TestRXDropsAndOwnershipFaults(t *testing.T) {
 				dst = dst[:50]
 			}
 			count, err := d.Receive(dst)
-			fatal := mode == "context" || mode == "fragment"
+			fatal := mode == "context" || mode == "missing-first" || mode == "missing-last"
 			if count != 0 || (err != nil) != fatal {
 				t.Fatal(count, err)
 			}
@@ -277,7 +338,7 @@ func TestRXDropsAndOwnershipFaults(t *testing.T) {
 	}
 }
 func TestTXFailurePinsBuffersAndRefusesReuse(t *testing.T) {
-	for _, mode := range []string{"timeout", "bus", "completion", "owned", "stopped", "link", "mdio", "frozen"} {
+	for _, mode := range []string{"timeout", "bus", "completion", "missing-first", "context", "descriptor-error", "owned", "stopped", "link", "mdio", "frozen"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newHardware()
 			d := open(t, h)
@@ -363,5 +424,14 @@ func TestAdmissionFailures(t *testing.T) {
 		if _, err := Open(h, h.mem, c); err == nil || h.accesses != 0 {
 			t.Fatal("invalid config touched controller")
 		}
+	}
+}
+
+func TestMatchedRevisionRefusesOtherSupportedDevice(t *testing.T) {
+	h := newHardware() // Supported generic version 0x21.
+	cfg := configuration()
+	cfg.ExpectedVersion = 0x7631
+	if _, err := Open(h, h.mem, cfg); err == nil || len(h.writes) != 0 {
+		t.Fatal("matched launcher admitted another MAC", err, h.writes)
 	}
 }

@@ -101,6 +101,10 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
+    entropy = parser.add_mutually_exclusive_group()
+    entropy.add_argument("--nano-sdm-trng", action="store_true", help="fill a finite hardware-entropy pool before entering the matched native launcher")
+    entropy.add_argument("--nano-jitter", choices=("capture", "seed"),
+                         help="measure CPU timing jitter or supply conditioned bytes at the verified EL3 handoff")
     parser.add_argument("--nano-cold-serial-entry", type=Path, help="opt-in actual SPL/BL31 cold serial producer, bound to this native entry build")
     parser.add_argument("--nano-firmware-ocram", action="store_true", help="experimental matched shared-ROM SPL/EL3/native OCRAM reservation")
     parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
@@ -109,8 +113,22 @@ def main():
     parser.add_argument("--nano-sdm-fault64",action="store_true",help="explicit one-DATA-64 bounded fault capture; terminal diagnostic only")
     parser.add_argument("--nano-sdm-input-transfer",action="store_true",help="full verified source transfer, terminal before activation; retained diagnostic")
     parser.add_argument("--nano-sdm-source-rearm",action="store_true",help="explicit matched repeated-load source-release/rearm prototype; requires --nano-sdm-input-transfer")
+    parser.add_argument("--nano-mac-table-trial",action="store_true",help="under the secure retirement lock, verify an inactive MAC table and restore the SDM base")
+    parser.add_argument("--nano-mac-coexistence-trial",action="store_true",help="check private NS translation across a real Secure MENU display under MAC reset")
+    parser.add_argument("--nano-mac-c64-scope-supplier",action="store_true",
+                        help="add a read-only, sealed C64 control scope to the matched MENU MAC")
+    parser.add_argument("--nano-mac-menu-supplier",action="store_true",help="attach the matched private MAC lease only after a real published MENU frame")
+    parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_jitter and not (args.nano_firmware_mmu and args.nano_sdm_input_transfer):
+        parser.error("CPU jitter requires the matched secure MMU and launcher handoff")
+    if args.nano_mac_table_trial and not args.nano_mac_handoff:parser.error("table trial requires explicit MAC handoff")
+    if args.nano_mac_coexistence_trial and not args.nano_mac_table_trial:parser.error("coexistence trial requires explicit MAC table trial")
+    if args.nano_mac_c64_scope_supplier and not args.nano_mac_menu_supplier:
+        parser.error("C64 MAC scope requires the matched MENU supplier")
+    if args.nano_mac_menu_supplier and not args.nano_mac_coexistence_trial:parser.error("MENU MAC supplier requires explicit coexistence trial")
+    if args.nano_mac_handoff and not args.nano_sdm_source_rearm:parser.error("MAC handoff requires explicit source rearm")
     if args.nano_sdm_source_recovery and not args.nano_sdm_source_rearm:parser.error("terminal cold recovery requires explicit source rearm")
     if args.nano_sdm_source_rearm and not args.nano_sdm_input_transfer:parser.error("source rearm requires selected SDM input transfer")
     if args.nano_sdm_input_transfer and (args.nano_sdm_fault64 or args.nano_sdm_arm_probe):parser.error("SDM diagnostic modes are mutually exclusive")
@@ -127,6 +145,8 @@ def main():
         parser.error("firmware MMU requires --nano-firmware-ocram")
     if args.nano_cold_serial_entry is not None and not args.nano_owned_bridges:
         parser.error("cold serial boot requires --nano-owned-bridges")
+    if args.nano_sdm_trng and not args.nano_sdm_input_transfer:
+        parser.error("SDM boot entropy requires the sealed input-transfer mailbox and private firmware mapping")
     if args.nano_firmware_ocram and args.nano_cold_serial_entry is None:
         parser.error('OCRAM firmware requires the exact cold native entry')
     cold = cold_profile = None
@@ -136,7 +156,7 @@ def main():
             parser.error('cold entry must be private under out/')
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)
+        cold_profile=cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial,mac_coexistence_trial=args.nano_mac_coexistence_trial,mac_menu_supplier=args.nano_mac_menu_supplier,mac_c64_scope_supplier=args.nano_mac_c64_scope_supplier)
     repo = args.reference_repo.resolve()
     output = args.output.absolute()
     if (".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or
@@ -183,6 +203,12 @@ def main():
         import prepare_nano_owned
         producer_inputs += tuple(prepare_nano_owned.inputs())
     producer_inputs += (HERE.parent/'nano/fault_status.py',HERE.parent/'nano/runtime_startup.py',HERE.parent/'nano/call_trace.py',HERE/'nano_firmware_ram.py',HERE/'nano_firmware_runtime.py',HERE/'nano_firmware_call.py',HERE/'nano_firmware_percpu.py',HERE/'nano_firmware_runtime.inc',HERE/'nano_firmware_entry.inc',HERE/'nano_firmware_fault.inc',HERE/'nano_firmware_decode.inc',HERE/'nano_firmware_cache.inc',HERE/'nano_firmware_exit_cache.inc',HERE/'nano_firmware_ram.h')
+    if args.nano_sdm_trng:
+        import nano_trng
+        producer_inputs += (Path(nano_trng.__file__), nano_trng.SOURCE)
+    if args.nano_jitter:
+        import nano_boot_jitter
+        producer_inputs += tuple(nano_boot_jitter.inputs(args.nano_jitter))
     if cold is not None:
         producer_inputs += tuple(cold.sources())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
@@ -207,6 +233,13 @@ def main():
     # default git-describe walk up into FES and embed an unrelated revision.
     command = [str(make), "-j", str(args.jobs), "PLAT=agilex5", "BUILD_STRING=" + label,
                "CROSS_COMPILE=" + args.cross_prefix, "bl31"]
+    if args.nano_sdm_trng:
+        trng_install = nano_trng.install(source)
+        command.append("TRNG_SUPPORT=1")
+    if args.nano_jitter:
+        jitter_install = nano_boot_jitter.install(source, args.nano_jitter)
+        if args.nano_jitter == "seed":
+            command.append("TRNG_SUPPORT=1")
     if args.nano_firmware_ocram:command.append('SEPARATE_NOBITS_REGION=1')
     with (output / "build.log").open("wb") as log:
         subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -277,11 +310,15 @@ def main():
                               "firmware source transformation is not a signature or production attestation"]}
     report["bridge_mode"] = "owned-unready" if owned else "strict"
     report['firmware_mmu_proof']=mmu_proof
+    if args.nano_sdm_trng:
+        report['boot_entropy'] = nano_trng.verify(image_elf, source, trng_install)
+    if args.nano_jitter:
+        report["cpu_jitter"] = nano_boot_jitter.verify(source, image_elf, args.nano_jitter, jitter_install)
     if owned:
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"
     if cold is not None:
-        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)!=cold_profile: raise ValueError('cold chain changed during build')
+        if cold.make(entry_path,firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial,mac_coexistence_trial=args.nano_mac_coexistence_trial,mac_menu_supplier=args.nano_mac_menu_supplier,mac_c64_scope_supplier=args.nano_mac_c64_scope_supplier)!=cold_profile: raise ValueError('cold chain changed during build')
         report['bridge_mode']='owned-cold-serial'
         report['native_boot_profile']=cold_profile
         report['classification']='source-bound cold serial SPL record consumer and master-stop provider; no physical qualification'

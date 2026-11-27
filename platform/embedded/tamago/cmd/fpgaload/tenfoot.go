@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -88,8 +89,9 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	limits := computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}
 	if paired {
 		load, done := context.WithTimeout(context.Background(), 100*time.Second)
+		c64Package, c64Receipt := de25nano.C64NetworkScope()
 		programService, err = nativefabric.NewProgramServiceWithMenu(load, loader, store, de25nano.ReserveConfiguration, limits,
-			nativefabric.ProgramMenuOptions{Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
+			nativefabric.ProgramMenuOptions{NetworkInMenuOnly: de25nano.NetworkInMenuOnly(), C64NetworkPackageID: c64Package, C64MACReceipt: c64Receipt, Request: startup.Menu, Reserve: de25nano.ReserveMenuMemory,
 				Observe: emitProgramMenu,
 				Limits: scanout.MenuLimits{PublicationTimeout: 4 * time.Second,
 					ReaderLimits: scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}}})
@@ -108,11 +110,12 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 			_ = programService.Retire(errors.New("native Tenfoot exited before owned menu shutdown"))
 		}
 	}()
-	cleanupNetwork, err := startProgramNetwork(activeGIC)
+	cleanupNetwork, err := startProgramNetwork(activeGIC, startup.Agent)
 	if err != nil {
 		panic(err)
 	}
-	defer cleanupNetwork()
+	stopNetworkServices := sync.OnceFunc(cleanupNetwork)
+	defer stopNetworkServices()
 	nativeProgramBackend, err = nativefabric.NewProgramBackend(programService, startup.Entries)
 	if err != nil {
 		panic(err)
@@ -278,6 +281,8 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 	}
 	// ProgramSerialPlatform turns Quit during a running core into owned Stop,
 	// then waits for Ready or terminal containment before exiting the App.
+	// Publish the mDNS goodbye and close listeners before final MAC containment.
+	stopNetworkServices()
 	status := programService.Status()
 	if status.State != nativefabric.ProgramReady && status.State != nativefabric.ProgramRebootRequired && status.State != nativefabric.ProgramParked {
 		panic("Tenfoot exited without a completed owned transition")

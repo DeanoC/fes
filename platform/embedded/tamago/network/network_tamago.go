@@ -14,29 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
-	"github.com/soypat/lneto"
-	gnet "github.com/usbarmory/go-net"
 )
-
-type irqDevice interface {
-	EnableIRQ(*gic.Controller) error
-	DisableIRQ(*gic.Controller)
-	IRQCount() uint64
-}
-
-// Interface owns one board NIC for the lifetime of the image. The board must
-// initialize a shared DMA arena outside Go's heap before Open is called.
-// DMA must be mapped Normal memory; no buffer is returned to the allocator
-// after the device begins DMA. This prototype polls rather than using IRQs.
-type Interface struct {
-	config     Config
-	device     Device
-	bridge     *Link
-	ctx        context.Context
-	stop       context.CancelCauseFunc
-	irqEnabled atomic.Bool
-	leaseState interfaceLease
-}
 
 var opened atomic.Bool
 
@@ -119,48 +97,34 @@ func admitAndOpenDevice(ctx context.Context, factory func() (Device, error)) (De
 }
 
 func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease, leaseAcquiredAt time.Time, hasLease bool) (*Interface, error) {
-	cfg := gnet.DefaultLnetoStackConfig()
-	cfg.Hostname = "fes-native"
-	cfg.MaxActiveTCPPorts = 16
-	cfg.MaxListenerConns = 8
-	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx, stop: stop}
-	iface.leaseState.init(lease, leaseAcquiredAt, hasLease)
-	backoff := func(consecutive uint) time.Duration {
-		if !iface.irqEnabled.Load() || consecutive == 0 {
-			return lneto.BackoffFlagGosched
-		}
-		return 5 * time.Millisecond
-	}
-	cfg.BackoffStack = backoff
-	cfg.NewBackoffTCP = func() lneto.BackoffStrategy { return backoff }
-	var err error
-	iface.bridge, err = NewLink(cfg, nic, c.Address, nic.MAC(), c.Gateway)
+	current := new(atomic.Pointer[Interface])
+	iface, err := newInterface(ctx, c, nic, lease, leaseAcquiredAt, hasLease, current)
 	if err != nil {
-		stop(err)
 		return nil, err
 	}
+	current.Store(iface)
+	// Installed once. In-flight connections stay on their original link.
 	net.SocketFunc = func(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (any, error) {
-		if err := iface.Err(); err != nil {
+		active := current.Load()
+		if err := active.Err(); err != nil {
 			return nil, err
 		}
-		if err := iface.bridge.Available(); err != nil {
+		if err := active.bridge.Available(); err != nil {
 			return nil, err
 		}
-		return iface.bridge.socket(ctx, network, family, sotype, laddr, raddr)
+		return active.bridge.socket(ctx, network, family, sotype, laddr, raddr)
 	}
-	go func() {
-		err := iface.bridge.Start(runCtx)
-		if err == nil {
-			err = errors.New("network: receive loop stopped")
-		}
-		stop(err)
-	}()
 	return iface, nil
 }
 
-func (i *Interface) Address() string   { return i.config.Address }
-func (i *Interface) MAC() string       { return i.device.MAC() }
+type irqDevice interface {
+	EnableIRQ(*gic.Controller) error
+	DisableIRQ(*gic.Controller)
+	IRQCount() uint64
+}
+
+func (i *Interface) MAC() string { return i.device.MAC() }
+
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
 
 // DialTCP opens an outbound IPv4 TCP connection over this interface's active *Link.
@@ -216,56 +180,6 @@ func (i *Interface) NewHTTPServer(cfg ServerConfig) (*HTTPServer, error) {
 		return nil, err
 	}
 	return NewHTTPServer(i.bridge, cfg)
-}
-
-// Lease returns the acquired DHCPv4 lease and true if the interface was opened
-// via DHCP, or the zero value and false for static IPv4 configurations.
-func (i *Interface) Lease() (DHCPLease, bool) {
-	if i == nil {
-		return DHCPLease{}, false
-	}
-	return i.leaseState.get()
-}
-
-// NewLeaseRenewer creates an opt-in RFC 2131 DHCPv4 T1/T2 LeaseRenewer wired
-// to this interface's active *Link (preserving its pause/DMA failure gate and
-// original lease acquisition timestamp). Only one LeaseRenewer may be active on
-// the interface at a time (concurrent Start calls fail with ErrRenewerActive
-// until the active renewer stops or exits). Successful renewals synchronize back
-// to Interface.Lease() and future renewer starts. If the lease expires, is
-// NAK'd, or changes IP/gateway, the interface and link are halted immediately
-// per RFC 2131 §4.4.5 so traffic stops using the unleased address.
-// Returns ErrDHCPInvalidConfig if the interface was not opened via DHCP.
-func (i *Interface) NewLeaseRenewer(cfg RenewConfig) (*LeaseRenewer, error) {
-	if i == nil || i.bridge == nil || i.device == nil {
-		return nil, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
-	}
-	if err := i.Err(); err != nil {
-		return nil, err
-	}
-	return i.leaseState.newRenewer(i.bridge, i.device.MAC(), cfg, i.Err, func(err error) {
-		i.bridge.fail(err)
-		if i.stop != nil {
-			i.stop(err)
-		}
-	})
-}
-
-// RenewLeaseOnce executes one RFC 2131 DHCPv4 RENEWING (rebind=false) or
-// REBINDING (rebind=true) exchange over this interface's active *Link and
-// synchronizes the renewed lease back to Interface.Lease(). Fails with
-// ErrRenewerActive if another renewal or LeaseRenewer is already active, and
-// halts the interface immediately on ErrLeaseNAK or ErrLeaseChanged.
-func (i *Interface) RenewLeaseOnce(ctx context.Context, rebind bool, cfg RenewConfig) (DHCPLease, error) {
-	if i == nil || i.bridge == nil || i.device == nil {
-		return DHCPLease{}, fmt.Errorf("%w: interface has no active DHCP lease", ErrDHCPInvalidConfig)
-	}
-	return i.leaseState.renewOnce(ctx, i.bridge, i.device.MAC(), rebind, cfg, i.Err, func(err error) {
-		i.bridge.fail(err)
-		if i.stop != nil {
-			i.stop(err)
-		}
-	})
 }
 
 // ResolveA resolves name to IPv4 addresses over this interface's active *Link.
@@ -375,36 +289,6 @@ func (i *Interface) IRQCount() uint64 {
 	return 0
 }
 
-// BindControl requires a trusted platform supplier and binds once. Ordinary
-// OpenDevice and cancellation provide no DMA-drain capability themselves.
-func (i *Interface) BindControl(dma DMAControl) (*Controller, error) {
-	if i == nil || i.bridge == nil {
-		return nil, ErrControl
-	}
-	if err := i.Err(); err != nil {
-		return nil, err
-	}
-	return NewController(i.bridge, dma)
-}
-
-// Err reports cancellation or the first fatal driver error. Existing socket
-// operations still need deadlines; new sockets fail immediately after Err.
-func (i *Interface) Err() error {
-	if err := i.device.Err(); err != nil {
-		return err
-	}
-	if err := i.bridge.Err(); err != nil {
-		return err
-	}
-	return context.Cause(i.ctx)
-}
-
-// Done closes when networking becomes unavailable. It is not a DMA fence;
-// the device allocations remain reserved until reboot.
-func (i *Interface) Done() <-chan struct{} { return i.ctx.Done() }
-
-var _ RawFramePort = (*Interface)(nil)
-
 // SendRawFrame transmits one raw Ethernet frame while obeying the link's
 // pause gate and DMA failure contract.
 func (i *Interface) SendRawFrame(frame []byte) error {
@@ -426,3 +310,5 @@ func (i *Interface) AddTap(fn func([]byte)) func() {
 	}
 	return i.bridge.AddTap(fn)
 }
+
+var _ RawFramePort = (*Interface)(nil)

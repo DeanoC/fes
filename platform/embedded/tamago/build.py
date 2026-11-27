@@ -18,6 +18,7 @@ ROOT = APP.parents[2]
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from experiment import require_experiment
+from nano import c64_scope, launcher_ethernet
 
 
 def validate_native_elf(data, start, size, link_address):
@@ -260,13 +261,7 @@ def network_runtime_options(
     allow_100m=False,
     recover_link_flap=False,
 ):
-    """Validate the opt-in fpgaload DHCP/SNTP/link flags; dormant on every shipped profile.
-
-    fpgaload builds only from the byte-exact nano/sd-profile.json (network: null),
-    and profile_constants refuses a network block beside sd_control, so every
-    opt-in is refused here or by that pin. tests/test_tamago_build_network.py
-    pins this; see network/README.md.
-    """
+    """Validate addressing and link options for an explicitly selected launcher MAC."""
     if dhcp is None:
         dhcp = False
     if hostname is None:
@@ -296,9 +291,7 @@ def network_runtime_options(
     if program != 'fpgaload' or selected is not True or tenfoot is not True:
         raise ValueError('--network-* opt-in flags require Nano fpgaload with --selected-programs and --tenfoot-serial')
     if not isinstance(profile, dict) or profile.get('network') is None:
-        raise ValueError('--network-* opt-in flags are dormant: they need a network-enabled firmware profile, '
-                         'but fpgaload builds only from nano/sd-profile.json (network: null), whose closed-bridge '
-                         'SD ownership excludes Ethernet')
+        raise ValueError('--network-* flags are dormant without an explicit Ethernet selection')
     if hostname:
         if not dhcp:
             raise ValueError('--network-dhcp-hostname requires --network-dhcp')
@@ -383,16 +376,14 @@ def sd_adma2_option(program, requested, profile):
     return requested
 
 
-def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
-    if not sd_adma2:
+def device_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
+    """Check selected DMA windows against the firmware and compiled launcher maps."""
+    launcher_network = net is not None and configuration_map is not None
+    if not (sd_adma2 or launcher_network):
         return 0, 0
-    base, amount = SD_DMA_BASE, SD_DMA_BYTES
-    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
-            base + amount > 0xc0000000 or base >> 30 != start >> 30):
-        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
     exclusions = [
         (start, start + size),
-        (0x94000000, 0x94800000),
+        (0x94000000, 0x94010000),  # BL31 SDM stream tables and queues
         (0x96080000, 0x96080000 + (32 << 20)),
         (0x99000000, 0x9a000000),
     ]
@@ -403,12 +394,25 @@ def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_ma
         exclusions.append((cpu_map['reader_base'], cpu_map['reader_base'] + cpu_map['reader_bytes']))
     if tape_memory is not None:
         exclusions.append((tape_memory['base'], tape_memory['base'] + tape_memory['bytes']))
-    if net is not None:
-        exclusions.append((net['dma_start'], net['dma_start'] + net['dma_size']))
     if display is not None:
         exclusions.append((display['base'], display['base'] + display['size']))
     if fpga is not None:
         exclusions.append((fpga['base'], fpga['base'] + fpga['size']))
+    if net is not None:
+        net_start = net['dma_start']
+        net_end = net_start + net['dma_size']
+        if launcher_network and any(net_start < end and begin < net_end for begin, end in exclusions):
+            raise ValueError('Ethernet DMA window overlaps a compiled launcher or firmware reservation')
+        exclusions.append((net_start, net_end))
+
+    if not sd_adma2:
+        return 0, 0
+    base, amount = SD_DMA_BASE, SD_DMA_BYTES
+    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
+            base + amount > 0xc0000000 or base >> 30 != start >> 30):
+        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
+    # The SD ADMA2 profile excludes the entire interval up to configuration DMA.
+    exclusions.append((0x94010000, 0x94800000))
     if any(base < end and begin < base + amount for begin, end in exclusions):
         raise ValueError('SD ADMA2 DMA window overlaps Go RAM, firmware, or device arena')
     return base, amount
@@ -616,8 +620,11 @@ def build(args):
         args.program, selected_programs, tenfoot_serial,
         getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
     )
+    paired_mac = launcher_ethernet.selection(args, raw, (APP.parent/'nano/sd-profile.json').read_bytes())
+    if paired_mac:
+        net = launcher_ethernet.board_network()
     network_dhcp, network_dhcp_hostname, network_sntp_server, network_sntp_port, network_allow_100m, network_recover_link_flap = network_runtime_options(
-        args.program, profile, selected_programs, tenfoot_serial,
+        args.program, dict(profile, network=net), selected_programs, tenfoot_serial,
         getattr(args, 'network_dhcp', False), getattr(args, 'network_dhcp_hostname', ''),
         getattr(args, 'network_sntp_server', ''), getattr(args, 'network_sntp_port', 0),
         getattr(args, 'network_allow_100m', False), getattr(args, 'network_recover_link_flap', False),
@@ -694,7 +701,7 @@ def build(args):
     tape_memory = hps.initial_tape.staging_layout(cpu_map, profile['reserved'],
         dict(base=0x96080000, bytes=16 << 20)) if args.initial_tape else None
     tape_memory_sha = hps.initial_tape.memory_digest(tape_memory) if tape_memory else None
-    sd_dma_base, sd_dma_bytes = sd_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
+    sd_dma_base, sd_dma_bytes = device_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
     initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
         cpu_mapping=cpu_map,
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
@@ -776,6 +783,14 @@ def build(args):
         companion_entries.append(stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk,
                                            rom_host_go, output / 'c64', context, program_platform,
                                            configuration_map))
+    scope_marker=''
+    if getattr(args,'c64_network_scope',False):
+        if not paired_mac or not c64_proof:
+            raise ValueError('--c64-network-scope requires a fitted C64 in the paired launcher')
+        c64_record=json.loads((output/'c64/export/FES/C64.JSN').read_bytes())
+        identity=c64_scope.identity_from_proof(c64_proof,c64_record)
+        scope_marker=launcher_ethernet.c64_marker(identity)
+        paired_mac.update(c64_scope=identity,network_scope='published-menu-and-matched-c64')
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -827,6 +842,11 @@ def build(args):
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
         stream.write('const (\nprofileSDDMABase = '+str(sd_dma_base)+'\nprofileSDDMABytes = '+str(sd_dma_bytes)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
+                         "profileNetworkAdapter": paired_mac["adapter"] if paired_mac else "",
+                         "profileNetworkInMenuOnly": bool(paired_mac),
+                         "profileC64NetworkScope": scope_marker,
+                         "profileNetworkMACVersion": paired_mac["mac_version"] if paired_mac else 0,
+                         "profileNetworkPoolBytes": paired_mac["dma_bytes"] if paired_mac else (net["dma_size"] if net else 0),
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
                          "profileNetworkPHYID": net["phy_id"] if net else 0,
@@ -882,6 +902,10 @@ def build(args):
     if any(forbidden_files.intersection(p.get("GoFiles", []) + p.get("SFiles", [])) for p in packages):
         raise ValueError("Nano selected a QEMU controller implementation")
     files = {APP.parent / "experiment.py", APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml", APP.parent/'nano/smmu-profile.json'}
+    files.add(Path(launcher_ethernet.__file__))
+    if scope_marker:files.add(Path(c64_scope.__file__))
+    if paired_mac:
+        files.add(generated)
     if arm64_features:
         files.update({APP/'cpu_features.py', overlay})
         files.update(p for p in feature_sources if p.is_relative_to(ROOT))
@@ -1012,7 +1036,8 @@ def build(args):
         raise ValueError('selected network 100M/link-flap setting was not linked')
     if writable_storage_plan is not None and (writable_storage_option(args.program,args.writable_storage_plan,profile,args.selected_programs,args.tenfoot_serial)!=writable_storage_plan or writable_storage_encoded.encode() not in data):
         raise ValueError('writable storage plan changed or was not linked')
-    report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
+    report = {**({"launcher_ethernet": paired_mac} if paired_mac else {}),
+              "status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
               "sd_bus_width":sd_bus_width,
@@ -1064,5 +1089,6 @@ def build(args):
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
                               "native installer writes only on the trusted card/partition; hardware installation and power-loss acceptance pending" if writable_storage_plan else ("FAT create/update only with explicit card/file plan; no appliance install or power-loss qualification" if args.program=='sdfile' else "SD scratch writes only with the explicit card plan; no FAT or appliance write qualification") if sd_write_plan else "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
+    launcher_ethernet.checked(report, data)
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")

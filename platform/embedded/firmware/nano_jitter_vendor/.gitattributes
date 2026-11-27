@@ -1,0 +1,4 @@
+# Preserve the byte-exact upstream files verified by sources.json.
+LICENSE whitespace=-blank-at-eof
+arch/jitterentropy-arch-random.c whitespace=-blank-at-eof
+jitterentropy.h whitespace=-space-before-tab

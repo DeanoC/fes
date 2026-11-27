@@ -62,10 +62,10 @@ int fes_nano_program_enable_spectrum48(struct fes_nano_program *p,
     return 0;
 }
 
-static int spectrum48_matches(const struct fes_nano_program *p,uint32_t bytes)
+int fes_nano_program_matches_upload(const struct fes_nano_program *p,uint32_t bytes,
+                          const struct fes_nano_spectrum48_program *s)
 {
-    const struct fes_nano_spectrum48_program *s=p->spectrum48;
-    return s && bytes==s->bytes &&
+    return p && s && bytes && bytes==s->bytes &&
         !memcmp(p->header+FES_NANO_PROGRAM_PACKAGE,s->package,sizeof(s->package)) &&
         !memcmp(p->header+FES_NANO_PROGRAM_BUILD,s->build,sizeof(s->build)) &&
         !memcmp(p->header+FES_NANO_PROGRAM_SHA256,s->sha256,sizeof(s->sha256)) &&
@@ -152,7 +152,7 @@ int fes_nano_program_capture(struct fes_nano_program *p, uint64_t owner, uint64_
         role=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET);abi=le32(h+FES_NANO_PROGRAM_ROLE_OFFSET+4);
         if((role==FES_NANO_PROGRAM_ROLE_MENU && abi==FES_NANO_PROGRAM_MENU_ABI) ||
            (role==FES_NANO_PROGRAM_ROLE_SPECTRUM48 && abi==FES_NANO_PROGRAM_SPECTRUM48_ABI &&
-            (p->shared_core_shell || spectrum48_matches(p,bytes)))) {
+            (p->shared_core_shell || fes_nano_program_matches_upload(p,bytes,p->spectrum48)))) {
             if(capture_extension(p) || nonzero(p->rom_header,sizeof(p->rom_header)))return fail(p);
         } else if(role==FES_NANO_PROGRAM_ROLE_COMPUTER && abi==FES_NANO_PROGRAM_COMPUTER_ABI) {
             if(capture_rom(p,bytes))return -1;

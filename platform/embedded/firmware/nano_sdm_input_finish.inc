@@ -9,6 +9,18 @@
 #endif
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_sdm_retire_platform.inc"
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+#include "nano_mac_handoff.inc"
+#if defined(FES_NANO_MAC_TABLE_TRIAL) && FES_NANO_MAC_TABLE_TRIAL
+#include "nano_mac_table_trial.inc"
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+#include "nano_mac_coexist.inc"
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+#include "nano_mac_menu.inc"
+#endif
+#endif
+#endif
+#endif
 #if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
 #include "nano_sdm_recovery_platform.inc"
 #endif
@@ -76,6 +88,12 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
    source_retirement.consumer_samples,source_retirement.observed_consumer,source_retirement.consumer_read,
    source_retirement.consumer_phase,source_retirement.consumer_stage,source_retirement.consumer_poll);
   if(!error)continuation=fes_nano_sdm_continue_source();
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+  if(!continuation)continuation=mac_handoff_freeze(&source_retirement);
+#if defined(FES_NANO_MAC_TABLE_TRIAL) && FES_NANO_MAC_TABLE_TRIAL
+  if(!continuation)continuation=mac_table_switch_trial();
+#endif
+#endif
  }
  if(!continuation){
   NOTICE("FES_NANO_INPUT_CONTINUE build=%s owner=%llx epoch=%llx generation=%llu ready=1 elapsed_us=%llu retained=1 reuse=0 activated=0\n",

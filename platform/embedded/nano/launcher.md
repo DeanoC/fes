@@ -36,6 +36,35 @@ GOWORK=off go -C platform/embedded/tamago run ./cmd/stage-installer \
   `FES/PREFS.JSON` (`preferences_recovery.snapshot_preferences` snapshots it
   read-only; `upload.py --purpose preferences` uploads bounded 64 KiB updates).
 
+### Pair the launcher with FogCast
+
+In FogCast target settings, prepare the named target's ID. Create a private
+JSON file containing that lowercase UUID as `target_id`, the same target's
+bearer credential as `token`, and a numeric TCP `port` (for example, 8080).
+Pass its absolute path to `stage-installer --agent-config` alongside the
+menu export. Keep the resulting staging directory and SD image private.
+The image assembler reserves `FES/AGENT.JSN` for this per-board record.
+Omit the option for a local-only launcher.
+
+The matched Agilex 5 boot firmware opens an SDM crypto session to obtain a
+fresh boot ID. The serial marker `FES_NANO_TRNG ready bytes=128` confirms
+the boot entropy pool is ready. If the launcher reports
+`boot-entropy-unavailable`, MENU remains usable locally and FogCast discovery
+is disabled for that boot.
+
+On an Ethernet-enabled launcher, FogCast browses `_fogcast._tcp.local.`
+when a bound target's address changes. It authenticates health, matches the
+target UUID, then reads `/v1/kit/lease` and `/v1/status`. The local launcher
+reports owner `native-tenfoot`. On the matched C64 PIO build, select
+`--paired-ethernet --network-dhcp` in the SDK and `--nano-sdm-trng` and
+`--nano-mac-menu-supplier` in the matched boot chain for discovery in MENU.
+For reads during play, also select `--c64-network-scope` in the SDK and
+`--nano-mac-c64-scope-supplier` in the boot chain. This binds access to the
+fitted C64 package and an advancing CPU fetch counter. A host can then observe
+idle MENU, active `fes.c64` and returned MENU under the same boot ID with
+successive lease generations. The original CBL recovery card runs the
+local-only C64 launcher. [Native Ethernet qualification](../tamago/network/README.md#de25-nano-target-discovery)
+
 ## 2. Build the matched native boot chain
 
 Build all linked artifacts from the same checked contracts:

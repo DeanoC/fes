@@ -4,7 +4,8 @@ Provides a lightweight, portable FogCast-compatible `http.Handler` targeting con
 
 ## Supported Endpoints
 
-- `GET /v1/health` — agent health probe (redacts `target_id` and `software` unless authenticated or `AllowUnauthenticated` is enabled)
+- `GET /v1/health` — agent health probe. A valid bearer reveals the target ID, boot ID and software identity. Explicit open mode also publishes the target ID and software identity to anonymous clients.
+- `GET /v1/kit/lease` — current ownership reported by the target, with a valid bearer token. A missing provider returns HTTP 503.
 - `GET /v1/status` — live runtime status (`protocol.Status`)
 - `POST /v1/stop` — stop active core (`Controller.Stop`, empty request body required)
 - `GET /v1/core-packages` & `GET /v1/core-selections` — consistent package inventory and per-core selections
@@ -12,6 +13,8 @@ Provides a lightweight, portable FogCast-compatible `http.Handler` targeting con
 - `PUT /v1/core-selections/{core_id}` — atomic CAS per-core package selection update
 - `POST /v1/launch` — optional core/package/game launch trigger (`Launcher`)
 - `GET /v1/diagnostics` — optional JSON diagnostic snapshot (`DiagnosticsProvider`)
+
+A service configured with `ReadOnly` registers only observation routes.
 
 ## Verification
 

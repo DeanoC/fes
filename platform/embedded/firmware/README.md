@@ -36,6 +36,27 @@ and warm rearm against the boot-pinned uncached DDR arena, verifying whole and
 chunk SHA-256/SHA-384 digests, live cold ownership, SMMU/source retirement and
 fresh all-master closures before advancing generations.
 
+The BL31 and U-Boot builders accept `--nano-mac-handoff` alongside
+`--nano-sdm-source-rearm` for the retained PIO profile. At each SDM retirement
+and before the next rearm, EL3 checks the original controller, its queue cursor,
+the reset state of MAC0, and the Secure and Non-secure SMMU controls. It reads
+the retained Non-secure entries for MAC SID 1 and SDM SID 10. A mismatch
+blocks continuation. EL3 also checks the prospective five-page XGMAC layout
+at `0x95c00000`. It contains one read/write descriptor page, two transmit pages readable
+by the MAC and two receive pages writable by the MAC. The build receipt
+records `mac_grant=false` and `translation_published=false`. Physical launcher
+qualification requires matching MENU, computer and return observations.
+
+A second option, `--nano-mac-table-trial`, reserves 28 KiB directly above the
+SDM table at `0x94010000`. At the same contained retirement boundary EL3
+builds and reads back a separate MAC table. It rechecks the CPU, device
+owners, queues and both SMMU banks, selects the table base, and restores the
+SDM base and verifies its original tree before allowing the native return.
+Each successful generation emits `FES_NANO_MAC_TABLE` with its retained
+cursor. `FES_NANO_MAC_TABLE_STOP` records the stage of a failed check.
+MAC0 stays in reset and translation stays disabled throughout this trial.
+[Arm SMMUv3 §3.11](https://documentation-service.arm.com/static/6813b2bbefb0f21122c144c2)
+
 ## Controlled Nano bridge service
 
 `nano_bridges.c`, `nano_bridge_sip.c`, `nano_cold.c` and `nano_cold_platform.c`
@@ -86,6 +107,27 @@ load-address overlap against BL31/BSS. For the full native launcher chain
 `../nano/launcher_image.py`), see [../nano/launcher.md](../nano/launcher.md)
 and [../entry/README.md](../entry/README.md).
 
+The paired native build may add `--nano-sdm-trng` to a matched
+`--nano-sdm-input-transfer` BL31. Before handing control to U-Boot, TF-A
+collects four 32-byte responses to the fixed Agilex SDM random-number command
+into its reserved private DDR. The standard ARM TRNG service returns those
+bytes once and reports exhaustion. The native network profile reserves its
+per-boot UUID before the Go runtime takes its separate 32-byte seed.
+A busy mailbox or a rejected, short, zero or repeated response leaves the
+entropy service unavailable. A dispatched transaction with uncertain completion
+halts EL3 before subsequent mailbox users can run.
+
+For a board whose SDM denies crypto sessions, the experimental producer also
+accepts `--nano-jitter capture` or `--nano-jitter seed` on both BL31 and
+U-Boot builds. Both run on the primary Cortex-A55 after EL3 has verified the
+private write-back mapping and restored its exception vectors. The capture
+image records two million raw, preconditioning timing observations in private
+DDR and sends them over the diagnostic UART. It stops before the launcher.
+The serving image collects 128 conditioned bytes using the pinned Jitter RNG
+library. It enables the finite ARM TRNG provider only after startup and
+continuous health checks pass. Qualify the capture on the target before
+deploying the serving image. Each mode has a separate linked-image receipt.
+
 ## Adapter and endpoint
 
 `control.hpp` / `control.cpp` provide an allocation-free, exception/RTTI-free
@@ -108,3 +150,34 @@ Omitting `--reference` fetches and hashes the pinned public TF-A blob; omitting
 + Verilator RTL suite. Additional focused verifiers in this directory include
 `verify_fabric_stop.py`, `verify_nano_bridges.py`, `verify_owned_sip.py`,
 `verify_probe_stop.py` and the C unit tests under `tests/`.
+
+The optional `--nano-mac-coexistence-trial` extends the contained table trial
+on the matched PIO C64/MENU chain. EL3 opens a private Non-secure SID 1
+table at the existing MENU DDR release boundary and keeps MAC0 in reset.
+Secure SID 1 continues to use its separately checked Secure bypass.
+An ordinary MAC query can record a completed FMS1 frame while the reader
+is running. It still returns the existing MAC service's readiness.
+Before MENU closes, EL3 verifies the latched accepted/displayed sequence,
+slot and zero underflows, checks both complete translation trees and returns
+to the original SDM table. Sixteen real queue commands wrap the private
+queue back to the retained hardware cursor. The firmware never writes the
+consumer pointer. Any loss of ownership, incomplete command, fault or
+missing frame retains the reservation. This mode qualifies reader coexistence
+only after a matched hardware run.
+
+The additional `--nano-mac-menu-supplier` option requires the matched
+`--paired-ethernet` PIO launcher. After a real MENU frame is displayed,
+EL3 can grant MAC0 a fresh VMID and five pages, prepare its KSZ9031 PHY and
+confirm the XGMAC rings. The launcher stops both channels before switching
+programs. EL3 verifies the RX, TX, AXI and MTL drain, restores the saved PHY
+configuration, revokes the mapping and verifies the original SDM cursor.
+It checks the complete MAC arena across a 10 ms post-revocation interval.
+Ethernet can resume after the returned MENU displays a new frame.
+
+For authenticated observation during C64 play, add
+`--nano-mac-c64-scope-supplier` to both firmware producers and use the entry
+built with `--paired-ethernet --c64-network-scope`. EL3 matches the selected
+C64 package and configured core digest, observes CPU fetch progress and
+issues a fresh MAC grant. The scoped observation service verifies the running
+core, bridge and MAC generation under the same boot owner. Stop restores the
+original hardware containment before the launcher can return to MENU.

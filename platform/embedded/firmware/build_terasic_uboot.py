@@ -44,7 +44,7 @@ def private_path(path):
             not any(p.is_symlink() for p in (path, *path.parents)))
 
 
-def checked_bl31(bl31_build, cold_profile=None):
+def checked_bl31(bl31_build, cold_profile=None, *, require_sdm_trng=False, jitter_mode=None):
     receipt_path = bl31_build / "result.json"
     component = bl31_build / "source/build/agilex5/release/bl31.bin"
     elf = bl31_build / "source/build/agilex5/release/bl31/bl31.elf"
@@ -67,6 +67,19 @@ def checked_bl31(bl31_build, cold_profile=None):
             receipt.get("bl31_bin_size") != len(blob) or receipt.get("bl31_bin_sha256") != hashlib.sha256(blob).hexdigest() or
             receipt.get("bl31_elf_sha256") != hashlib.sha256(image_elf).hexdigest()):
         raise ValueError("BL31 component differs from its pinned vendor build receipt")
+    if jitter_mode or "cpu_jitter" in receipt:
+        import nano_boot_jitter
+        binding = receipt.get("cpu_jitter")
+        if (require_sdm_trng or "boot_entropy" in receipt or not isinstance(binding, dict) or
+                jitter_mode != binding.get("mode") or not cold_profile or not cold_profile.get("firmware_mmu") or
+                binding != nano_boot_jitter.verify(bl31_build / "source", image_elf, jitter_mode, binding.get("installed"))):
+            raise ValueError("matched CPU jitter firmware and explicit mode required")
+    if require_sdm_trng or "boot_entropy" in receipt:
+        import nano_trng
+        binding = receipt.get("boot_entropy")
+        if (not isinstance(binding, dict) or not cold_profile or not cold_profile.get("sdm_input_transfer")
+                or binding != nano_trng.verify(image_elf, bl31_build / "source", binding.get("installed"))):
+            raise ValueError("matched SDM entropy component required")
     ram = build_terasic.nano_firmware_ram.checked(cold_profile)
     entry, segments = build_terasic.bl31_load_segments(image_elf,firmware_ram=ram,
         cold_chain=cold_profile['chain_sha256'] if ram else None)
@@ -135,6 +148,10 @@ def main():
     parser.add_argument("--cross-prefix", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
+    entropy = parser.add_mutually_exclusive_group()
+    entropy.add_argument("--nano-sdm-trng", action="store_true", help="require the linked hardware boot entropy service in the selected BL31")
+    entropy.add_argument("--nano-jitter", choices=("capture", "seed"),
+                         help="measure CPU timing jitter or supply conditioned bytes at the verified EL3 handoff")
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
     parser.add_argument("--native-autoboot", action="store_true",
@@ -153,8 +170,22 @@ def main():
     parser.add_argument("--nano-sdm-fault64",action="store_true",help="explicit one-DATA-64 bounded fault capture; terminal diagnostic only")
     parser.add_argument("--nano-sdm-input-transfer",action="store_true",help="full verified source transfer, terminal before activation; retained diagnostic")
     parser.add_argument("--nano-sdm-source-rearm",action="store_true",help="explicit matched repeated-load source-release/rearm prototype; requires --nano-sdm-input-transfer")
+    parser.add_argument("--nano-mac-table-trial",action="store_true",help="under the secure retirement lock, verify an inactive MAC table and restore the SDM base")
+    parser.add_argument("--nano-mac-coexistence-trial",action="store_true",help="check private NS translation across a real Secure MENU display under MAC reset")
+    parser.add_argument("--nano-mac-c64-scope-supplier",action="store_true",
+                        help="add a read-only, sealed C64 control scope to the matched MENU MAC")
+    parser.add_argument("--nano-mac-menu-supplier",action="store_true",help="attach the matched private MAC lease only after a real published MENU frame")
+    parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_jitter and not (args.nano_firmware_mmu and args.nano_sdm_input_transfer):
+        parser.error("CPU jitter requires the matched secure MMU and launcher handoff")
+    if args.nano_mac_table_trial and not args.nano_mac_handoff:parser.error("table trial requires explicit MAC handoff")
+    if args.nano_mac_coexistence_trial and not args.nano_mac_table_trial:parser.error("coexistence trial requires explicit MAC table trial")
+    if args.nano_mac_c64_scope_supplier and not args.nano_mac_menu_supplier:
+        parser.error("C64 MAC scope requires the matched MENU supplier")
+    if args.nano_mac_menu_supplier and not args.nano_mac_coexistence_trial:parser.error("MENU MAC supplier requires explicit coexistence trial")
+    if args.nano_mac_handoff and not args.nano_sdm_source_rearm:parser.error("MAC handoff requires explicit source rearm")
     if args.nano_sdm_source_recovery and not args.nano_sdm_source_rearm:parser.error("terminal cold recovery requires explicit source rearm")
     if args.nano_sdm_source_rearm and not args.nano_sdm_input_transfer:parser.error("source rearm requires selected SDM input transfer")
     if args.nano_sdm_input_transfer and (args.nano_sdm_fault64 or args.nano_sdm_arm_probe):parser.error("SDM diagnostic modes are mutually exclusive")
@@ -195,8 +226,8 @@ def main():
     if args.native_entry_build is not None:
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)
-    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
+        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial,mac_coexistence_trial=args.nano_mac_coexistence_trial,mac_menu_supplier=args.nano_mac_menu_supplier,mac_c64_scope_supplier=args.nano_mac_c64_scope_supplier)
+    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile,require_sdm_trng=args.nano_sdm_trng, jitter_mode=args.nano_jitter)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Terasic U-Boot checkout must be clean and at the pinned revision")
@@ -275,7 +306,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial,mac_coexistence_trial=args.nano_mac_coexistence_trial,mac_menu_supplier=args.nano_mac_menu_supplier,mac_c64_scope_supplier=args.nano_mac_c64_scope_supplier)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []

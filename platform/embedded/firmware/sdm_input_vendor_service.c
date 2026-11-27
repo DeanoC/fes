@@ -2325,6 +2325,9 @@ uintptr_t sip_smc_handler_v1(uint32_t smc_fid,
 #include "generated/fes_embedded_tape.h"
 #ifdef FES_NANO_COLD_SERIAL
 #include "fes_nano_cold_profile.h"
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+#include "generated/fes_embedded_c64_scope.h"
+#endif
 static const uint8_t fes_nano_hps_context[32] = FES_NANO_HPS_CONTEXT_SHA;
 #else
 static const uint8_t fes_nano_hps_context[32] = {0};
@@ -2366,6 +2369,9 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
      * queries. A damaged/partial CPU profile retains resources and exposes no
      * success fields. Do not run reset/recovery writes in an unknown context. */
     if (!fes_nano_mmu_platform_scope()) {
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+        if(fid==FES_EMBEDDED_C64_SCOPE_CALL) {r[0]=5;r[1]=(uint64_t)FES_EMBEDDED_C64_SCOPE_TAG<<32;}
+#endif
         fes_nano_owned_bridges.failed=1;
         if(fid==FES_EMBEDDED_USB_CALL && x3==FES_EMBEDDED_USB_COOKIE) {
             r[0]=FES_EMBEDDED_USB_NOT_READY;r[1]=(uint64_t)FES_EMBEDDED_USB_TAG<<32;
@@ -2379,9 +2385,37 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         goto out;
     }
 #endif
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+    if(fid==FES_EMBEDDED_C64_SCOPE_CALL){
+        r[0]=2;r[1]=(uint64_t)FES_EMBEDDED_C64_SCOPE_TAG<<32;
+        if(x3==FES_EMBEDDED_C64_SCOPE_COOKIE && request_type==NO_REQUEST &&
+           !fes_nano_configuration_busy(configuration)){
+            int ok=fes_nano_c64_mac_scope(x1,x2,x4);
+            if(ok>0){r[0]=0;r[2]=x4;r[3]=fes_nano_owned_mac.generation;}else r[0]=5;
+        }
+        goto out;
+    }
+#endif
     if (fid==FES_EMBEDDED_MAC_CALL) {
         r[0]=FES_EMBEDDED_MAC_REJECTED;r[1]=(uint64_t)FES_EMBEDDED_MAC_TAG<<32;
         if (x3!=FES_EMBEDDED_MAC_COOKIE) goto out;
+#if defined(FES_NANO_MAC_MENU_SUPPLIER) && FES_NANO_MAC_MENU_SUPPLIER
+        if (x1==FES_EMBEDDED_MAC_ACQUIRE && (!fes_nano_owned_mac.initialized ||
+            x2!=fes_nano_owned_mac.binding.owner || x4!=fes_nano_owned_mac.generation)) goto out;
+        if ((x1==FES_EMBEDDED_MAC_QUERY && !x2 && !x4) || x1==FES_EMBEDDED_MAC_ACQUIRE) {
+            if(request_type!=NO_REQUEST || fes_nano_configuration_busy(configuration)){
+                r[0]=FES_EMBEDDED_MAC_BUSY;goto out;
+            }
+            int admission=fes_nano_menu_mac_admit();
+            if(admission!=1){r[0]=admission<0 ? FES_EMBEDDED_MAC_ERROR:FES_EMBEDDED_MAC_NOT_READY;goto out;}
+        }
+#elif defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+        if (x1==FES_EMBEDDED_MAC_QUERY && !x2 && !x4 && request_type==NO_REQUEST &&
+            !fes_nano_configuration_busy(configuration) && fes_nano_mac_window_progress()<0) {
+            r[0]=FES_EMBEDDED_MAC_ERROR;
+            goto out;
+        }
+#endif
         if (fes_nano_owned_mac.attempted &&
             (!fes_nano_owned_bridges.initialized || fes_nano_owned_bridges.failed ||
              fes_nano_owned_mac.binding.owner!=fes_nano_owned_bridges.state.owner ||
@@ -2396,6 +2430,14 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     /* Only these read-only observations may coexist with a confirmed MAC.
      * A future qualified supplier must also compose the complete live boot/
      * master policy. This whitelist grants no bridge or configuration access. */
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+    /* The original full-containment bridge snapshot remains meaningful only
+     * with MAC0 retired. Active C64 callers use the independently scoped API. */
+    if(fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE && x1==FES_EMBEDDED_BRIDGE_SNAPSHOT &&
+       fes_nano_c64_mac_reserved()){
+        r[0]=INTEL_SIP_SMC_STATUS_BUSY;r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;goto out;
+    }
+#endif
     unsigned mac_read_only=(fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE &&
         (x1==FES_EMBEDDED_BRIDGE_SNAPSHOT || x1==FES_EMBEDDED_BRIDGE_CONTEXT_PART0 ||
          x1==FES_EMBEDDED_BRIDGE_CONTEXT_PART1 || x1==FES_EMBEDDED_BRIDGE_HPS_IO_PART0 ||
@@ -2637,6 +2679,14 @@ uintptr_t sip_smc_handler(uint32_t smc_fid,
 {
 	uint32_t cmd = smc_fid & INTEL_SIP_SMC_CMD_MASK;
 
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+    if(smc_fid==FES_EMBEDDED_C64_SCOPE_CALL){
+        uint64_t result[4]={2,(uint64_t)FES_EMBEDDED_C64_SCOPE_TAG<<32,0,0};
+        if(x3==FES_EMBEDDED_C64_SCOPE_COOKIE && !SMC_GET_GP(handle,CTX_GPREG_X5) && !SMC_GET_GP(handle,CTX_GPREG_X6))
+            fes_nano_owned_call(smc_fid,x1,x2,x3,x4,result);
+        SMC_RET4(handle,result[0],result[1],result[2],result[3]);
+    }
+#endif
 	if (smc_fid == FES_EMBEDDED_MAC_CALL) {
 		uint64_t result[4] = {FES_EMBEDDED_MAC_REJECTED, (uint64_t)FES_EMBEDDED_MAC_TAG << 32, 0, 0};
 		if (x3 == FES_EMBEDDED_MAC_COOKIE && !SMC_GET_GP(handle, CTX_GPREG_X5) &&

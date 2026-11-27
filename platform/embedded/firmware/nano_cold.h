@@ -144,4 +144,7 @@ int fes_nano_cold_quiescent(void *, uint32_t *producers);
 /* Strong implementation lives beside the cold profile's PSCI CPU_ON frontend.
  * Linking an observer alone must not supply secondary-release authority. */
 int fes_nano_cold_cpu_release_locked(void);
+/* Selected matched MENU supplier, only the current authenticated MAC0 reset pair. */
+int fes_nano_menu_mac_reset_mask(const struct fes_nano_cold *,uint32_t *released);
+int fes_nano_menu_mac_source_safe(void);
 #endif

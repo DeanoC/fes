@@ -550,3 +550,34 @@ func TestControlRestartReportsLinkChangeAcrossPause(t *testing.T) {
 		})
 	}
 }
+
+func TestKSZ9031GigabitReceiverTraining(t *testing.T) {
+	hw := newHardware()
+	cfg := configuration()
+	cfg.PHYID, cfg.RecoverLinkLoss = 0x00221622, true
+	hw.phy[2], hw.phy[3] = uint16(cfg.PHYID>>16), uint16(cfg.PHYID)
+	hw.phy[0], hw.phy[1], hw.phy[9] = 0x1140, 0x796d, 0x0300
+	hw.phy[10] = 0x2cff // CBL first reported carrier before its partner was ready.
+	dev, err := Open(hw, hw.mem, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := bytes.Repeat([]byte{0x42}, 60)
+	for i, status := range []uint16{0x2c00, 0x1c00, 0x3cff, 0x3c00} {
+		hw.phy[10] = status
+		hw.now = hw.now.Add(time.Second)
+		if err := dev.Transmit(frame); err != nil {
+			t.Fatalf("partner status %#04x: %v", status, err)
+		}
+		up, speed := dev.LinkStatus()
+		wantSpeed := LinkSpeedDown
+		wantFrames := 0
+		if i == 3 {
+			wantSpeed = LinkSpeed1000Full
+			wantFrames = 1
+		}
+		if up != (wantSpeed != LinkSpeedDown) || speed != wantSpeed || len(hw.frames) != wantFrames {
+			t.Fatalf("partner status %#04x: link up %t, speed %d, transmitted %d", status, up, speed, len(hw.frames))
+		}
+	}
+}

@@ -292,6 +292,14 @@ static jmp_buf terminal;
 #define FES_NANO_CONFIG_ARENA_SIZE (8U<<20)
 int fes_nano_mmu_platform_scope(void){return 1;}
 static uint64_t address_of(const char *name){
+#ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(!strcmp(name,"__FES_MAC_QUEUES_START__"))return 0x94018000;
+ if(!strcmp(name,"__FES_MAC_QUEUES_END__"))return 0x9401a000;
+#endif
+ if(!strcmp(name,"__FES_MAC_TABLE_START__"))return mac_table_start;
+ if(!strcmp(name,"__FES_MAC_TABLE_END__"))return 0x94017000;
+#endif
  if(!strcmp(name,"__FES_SMMU_PROBE_START__") || !strcmp(name,"__FES_SMMU_STREAMS__"))return 0x94000000;
  if(!strcmp(name,"__FES_SMMU_PROBE_END__"))return 0x94010000;
  if(!strcmp(name,"__FES_SMMU_SDM_ROOT__"))return 0x94004000;
@@ -301,7 +309,7 @@ static uint64_t address_of(const char *name){
 }
 static uint64_t table_word(const char *name,unsigned index){
  if(!strcmp(name,"fes_nano_mmu_root")){assert(index==2);return 0x80050003;}
- assert(!strcmp(name,"fes_nano_mmu_ddr") && (index==160 || (index>=164 && index<=167)));
+ assert(!strcmp(name,"fes_nano_mmu_ddr") && (index==160 || index==174 || (index>=164 && index<=167)));
  return (UINT64_C(0x0040000080000669)+((uint64_t)index<<21)) ^ ((mode==28 || (mode==34 && mutated)) && index==164 ? 4U:0U);
 }
 static unsigned smmu_index(uint64_t address){
@@ -312,6 +320,21 @@ static unsigned smmu_index(uint64_t address){
  if(offset==0x100a8)return 44;if(offset==0x100ac)return 45;assert(offset<=0xb4 && !(offset&3));return offset/4;
 }
 static uint32_t probe_read(uint64_t address){
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(address>=0x20010300U && address<0x20010320U)return gp_read(address);
+#endif
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_CONTROL_BASE+256)return test_mac_frame(address);
+#endif
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+#ifdef FES_NANO_MAC_JOINED_TEST
+ if(address==0x10d11024)return channel_mmio(0x10d11024);
+#else
+ if(address==0x10d11024)return mac_reset;
+#endif
+ if(address==0x10d1219c)return mac_route;
+ if(address==0x10d121c8)return mac_sids;
+#endif
  if(address==0x10d12184)return 3;if(address==0x10d121b0)return 0xa000a;
  if(address==0x10d1225c)return 0;
  if(address==0x10d12280 || address==0x10d12284)return route_remap;
@@ -344,6 +367,9 @@ static uint32_t probe_read(uint64_t address){
 #endif
 }
 static void probe_write(uint64_t address,uint32_t value){
+#ifdef FES_TEST_MAC_TABLE_IO
+ if(address==0x16000080)test_mac_base(value);
+#endif
  unsigned index=smmu_index(address);smmu_writes++;registers[index]=value;
  if(address==0x16000020)registers[0x24/4]=value;
  if(address==0x16000044){
@@ -356,8 +382,22 @@ static void probe_write(uint64_t address,uint32_t value){
  if(retire_armed && address==0x16000098 && retire_fault==9)configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;
  if(mode==14 && smmu_writes==1)model.base.h.usb[8/4]|=1U<<5;
 }
-static uint64_t load_word(uint64_t address){cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
-static void store_word(uint64_t address,uint64_t value){if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}
+static uint64_t load_word(uint64_t address){
+#ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=0x94018000 && address<0x94018100)return test_mac_cmd_load(address);
+#endif
+ if(address>=0x94010000 && address<0x94017000)return test_mac_load(address);
+#endif
+ cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
+static void store_word(uint64_t address,uint64_t value){
+#ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=0x94018000 && address<0x94018100){test_mac_cmd_store(address,value);return;}
+#endif
+ if(address>=0x94010000 && address<0x94017000){test_mac_store(address,value);return;}
+#endif
+ if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}
 static void park(void){parks++;longjmp(terminal,1);}
 #ifndef FES_PROBE_CPU
 #define FES_PROBE_CPU() 1
@@ -389,7 +429,8 @@ static int configuration_check(void *c,uint64_t address,uint32_t bytes,unsigned 
 }
 #define FES_NANO_INPUT_BUILD "0000000000000000"
 #include <stdarg.h>
-static char terminal_log[4096];static unsigned terminal_used;
+/* Retain the whole multi-program return trace for failure diagnostics. */
+static char terminal_log[16384];static unsigned terminal_used;
 static void terminal_notice(const char *format,...){
  va_list args;va_start(args,format);int n=vsnprintf(terminal_log+terminal_used,sizeof(terminal_log)-terminal_used,format,args);va_end(args);
  assert(n>=0 && (unsigned)n<sizeof(terminal_log)-terminal_used);terminal_used+=(unsigned)n;

@@ -21,6 +21,8 @@ _fault_spec=importlib.util.spec_from_file_location('fes_selected_sdm_fault64',FW
 sdm_fault=importlib.util.module_from_spec(_fault_spec);_fault_spec.loader.exec_module(sdm_fault)
 _input_spec=importlib.util.spec_from_file_location('fes_selected_sdm_input',FW/'nano_sdm_input_profile.py')
 sdm_input=importlib.util.module_from_spec(_input_spec);_input_spec.loader.exec_module(sdm_input)
+_mac_spec=importlib.util.spec_from_file_location('fes_cold_launcher_ethernet',HERE/'launcher_ethernet.py')
+launcher_ethernet=importlib.util.module_from_spec(_mac_spec);_mac_spec.loader.exec_module(launcher_ethernet)
 EXPERIMENTAL_FILE='FES/UPLOAD.BIN'
 _fit_spec=importlib.util.spec_from_file_location('fes_cold_fit_layout',HERE/'fit_layout.py')
 fit_layout=importlib.util.module_from_spec(_fit_spec);_fit_spec.loader.exec_module(fit_layout)
@@ -63,6 +65,8 @@ def entry(entry_build):
             not usb and receipt.get('usb_input') is not None):
         raise ValueError('USB boot input differs from native selection')
     entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
+    if launcher_ethernet.checked(receipt, (entry_build/'payload.elf').read_bytes(), entry=True) and profile.name != 'sd-profile.json':
+        raise ValueError('paired Ethernet requires the initial contained PIO handoff')
     check_sources(receipt.get('native_build_sources'))
     for name,expected in receipt['sources'].items():
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
@@ -114,7 +118,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','launcher_ethernet.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_mmu_memory.h','nano_mmu_memory.c','nano_mmu_transition.S','nano_mmu_transition.h','nano_mmu_logging.inc','nano_firmware_mmu.py','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_mac.c','nano_mac.h','generated/fes_embedded_mac.h',
@@ -136,9 +140,15 @@ def sources():
                             'build_terasic.py','build_terasic_uboot.py','verify.py')] + capability.inputs() + sdm_probe.inputs() + sdm_fault.inputs() + sdm_input.inputs()
 
 
-def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False):
+def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False,mac_c64_scope_supplier=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
     if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
+    if type(mac_table_trial) is not bool or mac_table_trial and not mac_handoff:raise ValueError('table trial requires explicit MAC handoff')
+    if type(mac_coexistence_trial) is not bool or mac_coexistence_trial and not mac_table_trial:raise ValueError('coexistence trial requires explicit MAC table trial')
+    if type(mac_menu_supplier) is not bool or mac_menu_supplier and not mac_coexistence_trial:raise ValueError('MENU MAC supplier requires explicit coexistence trial')
+    if type(mac_c64_scope_supplier) is not bool or mac_c64_scope_supplier and not mac_menu_supplier:
+        raise ValueError('C64 MAC read scope requires the matched MENU supplier')
+    if type(mac_handoff) is not bool or mac_handoff and not sdm_source_rearm:raise ValueError('MAC handoff requires explicit source rearm')
     if type(sdm_source_recovery) is not bool or sdm_source_recovery and not sdm_source_rearm:raise ValueError('terminal cold recovery requires explicit source rearm')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
     if type(sdm_fault64) is not bool:raise ValueError('explicit boolean SDM fault64 selection required')
@@ -154,6 +164,11 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
     if sdm_fault64:mmu_args['sdm_fault64']=True
     if sdm_input_transfer:mmu_args['sdm_input_transfer']=True
     if sdm_source_rearm:mmu_args['sdm_source_rearm']=True
+    if mac_table_trial:mmu_args['mac_table_trial']=True
+    if mac_coexistence_trial:mmu_args['mac_coexistence_trial']=True
+    if mac_menu_supplier:mmu_args['mac_menu_supplier']=True
+    if mac_c64_scope_supplier:mmu_args['mac_c64_scope_supplier']=True
+    if mac_handoff:mmu_args['mac_handoff']=True
     if sdm_source_recovery:mmu_args['sdm_source_recovery']=True
     record=json.loads((entry_build/'result.json').read_text())
     if record.get('hps_project') is None:
@@ -188,9 +203,15 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
         return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
 
 
-def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False):
+def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False,mac_c64_scope_supplier=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
     if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
+    if type(mac_table_trial) is not bool or mac_table_trial and not mac_handoff:raise ValueError('table trial requires explicit MAC handoff')
+    if type(mac_coexistence_trial) is not bool or mac_coexistence_trial and not mac_table_trial:raise ValueError('coexistence trial requires explicit MAC table trial')
+    if type(mac_menu_supplier) is not bool or mac_menu_supplier and not mac_coexistence_trial:raise ValueError('MENU MAC supplier requires explicit coexistence trial')
+    if type(mac_c64_scope_supplier) is not bool or mac_c64_scope_supplier and not mac_menu_supplier:
+        raise ValueError('C64 MAC read scope requires the matched MENU supplier')
+    if type(mac_handoff) is not bool or mac_handoff and not sdm_source_rearm:raise ValueError('MAC handoff requires explicit source rearm')
     if type(sdm_source_recovery) is not bool or sdm_source_recovery and not sdm_source_rearm:raise ValueError('terminal cold recovery requires explicit source rearm')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
     if type(sdm_fault64) is not bool:raise ValueError('explicit boolean SDM fault64 selection required')
@@ -221,6 +242,7 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     sd_dma = profile.name == 'sd-dma-profile.json'
     sd_owned = profile.name in ('sd-profile.json', 'sd-dma-profile.json')
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-dma-preloaded' if sd_dma else 'cold-sd-pio-preloaded' if sd_owned else 'cold-serial-preloaded',
+              **({'launcher_ethernet':build['launcher_ethernet']} if build.get('launcher_ethernet') else {}),
               'sd_pio':sd_owned,**({'sd_dma':True} if sd_dma else {}),'usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
               'configuration_retained':build.get('configuration_retained',False),
@@ -273,6 +295,13 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     if sdm_source_rearm:identity['sdm_cpu_rearm']=sdm_input.rearm.native_binding(build)
     transfer=sdm_input.selected(identity,sdm_input_transfer,source_rearm=sdm_source_rearm,source_recovery=sdm_source_recovery)
     if transfer is not None:identity['sdm_input_transfer']=transfer
+    if mac_handoff:identity['mac_handoff']=sdm_input.mac_handoff_contract(identity)
+    if mac_table_trial:
+        identity['mac_table_trial']=sdm_input.mac_table_trial_contract(identity,build['entry_image_address'])
+    if mac_coexistence_trial:identity['mac_coexistence_trial']=sdm_input.mac_coexistence_contract(identity)
+    if mac_c64_scope_supplier:
+        identity['mac_c64_scope_supplier']=sdm_input.mac_c64_scope_contract(identity)
+    if mac_menu_supplier:identity['mac_menu_supplier']=sdm_input.mac_menu_contract(identity)
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -440,6 +469,9 @@ def header(profile):
                   '#define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200UL\n')
     elif spectrum is not None:
         extra += hps_context.spectrum48.header(spectrum)
+    if sdm_input.checked_mac_c64_scope(profile):
+        identity=profile['launcher_ethernet']['c64_scope']
+        extra+='#define FES_NANO_C64_SCOPE_IDENTITY '+hps_context.spectrum48.upload_initializer(identity)+'\n'
     extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(menu or companion is not None))+'\n'
     extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(companion is not None))+'\n'
     extra+='#define FES_NANO_WINDOW_STORAGE_RETURN '+str(int(companion is not None))+'\n'

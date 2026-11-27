@@ -22,8 +22,20 @@ static int selected_bind(void *context,uint64_t owner,uint64_t generation,uint32
  configuration_program.role=next_role;configuration_program.rom_bytes=selected_rom;
  configuration_program.control_abi=next_role==FES_NANO_PROGRAM_ROLE_MENU ?
   FES_NANO_PROGRAM_MENU_ABI:FES_NANO_PROGRAM_COMPUTER_ABI;
+ if(next_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48){
+  configuration_program.control_abi=FES_NANO_PROGRAM_SPECTRUM48_ABI;
+  configuration_program.shared_core_shell=1;
+ }
  memcpy(configuration_program.header+FES_NANO_PROGRAM_SHA384,selected_digest,48);
  memcpy(configuration_program.header+FES_NANO_PROGRAM_BUILD,selected_digest,16);
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(next_role==FES_NANO_PROGRAM_ROLE_SPECTRUM48){
+  memcpy(configuration_program.header+FES_NANO_PROGRAM_PACKAGE,c64_mac_identity.package,32);
+  memcpy(configuration_program.header+FES_NANO_PROGRAM_BUILD,c64_mac_identity.build,16);
+  memcpy(configuration_program.header+FES_NANO_PROGRAM_SHA256,c64_mac_identity.sha256,32);
+  memcpy(configuration_program.header+FES_NANO_PROGRAM_CHUNKS,c64_mac_identity.chunks,sizeof(c64_mac_identity.chunks));
+ }
+#endif
  *bytes=selected_bytes;return 0;
 }
 #ifndef FES_TEST_LIFECYCLE_RPC_MAIN

@@ -96,6 +96,7 @@ class ConsistencyTest(unittest.TestCase):
             ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast',
              'corepackage/internal/generated/fes_computer.go'), self.module.GENERATED)
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
+            'packages/fabric/fes_fabric_embedded_c64_scope.yaml',
             'packages/fabric/fes_fabric_embedded_mac.yaml',
             'packages/fabric/fes_fabric_embedded_bridges.yaml',
             'packages/fabric/fes_fabric_embedded_sd.yaml',

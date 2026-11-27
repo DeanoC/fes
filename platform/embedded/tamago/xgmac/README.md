@@ -1,6 +1,6 @@
-# DE25-Nano XGMAC 2.10 Ethernet driver (`xgmac/`)
+# DE25-Nano XGMAC2 Ethernet driver (`xgmac/`)
 
-`xgmac.Device` implements a bare-metal Synopsys XGMAC 2.10 Ethernet transport
+`xgmac.Device` implements a bare-metal Synopsys XGMAC2 Ethernet transport
 for DE25-Nano (`MAC0/1/2` at `0x10810000`/`0x10820000`/`0x10830000`), supplying
 frames to the shared [network](../network/README.md) (`lneto`) IPv4/TCP stack.
 QEMU uses its separate VirtIO-net driver.
@@ -27,8 +27,14 @@ QEMU uses its separate VirtIO-net driver.
   - `Config.RecoverLinkLoss`: treats transient carrier loss/autonegotiation as
     non-fatal link-down (dropping TX frames and recovering automatically on
     link-up without poisoning DMA; DMA/MDIO/engine faults still fail closed).
-- **Pinned DMA rings (`dmaops.Pool`):** Four 16-byte TX/RX descriptors and
-  1600-byte buffers live in a permanently reserved Normal-noncacheable DDR
+- **Pinned DMA rings (`dmaops.Pool`):** The driver posts four 1600-byte buffers
+  per direction. Revision 2.10 uses four 16-byte descriptors per ring. The
+  Agilex 5 instance with device ID `0x76` and revision `0x31` uses 32 slots
+  per ring to cover the documented maximum descriptor cache. Each completed
+  receive buffer moves to the next free descriptor. The 20 KiB allocation
+  reserves one 4 KiB page for descriptor writeback, two for DMA reads of TX
+  data and two for DMA writes of RX data. The rings and buffers
+  live in a permanently reserved Normal-noncacheable DDR
   window outside Go RAM (no Go heap pointers in DMA). Offloads, jumbo frames,
   promiscuous mode, and pause negotiation are disabled. Fatal DMA faults or TX
   timeouts retire the device and poison the `dmaops.Buffer` until reboot.
@@ -69,10 +75,31 @@ Nano SD profile. Enabling it requires:
   6-byte `mac_address`, `csr_clock_hz` in `[100 MHz, 150 MHz)`.
 - `address` and `gateway` (same IPv4 subnet), disjoint 2 MiB-aligned
   `dma_start`/`dma_size`, `dma_identity: true`, `rgmii_125mhz_ready: true`.
-- Explicit `rx_buffer_shift` (`1` for Linux `dwxgmac2.h` vs `4` for SoCFPGA
-  U-Boot—never autodetected).
+- Explicit `rx_buffer_shift`. The Agilex 5 `0x7631` instance requires `1`.
+  In `DMA_CH0_Rx_Control` the byte count starts at bit 1, and the low three
+  alignment bits read as zero. A 1600-byte buffer encodes as `0x0c80`.
+  Revision 2.10 retains the two explicitly configured layouts.
 
 ## References and tests
+
+The Terasic Linux BSP selects its XGMAC 2.10 descriptor, DMA and MAC operations
+for device ID `0x76` with revision `0x21` or newer, and writes the receive
+buffer byte count shifted by one. CBL factory Linux reported `0x7631`.
+[BSP revision matching](https://github.com/terasic/linux-socfpga/blob/d7d192a9ddd955fe206aa350afed8f82e368a74c/drivers/net/ethernet/stmicro/stmmac/hwif.c)
+and [DMA programming](https://github.com/terasic/linux-socfpga/blob/d7d192a9ddd955fe206aa350afed8f82e368a74c/drivers/net/ethernet/stmicro/stmmac/dwxgmac2_dma.c).
+
+CBL's KSZ9031 reported carrier and completed autonegotiation while the
+partner receiver was still training. At gigabit, the driver waits for both
+receiver-status bits and an unsaturated idle-error count before reporting
+the link up. With link recovery enabled, later polls can resume traffic
+when both receivers are ready. [KSZ9031 register A](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ9031RNX-Data-Sheet-DS00002117.pdf)
+
+Altera specifies ring length at least equal to descriptor cache size and up
+to 32 descriptors per channel. The CS/R1 map supplies the MAC version, feature
+words and implemented receive-buffer field used by the regression.
+[DMA initialization](https://docs.altera.com/r/docs/814346/25.3/hard-processor-system-technical-reference-manual-agilextm-5-socs/dma-initialization),
+[DMA features](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/dma?contentId=~j2QlXmCVvUdmq4xsiQ3Yg)
+and [CS/R1 register map](https://docs.altera.com/v/u/resources/864455/agilextm-5-cs-and-r1-suffix-opn-hps-register-map).
 
 - Verified against Agilex 5 HPS TRM / CS-R1 register map (extracted facts in
   `testdata/agilex5-stop-fields.json`), `socfpga_agilex5.dtsi` (`f54767d152`),

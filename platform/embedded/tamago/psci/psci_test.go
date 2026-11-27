@@ -561,3 +561,40 @@ func TestSMCCCVersionAffinityInfoAndProbe(t *testing.T) {
 		t.Fatalf("Probe(0.2) mismatch: %+v", caps02)
 	}
 }
+
+func TestHardwareBootUUIDIsIndependentOfLaterDraws(t *testing.T) {
+	remaining := 128
+	transport := mockConduit{fn: func(op, bits, _, _ uint64) (uint64, uint64, uint64, uint64) {
+		switch uint32(op) {
+		case FuncTRNGVersion:
+			return 1 << 16, 0, 0, 0
+		case FuncTRNGFeatures:
+			return 0, 0, 0, 0
+		case FuncTRNGRnd64:
+			size := int(bits / 8)
+			if size <= remaining {
+				remaining -= size
+				return 0, 3, 2, uint64(remaining + 1)
+			}
+		}
+		return ^uint64(0), 0, 0, 0
+	}}
+	pool := NewEntropyPool(&transport, nil, nil, func() uint64 { return 1 })
+	var sample [16]byte
+	pool.Fill(sample[:])
+	id := HardwareBootUUID(sample, pool.Source())
+	if id == ([16]byte{}) || id[6]>>4 != 4 || id[8]>>6 != 2 {
+		t.Fatalf("failed to reserve hardware UUID: %x", id)
+	}
+	pool.Fill(make([]byte, 32)) // runtime.randinit's seed
+	if !pool.Source().IsHardware() {
+		t.Fatal("ordinary runtime seed lost its own hardware entropy")
+	}
+	pool.Fill(make([]byte, 128))
+	if pool.Source().IsHardware() || HardwareBootUUID(sample, pool.Source()) != ([16]byte{}) {
+		t.Fatal("fallback output was accepted as a hardware UUID")
+	}
+	if HardwareBootUUID([16]byte{}, EntropySMCCCTRNG64) != ([16]byte{}) || HardwareBootUUID(sample, EntropySMCCCTRNG64) != id {
+		t.Fatal("saved identity changed or an empty sample was accepted")
+	}
+}

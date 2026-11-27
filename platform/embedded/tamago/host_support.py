@@ -92,7 +92,8 @@ class Guest:
         self.serial_path, self.qmp_path = base / "serial", base / "qmp"
         self.log = bytearray()
         self.console = (self.directory / "console.log").open("wb")
-        self.process = self.serial = self.qmp = self.qmp_stream = None
+        self.process = self.serial = self.qmp = None
+        self.qmp_ready = False
         self.qmp_buffer = bytearray()
         self.stderr = (self.directory / "qemu.log").open("wb")
         self.started = time.monotonic()
@@ -136,13 +137,9 @@ class Guest:
             # the first guest log byte without a competing serial reader.
             self.serial = self.connect(self.serial_path)
             self.qmp = self.connect(self.qmp_path)
-            self.qmp.settimeout(5)
-            self.qmp_stream = self.qmp.makefile("rwb", buffering=0)
-            greeting = json.loads(self.qmp_stream.readline())
-            if "QMP" not in greeting:
-                raise RuntimeError("missing QMP greeting")
-            self.execute("qmp_capabilities")
             self.serial.setblocking(False)
+            self.negotiate_qmp()
+            self.qmp_ready = True
         except BaseException:
             self.close()
             raise
@@ -165,38 +162,70 @@ class Guest:
     def text(self):
         return self.log.decode(errors="replace")
 
-    def execute(self, command, arguments=None):
+    def negotiate_qmp(self, timeout=5):
+        deadline = time.monotonic() + timeout
+        while True:
+            message = self.read_qmp(deadline, "greeting", limit=65536)
+            greeting = message.get("QMP")
+            if (isinstance(greeting, dict) and isinstance(greeting.get("version"), dict)
+                    and isinstance(greeting.get("capabilities"), list)
+                    and message.keys().isdisjoint(("event", "return", "error"))):
+                break
+            # QEMU can enqueue an event as its monitor socket is opening.
+            # Never treat a command response or an error as the greeting.
+            if (isinstance(message.get("event"), str) and message["event"]
+                    and message.keys().isdisjoint(("QMP", "return", "error"))):
+                continue
+            raise RuntimeError(f"unexpected QMP greeting: {str(message)[:256]}")
+        self.execute("qmp_capabilities", deadline=deadline)
+
+    def read_qmp(self, deadline, phase, *, limit=None):
+        # Commands and the greeting share one buffer. A recv can contain a
+        # partial line or several complete records. Drain UART concurrently so
+        # a chatty guest can make progress while the monitor is starting.
+        with selectors.DefaultSelector() as selector:
+            selector.register(self.qmp, selectors.EVENT_READ, "qmp")
+            selector.register(self.serial, selectors.EVENT_READ, "serial")
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(f"QMP {phase} timed out")
+                end = self.qmp_buffer.find(b"\n")
+                if limit is not None and (end if end >= 0 else len(self.qmp_buffer)) > limit:
+                    raise RuntimeError(f"QMP {phase} record exceeds {limit} bytes")
+                if end >= 0:
+                    line = self.qmp_buffer[:end]
+                    del self.qmp_buffer[:end + 1]
+                    response = json.loads(line)
+                    if not isinstance(response, dict):
+                        raise RuntimeError(f"unexpected QMP {phase}: {line[:256]!r}")
+                    return response
+                for key, _ in selector.select(remaining):
+                    if key.data == "serial":
+                        self.pump(0)
+                    else:
+                        data = self.qmp.recv(65536)
+                        if not data:
+                            raise RuntimeError(f"QMP disconnected during {phase}")
+                        self.qmp_buffer.extend(data)
+
+    def execute(self, command, arguments=None, *, deadline=None):
+        if deadline is None:
+            deadline = time.monotonic() + 5
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(f"QMP {command} timed out")
+        self.qmp.settimeout(remaining)
         request = {"execute": command}
         if arguments is not None:
             request["arguments"] = arguments
         self.qmp.sendall(json.dumps(request).encode() + b"\n")
-        deadline = time.monotonic() + 5
         while True:
-            while b"\n" in self.qmp_buffer:
-                line, _, remaining = self.qmp_buffer.partition(b"\n")
-                self.qmp_buffer = bytearray(remaining)
-                response = json.loads(line)
-                if "error" in response:
-                    raise RuntimeError(f"QMP {command}: {response['error']}")
-                if "return" in response:
-                    return response["return"]
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise RuntimeError(f"QMP {command} timed out after 5 seconds")
-            # A chatty guest may block in UART output. Keep its serial channel
-            # flowing while QEMU services screenshots or injected USB keys.
-            with selectors.DefaultSelector() as selector:
-                selector.register(self.qmp, selectors.EVENT_READ, "qmp")
-                selector.register(self.serial, selectors.EVENT_READ, "serial")
-                ready = selector.select(remaining)
-            for key, _ in ready:
-                if key.data == "serial":
-                    self.pump(0)
-                else:
-                    data = self.qmp.recv(65536)
-                    if not data:
-                        raise RuntimeError("QMP disconnected")
-                    self.qmp_buffer.extend(data)
+            response = self.read_qmp(deadline, command, limit=65536 if command == "qmp_capabilities" else None)
+            if "error" in response:
+                raise RuntimeError(f"QMP {command}: {response['error']}")
+            if "return" in response:
+                return response["return"]
 
     def pump(self, timeout=0.1, echo=False):
         with selectors.DefaultSelector() as selector:
@@ -278,7 +307,7 @@ class Guest:
     def close(self):
         if self.process is not None and self.process.poll() is None:
             try:
-                if self.qmp_stream is not None:
+                if self.qmp_ready:
                     self.execute("quit")
             except (OSError, RuntimeError):
                 pass
@@ -300,9 +329,8 @@ class Guest:
                         break
                     self.log.extend(data)
             self.serial.close()
-        for stream in (self.qmp_stream, self.qmp):
-            if stream is not None:
-                stream.close()
+        if self.qmp is not None:
+            self.qmp.close()
         self.stderr.close()
         self.console.close()
         (self.directory / "console.log").write_bytes(self.log)
@@ -312,7 +340,7 @@ class Guest:
         return self
 
     def __exit__(self, exception_type, *_):
-        if exception_type is not None and self.qmp_stream is not None:
+        if exception_type is not None and self.qmp_ready:
             with contextlib.suppress(OSError, RuntimeError, ValueError):
                 self.screenshot("failure")
         self.close()

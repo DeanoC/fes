@@ -27,7 +27,7 @@ type PoolMemory struct {
 
 var _ Memory = (*PoolMemory)(nil)
 
-// NewPoolMemory allocates a 64-byte-aligned RequiredBytes DMA arena from pool.
+// NewPoolMemory allocates a page-aligned RequiredBytes DMA arena from pool.
 // XGMAC's current 32-bit descriptor list setup requires the buffer to lie below 4 GiB.
 func NewPoolMemory(pool *dmaops.Pool) (*PoolMemory, error) {
 	if pool == nil {
@@ -36,7 +36,7 @@ func NewPoolMemory(pool *dmaops.Pool) (*PoolMemory, error) {
 	if pool.Mode() != dmaops.Uncached {
 		return nil, fmt.Errorf("xgmac: DMA pool must be uncached")
 	}
-	buf, err := pool.Alloc(RequiredBytes, 64)
+	buf, err := pool.Alloc(RequiredBytes, dmaPageSize)
 	if err != nil {
 		return nil, fmt.Errorf("xgmac: allocate DMA arena: %w", err)
 	}

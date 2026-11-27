@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/soypat/lneto"
+	"github.com/soypat/lneto/ethernet"
+	"github.com/soypat/lneto/ipv4"
 	"github.com/soypat/lneto/tcp"
 	"github.com/soypat/lneto/x/xnet"
 	gnet "github.com/usbarmory/go-net"
@@ -39,6 +41,11 @@ const (
 
 var errDialAwaitingSyn = errors.New("network: tcp dial awaiting syn")
 
+type tcpPeer struct {
+	ip  [4]byte
+	mac [6]byte
+}
+
 // lnetoEngine owns an xnet.StackAsync and serializes every stack mutation,
 // ingress/egress step, listener close, and connection abort behind one mutex.
 type lnetoEngine struct {
@@ -54,6 +61,8 @@ type lnetoEngine struct {
 	backoffIRQ       chan struct{}
 
 	stack        xnet.StackAsync
+	subnet       netip.Prefix
+	tcpPeers     []tcpPeer
 	plcfg        xnet.TCPPoolConfig
 	ephemeralOff uint32
 	notify       atomic.Pointer[func([]byte)]
@@ -163,6 +172,8 @@ func (e *lnetoEngine) Configure(mac net.HardwareAddr, ip netip.Prefix, gw netip.
 		err = e.stack.AssimilateDHCPResults(&hostCtl)
 	}
 	if err == nil {
+		e.subnet = ip
+		e.tcpPeers = make([]tcpPeer, e.maxListenerConns)
 		e.ephemeralOff = e.stack.Prand32() % 16384
 	}
 	e.plcfg = xnet.TCPPoolConfig{
@@ -218,6 +229,9 @@ func (e *lnetoEngine) SetWriteNotify(cb func(auxbuf []byte)) {
 func (e *lnetoEngine) WriteOutboundPacket(buf []byte) (int, error) {
 	e.mu.Lock()
 	n, err := e.stack.EgressEthernet(buf)
+	if n > 0 {
+		e.routeTCPReply(buf[:n])
+	}
 	e.mu.Unlock()
 	if n == 0 && (errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
 		// lneto's tcp.Handler.Send returns io.EOF (after h.Abort) when a closing
@@ -239,9 +253,57 @@ func (e *lnetoEngine) WriteOutboundPacket(buf []byte) (int, error) {
 func (e *lnetoEngine) RecvInboundPacket(buf []byte) error {
 	e.mu.Lock()
 	err := e.stack.IngressEthernet(buf)
+	if err == nil {
+		e.learnTCPPeer(buf)
+	}
 	e.mu.Unlock()
 	e.interruptBackoff()
 	return err
+}
+
+func tcpIPv4Frame(b []byte) (ethernet.Frame, ipv4.Frame, bool) {
+	eth, err := ethernet.NewFrame(b)
+	if err != nil || eth.EtherTypeOrSize() != ethernet.TypeIPv4 {
+		return eth, ipv4.Frame{}, false
+	}
+	ip, err := ipv4.NewFrame(eth.Payload())
+	return eth, ip, err == nil && ip.Protocol() == lneto.IPProtoTCP
+}
+
+// lneto gives listener replies the gateway MAC, initially broadcast. Its
+// passive table never evicts old clients. Remember recently accepted on-link
+// TCP traffic so a new host can still connect after the listener pool turns over.
+func (e *lnetoEngine) learnTCPPeer(frame []byte) {
+	eth, ip, ok := tcpIPv4Frame(frame)
+	if !ok || netip.AddrFrom4(*ip.DestinationAddr()) != e.subnet.Addr() {
+		return
+	}
+	source := netip.AddrFrom4(*ip.SourceAddr())
+	mac := *eth.SourceHardwareAddr()
+	if !e.subnet.Contains(source) || !usableHost(e.subnet, source) || mac == ([6]byte{}) || mac[0]&1 != 0 {
+		return
+	}
+	peer := tcpPeer{ip: *ip.SourceAddr(), mac: mac}
+	for i, old := range e.tcpPeers {
+		if old.ip == peer.ip || old.ip == ([4]byte{}) || i == len(e.tcpPeers)-1 {
+			copy(e.tcpPeers[1:i+1], e.tcpPeers[:i])
+			e.tcpPeers[0] = peer
+			return
+		}
+	}
+}
+
+func (e *lnetoEngine) routeTCPReply(frame []byte) {
+	eth, ip, ok := tcpIPv4Frame(frame)
+	if !ok || *eth.DestinationHardwareAddr() != e.stack.GatewayHardwareAddr() {
+		return
+	}
+	for _, peer := range e.tcpPeers {
+		if peer.ip == *ip.DestinationAddr() {
+			*eth.DestinationHardwareAddr() = peer.mac
+			return
+		}
+	}
 }
 
 func (e *lnetoEngine) closeListener(inner *tcp.Listener) error {

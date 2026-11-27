@@ -108,8 +108,26 @@ func (p *programService) pauseNetwork(ctx context.Context) error {
 	if p.network == nil {
 		return nil
 	}
+	// Only this actor can enter or leave the scope under operation. If a
+	// protected observation was lost the old grant cannot authorize cleanup.
+	scoped, retired := false, false
+	if p.computer != nil {
+		scoped, retired = p.computer.port.scopedState()
+	}
+	if scoped && retired {
+		return p.networkFailure(errors.New("native C64: retained uncertain MAC/control scope"))
+	}
 	if err := p.network.PauseNetwork(ctx); err != nil {
 		return p.networkFailure(err)
+	}
+	if scoped {
+		r, ok := p.menu.c64MACReceipt()
+		if !ok {
+			return p.networkFailure(errors.New("native C64: no MAC stop receipt"))
+		}
+		if err := p.computer.port.leaveC64Scope(r); err != nil {
+			return p.networkFailure(err)
+		}
 	}
 	return nil
 }
@@ -121,7 +139,11 @@ func (p *programService) finishNetwork(result *error) {
 		return
 	}
 	p.viewMu.Lock()
-	healthy := p.view.State == ProgramReady || p.view.State == ProgramRunning
+	c64 := p.view.State == ProgramRunning && p.menu != nil && p.menu.c64MACReceipt != nil &&
+		p.view.Identity.CoreID == "fes.c64" && p.view.Identity.ProgrammingProfile == c64Profile &&
+		p.view.Identity.PackageID == p.menu.c64NetworkPackageID && p.computer != nil && !p.closed
+	allowRunning := p.menu == nil || !p.menu.networkInMenuOnly || c64
+	healthy := p.view.State == ProgramReady || p.view.State == ProgramRunning && allowRunning
 	parked := p.view.State == ProgramParked
 	p.viewMu.Unlock()
 	if !healthy {
@@ -130,9 +152,44 @@ func (p *programService) finishNetwork(result *error) {
 		}
 		return
 	}
-	cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := p.network.ResumeNetwork(cleanup); err != nil {
+	if c64 {
+		r, ok := p.menu.c64MACReceipt()
+		if !ok {
+			*result = errors.Join(*result, p.networkFailure(errors.New("native C64: missing previous MENU stop")))
+			return
+		}
+		eligible, err := p.computer.port.prepareC64Grant(r)
+		if err != nil {
+			*result = errors.Join(*result, p.networkFailure(err))
+			return
+		}
+		if !eligible {
+			return
+		} // C64 keeps running locally with the MAC paused.
+	}
+	// Resume has its own bounded platform deadline independent of the
+	// completed program transition, which may already have timed out.
+	var err error
+	if c64 {
+		confirm := func() error {
+			r, ok := p.menu.c64MACReceipt()
+			if !ok {
+				return errors.New("native C64: missing confirmed MAC receipt")
+			}
+			return p.computer.port.enterC64Scope(r)
+		}
+		stopped := func() error {
+			r, ok := p.menu.c64MACReceipt()
+			if !ok {
+				return errors.New("native C64: missing MAC stop after DHCP failure")
+			}
+			return p.computer.port.leaveC64Scope(r)
+		}
+		err = p.network.ResumeNetworkWithScope(context.Background(), confirm, stopped)
+	} else {
+		err = p.network.ResumeNetwork(context.Background())
+	}
+	if err != nil {
 		*result = errors.Join(*result, p.networkFailure(err))
 	}
 }

@@ -8,11 +8,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
 
@@ -24,6 +26,7 @@ func run() error {
 	var ids selections
 	export := flag.String("export", "", "Nano export directory")
 	menu := flag.String("menu-export", "", "optional single-menu Nano export; prepare fresh launcher files and preallocated preferences")
+	agentConfig := flag.String("agent-config", "", "private JSON file with this launcher's FogCast target_id, token and port")
 	output := flag.String("output", "", "new staging directory (must not exist)")
 	flag.Var(&ids, "id", "export entry ID to offer; repeat for multiple packages")
 	flag.Parse()
@@ -41,6 +44,32 @@ func run() error {
 	}
 	if err != nil {
 		return err
+	}
+	if *agentConfig != "" {
+		if *menu == "" {
+			return fmt.Errorf("--agent-config requires --menu-export")
+		}
+		info, err := os.Stat(*agentConfig)
+		if err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("agent configuration must be a regular file")
+		}
+		src, err := os.Open(*agentConfig)
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+		opened, err := src.Stat()
+		if err != nil || !os.SameFile(info, opened) {
+			return fmt.Errorf("agent configuration changed while opening")
+		}
+		raw, err := io.ReadAll(io.LimitReader(src, agentapi.MaxProvisioningBytes+1))
+		if err != nil {
+			return err
+		}
+		if _, err := agentapi.ParseProvisioning(raw); err != nil {
+			return fmt.Errorf("invalid FogCast agent provisioning")
+		}
+		files[agentapi.ProvisioningPath] = raw
 	}
 	if err = os.Mkdir(*output, 0700); err != nil {
 		return err

@@ -129,6 +129,13 @@ func AcquireDHCP(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, er
 	return lease, err
 }
 
+// A raw device failure stays distinguishable from a silent DHCP server or an
+// unusable offer when the controller decides whether local use can continue.
+type dhcpDeviceError struct{ err error }
+
+func (e dhcpDeviceError) Error() string { return e.err.Error() }
+func (e dhcpDeviceError) Unwrap() error { return e.err }
+
 func acquireDHCPWithTime(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPLease, time.Time, error) {
 	if ctx == nil || dev == nil {
 		return DHCPLease{}, time.Time{}, fmt.Errorf("%w: nil context or device", ErrDHCPInvalidConfig)
@@ -182,7 +189,7 @@ func acquireDHCPWithTime(ctx context.Context, dev Device, cfg DHCPConfig) (DHCPL
 			return DHCPLease{}, time.Time{}, err
 		}
 		if err := dev.Err(); err != nil {
-			return DHCPLease{}, time.Time{}, err
+			return DHCPLease{}, time.Time{}, dhcpDeviceError{err}
 		}
 
 		// Phase 1: DISCOVER -> OFFER.
@@ -281,13 +288,13 @@ func dhcpExchange(
 			return dhcpParsedReply{}, err
 		}
 		if err := dev.Err(); err != nil {
-			return dhcpParsedReply{}, err
+			return dhcpParsedReply{}, dhcpDeviceError{err}
 		}
 		if maxAttempts > 0 && attempts >= maxAttempts {
 			return dhcpParsedReply{}, errDHCPRestart
 		}
 		if err := dev.Transmit(txFrame); err != nil {
-			return dhcpParsedReply{}, err
+			return dhcpParsedReply{}, dhcpDeviceError{err}
 		}
 		attempts++
 
@@ -297,11 +304,11 @@ func dhcpExchange(
 				return dhcpParsedReply{}, err
 			}
 			if err := dev.Err(); err != nil {
-				return dhcpParsedReply{}, err
+				return dhcpParsedReply{}, dhcpDeviceError{err}
 			}
 			n, err := dev.Receive(rxBuf)
 			if err != nil {
-				return dhcpParsedReply{}, err
+				return dhcpParsedReply{}, dhcpDeviceError{err}
 			}
 			if n > 0 && n <= len(rxBuf) {
 				if reply, ok := parseDHCPFrame(rxBuf[:n], mac, xid); ok {

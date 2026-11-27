@@ -502,6 +502,13 @@ The host owns the catalog, UI, user intent, content selection, and host-side
 media. The target agent owns its HTTP API, transfers and session requests.
 libmister-runtime owns FPGA programming, media/input delivery and recovery.
 
+On embedded targets, FogCast's portable `targethttp` handler can expose a
+read-only service. A paired host reads the stable target ID and the current
+boot ID from `GET /v1/health`, then calls `GET /v1/kit/lease` with the same
+bearer to read the target's ownership state. The target supplies that state.
+A missing ownership provider returns HTTP 503. The read-only service omits
+the stop, launch, package upload and package selection routes.
+
 The target agent also exposes an authenticated, read-mostly diagnostic surface
 on the existing kit listener: `GET /v1/kit/debug/events` returns the bounded
 target event ring, and the lease-admitted

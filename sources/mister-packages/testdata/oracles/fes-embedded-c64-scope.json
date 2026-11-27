@@ -1,0 +1,21 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "99f95209c9f81a4a34738198d75d2e69328d4ffc",
+    "file": "platform/embedded/firmware/generated/fes_embedded_c64_scope.h",
+    "note": "Prior MENU-only source. The dedicated C64 observation does not grant MAC or bridge access."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.c64-scope",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedC64ScopeCall": 3254780678,
+    "FesEmbeddedC64ScopeCookie": 1178944339,
+    "FesEmbeddedC64ScopeTag": 1128747825,
+    "FesEmbeddedC64ScopeOK": 0,
+    "FesEmbeddedC64ScopeRejected": 2,
+    "FesEmbeddedC64ScopeNotReady": 5
+  }
+}

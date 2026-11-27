@@ -100,11 +100,7 @@ class TamagoNetworkBuildOptionTests(unittest.TestCase):
                     build.network_runtime_options(*args)
 
     def test_opt_in_is_dormant_on_the_shipped_fpgaload_profile(self):
-        """network/README.md documents the opt-in as dormant; this pins why.
-
-        If any route below starts accepting, a network-enabled fpgaload profile
-        has become buildable and the README's dormant section must be revised.
-        """
+        """Default PIO refuses runtime flags without paired-ethernet selection."""
         build = _load_build()
         self.assertEqual(build.APP.parent / 'nano' / 'sd-profile.json', SHIPPED_FPGALOAD_PROFILE)
         shipped = json.loads(SHIPPED_FPGALOAD_PROFILE.read_bytes())

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gnet "github.com/usbarmory/go-net"
@@ -287,5 +288,44 @@ func TestLinkStartWakesOnRXReady(t *testing.T) {
 	cancel()
 	if err := controlResult(t, done); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Link.Start = %v, want context.Canceled", err)
+	}
+}
+
+func TestResumeHonorsDefaultOrEarlierParentAndRetiresFailedGrant(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		resume, parent, want time.Duration
+	}{
+		{"default", 0, 0, 5 * time.Second}, {"bounded supplier", 30 * time.Second, 0, 30 * time.Second},
+		{"earlier caller", 30 * time.Second, time.Second, time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var starts int
+				c, err := NewController(controlLink(&controlDevice{}), DMAControl{
+					ResumeTimeout: tc.resume, Stop: func(context.Context) error { return nil },
+					Start: func(ctx context.Context) error { starts++; <-ctx.Done(); return ctx.Err() },
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx := context.Background()
+				if err = c.PauseNetwork(ctx); err != nil {
+					t.Fatal(err)
+				}
+				if tc.parent > 0 {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithTimeout(ctx, tc.parent)
+					defer cancel()
+				}
+				start := time.Now()
+				if err = c.ResumeNetwork(ctx); !errors.Is(err, context.DeadlineExceeded) || time.Since(start) != tc.want {
+					t.Fatalf("resume %v after %s, expected deadline at %s", err, time.Since(start), tc.want)
+				}
+				if err = c.ResumeNetwork(context.Background()); err == nil || starts != 1 {
+					t.Fatalf("attempted second grant %v starts %d", err, starts)
+				}
+			})
+		})
 	}
 }

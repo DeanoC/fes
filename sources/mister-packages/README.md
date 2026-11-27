@@ -139,6 +139,10 @@ The shared mode requires trusted cold/master composition; the default provider
 is unbound and no composed boot profile is selected. See the lease contract
 for dynamic data-containment flags and retained-failure behavior.
 
+The [live C64 control observation](docs/embedded-c64-scope.md) binds a
+running shared-shell C64 and its control-only bridge to one confirmed MAC0
+generation for bounded local accesses.
+
 The [fixed firmware MAC lease](docs/embedded-mac.md) uses a private generation,
 separate grant/confirmation and an independent drain callback for a permanently
 pinned DMA window. Its portable engine/native client do not supply a physical

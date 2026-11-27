@@ -48,6 +48,19 @@ func (s EntropySource) IsHardware() bool {
 	return s == EntropySMCCCTRNG64 || s == EntropySMCCCTRNG32 || s == EntropyARMRNDR
 }
 
+// HardwareBootUUID reserves a v4 UUID only if all sample bytes came from
+// hardware. Runtime consumers may exhaust the boot entropy pool afterwards.
+//
+//go:nosplit
+func HardwareBootUUID(sample [16]byte, source EntropySource) [16]byte {
+	if !source.IsHardware() || sample == ([16]byte{}) {
+		return [16]byte{}
+	}
+	sample[6] = sample[6]&0x0f | 0x40
+	sample[8] = sample[8]&0x3f | 0x80
+	return sample
+}
+
 // xoshiro256** state used as the non-cryptographic counter-mixed fallback when
 // neither SMCCC TRNG nor ARMv8.5 RNDR is available (for example QEMU virt
 // cortex-a53 without firmware TRNG). Always seeded from CNTPCT_EL0 rather than

@@ -61,6 +61,11 @@ func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 			return smc(request), nil
 		}
 		return [4]uint64{}, errors.New("DE25: owned USB call lacks its explicit cookie")
+	case uint64(g.FesEmbeddedC64ScopeCall):
+		if profileC64NetworkScope == "" || request[1] == 1 || request[2] == 0 || request[3] != uint64(g.FesEmbeddedC64ScopeCookie) || request[4] == 0 || request[5] != 0 || request[6] != 0 {
+			return [4]uint64{}, errors.New("DE25: invalid or disabled C64 control observation")
+		}
+		return smc(request), nil
 	case uint64(g.FesEmbeddedMacCall):
 		return invokeMAC(request, profileNetworkEnabled, func(r [7]uint64) ([4]uint64, error) {
 			return smc(r), nil

@@ -22,6 +22,11 @@ import (
 
 func setupTestLinkPair(t *testing.T) (linkSrv, linkCli *network.Link, macSrv string, macCli [6]byte, cleanup func()) {
 	t.Helper()
+	return setupTestLinkPairAt(t, "192.0.2.10/24")
+}
+
+func setupTestLinkPairAt(t *testing.T, targetPrefix string) (linkSrv, linkCli *network.Link, macSrv string, macCli [6]byte, cleanup func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sToC := make(chan []byte, 256)
@@ -30,7 +35,7 @@ func setupTestLinkPair(t *testing.T) (linkSrv, linkCli *network.Link, macSrv str
 	macCli = [6]byte{0x02, 0xaa, 0x00, 0x00, 0x01, 0x02}
 
 	var err error
-	linkSrv, err = network.NewLink(nil, wireDev{in: cToS, out: sToC}, "192.0.2.10/24", macSrv, "")
+	linkSrv, err = network.NewLink(nil, wireDev{in: cToS, out: sToC}, targetPrefix, macSrv, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +131,7 @@ func TestServiceHTTPAndMDNSDiscoveryOverLneto(t *testing.T) {
 	var health protocol.Health
 	err = json.NewDecoder(healthResp.Body).Decode(&health)
 	_ = healthResp.Body.Close()
-	if err != nil || healthResp.StatusCode != http.StatusOK || !health.Ready || health.TargetID != targetID {
+	if err != nil || healthResp.StatusCode != http.StatusOK || !health.Ready || health.APIVersion != "v1" || health.TargetID != targetID || health.BootID != "" {
 		t.Fatalf("/v1/health = status:%d err:%v body:%+v", healthResp.StatusCode, err, health)
 	}
 
@@ -326,5 +331,17 @@ func TestServiceDefaultMDNSNamesDerivedFromTargetID(t *testing.T) {
 	}
 	if len(gotFrom2) != 1 || gotFrom2[0].Instance != "FES-TamaGo-aaaa1111bbbb" || gotFrom2[0].Host != "fes-tamago-aaaa1111bbbb.local" || mdns.ParseFogCastTXT(gotFrom2[0].TXT).TargetID != id2 {
 		t.Fatalf("unexpected default mDNS service for %s: %+v", id2, gotFrom2)
+	}
+}
+
+func TestStateControllerBootIdentity(t *testing.T) {
+	a := agentapi.NewStateController(agentapi.StateControllerConfig{}).Health("test")
+	b := agentapi.NewStateController(agentapi.StateControllerConfig{}).Health("test")
+	if a.BootID == "" || a.BootID != b.BootID || a.BootID != agentapi.BootID() || a.APIVersion != "v1" {
+		t.Fatal("default boot identity differs across services")
+	}
+	explicit := agentapi.NewStateController(agentapi.StateControllerConfig{BootID: "firmware-handoff"}).Health("test")
+	if explicit.BootID != "firmware-handoff" {
+		t.Fatal("platform boot identity lost")
 	}
 }
