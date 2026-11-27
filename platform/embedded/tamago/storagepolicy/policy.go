@@ -13,12 +13,85 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"strings"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
+
+// MountMode selects how storagepolicy authenticates the underlying SD card and partition layout.
+type MountMode string
+
+const (
+	// ModePinned requires the exact compile-time card CID, MBR hash, and protected recovery files.
+	ModePinned MountMode = "pinned"
+	// ModeAppliance permits swappable SD cards with valid non-overlapping FAT32 MBR geometry.
+	ModeAppliance MountMode = "appliance"
+)
+
+const (
+	defaultMinApplianceSectors uint64 = 65536
+	maxCardSectors             uint64 = 1 << 32
+)
+
+// AppliancePolicy configures swappable-card mounting without build-time CID/MBR pinning.
+// Zero-valued fields use safe defaults (65536..1<<32 sectors, sole FAT32 partition,
+// verified backup boot sector, no CID/file pins).
+type AppliancePolicy struct {
+	RequireCID                bool
+	AllowAdditionalPartitions bool
+	SkipBootBackupCheck       bool
+	MinSectors                uint64
+	MaxSectors                uint64
+	ProtectedFiles            []string
+}
+
+// Validate checks bounds and path syntax in p.
+func (p AppliancePolicy) Validate() error {
+	maxSectors := p.MaxSectors
+	if maxSectors == 0 {
+		maxSectors = maxCardSectors
+	}
+	if maxSectors > maxCardSectors {
+		return fmt.Errorf("storage policy: max sectors exceeds FAT32 LBA limit")
+	}
+	if p.MinSectors > 0 && p.MinSectors > maxSectors {
+		return fmt.Errorf("storage policy: min sectors exceeds max sectors")
+	}
+	for _, name := range p.ProtectedFiles {
+		if !fs.ValidPath(name) || name == "." {
+			return fmt.Errorf("storage policy: invalid protected file path %q", name)
+		}
+	}
+	return nil
+}
+
+func (p AppliancePolicy) effectiveBounds() (uint64, uint64) {
+	minS := p.MinSectors
+	if minS == 0 {
+		minS = defaultMinApplianceSectors
+	}
+	maxS := p.MaxSectors
+	if maxS == 0 {
+		maxS = maxCardSectors
+	}
+	return minS, maxS
+}
+
+func isZeroOrAllOnesCID(cid [15]byte) bool {
+	allZero, allOnes := true, true
+	for _, b := range cid {
+		if b != 0x00 {
+			allZero = false
+		}
+		if b != 0xff {
+			allOnes = false
+		}
+	}
+	return allZero || allOnes
+}
 
 type Device interface {
 	block.Device
@@ -137,11 +210,110 @@ type confined struct {
 
 func (d *confined) WriteSectors(lba uint64, data []byte) error {
 	count := uint64(len(data) / 512)
+	touchesBackup := d.backup != 0 && lba <= d.backup && d.backup-lba < count
 	if len(data)%512 != 0 || lba < d.first || lba > d.end || count > d.end-lba ||
-		(count > 0 && (lba == d.first || lba <= d.backup && d.backup-lba < count)) {
+		(count > 0 && (lba == d.first || touchesBackup)) {
 		return fmt.Errorf("storage policy: write outside allowed partition metadata/data")
 	}
 	return d.Device.WriteSectors(lba, data)
+}
+
+type mbrPartition struct {
+	first uint64
+	count uint64
+	typ   byte
+}
+
+func partitionAppliance(media Device, sectors uint64, policy AppliancePolicy) (*confined, []byte, []byte, uint64, uint64, error) {
+	mbr := make([]byte, 512)
+	if err := media.ReadSectors(0, mbr); err != nil {
+		return nil, nil, nil, 0, 0, err
+	}
+	if mbr[510] != 0x55 || mbr[511] != 0xaa {
+		return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: missing MBR signature")
+	}
+	var entries []mbrPartition
+	var fatParts []mbrPartition
+	for i := 0; i < 4; i++ {
+		row := mbr[446+i*16 : 462+i*16]
+		if bytes.Equal(row, make([]byte, 16)) {
+			continue
+		}
+		if row[0] != 0x00 && row[0] != 0x80 {
+			return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: invalid MBR boot flag 0x%02x", row[0])
+		}
+		first := uint64(binary.LittleEndian.Uint32(row[8:]))
+		count := uint64(binary.LittleEndian.Uint32(row[12:]))
+		if first == 0 || count == 0 || first >= sectors || count > sectors-first {
+			return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: partition outside card")
+		}
+		part := mbrPartition{first: first, count: count, typ: row[4]}
+		for _, prev := range entries {
+			if part.first < prev.first+prev.count && prev.first < part.first+part.count {
+				return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: overlapping MBR partitions")
+			}
+		}
+		entries = append(entries, part)
+		if part.typ == 0x0b || part.typ == 0x0c {
+			fatParts = append(fatParts, part)
+		} else if !policy.AllowAdditionalPartitions {
+			return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: unexpected MBR partition type 0x%02x", part.typ)
+		}
+	}
+	if len(fatParts) != 1 {
+		return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: exactly one FAT32 MBR partition required")
+	}
+	target := fatParts[0]
+	if target.count < defaultMinApplianceSectors {
+		return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: FAT32 partition too small")
+	}
+
+	boot := make([]byte, 512)
+	if err := media.ReadSectors(target.first, boot); err != nil {
+		return nil, nil, nil, 0, 0, err
+	}
+	if boot[510] != 0x55 || boot[511] != 0xaa || binary.LittleEndian.Uint16(boot[11:]) != 512 {
+		return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: invalid FAT32 boot sector")
+	}
+	reserved := uint64(binary.LittleEndian.Uint16(boot[14:]))
+	if reserved == 0 {
+		return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: invalid FAT32 reserved sectors")
+	}
+	backup := uint64(binary.LittleEndian.Uint16(boot[50:]))
+	var backupLBA uint64
+	if !policy.SkipBootBackupCheck {
+		if backup == 0 || backup >= reserved {
+			return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: missing bounded boot backup")
+		}
+		copyBoot := make([]byte, 512)
+		if err := media.ReadSectors(target.first+backup, copyBoot); err != nil {
+			return nil, nil, nil, 0, 0, err
+		}
+		if !bytes.Equal(boot, copyBoot) {
+			return nil, nil, nil, 0, 0, fmt.Errorf("storage policy: boot backup differs")
+		}
+		backupLBA = target.first + backup
+	} else if backup > 0 && backup < reserved {
+		backupLBA = target.first + backup
+	}
+	return &confined{Device: media, first: target.first, end: target.first + target.count, backup: backupLBA}, mbr, boot, target.first, target.count, nil
+}
+
+func checkReadableFile(ctx context.Context, v *fat.Volume, name string) error {
+	f, err := v.Open(name)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if info.IsDir() || info.Size() <= 0 {
+		return fmt.Errorf("storage policy: protected %s must be a non-empty file", name)
+	}
+	_, err = io.Copy(io.Discard, contextReader{ctx: ctx, source: f})
+	return err
 }
 
 func partition(media Device, p Plan) (*confined, []byte, []byte, error) {
@@ -193,7 +365,13 @@ func partition(media Device, p Plan) (*confined, []byte, []byte, error) {
 type Volume struct {
 	*fat.Volume
 	device    Device
+	mode      MountMode
 	plan      Plan
+	appliance AppliancePolicy
+	identity  sdhci.Identity
+	sectors   uint64
+	partFirst uint64
+	partCount uint64
 	mbr, boot []byte
 }
 
@@ -218,11 +396,112 @@ func Mount(ctx context.Context, media Device, p Plan) (*Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &Volume{Volume: fs, device: media, plan: p, mbr: mbr, boot: boot}
+	v := &Volume{
+		Volume:    fs,
+		device:    media,
+		mode:      ModePinned,
+		plan:      p,
+		identity:  p.Identity(),
+		sectors:   p.Sectors,
+		partFirst: disk.first,
+		partCount: disk.end - disk.first,
+		mbr:       mbr,
+		boot:      boot,
+	}
 	if err = v.Check(ctx); err != nil {
 		return nil, err
 	}
 	return v, nil
+}
+
+// MountAppliance mounts a FAT32 SD card without compile-time CID or MBR pins.
+// Partition confinement, backup-boot verification, and same-card session checks remain active.
+func MountAppliance(ctx context.Context, media Device, policy AppliancePolicy) (*Volume, error) {
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
+	if ctx == nil || media == nil {
+		return nil, fmt.Errorf("storage policy: owned inputs required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sectors := media.SectorCount()
+	minS, maxS := policy.effectiveBounds()
+	if sectors < minS || sectors > maxS {
+		return nil, fmt.Errorf("storage policy: card capacity %d outside [%d, %d]", sectors, minS, maxS)
+	}
+	id := media.Identity()
+	if id.Sectors != 0 && id.Sectors != sectors {
+		return nil, fmt.Errorf("storage policy: card sector count mismatch")
+	}
+	if policy.RequireCID && isZeroOrAllOnesCID(id.CID) {
+		return nil, fmt.Errorf("storage policy: ambiguous card CID")
+	}
+	disk, mbr, boot, first, count, err := partitionAppliance(media, sectors, policy)
+	if err != nil {
+		return nil, err
+	}
+	fs, err := fat.Mount(disk)
+	if err != nil {
+		return nil, err
+	}
+	v := &Volume{
+		Volume:    fs,
+		device:    media,
+		mode:      ModeAppliance,
+		appliance: policy,
+		identity:  id,
+		sectors:   sectors,
+		partFirst: first,
+		partCount: count,
+		mbr:       mbr,
+		boot:      boot,
+	}
+	if err = v.Check(ctx); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// Mode returns the mount authentication mode (pinned or appliance).
+func (v *Volume) Mode() MountMode {
+	if v == nil || v.mode == "" {
+		return ModePinned
+	}
+	return v.mode
+}
+
+// CardIdentity returns the card identity captured when the volume was mounted.
+func (v *Volume) CardIdentity() sdhci.Identity {
+	if v == nil {
+		return sdhci.Identity{}
+	}
+	return v.identity
+}
+
+// PartitionRange returns the confined FAT32 partition start LBA and sector count.
+func (v *Volume) PartitionRange() (firstLBA, sectorCount uint64) {
+	if v == nil {
+		return 0, 0
+	}
+	return v.partFirst, v.partCount
+}
+
+// CardChanged reports whether media no longer matches the mounted card identity or capacity.
+func (v *Volume) CardChanged(media Device) bool {
+	if v == nil || media == nil {
+		return true
+	}
+	return media.Identity() != v.identity || media.SectorCount() != v.sectors
+}
+
+// Flush flushes pending block writes to the underlying storage device.
+func (v *Volume) Flush() error {
+	if v == nil || v.device == nil {
+		return fmt.Errorf("storage policy: missing device")
+	}
+	return v.device.Flush()
 }
 
 // Check rechecks boot metadata and protected recovery files without mutation.
@@ -232,6 +511,24 @@ func (v *Volume) Check(ctx context.Context) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if v.mode == ModeAppliance {
+		if v.device.Identity() != v.identity || v.device.SectorCount() != v.sectors {
+			return fmt.Errorf("storage policy: card changed")
+		}
+		_, mbr, boot, _, _, err := partitionAppliance(v.device, v.sectors, v.appliance)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(mbr, v.mbr) || !bytes.Equal(boot, v.boot) {
+			return fmt.Errorf("storage policy: boot metadata changed")
+		}
+		for _, name := range v.appliance.ProtectedFiles {
+			if err := checkReadableFile(ctx, v.Volume, name); err != nil {
+				return err
+			}
+		}
+		return ctx.Err()
 	}
 	if v.device.Identity() != v.plan.Identity() {
 		return fmt.Errorf("storage policy: card changed")
@@ -267,11 +564,20 @@ func (v *Volume) Remount(ctx context.Context) (*Volume, error) {
 	if v == nil {
 		return nil, fmt.Errorf("storage policy: missing original mount")
 	}
-	next, err := Mount(ctx, v.device, v.plan)
+	var (
+		next *Volume
+		err  error
+	)
+	if v.mode == ModeAppliance {
+		next, err = MountAppliance(ctx, v.device, v.appliance)
+	} else {
+		next, err = Mount(ctx, v.device, v.plan)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if !bytes.Equal(next.mbr, v.mbr) || !bytes.Equal(next.boot, v.boot) {
+	if next.identity != v.identity || next.sectors != v.sectors ||
+		!bytes.Equal(next.mbr, v.mbr) || !bytes.Equal(next.boot, v.boot) {
 		return nil, fmt.Errorf("storage policy: remounted boot metadata differs")
 	}
 	return next, nil
