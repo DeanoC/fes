@@ -7,6 +7,7 @@ import os
 import re
 import stat
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,12 +29,43 @@ HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 
 def package_build_environment(env=None, recipe=None):
     """Build a child environment for a format-2 producer without selecting cache mode."""
-    return producer_environment(env, recipe=recipe)
+    mapped = producer_environment(env, recipe=recipe)
+    if recipe is not None and _de25_gpu_router(env, recipe) == 'CUDA':
+        source_env = os.environ if env is None else env
+        for name in ('CUDA_HOME', 'CUDACXX', 'CUDA_PATH'):
+            if name in source_env:
+                mapped[name] = source_env[name]
+        path = mapped.get('PATH', '')
+        if not shutil.which('nvcc', path=path) and Path('/usr/local/cuda/bin/nvcc').is_file():
+            mapped['PATH'] = f"/usr/local/cuda/bin:{path}" if path else '/usr/local/cuda/bin'
+    return mapped
 
 
 def digest(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _de25_gpu_router(env, recipe):
+    if recipe.board != 'de25-nano' or recipe.toolchain != 'quartus' or recipe.front_end != 'yosys':
+        return None
+    source_env = os.environ if env is None else env
+    configured = source_env.get('FES_GPU_ROUTER')
+    if configured:
+        if configured not in ('HIP', 'CUDA'):
+            raise ValueError('FES_GPU_ROUTER must be HIP or CUDA')
+        return configured
+    path = source_env.get('PATH', '')
+    if shutil.which('hipcc', path=path):
+        return 'HIP'
+    if shutil.which('nvcc', path=path) or Path('/usr/local/cuda/bin/nvcc').is_file():
+        return 'CUDA'
+    return 'HIP'
+
+
+def _de25_gpu_router_arguments(env, recipe):
+    router = _de25_gpu_router(env, recipe)
+    return ['--gpu-router', router] if router else []
 
 
 def _de25_license_arguments(env, recipe):
@@ -162,7 +194,17 @@ if "--selection-only" in sys.argv:
         identities = {"selection-only": "not authenticated"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
-    tools = authenticate(root, cache_root=cache_root)
+    if "--gpu-router" in sys.argv:
+        router = sys.argv[sys.argv.index("--gpu-router") + 1]
+        import inspect
+        if "gpu_router" in inspect.signature(authenticate).parameters:
+            tools = authenticate(root, cache_root=cache_root, gpu_router=router)
+        elif getattr(producer, "MACHINE", None) is not None and hasattr(producer.MACHINE, "authenticate"):
+            tools = producer.MACHINE.authenticate(root, cache_root=cache_root, gpu_router=router)
+        else:
+            tools = authenticate(root, cache_root=cache_root)
+    else:
+        tools = authenticate(root, cache_root=cache_root)
     if hasattr(producer, "record_tool_options"):
         options.update(producer.record_tool_options(tools))
     identities = {name: tool.identity for name, tool in tools.items()}
@@ -183,11 +225,12 @@ else:
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
+    gpu_router_arguments = [] if selection_only else _de25_gpu_router_arguments(env, recipe)
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
                "--producer-script", recipe.producer_script,
-               *license_arguments, *(["--selection-only"] if selection_only else []),
+               *license_arguments, *gpu_router_arguments, *(["--selection-only"] if selection_only else []),
                *(["--quartus-yosys"] if selection_only and recipe.toolchain == "quartus"
                  and recipe.front_end == "yosys" else [])]
     try:
@@ -434,14 +477,21 @@ def _build_package(source, recipe=None, env=None):
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     report_path = Path(source) / "build" / optional_cores.PRODUCER_REPORT_NAME
     _discard_producer_report(report_path)
+    child_env = package_build_environment(env, recipe=recipe)
+    gpu_router_arguments = _de25_gpu_router_arguments(env, recipe)
     try:
+        if recipe.board == 'de25-nano' and recipe.core_id == 'fes.pc386':
+            if not (Path(source) / "build/firmware/pc386/pc386-rom.hex").is_file():
+                subprocess.run(
+                    [sys.executable, "scripts/build_pc386_firmware.py", "--download"],
+                    cwd=source, check=True, env=child_env)
         subprocess.run(
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
              "--identity-version", "2", *recipe.producer_arguments,
-             *_de25_license_arguments(env, recipe)],
-            cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
+             *_de25_license_arguments(env, recipe), *gpu_router_arguments],
+            cwd=source, check=True, env=child_env)
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)
         _discard_producer_report(report_path)

@@ -69,6 +69,47 @@ class BundleTest(unittest.TestCase):
             self.assertTrue(all(record["tools"][name] == "selection-only" for name in expected_tools))
             self.assertIn("design", record["identities"])
 
+    def test_de25_pc386_build_prepares_firmware_and_propagates_gpu_router(self):
+        module = self.module()
+        recipe = module.recipe_for("fes.pc386", board="de25-nano")
+        self.assertEqual(module._de25_gpu_router({"FES_GPU_ROUTER": "CUDA"}, recipe), "CUDA")
+        with self.assertRaisesRegex(ValueError, "HIP or CUDA"):
+            module._de25_gpu_router({"FES_GPU_ROUTER": "ROCM"}, recipe)
+        cuda_env = {"FES_GPU_ROUTER": "CUDA", "CUDA_HOME": "/opt/cuda", "PATH": "/usr/bin"}
+        built_env = module.package_build_environment(cuda_env, recipe=recipe)
+        self.assertEqual(built_env["CUDA_HOME"], "/opt/cuda")
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sources/misteross"
+            source.mkdir(parents=True)
+            with patch.object(module.subprocess, "run") as run_mock:
+                module._build_package(source, recipe=recipe, env=cuda_env)
+            self.assertEqual(len(run_mock.call_args_list), 2)
+            fw_cmd, build_cmd = [call.args[0] for call in run_mock.call_args_list]
+            self.assertEqual(fw_cmd, [sys.executable, "scripts/build_pc386_firmware.py", "--download"])
+            self.assertIn(recipe.producer_script, build_cmd)
+            self.assertIn("--gpu-router", build_cmd)
+            self.assertEqual(build_cmd[build_cmd.index("--gpu-router") + 1], "CUDA")
+
+            fake_record = json.dumps({
+                "format": 2,
+                "parameters": {"identity_policy": "design-v1"},
+                "repository": "https://github.com/DeanoC/fes.git",
+                "revision": "a" * 40,
+                "source_inputs": {"boards/de25nano/producers/build_pc386_package.py": "0" * 64},
+                "source_path": "sources/misteross",
+                "source_roots": ["boards/de25nano"],
+                "toolchain": "quartus",
+                "tools": {"ipgenerate": "t", "pfg": "t", "qsys": "t", "quartus": "t", "yosys": "t"},
+            }, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
+            with patch.object(module, "authenticate_misteross_origin"), \
+                    patch.object(module.artifact_cache, "functional_key", return_value="k"), \
+                    patch.object(module.subprocess, "check_output", return_value=fake_record) as check_mock:
+                module.canonical_package_record(source, env=cuda_env, recipe=recipe, selection_only=False)
+            canon_cmd = check_mock.call_args.args[0]
+            self.assertIn("--gpu-router", canon_cmd)
+            self.assertEqual(canon_cmd[canon_cmd.index("--gpu-router") + 1], "CUDA")
+            self.assertIn("producer.MACHINE.authenticate", canon_cmd[2])
+
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
         from tests.committed_misteross_fixture import make_snapshot
