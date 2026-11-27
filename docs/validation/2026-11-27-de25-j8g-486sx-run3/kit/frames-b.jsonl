@@ -1,0 +1,9 @@
+{"frame": "00-before-load.png", "mean_luma": 232.29, "nonblack": 0.9995}
+{"frame": "t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.9993}
+{"frame": "t10.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.1932}
+{"frame": "t20.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.0001}
+{"frame": "t30.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.0}
+{"frame": "t45.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0001}
+{"frame": "t60.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0}
+{"frame": "t-ver.png", "mean_luma": 14.14, "nonblack": 0.2263, "changed_vs_prev": 0.1841}
+{"frame": "s1-after-stop.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9988}

@@ -1,0 +1,4 @@
+window_fds=0
+{"expires_in_ms":0,"state":"free","generation":"f8647d25b5a56995e563cfa68e2be498e1ca995002090cf1464176c339d02bcc","expires_at":"0001-01-01T00:00:00Z"}
+
+{"state":"idle","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null,"input_agent_in
