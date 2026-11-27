@@ -15,7 +15,11 @@
 #define S2_LEAF (FES_TX_TABLES + 0x6000U)
 #define PAGE 4096U
 #define NS_ABORT (1U << 20)
-#define MAX_US 12000000U
+#define MAX_US 18000000U
+#define PHY_WAIT_US 8000000U
+#define PHY_SAMPLE_US 100000U
+#define TX_COMPLETION_US 2000000U
+#define CLEANUP_RESERVE_US 5000000U
 #define OWN (1U << 31)
 #define FIRST_LAST (3U << 28)
 #define CONTEXT (1U << 30)
@@ -234,7 +238,7 @@ static int verify_link(struct trial *t)
 {
     struct fes_tx_phy_sample previous={0}, current={0};
     const uint64_t start=t->io->time_us(t->io->ctx);
-    for (unsigned attempt=0; attempt<41; attempt++) {
+    for (unsigned attempt=0; attempt<=PHY_WAIT_US/PHY_SAMPLE_US; attempt++) {
         if (guard(t) || sample_phy(t,&current)) return -1;
         t->out->phy_status=current.resolved;
         int ready=link_ready(&current);
@@ -244,16 +248,18 @@ static int verify_link(struct trial *t)
                    (current.bmsr_latch & 0x34)==0x24;
         int irreversible=current.id1!=0x22 || current.id2!=0x1622 ||
                          (current.gig_partner & 0xff)==0xff;
-        if (stable || irreversible || attempt==40 || current.time_us-start>=4000000) {
+        int expired = current.time_us-start >= PHY_WAIT_US ||
+                      current.time_us-t->out->started_us >= MAX_US-TX_COMPLETION_US-CLEANUP_RESERVE_US;
+        if (stable || irreversible || expired || attempt==PHY_WAIT_US/PHY_SAMPLE_US) {
             if (attempt) t->io->report_phy(t->io->ctx,0,&previous);
             t->io->report_phy(t->io->ctx,attempt!=0,&current);
-            return stable && !irreversible ? 0 : -1;
+            return stable && !irreversible && !expired ? 0 : -1;
         }
         previous=current;
         /* The suite also bounds a stopped counter; reserve the rest of the
-         * independent 12-second domain lease for stop, revoke and readback. */
+         * independent domain lease for stop, revoke and readback. */
         unsigned poll_count=0;
-        while (t->io->time_us(t->io->ctx)-previous.time_us < 100000) {
+        while (t->io->time_us(t->io->ctx)-previous.time_us < PHY_SAMPLE_US) {
             if (++poll_count>=10000000 || (!(poll_count&255) && guard(t))) return -1;
         }
     }
@@ -329,6 +335,10 @@ static int send_frame(struct trial *t)
     if (guard(t) || store(t, FES_TX_DESC, FES_TX_BUFFER) ||
         store(t, FES_TX_DESC + 8, (uint64_t)(FIRST_LAST | OWN | 60) << 32 | 60))
         return -1;
+    /* Reserve time for an independent channel stop, translation revocation
+     * and reset even if the descriptor consumes its full completion window. */
+    if (guard(t) || t->out->last_us - t->out->started_us >= MAX_US - TX_COMPLETION_US - CLEANUP_RESERVE_US)
+        return -1;
     t->out->dma_possible = 1;
     if (set_reg(t, MAC + 0x3104, 4U << 16 | 1) || set_reg(t, MAC, FES_TX_GIGABIT_SPEED | 1))
         return -1;
@@ -341,7 +351,7 @@ static int send_frame(struct trial *t)
     for (unsigned i = 0; i < 1000000; i++) {
         if (guard(t) || queues_clean(t))
             return -1;
-        if (t->out->last_us-completion_start >= 2000000) {
+        if (t->out->last_us-completion_start >= TX_COMPLETION_US) {
             t->out->last_address = FES_TX_DESC + 12;
             t->out->last_value = t->out->descriptor_status;
             return -1;

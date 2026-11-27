@@ -21,6 +21,8 @@ enum fault {
     WRONG_PHY,
     SLOW_PHY,
     VENDOR_PHY_FLAG,
+    FIVE_SECOND_NEGOTIATION,
+    NO_CLEANUP_BUDGET,
     PCS_DOWN,
     BAD_LOCAL_RECEIVER,
     IDLE_ERRORS_SATURATED,
@@ -167,6 +169,7 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
                                   [4]=0x1e1, [5]=0xcde1, [9]=1U<<9, [10]=0x3c00, [19]=4, [31]=0x48};
         assert((addr & 31) < sizeof(phy) / sizeof(*phy));
         *p = phy[addr & 31];
+        if ((addr & 31) == 1 && f->fault == FIVE_SECOND_NEGOTIATION && f->ticks<5000000) *p=0;
         if ((addr & 31) == 31 && f->fault == SLOW_PHY) *p=0x28;
         if ((addr & 31) == 31 && f->fault == VENDOR_PHY_FLAG) *p=0x49;
         if ((addr & 31) == 19 && f->fault == PCS_DOWN) *p=0;
@@ -189,6 +192,7 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         *reg(f, M + 0x3160) |= 2;
     if (a == M + 0x3124) {
         f->transmits++;
+        if (f->fault==FIVE_SECOND_NEGOTIATION) assert(f->ticks>=5100000);
         if (f->fault == MTL_PENDING)
             *reg(f, M + 0x1108) = 1U << 5;
         assert(*reg(f, M + 0x3104) & 1);
@@ -239,6 +243,7 @@ static void report_phy(void *ctx,unsigned sample,const struct fes_tx_phy_sample 
     struct fixture *f=ctx;
     assert(sample==f->phy_reports++ && sample<2 && !f->transmits && !(*reg(f,M+0x3104)&1));
     assert(p->time_us);
+    if (sample==1 && f->fault==NO_CLEANUP_BUDGET) f->ticks+=11000000;
 }
 static int observe(void *ctx)
 {
@@ -313,9 +318,9 @@ static void test(enum fault fault)
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
     memset(frame + 28, 0x7e, 16);
     int rc = fes_tx_once(&io, frame, &out);
-    assert((rc == 0) == (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG));
+    assert((rc == 0) == (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG || fault == FIVE_SECOND_NEGOTIATION));
     assert(f.transmits <= 1);
-    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG) {
+    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG || fault == FIVE_SECOND_NEGOTIATION) {
         assert(!memcmp(frame, f.wire, 60) && out.mapped && out.dma_possible && out.dispatched &&
                out.process_stopped);
         assert(out.stage == FES_TX_PARKED && out.translation_revoked && out.mac_in_reset &&
@@ -343,7 +348,7 @@ static void test(enum fault fault)
         fault == LOST_PTE_BEFORE_OWN)
         assert(!f.transmits && !out.dispatched && !out.translation_revoked);
     enum fes_tx_disposition expected = FES_TX_COLD_RECOVERY;
-    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG)
+    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG || fault == FIVE_SECOND_NEGOTIATION)
         expected = FES_TX_CLOSED;
     if (fault >= WRONG_VERSION && fault <= WRONG_QUEUES) {
         assert(f.caps_seen == 1 && !out.dispatched && !out.dma_possible);
@@ -354,6 +359,10 @@ static void test(enum fault fault)
     if (fault == BAD_DESCRIPTOR || fault == CONTEXT_DESCRIPTOR || fault == TX_TIMEOUT) {
         assert(out.dispatched && out.process_stopped && out.translation_revoked && out.mac_in_reset);
         expected = FES_TX_FAILED_DRAINED;
+    }
+    if (fault == NO_CLEANUP_BUDGET) {
+        assert(!f.transmits && !out.dma_possible && out.process_stopped==0);
+        expected = FES_TX_REVOKED_UNDISPATCHED;
     }
     if (fault == UNKNOWN_CR2)
         expected = FES_TX_UNCHANGED;
