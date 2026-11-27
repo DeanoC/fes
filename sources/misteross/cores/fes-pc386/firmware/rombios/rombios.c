@@ -2026,8 +2026,11 @@ keyboard_init()
     while ((inb(PORT_PS2_STATUS) & 0x02) && (--max>0)) outb(PORT_DIAG, 0x50);
     if (max==0x0) keyboard_panic(50);
 
-    /* send cmd: scan code convert, disable mouse, enable IRQ 1 */
-    outb(PORT_PS2_DATA, 0x61);
+    /* send cmd: scan code convert, disable mouse, system flag, enable IRQ 1.
+       FES 2026-11-27: the system flag (bit 2) stays set, as the IBM PC/AT
+       BIOS's 45h and 4Dh command bytes keep it, so POST tells a CPU reset
+       after POST from a power-on (#2353). */
+    outb(PORT_PS2_DATA, 0x65);
 
     /* Wait until buffer is empty */
     max=0xffff;
@@ -11377,6 +11380,19 @@ post:
 
   ;; backup status
   mov bl, al
+
+  ;; FES 2026-11-27: a reset with the 8042's system flag (status bit 2)
+  ;; clear is a power-on, and its shutdown status is ignored, as the IBM
+  ;; PC/AT BIOS's POST does (TEST1.ASM, "CHECK FOR PROCESSOR SHUTDOWN":
+  ;; IN AL,STATUS_PORT / TEST AL,SYS_FLAG / JMP SHUT0). CMOS is kept across
+  ;; launches, so a byte a DOS extender left there before a Stop would
+  ;; otherwise resume a cleared machine (#2353). keyboard_init keeps the
+  ;; flag set, so a CPU reset after POST still sees the shutdown status.
+  in  al, PORT_PS2_STATUS
+  test al, #0x04
+  jnz post_shutdown_flag_kept
+  xor bl, bl
+post_shutdown_flag_kept:
 
   ;; Reset CMOS shutdown status.
   mov AL, #0x0f

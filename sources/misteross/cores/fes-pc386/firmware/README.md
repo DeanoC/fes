@@ -161,6 +161,22 @@ a modified library:
   and back to cylinder 0, after clearing the drive's media state. This BIOS
   puts that seek in `floppy_drive_recal`, which the media sense calls on the
   next access. `--suite floppy` checks the whole sequence across four swaps.
+- `rombios.c`: POST takes a reset with the 8042's system flag (status bit 2)
+  clear as a power-on, ignores the CMOS 0Fh shutdown status, and still clears
+  it. The IBM PC/AT BIOS's POST does the same (5170 BIOS source, `TEST1.ASM`,
+  "CHECK FOR PROCESSOR SHUTDOWN": `IN AL,STATUS_PORT`, `TEST AL,SYS_FLAG`, and
+  without the flag `JMP SHUT0`, the power-on code). `keyboard_init` writes
+  command byte 65h, not upstream's 61h, so the flag stays set after POST, as
+  the IBM BIOS's 45h and 4Dh keep it, and a CPU reset after POST still resumes
+  through its shutdown status. `pc386_kbc` already clears the flag at a machine
+  reset, sets it on self-test AAh and keeps it across a CPU reset.
+
+  The `fes.pc386.machine` record keeps CMOS across launches. A Stop while a DOS
+  extender runs can save the status the extender left in 0Fh (09h under
+  DOS/4GW, DOOM's extender), and upstream's POST then panicked on 09h, or
+  resumed into the launch's cleared memory, with a black screen (#2353). The
+  `a20` suite launches with CMOS 0Fh = 09h: the boot must reach the prompt and
+  its `resume` check must still resume through 0Ah.
 
 The boot order and the boot device need no patch: the machine writes CMOS
 2Dh, 38h, 3Dh and 3Fh from the launch's boot device. The floppy POST and INT

@@ -1,0 +1,155 @@
+2026-11-27 14:49:14 agent idle lease free
+2026-11-27 14:49:14 lease held 3da7ab10d0df2eaf0a644df2abb267076671a93aa453fc8a4f459c2e4c3dbb78
+2026-11-27 14:49:14 run 1 {"op": "grab", "name": "00-before-load"}
+2026-11-27 14:49:14 grab 00-before-load 327195
+2026-11-27 14:49:14 done 1 {"ok": true}
+2026-11-27 14:49:14 run 2 {"op": "load"}
+2026-11-27 14:49:27 done 2 {"load": {"state": "active"}, "seconds": 12.69, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:49:27 run 3 {"op": "sleep", "s": 10}
+2026-11-27 14:49:37 done 3 {}
+2026-11-27 14:49:37 run 4 {"op": "grab", "name": "l1-t10"}
+2026-11-27 14:49:37 grab l1-t10 420808
+2026-11-27 14:49:37 done 4 {"ok": true}
+2026-11-27 14:49:37 run 5 {"op": "sleep", "s": 20}
+2026-11-27 14:49:57 done 5 {}
+2026-11-27 14:49:57 run 6 {"op": "grab", "name": "l1-t30"}
+2026-11-27 14:49:58 grab l1-t30 421047
+2026-11-27 14:49:58 done 6 {"ok": true}
+2026-11-27 14:49:58 run 7 {"op": "stop"}
+2026-11-27 14:50:00 done 7 {"state": "idle"}
+2026-11-27 14:50:00 run 8 {"op": "sleep", "s": 3}
+2026-11-27 14:50:03 done 8 {}
+2026-11-27 14:50:03 run 9 {"op": "grab", "name": "l1-s1"}
+2026-11-27 14:50:04 grab l1-s1 327195
+2026-11-27 14:50:04 done 9 {"ok": true}
+2026-11-27 14:50:04 run 10 {"op": "load"}
+2026-11-27 14:50:15 done 10 {"load": {"state": "active"}, "seconds": 11.48, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:50:15 run 11 {"op": "grab", "name": "l2-t00"}
+2026-11-27 14:50:16 grab l2-t00 6154
+2026-11-27 14:50:16 done 11 {"ok": true}
+2026-11-27 14:50:16 run 12 {"op": "sleep", "s": 10}
+2026-11-27 14:50:26 done 12 {}
+2026-11-27 14:50:26 run 13 {"op": "grab", "name": "l2-t10"}
+2026-11-27 14:50:26 grab l2-t10 421047
+2026-11-27 14:50:26 done 13 {"ok": true}
+2026-11-27 14:50:26 run 14 {"op": "sleep", "s": 20}
+2026-11-27 14:50:46 done 14 {}
+2026-11-27 14:50:46 run 15 {"op": "grab", "name": "l2-t30"}
+2026-11-27 14:50:47 grab l2-t30 420808
+2026-11-27 14:50:47 done 15 {"ok": true}
+2026-11-27 14:50:47 run 16 {"op": "sleep", "s": 30}
+2026-11-27 14:51:17 done 16 {}
+2026-11-27 14:51:17 run 17 {"op": "grab", "name": "l2-t60"}
+2026-11-27 14:51:17 grab l2-t60 421047
+2026-11-27 14:51:17 done 17 {"ok": true}
+2026-11-27 14:51:31 run 18 {"op": "type", "text": "ver\n"}
+2026-11-27 14:51:31 input attached
+2026-11-27 14:51:32 done 18 {}
+2026-11-27 14:51:32 run 19 {"op": "sleep", "s": 2}
+2026-11-27 14:51:34 done 19 {}
+2026-11-27 14:51:34 run 20 {"op": "grab", "name": "l2-t-ver"}
+2026-11-27 14:51:34 grab l2-t-ver 399186
+2026-11-27 14:51:34 done 20 {"ok": true}
+2026-11-27 14:51:34 run 21 {"op": "stop"}
+2026-11-27 14:51:34 input detached
+2026-11-27 14:51:37 done 21 {"state": "idle"}
+2026-11-27 14:51:37 run 22 {"op": "sleep", "s": 3}
+2026-11-27 14:51:40 done 22 {}
+2026-11-27 14:51:40 run 23 {"op": "grab", "name": "l2-s1"}
+2026-11-27 14:51:40 grab l2-s1 327195
+2026-11-27 14:51:40 done 23 {"ok": true}
+2026-11-27 14:51:40 run 24 {"op": "load"}
+2026-11-27 14:51:49 done 24 {"load": {"state": "active"}, "seconds": 8.92, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:51:49 run 25 {"op": "grab", "name": "l3-t00"}
+2026-11-27 14:51:50 grab l3-t00 6154
+2026-11-27 14:51:50 done 25 {"ok": true}
+2026-11-27 14:51:50 run 26 {"op": "sleep", "s": 10}
+2026-11-27 14:52:00 done 26 {}
+2026-11-27 14:52:00 run 27 {"op": "grab", "name": "l3-t10"}
+2026-11-27 14:52:00 grab l3-t10 420808
+2026-11-27 14:52:00 done 27 {"ok": true}
+2026-11-27 14:52:00 run 28 {"op": "sleep", "s": 20}
+2026-11-27 14:52:20 done 28 {}
+2026-11-27 14:52:20 run 29 {"op": "grab", "name": "l3-t30"}
+2026-11-27 14:52:21 grab l3-t30 420808
+2026-11-27 14:52:21 done 29 {"ok": true}
+2026-11-27 14:52:35 run 30 {"op": "type", "text": "cd \\doom\n"}
+2026-11-27 14:52:35 input attached
+2026-11-27 14:52:36 done 30 {}
+2026-11-27 14:52:36 run 31 {"op": "sleep", "s": 2}
+2026-11-27 14:52:38 done 31 {}
+2026-11-27 14:52:38 run 32 {"op": "type", "text": "doom\n"}
+2026-11-27 14:52:39 done 32 {}
+2026-11-27 14:52:39 run 33 {"op": "sleep", "s": 20}
+2026-11-27 14:52:59 done 33 {}
+2026-11-27 14:52:59 run 34 {"op": "grab", "name": "l3-d1-doom"}
+2026-11-27 14:53:00 grab l3-d1-doom 2362306
+2026-11-27 14:53:00 done 34 {"ok": true}
+2026-11-27 14:53:00 run 35 {"op": "sleep", "s": 3}
+2026-11-27 14:53:03 done 35 {}
+2026-11-27 14:53:03 run 36 {"op": "grab", "name": "l3-d2-doom"}
+2026-11-27 14:53:03 grab l3-d2-doom 1076028
+2026-11-27 14:53:03 done 36 {"ok": true}
+2026-11-27 14:53:03 run 37 {"op": "stop"}
+2026-11-27 14:53:03 input detached
+2026-11-27 14:53:06 done 37 {"state": "idle"}
+2026-11-27 14:53:06 run 38 {"op": "sleep", "s": 3}
+2026-11-27 14:53:09 done 38 {}
+2026-11-27 14:53:09 run 39 {"op": "grab", "name": "l3-s1"}
+2026-11-27 14:53:09 grab l3-s1 6154
+2026-11-27 14:53:09 done 39 {"ok": true}
+2026-11-27 14:53:09 run 40 {"op": "load"}
+2026-11-27 14:53:20 done 40 {"load": {"state": "active"}, "seconds": 11.02, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:53:20 run 41 {"op": "grab", "name": "l4-t00"}
+2026-11-27 14:53:21 grab l4-t00 6154
+2026-11-27 14:53:21 done 41 {"ok": true}
+2026-11-27 14:53:21 run 42 {"op": "sleep", "s": 10}
+2026-11-27 14:53:31 done 42 {}
+2026-11-27 14:53:31 run 43 {"op": "grab", "name": "l4-t10"}
+2026-11-27 14:53:31 grab l4-t10 6154
+2026-11-27 14:53:31 done 43 {"ok": true}
+2026-11-27 14:53:31 run 44 {"op": "sleep", "s": 20}
+2026-11-27 14:53:51 done 44 {}
+2026-11-27 14:53:51 run 45 {"op": "grab", "name": "l4-t30"}
+2026-11-27 14:53:52 grab l4-t30 6154
+2026-11-27 14:53:52 done 45 {"ok": true}
+2026-11-27 14:54:45 run 46 {"op": "type", "text": "echo BLK > C:\\BLK.TXT\n"}
+2026-11-27 14:54:45 input attached
+2026-11-27 14:54:47 done 46 {}
+2026-11-27 14:54:47 run 47 {"op": "sleep", "s": 3}
+2026-11-27 14:54:50 done 47 {}
+2026-11-27 14:54:50 run 48 {"op": "grab", "name": "l4-t-typed"}
+2026-11-27 14:54:51 grab l4-t-typed 6154
+2026-11-27 14:54:51 done 48 {"ok": true}
+2026-11-27 14:54:51 run 49 {"op": "stop"}
+2026-11-27 14:54:51 input detached
+2026-11-27 14:54:54 done 49 {"state": "idle"}
+2026-11-27 14:54:54 run 50 {"op": "sleep", "s": 6}
+2026-11-27 14:55:00 done 50 {}
+2026-11-27 14:55:00 run 51 {"op": "grab", "name": "l4-s1"}
+2026-11-27 14:55:00 grab l4-s1 327195
+2026-11-27 14:55:00 done 51 {"ok": true}
+2026-11-27 14:55:42 run 52 {"op": "load"}
+2026-11-27 14:55:50 done 52 {"load": {"state": "active"}, "seconds": 8.16, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:55:50 run 53 {"op": "grab", "name": "l5-t00"}
+2026-11-27 14:55:50 grab l5-t00 6154
+2026-11-27 14:55:50 done 53 {"ok": true}
+2026-11-27 14:55:50 run 54 {"op": "sleep", "s": 10}
+2026-11-27 14:56:00 done 54 {}
+2026-11-27 14:56:00 run 55 {"op": "grab", "name": "l5-t10"}
+2026-11-27 14:56:01 grab l5-t10 421047
+2026-11-27 14:56:01 done 55 {"ok": true}
+2026-11-27 14:56:01 run 56 {"op": "sleep", "s": 10}
+2026-11-27 14:56:11 done 56 {}
+2026-11-27 14:56:11 run 57 {"op": "grab", "name": "l5-t20"}
+2026-11-27 14:56:11 grab l5-t20 421047
+2026-11-27 14:56:11 done 57 {"ok": true}
+2026-11-27 14:56:11 run 58 {"op": "stop"}
+2026-11-27 14:56:14 done 58 {"state": "idle"}
+2026-11-27 14:56:14 run 59 {"op": "sleep", "s": 6}
+2026-11-27 14:56:20 done 59 {}
+2026-11-27 14:56:20 run 60 {"op": "grab", "name": "l5-s1"}
+2026-11-27 14:56:20 grab l5-s1 327195
+2026-11-27 14:56:20 done 60 {"ok": true}
+2026-11-27 14:56:20 session closed {"state": "revoking", "reason": "owner released lease"}
+2026-11-27 14:56:20 after {"agent": "idle", "lease": "revoking"}

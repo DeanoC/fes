@@ -38,7 +38,7 @@
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
 //        [--ems-pages N] [--boot-key S:TEXT] [--x87 1]
 //        [--floppy A:F] [--floppy-type A:N] [--floppy-out A:F] [--floppy-read-only A]
-//        [--swap WHEN:A[:F[:ro]]]... [--boot-device N]
+//        [--swap WHEN:A[:F[:ro]]]... [--boot-device N] [--cmos-shutdown N]
 //        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1] [--stop-file F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -84,7 +84,12 @@
 // that a program can ask for its own swap, and a fourth field ro inserts the
 // new disk write-protected.
 // --boot-device is the boot order (0 hard disk first, 1 A: then C:, the
-// sealed machine's, 2 CD), which the machine turns into CMOS 2Dh, 38h and 3Dh. It prints:
+// sealed machine's, 2 CD), which the machine turns into CMOS 2Dh, 38h and 3Dh.
+// --cmos-shutdown writes CMOS 0Fh, the shutdown status, through ports 70h and
+// 71h once the RTC's configuration has landed and before the CPU runs, as a
+// restored fes.pc386.machine record leaves it: a record saved at a Stop while
+// a DOS extender ran holds the status it left there (09h under DOS/4GW). The
+// launch is a power-on all the same, and POST must boot (#2353). It prints:
 //   FLOPPY <A|B> <format> <file>[ read-only]  a disk in a drive
 //   FLOPPY <A|B> empty                        the drive is empty
 //   FLOPPY-SWAP <seconds> <A|B>               a swap starts
@@ -1493,6 +1498,7 @@ struct Options {
     struct Swap { double at; std::string mark; unsigned drive; std::string path; bool write_protected; };
     std::vector<Swap> swaps;
     unsigned boot_device = 1;   // CMOS 3Dh: 0 hard disk, 1 A: then C: (the sealed machine), 2 CD
+    int cmos_shutdown = -1;     // CMOS 0Fh at launch, as a restored record leaves it; -1 leaves it alone
 };
 
 template <typename Top, typename Clock>
@@ -1609,6 +1615,10 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--cmos-shutdown") {
+            options.cmos_shutdown = int(std::stoul(value, nullptr, 0));
+            if (options.cmos_shutdown > 0xff) throw std::runtime_error("--cmos-shutdown is a byte");
+        }
         else if (flag == "--x87") options.x87 = std::stoul(value) != 0;
         // --floppy A:FILE, --floppy-type B:2, --floppy-out A:FILE,
         // --floppy-read-only A, --swap SECONDS:A[:FILE], --boot-device N
@@ -1696,6 +1706,14 @@ int main(int argc, char **argv) {
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages,
                         options.x87, options.floppy, options.boot_device);
+        if (options.cmos_shutdown >= 0) {
+            machine.request(true, 0x70, 1, 0x0f);
+            machine.request(true, 0x71, 1, uint32_t(options.cmos_shutdown));
+            machine.request(true, 0x70, 1, 0x0f);
+            if ((machine.request(false, 0x71, 1, 0) & 0xff) != uint32_t(options.cmos_shutdown))
+                throw std::runtime_error("CMOS 0Fh did not take --cmos-shutdown");
+            std::printf("CMOS-SHUTDOWN %02x\n", options.cmos_shutdown);
+        }
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {

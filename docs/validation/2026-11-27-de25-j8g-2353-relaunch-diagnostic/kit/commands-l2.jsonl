@@ -1,0 +1,10 @@
+{"op":"load"}
+{"op":"sleep","s":12}
+{"op":"grab","name":"m1-t12"}
+{"op":"type","text":"cd \\doom\n"}
+{"op":"sleep","s":2}
+{"op":"type","text":"doom\n"}
+{"op":"sleep","s":20}
+{"op":"grab","name":"m1-doom"}
+{"op":"stop"}
+{"op":"quit"}
