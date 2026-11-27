@@ -522,6 +522,24 @@ func TestHomeResumeAfterEarlyOpenKeepsSelectedFamily(t *testing.T) {
 	}
 }
 
+func TestHomeResumeWithoutRegisteredFamilies(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{}, release: make(chan struct{})}
+	t.Cleanup(func() { close(held.release) })
+	r := loadHome(t, Options{Local: held, ReleaseOnly: true})
+	// The built-in system registry normally has families. Exercise the
+	// existing empty-list fallback before the initial reads have settled.
+	if err := r.CheckGlobal(`(function() local f = require("families").list; for i = #f, 1, -1 do f[i] = nil end; return true end)()`); err != nil {
+		t.Fatal(err)
+	}
+	r.Resume()
+	if err := r.Err(); err != nil {
+		t.Fatalf("resume without families: %v", err)
+	}
+	if d := r.Destination(); d.Kind != KindUnresolved || d.Status != "No computers are registered." {
+		t.Fatalf("empty Home destination: %+v", d)
+	}
+}
+
 func TestHomeRestoresTheSavedFamily(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "home.state.json")
 	if err := os.WriteFile(storePath, []byte(`{"focus":"family:fes.atari-st"}`), 0o644); err != nil {

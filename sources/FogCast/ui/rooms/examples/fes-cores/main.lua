@@ -195,7 +195,7 @@ end
 function on_resume()
   -- A ready family can be opened before the kit shelf settles. Returning to
   -- Home must keep that destination rather than choose a late first opening.
-  if not opened and not moved and F.state(families[family_i]) == "ready" then moved = true end
+  if not opened and not moved and families[family_i] and F.state(families[family_i]) == "ready" then moved = true end
   F.reload()
   load_recents()
 end
