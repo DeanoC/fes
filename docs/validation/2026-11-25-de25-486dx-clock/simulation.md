@@ -282,10 +282,21 @@ SHA-256 is
 checks, 23,795 transcendental checks and 3,356,352 TestFloat vectors.
 All 84 TestFloat streams match their pinned references. Both the direct
 unit and TestFloat unit measured 13 clocks through FMUL, matching the
-single-stage x87. G4 and G5 are running on this source.
+single-stage x87.
+
+[G4](sim-c28-f3-g4.json) passed. Doom used equal 55,952,384-clock
+windows and measured 2,180.252 normalized DX-33 realtics. The 3DBench pair
+completed equal 391,666,688-clock windows at guest time 11.500 seconds,
+with a DX/reference CPI ratio of 1.0150483. The complete analysis and
+all 48 paired raw 3DBench frames match the earlier C28 replay byte for
+byte. G5 is running on the merged source.
 
 Revision `2bc8a55e333bfc124c5dca3901ef813e083ee543` reproduced the 78
 tracked and generated game inputs, ordered dependency lists, guest
 rates, ATA media and x87 selection against `7c7d1a99`. The compiled-input
 receipt SHA-256 is
 `a0e2e99eb5af8ae6d32ffb1db038e9834a91dbacffdba00b71894e114ba27c82`.
+`a12785b3334f1482660c211c3e547361a2f1647d` also reproduced the 78
+inputs and their ordered lists, guest rates and media against
+`2bc8a55e`. The compiled-input receipt SHA-256 is
+`df949eea3cba1e9edeecdfae1a1946d6c288bc4aad4c437104e70ad7d1193582`.

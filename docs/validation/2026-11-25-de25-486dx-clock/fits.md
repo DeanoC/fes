@@ -1138,6 +1138,12 @@ passed at +0.035 ns, hold at 0.000 ns, and independent LOADED at
 worst slack and −0.826 ns total negative slack. Of the eight failing
 paths, only bit 26 had a fitter-only target. The result SHA-256 is
 `63a5d11ff34658f293598b53b73509828cdf971cf54f367d5f2855318eca3976`.
+The final QDB reports the ordinary 8.296 ns net requirement for all 31
+command paths. No fitter-only target appeared in the final net-delay
+report. Quartus did not retain loadable planned or placed snapshots
+because intermediate snapshots were disabled, so direct pre-route
+readback remains unverified. The final receipt SHA-256 is
+`d1f172265eb5723fc01b0e81083b622ef87af408027ac7caabff0c923e871c7f`.
 
 Across all 372 native measurements in the three donors, each of the
 31 command bits has an effective-delay witness below 5.046 ns.
@@ -1149,6 +1155,15 @@ The registered QSF matches that candidate byte for byte. The phase
 fixture preserves all 110 ordinary constraints in the final phases.
 Fresh DE10, seven D12 selections, and compiled game input checks passed.
 The fit must still close the original timing bounds on the whole bus.
+The Chip seed 2 fit used 45,174.7 ALMs and 42 DSPs. It passed independent
+LOADED at 3.234 ns. Setup missed by −0.033 ns and the command datapath
+missed by −0.213 ns. The admission report also flags three unreviewed
+TMC rules. Its summary SHA-256 is
+`ade872961ce73efad3adb220cb0d320e8977758f84e9bd59f1e39725ca2c955d`.
+The Chip trial used the same source and Yosys commit with that host's
+authenticated executable. It is an independent candidate fit.
+The same revision also started on Powerboat for comparison with the
+earlier fits from that builder.
 
 ## Integrated C0 = 28 fallback
 
@@ -1203,6 +1218,29 @@ Refreshed seed 1 passed admission and sealed with +0.082 ns worst
 setup and 2.719 ns independent LOADED. It used 45,204.5 ALMs and 42
 DSPs. Its summary SHA-256 is
 `2d53a9835f7a397970023f02dc2c922d349046c00305aa124ef86cbdd73251a9`.
+Seed 2 also passed and sealed with +0.221 ns worst setup and 2.188 ns
+independent LOADED. Its summary SHA-256 is
+`98c2d447d29f6f4e2f9c172ab401c0a8459137168db3ef11b3160e97c114824c`.
+Seed 3 passed raw timing at +0.142 ns worst setup and measured 2.746 ns
+independent LOADED. Its producer refused one newly indexed copy,
+`cpu_halted~DUPLICATE_Duplicate_3`. The exact copied register passed
+28 timing checks, eight keeper checks and unconstrained-path review.
+Worst setup was +2.216 ns and worst hold was +0.192 ns through that
+register. The structural receipt SHA-256 is
+`198df8b6215c1e0448da8d941959a9f58219aef82c5b4867635cba798ca0ef46`.
+Seed 4 passed and sealed with +0.223 ns worst setup and 2.630 ns
+independent LOADED. All four seeds on this revision passed raw timing
+and LOADED. Seed 3 did not receive a normal seal. The four-seed receipt
+SHA-256 is
+`d3d37876f90e341eb44c9dbacd07e8ad225adf7e2f8aa1f74506e44c11c304dc`.
+
+Revision `a12785b3334f1482660c211c3e547361a2f1647d` binds the measured
+indexed mixed-duplicate family to the existing DX fitted proof. Its
+ordinary control classifier is unchanged. The check revalidated the
+captured sets of 47 and 38 subjects and the exact new registers' fitted
+proofs. All 56 focused tests, `make check`, fresh DE10 and all seven
+D12 selections passed. Its preparation receipt SHA-256 is
+`03d7f5953d6db5631d3173dfe143a184c632a79a89d1fc139595aee9e83c3991`.
 
 ## Running a seed on either builder
 
