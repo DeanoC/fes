@@ -544,8 +544,8 @@ local function picture(part)
       text("Preview",236,166,13,C.ink,120,true)
     end
   end
-  if has_socket then
-    button("socket","Rear expansion",372,182,200,40,true,function() focus="card:1" end)
+  if not machine or has_socket then
+    button("socket","Rear expansion",372,182,200,40,has_socket,function() focus="card:1" end)
   end
   local readonly=data and data.expansion_selection == false
   local save_guidance=readonly and ("Open the "..workshop_title().." on the host computer to choose Fit & save.") or "A saved setup remembers the machine, not its running memory."
@@ -631,8 +631,8 @@ local function picture(part)
   -- including the bolder focused face. Refresh and Library stay beside it.
   button("shelf_page","More cards",776,480,188,28,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
   button("refresh",loading and "Checking..." or "Refresh",976,480,120,28,not loading and not saving,function() read() end)
-  if machine and machine.socket.supported then
-    button("import_card","Import expansion",776,514,188,28,not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  if not machine or has_socket then
+    button("import_card","Import expansion",776,514,188,28,has_socket and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
   end
 
   -- The host cassette label, on its own row above the machine controls.
