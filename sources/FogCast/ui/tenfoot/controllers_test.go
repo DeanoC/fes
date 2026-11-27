@@ -59,6 +59,11 @@ func controllerRow(t *testing.T, app *App, label string) ControllerRow {
 
 func savedProfile(t *testing.T, app *App) (inputmap.Profile, bool) {
 	t.Helper()
+	return savedProfileForGUID(t, app, testPadGUID)
+}
+
+func savedProfileForGUID(t *testing.T, app *App, guid string) (inputmap.Profile, bool) {
+	t.Helper()
 	prefs, err := loadTenfootPrefs(app.prefsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -66,7 +71,7 @@ func savedProfile(t *testing.T, app *App) (inputmap.Profile, bool) {
 		}
 		t.Fatal(err)
 	}
-	profile, ok := prefs.Controllers[testPadGUID]
+	profile, ok := prefs.Controllers[guid]
 	return profile, ok
 }
 
@@ -746,7 +751,7 @@ func TestControllersSettingsChordDefaultToggleAndPrompts(t *testing.T) {
 	if got := app.Snapshot().Prompts.apply("GUIDE settings"); got != wantGuide {
 		t.Fatalf("prompt after disabling SettingsCombo = %q, want %q", got, wantGuide)
 	}
-	if p, ok := savedProfile(t, app); !ok || p.SettingsCombo != inputmap.SettingsComboOff {
+	if p, ok := savedProfileForGUID(t, app, snesGUID); !ok || p.SettingsCombo != inputmap.SettingsComboOff {
 		t.Fatalf("saved SettingsCombo = (%+v, %v), want %q", p, ok, inputmap.SettingsComboOff)
 	}
 
@@ -756,7 +761,7 @@ func TestControllersSettingsChordDefaultToggleAndPrompts(t *testing.T) {
 	if snap := app.Snapshot().Controllers; !snap.SettingsCombo {
 		t.Fatal("expected reset to restore SettingsCombo=true on NoGuide pad")
 	}
-	if _, ok := savedProfile(t, app); ok {
+	if _, ok := savedProfileForGUID(t, app, snesGUID); ok {
 		t.Fatal("expected reset of SettingsCombo-only override to clear saved profile")
 	}
 
