@@ -30,7 +30,7 @@ var ErrCapacity = errors.New("file exceeds its preallocated FAT32 capacity")
 
 const maxFileBytes = 64 << 20
 const maxDirectoryBytes = 4 << 20
-const maxTransferSectors = 128 // 64 KiB per coalesced ReadSectors/WriteSectors call
+const maxTransferSectors = 256 // 128 KiB per coalesced ReadSectors/WriteSectors call
 
 type entryLocation struct {
 	sector uint64

@@ -6,6 +6,7 @@ package de25nano
 import (
 	"fmt"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/dmaops"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 	"sync"
@@ -23,17 +24,20 @@ func (registers) Now() time.Time               { return time.Now() }
 var storageLock sync.Mutex
 var attempted bool
 
-// Retain an unresolved lease even when initialization returns an error.
+// Retain an unresolved lease and DMA pool even when initialization returns an error.
 var storageSession *sdcontrol.Session
+var ownedSDDMAPool *dmaops.Pool
 
 // StorageOptions configures opt-in SDHCI throughput modes forwarded through
 // sdcontrol. Zero values preserve the conservative 1-bit, single-sector,
-// identification-clock PIO transport. ADMA2 stays disabled at this board
-// boundary until EL3 BL31 SMMU stream authorization lands.
+// identification-clock PIO transport. UseADMA2 requires a firmware-admitted
+// uncached DMA window and EL3 SMMU SD-DMA bypass support.
 type StorageOptions struct {
 	TransferClockHz uint32
 	BusWidth4Bit    bool
 	MultiBlock      bool
+	UseCMD23        bool
+	UseADMA2        bool
 }
 
 func OpenStorage() (block.Device, error) {
@@ -74,6 +78,9 @@ func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Sess
 	if !profileSDControlEnabled || profileSDInputClockHz == 0 {
 		return nil, fmt.Errorf("de25-nano: SD is disabled by the firmware handoff")
 	}
+	if opts.UseADMA2 && (profileSDDMABase == 0 || profileSDDMABytes < 256<<10) {
+		return nil, fmt.Errorf("de25-nano: SD ADMA2 requires an admitted uncached DMA window")
+	}
 	storageLock.Lock()
 	defer storageLock.Unlock()
 	if attempted {
@@ -81,6 +88,16 @@ func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Sess
 	}
 	attempted = true
 	var err error
+	var dmaPool *dmaops.Pool
+	if opts.UseADMA2 {
+		if ownedSDDMAPool == nil {
+			ownedSDDMAPool, err = NewUncachedPool(profileSDDMABase, profileSDDMABytes)
+			if err != nil {
+				return nil, err
+			}
+		}
+		dmaPool = ownedSDDMAPool
+	}
 	// DE25-Nano manual revB, Figure 3-28/Table 3-23: microSD CLK/CMD/DAT[3:0]
 	// pass through the level translator; no socket write-protect input exists.
 	// This board property does not enable writes without the expected identity.
@@ -89,6 +106,9 @@ func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Sess
 		TransferClockHz:      opts.TransferClockHz,
 		BusWidth4Bit:         opts.BusWidth4Bit,
 		MultiBlock:           opts.MultiBlock,
+		UseCMD23:             opts.UseCMD23,
+		UseADMA2:             opts.UseADMA2,
+		DMAPool:              dmaPool,
 		WriteCard:            writeCard,
 		NoSocketWriteProtect: true,
 	})

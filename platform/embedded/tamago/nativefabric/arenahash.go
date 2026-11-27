@@ -39,3 +39,48 @@ func (h *arenaHash) sum384(source []byte) (result [48]byte) {
 	digest.Sum(result[:0])
 	return result
 }
+
+// sum256And384WithChunks reads all source bytes afresh once and computes the
+// whole-image SHA-256, whole-image SHA-384, and per-chunk SHA-384 digests.
+func (h *arenaHash) sum256And384WithChunks(source []byte, chunk int) (sum256 [32]byte, sum384 [48]byte, chunks [][48]byte) {
+	h256 := sha256.New()
+	h384 := sha512.New384()
+	if len(source) == 0 || chunk <= 0 {
+		for len(source) != 0 {
+			n := min(len(source), len(h.scratch))
+			copy(h.scratch[:n], source[:n])
+			s := h.scratch[:n]
+			h256.Write(s)
+			h384.Write(s)
+			source = source[n:]
+		}
+		h256.Sum(sum256[:0])
+		h384.Sum(sum384[:0])
+		return sum256, sum384, nil
+	}
+	chunks = make([][48]byte, 0, (len(source)+chunk-1)/chunk)
+	chunkHash := sha512.New384()
+	inChunk := 0
+	for len(source) != 0 {
+		n := min(len(source), len(h.scratch), chunk-inChunk)
+		copy(h.scratch[:n], source[:n])
+		s := h.scratch[:n]
+		h256.Write(s)
+		h384.Write(s)
+		chunkHash.Write(s)
+		source = source[n:]
+		inChunk += n
+		if inChunk == chunk || len(source) == 0 {
+			var d [48]byte
+			chunkHash.Sum(d[:0])
+			chunks = append(chunks, d)
+			if len(source) != 0 {
+				chunkHash.Reset()
+				inChunk = 0
+			}
+		}
+	}
+	h256.Sum(sum256[:0])
+	h384.Sum(sum384[:0])
+	return sum256, sum384, chunks
+}

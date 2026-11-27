@@ -32,11 +32,13 @@ struct fes_nano_sd_platform {
     struct fes_nano_sd_io io;
     uint32_t clocks[FES_NANO_SD_CLOCK_REGS], observed[FES_NANO_SD_CLOCK_REGS];
     unsigned attempted, initialized, failed, active, prepared, stage;
+    unsigned allow_dma, restore_smmu_abort;
     int first_error;
     uintptr_t last_address;
     uint32_t last_value, last_mask, last_expected;
 };
 int fes_nano_sd_platform_init(struct fes_nano_sd_platform *, struct fes_nano_cold *,
                               struct fes_nano_sd_io, unsigned qualifications);
+int fes_nano_sd_platform_enable_dma(struct fes_nano_sd_platform *);
 struct fes_nano_sd_ops fes_nano_sd_platform_ops(struct fes_nano_sd_platform *);
 #endif

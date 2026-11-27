@@ -108,6 +108,10 @@ func (d *Device) disableIRQLocked() {
 		d.irqGIC = nil
 		d.irqID = 0
 	}
+	if d.irqTimer != nil {
+		d.irqTimer.Stop()
+		d.irqTimer = nil
+	}
 }
 
 // IRQCount returns the number of SDHCI interrupts handled since EnableIRQ.

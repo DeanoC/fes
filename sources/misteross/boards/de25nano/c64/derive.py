@@ -181,6 +181,15 @@ CROSSING = (
      b"            acknowledge <= request_sync; have_frame <= 1;\n", 1),
 )
 
+# The pixel latch loads the 10 ns-bounded page alongside the synchronized
+# request and the producer holds it through acknowledgement. Identify this
+# latch as held data, as the DE25 PC/XT board does for its bank mailbox.
+NATIVE_PAGE_CAPTURE = (
+    (b"    (* preserve, dont_merge *) reg [1:0] read_code = 2'd0;\n",
+     b'    (* preserve, dont_merge, altera_attribute="-name SYNCHRONIZER_IDENTIFICATION OFF" *)\n'
+     b"    reg [1:0] read_code = 2'd0;\n", 1),
+)
+
 TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
 
 
@@ -242,7 +251,7 @@ def retarget_medium(source):
     ), "C64 D64 fetch")
 
 
-def retarget_frame_store(source):
+def retarget_frame_store(source, *, native=False):
     """Inferred pages in place of the placed M10K primitives; signoff-shaped crossings."""
     if source.count(STORE_BEGIN) != 1 or source.count(STORE_END) != 1:
         raise ValueError("C64 frame store adaptation contract changed")
@@ -254,6 +263,9 @@ def retarget_frame_store(source):
         raise ValueError("C64 frame store adaptation contract changed")
     stored = source[:start] + STORE_AFTER + source[stop:]
     result, record = _derive(stored, CROSSING, "C64 frame store crossing")
+    if native:
+        result, capture = _derive(result, NATIVE_PAGE_CAPTURE, "native C64 held page capture")
+        record.update(native_page_capture=capture, derived_sha256=sha(result))
     record["source_sha256"] = sha(source)
     record["removed_sha256"] = sha(removed)
     record["storage"] = STORE_AFTER.decode()

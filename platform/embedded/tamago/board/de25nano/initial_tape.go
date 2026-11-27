@@ -29,6 +29,17 @@ type inputBatcher interface {
 	WithInputBatch(uint64, func(computer.IO) error) error
 }
 
+// The native C64 uses both fixed live apertures in the same session.
+type c64LiveBatcher interface {
+	WithLiveMediaBatch(uint64, func(computer.IO) error) error
+	WithC64PickerBatch(uint64, func(computer.IO) error) error
+}
+
+type initialTapeC64CPU struct {
+	initialTapeFullCPU
+	c64LiveBatcher
+}
+
 type initialTapeFullCPU struct {
 	initialTapeMediaCPU
 	inputBatcher
@@ -63,7 +74,11 @@ func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric
 		if media, ok := cpu.(heldMediaBatcher); ok {
 			mediaCPU := initialTapeMediaCPU{wrapped, media}
 			if hasInput {
-				return initialTapeFullCPU{mediaCPU, inp}, nil
+				full := initialTapeFullCPU{mediaCPU, inp}
+				if live, ok := cpu.(c64LiveBatcher); ok {
+					return initialTapeC64CPU{full, live}, nil
+				}
+				return full, nil
 			}
 			return mediaCPU, nil
 		}

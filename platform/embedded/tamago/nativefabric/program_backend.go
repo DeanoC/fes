@@ -53,6 +53,7 @@ type ProgramBackend struct {
 	catalog       []*ProgramInstall
 	catalogBytes  int
 	stagedError   error
+	c64Disks      *ProgramC64DiskSet
 }
 
 func NewProgramBackend(service *ProgramService, entries []ProgramEntry) (*ProgramBackend, error) {
@@ -114,7 +115,9 @@ func (b *ProgramBackend) snapshot() map[string]any {
 		}
 		wire["id"], wire["game_id"], wire["target"], wire["target_id"], wire["flight_id"] = p.ID, p.Game, p.Target, p.TargetID, p.Flight
 		wire["system"], wire["media"] = "native", "active"
-		wire["core_package"] = &hostclient.SessionCorePackage{CoreID: v.Identity.CoreID, PackageID: v.Identity.PackageID, Generation: v.Generation, ROMLink: b.romLink, ABI: hostclient.SessionCoreABI{ID: v.Identity.ABI, Major: v.Identity.Major, Minor: v.Identity.Minor}}
+		pkg := &hostclient.SessionCorePackage{CoreID: v.Identity.CoreID, PackageID: v.Identity.PackageID, Generation: v.Generation, ROMLink: b.romLink, ABI: hostclient.SessionCoreABI{ID: v.Identity.ABI, Major: v.Identity.Major, Minor: v.Identity.Minor}}
+		wire["core_package"] = pkg
+		b.describeC64Disk(v, pkg, wire)
 	}
 	return wire
 }
@@ -146,6 +149,9 @@ func (b *ProgramBackend) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	path := r.URL.Path
+	if response, handled, err := b.c64DiskRequest(r); handled {
+		return response, err
+	}
 	if response, handled, err := b.stagedCatalogRequest(r); handled {
 		return response, err
 	}

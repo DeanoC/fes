@@ -21,8 +21,8 @@ static struct {
     uint32_t next,offset,phase,polls;
     unsigned active,failed;
 } computer_rom_step;
-static void dsbsy(void) {barrier(&model);}
-static uint32_t mmio_read_32(uintptr_t address)
+static void __attribute__((unused)) dsbsy(void) {barrier(&model);}
+static uint32_t __attribute__((unused)) mmio_read_32(uintptr_t address)
 {
     model.base.h.reads++;
     if(address==FES_NANO_COLD_RSTMGR+0x2c)return model.base.h.bridge;
@@ -126,8 +126,8 @@ int FES_NANO_ROM_OWNER_ENTRY(int argc,char **argv)
         before=cold_reads;
         assert(fes_nano_cold_owns(&provider,owner,provider.record.boot.epoch)==1);
         assert(computer_rom_owned(&provider,owner,generation)==1);
-        assert(cold_reads-before==104);
-        printf("PASS ROM shared ownership: cold reads=52/104 current/duplicated, fresh callbacks; PHY/pin readiness independent\n");
+        assert(cold_reads-before==91);
+        printf("PASS ROM shared ownership: cold reads=52/91 current/combined, fresh callbacks; PHY/pin readiness independent\n");
     } else {
         assert(result==0 && computer_rom_diagnostic.scope && !fake_calls);
         if(fault<=26 || fault==40)assert(reads==model.base.h.reads && accesses==model.accesses);

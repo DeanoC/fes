@@ -90,7 +90,7 @@ class SealedBuildStagingTests(unittest.TestCase):
 
     REVIEWS = ['signoff-async-input-review', 'signoff-audio-clock-review']
 
-    def sealed_build(self, *, c64):
+    def sealed_build(self, *, c64, picker=False):
         """One signoff fit: build_machine_package.py has no repeat compile since #2090."""
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -101,10 +101,17 @@ class SealedBuildStagingTests(unittest.TestCase):
         fields = {'parameters': {'programming_profile': profile,
                                  'fabric_initiator_policy': 'native-maintenance-absent-v1'},
                   'revision': 'a' * 40, 'repository': 'fes', 'recipe_sha256': 'b' * 64}
+        fields['source_inputs'] = {}
+        picker_bytes = b'C64 picker source'
+        if picker:
+            fields['source_inputs']['boards/de25nano/c64/fes_de25_c64_picker.v'] = spectrum.sha(picker_bytes)
         record = json.dumps(fields).encode()
         build = root / 'build'
         hps = build / 'signoff/combined/hps'
         (hps / 'project/output_files').mkdir(parents=True)
+        if picker:
+            (hps / 'project/fes_mailbox').mkdir()
+            (hps / 'project/fes_mailbox/fes_de25_c64_picker.v').write_bytes(picker_bytes)
         (build / 'build-inputs.json').write_bytes(record)
         (build / 'core.rbf').write_bytes(self.payload)
         self.record_timing(build, admitted=True)
@@ -183,6 +190,15 @@ class SealedBuildStagingTests(unittest.TestCase):
                     hps_parameters_sha256=spectrum.sha(spectrum.encode(self.hw['hps_parameters'])),
                     hps_configuration_sha256=spectrum.sha(b'configuration:' + self.pinmux),
                     archive_sha256=spectrum.sha(archive.read_bytes())))
+
+    def test_c64_picker_binds_the_fitted_source(self):
+        build, archive = self.sealed_build(c64=True, picker=True)
+        fitted = build / 'signoff/combined/hps/project/fes_mailbox/fes_de25_c64_picker.v'
+        proof, _ = self.inspect(build, archive, c64=True)
+        self.assertEqual(proof['c64_picker'], spectrum.sha(fitted.read_bytes()))
+        fitted.write_bytes(b'changed C64 picker source')
+        with self.assertRaisesRegex(ValueError, 'fitted C64 picker differs'):
+            self.inspect(build, archive, c64=True)
 
     def test_the_signoff_fit_still_has_to_pass_and_carry_the_package(self):
         build, archive = self.sealed_build(c64=True)

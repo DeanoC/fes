@@ -40,6 +40,7 @@ type spectrumFirmwareCPU struct {
 	romBatches    int
 	failROMBatch  bool
 	inDiskBatch   bool
+	failLiveBatch bool
 	diskBatches   int
 	diskBatchCost time.Duration
 	dmaStatus     uint32
@@ -100,7 +101,24 @@ func (c batchedSpectrumCPU) WithSpectrumROMBatch(base uint64, send func(computer
 	return nil
 }
 func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
-	if base != 0x20010300 || !c.active || !c.held || !c.ready || c.inDiskBatch {
+	if !c.held {
+		return errors.New("media batch outside held upload shell")
+	}
+	return c.withDiskBatch(base, send)
+}
+
+func (c *spectrumFirmwareCPU) WithLiveMediaBatch(base uint64, send func(computer.IO) error) error {
+	if c.held || !c.media.disk {
+		return errors.New("live batch outside running C64")
+	}
+	if c.failLiveBatch {
+		return errors.New("lost live C64 media batch acknowledgement")
+	}
+	return c.withDiskBatch(base, send)
+}
+
+func (c *spectrumFirmwareCPU) withDiskBatch(base uint64, send func(computer.IO) error) error {
+	if base != 0x20010300 || !c.active || !c.ready || c.inDiskBatch {
 		return errors.New("media batch outside held upload shell")
 	}
 	c.diskBatches++
@@ -113,7 +131,8 @@ func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer
 	if err := send(fixtureSpectrumROMRegisters{c}); err != nil {
 		return err
 	}
-	if len(c.media.image)-before != min(int(cg.FesComputerMediaChunkMaxBytes), int(cg.FesComputerC64DiskBytes)-before) {
+	total := int(c.media.header[0]) | int(c.media.header[1])<<16
+	if len(c.media.image)-before != min(int(cg.FesComputerMediaChunkMaxBytes), total-before) {
 		return errors.New("media batch did not deliver exactly one chunk")
 	}
 	return nil

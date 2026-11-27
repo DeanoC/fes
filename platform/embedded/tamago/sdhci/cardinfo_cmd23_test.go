@@ -126,7 +126,7 @@ func TestCMD23ConfigAndSCRRejection(t *testing.T) {
 }
 
 func TestCMD23MultiBlockPIOAndTailSingleSector(t *testing.T) {
-	hw := newAdvancedCard(256, 0, nil, cap33V)
+	hw := newAdvancedCard(512, 0, nil, cap33V)
 	hw.scr = [8]byte{0x02, 0x35, 0x80, 0x02} // SD 3.0x + CMD23
 
 	dev, err := Open(hw, Config{
@@ -143,13 +143,13 @@ func TestCMD23MultiBlockPIOAndTailSingleSector(t *testing.T) {
 		t.Fatal("CMD23Active = false")
 	}
 
-	// Read 129 sectors: chunk 1 = 128 sectors (CMD23 + CMD18), chunk 2 = 1 sector (CMD17, no CMD23).
+	// Read 257 sectors: chunk 1 = 256 sectors (CMD23 + CMD18), chunk 2 = 1 sector (CMD17, no CMD23).
 	hw.commands = nil
-	dst := make([]byte, 129*512)
+	dst := make([]byte, 257*512)
 	if err := dev.ReadSectors(10, dst); err != nil {
-		t.Fatalf("ReadSectors(129): %v", err)
+		t.Fatalf("ReadSectors(257): %v", err)
 	}
-	if !bytes.Equal(dst, hw.image[10*512:139*512]) {
+	if !bytes.Equal(dst, hw.image[10*512:267*512]) {
 		t.Fatal("CMD23 PIO read mismatch")
 	}
 	var opcodes []uint32
@@ -172,16 +172,16 @@ func TestCMD23MultiBlockPIOAndTailSingleSector(t *testing.T) {
 		t.Fatalf("CMD18 missing multi-block / block-count bits: %#x", cmd18Flags)
 	}
 
-	// Write 129 sectors: CMD23(128) + CMD25(128) + CMD13, then CMD24(1) + CMD13.
+	// Write 257 sectors: CMD23(256) + CMD25(256) + CMD13, then CMD24(1) + CMD13.
 	hw.commands = nil
-	payload := make([]byte, 129*512)
+	payload := make([]byte, 257*512)
 	for i := range payload {
 		payload[i] = byte((i*7 + 3) & 0xff)
 	}
 	if err := dev.WriteSectors(20, payload); err != nil {
-		t.Fatalf("WriteSectors(129): %v", err)
+		t.Fatalf("WriteSectors(257): %v", err)
 	}
-	if !bytes.Equal(hw.image[20*512:149*512], payload) {
+	if !bytes.Equal(hw.image[20*512:277*512], payload) {
 		t.Fatal("CMD23 PIO write mismatch")
 	}
 	opcodes = nil

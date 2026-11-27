@@ -61,6 +61,7 @@ type Store struct {
 	last     sdcontrol.Receipt
 	returned sdcontrol.Receipt
 	retired  bool
+	cache    *retainCache
 }
 
 // Selection contains only privately retained archive/linker bytes. No open
@@ -195,7 +196,11 @@ func (s *Store) ActiveReceipt() (sdcontrol.Receipt, error) {
 	return s.last, nil
 }
 
-func (s *Store) retire(err error) error { s.retired = true; return errors.Join(ErrRetired, err) }
+func (s *Store) retire(err error) error {
+	s.retired = true
+	s.invalidateCacheLocked()
+	return errors.Join(ErrRetired, err)
+}
 func (s *Store) observe() error {
 	if s.retired {
 		return ErrRetired
@@ -277,7 +282,7 @@ func readBoundedInput(ctx context.Context, files fs.FS, path string, limit int64
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
-		chunk := data[offset:min(offset+(32<<10), len(data))]
+		chunk := data[offset:min(offset+(64<<10), len(data))]
 		n, e := f.Read(chunk)
 		if n < 0 || n > len(chunk) {
 			return nil, errors.New("package store: invalid reader count")
@@ -334,6 +339,33 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 			err = errors.Join(err, e)
 		}
 	}()
+	if s.cache != nil {
+		if err = validateRequest(request); err != nil {
+			return nil, err
+		}
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
+		key := makeCacheKey(request)
+		if entry, ok := s.cache.get(key); ok {
+			return &Selection{
+				store:      s,
+				generation: s.last.Generation,
+				archive:    entry.archive,
+				linked:     entry.linked,
+				metadata:   entry.metadata,
+				tape:       entry.tape,
+				tapeFormat: entry.tapeFormat,
+			}, nil
+		}
+		selection, err = retainSelection(ctx, s.files, request)
+		if err == nil {
+			selection.store = s
+			selection.generation = s.last.Generation
+			s.cache.put(key, selection, selectionSizeBytes(selection))
+		}
+		return selection, err
+	}
 	selection, err = retainSelection(ctx, s.files, request)
 	if err == nil {
 		selection.store = s
@@ -342,31 +374,38 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	return selection, err
 }
 
+func validateRequest(request Request) error {
+	if !pathOK(request.Path) || !digest(request.PackageID) || len(request.Sources) > 2 || len(request.Parts) > 2 {
+		return ErrState
+	}
+	if (request.MetadataPath == "") != (request.MetadataSHA256 == "") ||
+		request.MetadataPath != "" && (!pathOK(request.MetadataPath) || !digest(request.MetadataSHA256)) {
+		return ErrState
+	}
+	if err := request.Tape.Validate(); err != nil {
+		return err
+	}
+	for _, v := range request.Sources {
+		if !pathOK(v.Path) || !digest(v.SHA256) {
+			return ErrState
+		}
+	}
+	for _, v := range request.Parts {
+		if !pathOK(v.Path) || !digest(v.ID) || !digest(v.SHA256) {
+			return ErrState
+		}
+	}
+	return nil
+}
+
 // The normal storage path and in-memory install preparation share one validator.
 // An unbound selection has no storage handoff or programming authority.
 func retainSelection(ctx context.Context, files fs.FS, request Request) (selection *Selection, err error) {
 	if ctx == nil || files == nil {
 		return nil, ErrState
 	}
-	if !pathOK(request.Path) || !digest(request.PackageID) || len(request.Sources) > 2 || len(request.Parts) > 2 {
-		return nil, ErrState
-	}
-	if (request.MetadataPath == "") != (request.MetadataSHA256 == "") ||
-		request.MetadataPath != "" && (!pathOK(request.MetadataPath) || !digest(request.MetadataSHA256)) {
-		return nil, ErrState
-	}
-	if err := request.Tape.Validate(); err != nil {
+	if err := validateRequest(request); err != nil {
 		return nil, err
-	}
-	for _, v := range request.Sources {
-		if !pathOK(v.Path) || !digest(v.SHA256) {
-			return nil, ErrState
-		}
-	}
-	for _, v := range request.Parts {
-		if !pathOK(v.Path) || !digest(v.ID) || !digest(v.SHA256) {
-			return nil, ErrState
-		}
 	}
 	archive, err := retainArchive(ctx, files, request.Path)
 	if err != nil {

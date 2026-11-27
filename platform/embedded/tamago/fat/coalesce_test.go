@@ -138,7 +138,7 @@ func TestCoalescedCreateReadWriteLargeFile(t *testing.T) {
 	if err := v.Mkdir(ctx, "FES"); err != nil {
 		t.Fatalf("Mkdir: %v", err)
 	}
-	// Create a 200 KiB + 333 byte file (51 clusters, 401 sectors -> > 3x 64 KiB chunks).
+	// Create a 200 KiB + 333 byte file (51 clusters, 401 sectors -> > 128 KiB maxTransferSectors).
 	payload := make([]byte, 200*1024+333)
 	for i := range payload {
 		payload[i] = byte((i*37 + i/512) & 0xff)
@@ -151,7 +151,7 @@ func TestCoalescedCreateReadWriteLargeFile(t *testing.T) {
 		t.Fatalf("CreateFile maxWriteSecs=%d, want %d", d.maxWriteSecs, maxTransferSectors)
 	}
 
-	// ReadFile must coalesce reads into 64 KiB chunks (plus 1 partial tail sector).
+	// ReadFile must coalesce reads into 128 KiB chunks (plus tail sectors).
 	d.resetCounters()
 	got, err := v.ReadFile("FES/LARGE.BIN")
 	if err != nil {
@@ -195,7 +195,7 @@ func TestCoalescedCreateReadWriteLargeFile(t *testing.T) {
 	}
 
 	// WriteFile shrinks file and must coalesce writes AND zero-pad trailing sectors.
-	shorter := bytes.Repeat([]byte{0xab}, 70*1024+17)
+	shorter := bytes.Repeat([]byte{0xab}, 140*1024+17)
 	d.resetCounters()
 	if err := v.WriteFile("FES/LARGE.BIN", shorter); err != nil {
 		t.Fatalf("WriteFile: %v", err)

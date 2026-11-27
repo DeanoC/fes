@@ -36,6 +36,7 @@ var expectedProgramPlatform, expectedSelectedPrograms string
 var expectedCompiledMenuProgram, expectedCompiledSpectrum48, expectedSharedCoreShell string
 var expectedTenfootSerial string
 var expectedWritableStoragePlan, expectedSDTransferClock string
+var expectedSDBusWidth, expectedSDMultiBlock, expectedSDCMD23, expectedSDADMA2 string
 var programWritableStorageSelected bool
 var programService *nativefabric.ProgramService
 var retained *nativefabric.ConfigurationTransfer
@@ -59,9 +60,18 @@ func main() {
 		panic("shared core shell requires the paired native platform")
 	}
 	var writablePlan *storagepolicy.Plan
+	var sdTransferClockHz uint32
 	if expectedWritableStoragePlan != "" {
-		if expectedSDTransferClock != "25000000" || expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" {
-			panic("writable storage requires selected native Tenfoot and 25 MHz transport")
+		switch expectedSDTransferClock {
+		case "25000000":
+			sdTransferClockHz = 25000000
+		case "50000000":
+			sdTransferClockHz = 50000000
+		default:
+			panic("writable storage requires selected native Tenfoot and 25 MHz or 50 MHz transport")
+		}
+		if expectedSelectedPrograms != "1" || expectedTenfootSerial != "1" {
+			panic("writable storage requires selected native Tenfoot and 25 MHz or 50 MHz transport")
 		}
 		p, err := storagepolicy.ParsePlan(decoded(expectedWritableStoragePlan, 8192))
 		if err != nil {
@@ -70,6 +80,18 @@ func main() {
 		writablePlan = &p
 	} else if expectedSDTransferClock != "" {
 		panic("native transfer clock requires trusted writable storage plan")
+	}
+	if expectedSDBusWidth != "" && expectedSDBusWidth != "1" && expectedSDBusWidth != "4" {
+		panic("invalid SD bus width selection")
+	}
+	if expectedSDMultiBlock != "" && expectedSDMultiBlock != "1" {
+		panic("invalid SD multi-block selection")
+	}
+	if expectedSDCMD23 != "" && (expectedSDCMD23 != "1" || expectedSDMultiBlock != "1") {
+		panic("SD CMD23 requires multi-block transport")
+	}
+	if expectedSDADMA2 != "" && expectedSDADMA2 != "1" {
+		panic("invalid SD ADMA2 selection")
 	}
 	if expectedMenuPresent != "" || expectedMenuReadMap != "" {
 		if expectedMenuPresent != "1" || expectedMenuReadMap == "" ||
@@ -160,10 +182,17 @@ func main() {
 	de25nano.StartupCheckpoint("verifier_ready")
 	de25nano.StartupCheckpoint("sd_open_begin")
 	var disk block.Device
+	sdOpts := de25nano.StorageOptions{
+		TransferClockHz: sdTransferClockHz,
+		BusWidth4Bit:    expectedSDBusWidth == "4",
+		MultiBlock:      expectedSDMultiBlock == "1",
+		UseCMD23:        expectedSDCMD23 == "1",
+		UseADMA2:        expectedSDADMA2 == "1",
+	}
 	if writablePlan != nil {
-		disk, err = de25nano.OpenWritableStorageAtClock(writablePlan.Identity(), 25000000)
+		disk, err = de25nano.OpenWritableStorageWithOptions(writablePlan.Identity(), sdOpts)
 	} else {
-		disk, err = board.OpenStorage()
+		disk, err = de25nano.OpenStorageWithOptions(sdOpts)
 	}
 	if err != nil {
 		panic(err)
@@ -173,7 +202,7 @@ func main() {
 	if !ok {
 		panic(errors.New("FPGA load requires owned SD storage"))
 	}
-	if err := lease.EnableCache(block.CacheConfig{Capacity: 128}); err != nil {
+	if err := lease.EnableCache(block.CacheConfig{Capacity: 2048}); err != nil {
 		panic(err)
 	}
 	var volume fs.FS
@@ -194,6 +223,9 @@ func main() {
 	de25nano.StartupCheckpoint("fat_mount_end")
 	store, err := packagestore.New(volume, lease)
 	if err != nil {
+		panic(err)
+	}
+	if err := store.EnableCache(64 << 20); err != nil {
 		panic(err)
 	}
 	// The selected frontend is a build-tag constant. Keep the other diagnostic
@@ -408,6 +440,7 @@ func program(v *nativefabric.HPSContextVerifier, configuration []byte, source na
 	}()
 	started := time.Now()
 	deadline := started.Add(20 * time.Second)
+	busyDelay := time.Millisecond
 	for {
 		phase := retained.Status().Phase
 		if !time.Now().Before(deadline) {
@@ -427,7 +460,14 @@ func program(v *nativefabric.HPSContextVerifier, configuration []byte, source na
 			break
 		}
 		if busy {
-			time.Sleep(time.Millisecond)
+			if rem := time.Until(deadline); rem > 0 {
+				time.Sleep(min(busyDelay, rem))
+			}
+			if busyDelay < 10*time.Millisecond {
+				busyDelay = min(busyDelay*2, 10*time.Millisecond)
+			}
+		} else {
+			busyDelay = time.Millisecond
 		}
 	}
 	status := retained.Status()
