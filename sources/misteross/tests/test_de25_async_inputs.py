@@ -38,6 +38,28 @@ class AsyncInputBindingTests(unittest.TestCase):
 
         self.assertEqual(result['build_record_sha256'], hashlib.sha256(record).hexdigest())
 
+    def test_ramtest_accepts_only_its_own_review_recipe(self):
+        record = {'format': 1, 'recipe': 'boards/de25nano/producers/build_ramtest_package.py',
+                  'revision': 'a' * 40, 'parameters': {
+                      'core_id': 'fes.ramtest', 'standard_core': True,
+                      'programming_profile': 'de25-linux-computer-v1'}}
+        raw = json.dumps(record).encode()
+        identity = hashlib.sha256(raw).hexdigest()[:32]
+        (self.root / 'build-inputs.json').write_bytes(raw)
+        inputs = {'fes_revision': 'a' * 40, 'standard_zx81': {'build_id': identity},
+                  'scanout': {'build_identity_scheme': 'canonical-standard-computer-v2',
+                              'build_id': identity}}
+        (self.hps / 'inputs.json').write_text(json.dumps(inputs))
+        self.assertEqual(async_inputs.bindings(self.fit)['build_record_sha256'], hashlib.sha256(raw).hexdigest())
+        inputs['scanout']['build_id'] = '0' * 32
+        (self.hps / 'inputs.json').write_text(json.dumps(inputs))
+        with self.assertRaisesRegex(async_inputs.BuildError, 'standard profile/scanout identity mismatch'):
+            async_inputs.bindings(self.fit)
+        record['recipe'] = 'boards/de25nano/producers/build_spectrum_package.py'
+        (self.root / 'build-inputs.json').write_text(json.dumps(record))
+        with self.assertRaisesRegex(async_inputs.BuildError, 'unsupported canonical input-review core/recipe'):
+            async_inputs.bindings(self.fit)
+
     def test_unknown_core_cannot_reuse_the_spectrum_recipe(self):
         record = json.dumps({'format': 1, 'recipe':
             'boards/de25nano/producers/build_spectrum_package.py', 'revision': 'a' * 40,

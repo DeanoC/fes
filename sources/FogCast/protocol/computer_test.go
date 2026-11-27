@@ -240,6 +240,65 @@ func TestPc386MachineRecordAlonePersists(t *testing.T) {
 	}
 }
 
+func TestPcxtMachineRecordPersistsWithoutBoundFloppy(t *testing.T) {
+	machine := RuntimeInterface{ID: PcxtMachineInterface().ID, Major: PcxtMachineInterface().Major}
+	floppy := RuntimeInterface{ID: PcxtFloppyInterface().ID, Major: PcxtFloppyInterface().Major}
+	emptyUnit := MediaUnitStatus{
+		Unit:       PcxtFloppyUnit,
+		Interface:  PcxtFloppyInterface(),
+		MinBytes:   uint32(PcxtFloppyBytes),
+		MaxBytes:   uint32(PcxtFloppyBytes),
+		ChunkBytes: 512,
+		State:      MediaUnitEmpty,
+	}
+	volatileReadyUnit := emptyUnit
+	volatileReadyUnit.State = MediaUnitReady
+
+	withEmptyFloppy := &CorePackageStatus{
+		PackageID:        strings.Repeat("a", 64),
+		Generation:       3,
+		PersistenceMode:  "persistent",
+		ABI:              RuntimeContract{ID: ComputerABIID, Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{floppy, machine},
+		MediaUnits:       []MediaUnitStatus{emptyUnit},
+	}
+	withVolatileFloppy := *withEmptyFloppy
+	withVolatileFloppy.MediaUnits = []MediaUnitStatus{volatileReadyUnit}
+	recordOnly := *withEmptyFloppy
+	recordOnly.ActiveInterfaces = []RuntimeInterface{machine}
+	recordOnly.MediaUnits = nil
+
+	for name, status := range map[string]*CorePackageStatus{
+		"empty floppy":    withEmptyFloppy,
+		"volatile floppy": &withVolatileFloppy,
+		"record only":     &recordOnly,
+	} {
+		if !PersistentMediaStatusValid(status) || PersistentMediaBound(status) {
+			t.Errorf("%s rejected or marked media-bound: valid=%v bound=%v", name, PersistentMediaStatusValid(status), PersistentMediaBound(status))
+		}
+	}
+
+	missingUnit := *withEmptyFloppy
+	missingUnit.MediaUnits = nil
+	legacy := *withEmptyFloppy
+	legacy.ABI.Minor = 0
+	recordless := *withEmptyFloppy
+	recordless.ActiveInterfaces = []RuntimeInterface{floppy, {ID: PcxtFloppyWriteInterface().ID, Major: PcxtFloppyWriteInterface().Major}}
+	withAta := *withEmptyFloppy
+	withAta.ActiveInterfaces = []RuntimeInterface{{ID: AtaDiskInterface().ID, Major: AtaDiskInterface().Major}, machine}
+	withAta.MediaUnits = nil
+	for name, status := range map[string]*CorePackageStatus{
+		"floppy without its unit": &missingUnit,
+		"computer 1.0":            &legacy,
+		"recordless floppy":       &recordless,
+		"ata disk without unit":   &withAta,
+	} {
+		if PersistentMediaStatusValid(status) {
+			t.Errorf("%s accepted as persistent", name)
+		}
+	}
+}
+
 func TestMediaUnitKeepsV10ContractsOnComputer11(t *testing.T) {
 	floppy := AtariStFloppyInterface()
 	unit := MediaUnitStatus{Unit: AtariStFloppyUnit, Interface: floppy,

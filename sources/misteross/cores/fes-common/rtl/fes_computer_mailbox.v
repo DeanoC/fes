@@ -47,6 +47,7 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_ATA_DISK = 0,
     parameter bit ENABLE_PERSISTENCE = 0,
     parameter bit ENABLE_PC386_MACHINE = 0,
+    parameter bit ENABLE_PCXT_MACHINE = 0,
     parameter bit ENABLE_WALL_CLOCK = 0, parameter bit ENABLE_PC_FLOPPY = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
@@ -142,10 +143,12 @@ module fes_computer_mailbox_core #(
         (ENABLE_WALL_CLOCK ? `FES_COMPUTER_INTERFACE_RTC_WALL_CLOCK_CAPABILITY_MASK : 32'd0) |
         (ENABLE_PC386_MACHINE ? `FES_COMPUTER_INTERFACE_PC386_MACHINE_CAPABILITY_MASK : 32'd0) |
         (ENABLE_PCXT_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_CAPABILITY_MASK : 32'd0) |
-        (PCXT_WRITE ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_WRITE_CAPABILITY_MASK : 32'd0) | (ENABLE_PC_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PC_FLOPPY_CAPABILITY_MASK : 32'd0);
+        (PCXT_WRITE ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_WRITE_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_PC_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PC_FLOPPY_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_PCXT_MACHINE ? `FES_COMPUTER_INTERFACE_PCXT_MACHINE_CAPABILITY_MASK : 32'd0);
     localparam [15:0] CAPABILITIES_HIGH = CAPABILITIES_1_1[31:16];
     localparam bit MINOR_1 = CAPABILITIES_HIGH != 16'd0;
-    localparam bit DATA = ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE;
+    localparam bit DATA = ENABLE_PERSISTENCE && (ENABLE_PC386_MACHINE || ENABLE_PCXT_MACHINE);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);
@@ -837,6 +840,70 @@ module fes_computer_mailbox_pcxt #(
         .storage_request(), .storage_opcode(), .storage_index(), .storage_argument(),
         .storage_response_valid(1'b0), .storage_response_error(1'b0),
         .storage_response_data(16'b0), .execution_accepted()
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
+endmodule
+
+// Extended PC/XT mailbox exposing the storage port for fes.pcxt.machine 1.0.
+module fes_computer_mailbox_pcxt_machine #(
+    parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUDIO = 0, ENABLE_WRITE = 0, ENABLE_MACHINE = 0
+) (
+    input wire clk,
+    input wire [31:0] gpo,
+    input wire [127:0] build_id,
+    output wire [31:0] gpi,
+    output wire exec_reset,
+    output wire [143:0] keyboard_rows,
+    input wire media_reset,
+    output wire [18:0] media_write_addr,
+    output wire [15:0] media_write_data,
+    output wire [1:0] media_write_enable,
+    input wire media_write_ready,
+    input wire media_write_busy, media_changed,
+    output wire media_frozen, media_read_req,
+    output wire [19:0] media_read_addr,
+    input wire media_read_ready,
+    input wire [7:0] media_read_data,
+    output wire [1:0] unit0_state,
+    output wire [31:0] unit0_size,
+    output wire storage_request,
+    output wire [6:0] storage_opcode,
+    output wire [7:0] storage_index,
+    output wire [15:0] storage_argument,
+    input wire storage_response_valid,
+    input wire storage_response_error,
+    input wire [15:0] storage_response_data,
+    output wire execution_accepted
+);
+    /* verilator lint_off PINCONNECTEMPTY */
+    fes_computer_mailbox_core #(
+        .ENABLE_PCXT_FLOPPY(1), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_WRITE),
+        .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_AUDIO(ENABLE_AUDIO),
+        .ENABLE_PERSISTENCE(ENABLE_MACHINE), .ENABLE_PCXT_MACHINE(ENABLE_MACHINE),
+        .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
+        .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
+        .UNIT0_MAX(`FES_COMPUTER_PCXT_FLOPPY_BYTES)
+    ) core (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
+        .keyboard_rows(keyboard_rows), .controller_buttons(), .mouse_valid(), .mouse_dx(), .mouse_dy(),
+        .mouse_buttons(), .mouse_ready(1'b0),
+        .media_write_addr(media_write_addr), .media_write_data(media_write_data),
+        .media_write_enable(media_write_enable), .media_write_unit(),
+        .media_write_ready(media_write_ready), .media_write_busy(media_write_busy),
+        .media_changed(media_changed), .media_reset(media_reset), .media_frozen(media_frozen),
+        .media_read_req(media_read_req), .media_read_addr(media_read_addr),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
+        .unit0_state(unit0_state), .unit0_size(unit0_size), .unit1_state(), .unit1_size(),
+        .display_request(), .display_opcode(), .display_index(), .display_argument(),
+        .display_response_valid(1'b0), .display_response_error(1'b0),
+        .display_response_data(16'b0), .display_quiesced(1'b1),
+        .storage_request(storage_request), .storage_opcode(storage_opcode),
+        .storage_index(storage_index), .storage_argument(storage_argument),
+        .storage_response_valid(storage_response_valid),
+        .storage_response_error(storage_response_error),
+        .storage_response_data(storage_response_data),
+        .execution_accepted(execution_accepted)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

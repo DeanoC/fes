@@ -37,7 +37,7 @@ func TestKitForeignSessionReadIsObservationalAndResumesOwnedInput(t *testing.T) 
 	core := "Pong"
 	s := &foreignReadService{fakeService: &fakeService{status: protocol.Status{State: protocol.StateActive, ObservedCore: &core}}, kit: true, foreign: true, target: fogcast.KitHostTargetName}
 	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true, SessionID: "stale"}}
-	h := hostapi.New(s, hostapi.WithRemoteInputFactory(func(string) host.RemoteInputController { return input }))
+	h := hostapi.New(s, hostapi.WithRemoteInputFactory(func(string) (host.RemoteInputController, error) { return input, nil }))
 	response := serve(t, h, http.MethodGet, "/api/v1/session")
 	var body struct {
 		State string                 `json:"state"`
@@ -72,7 +72,7 @@ func TestKitForeignSessionReadFailsClosedWithoutFreshObservation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &foreignReadService{fakeService: &fakeService{status: protocol.Status{State: protocol.StateActive, ObservedCore: &core}}, kit: tc.kit, foreign: true, target: tc.target, observeErr: tc.observeErr}
 			input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}, attachErr: &protocol.APIError{Code: protocol.CodeKitLeaseBusy}}
-			h := hostapi.New(s, hostapi.WithRemoteInputFactory(func(string) host.RemoteInputController { return input }))
+			h := hostapi.New(s, hostapi.WithRemoteInputFactory(func(string) (host.RemoteInputController, error) { return input, nil }))
 			response := serve(t, h, http.MethodGet, "/api/v1/session")
 			if response.Code == http.StatusOK || s.observations != tc.wantObservations {
 				t.Fatalf("unexpected admission %d %s observations=%d", response.Code, response.Body, s.observations)

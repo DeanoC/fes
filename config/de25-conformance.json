@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "note": "Kit D25 conformance steps, run by scripts/de25_conformance.py while a core session is live. Each core lists the package interfaces its steps cover; a declared fes.media.* or fes.mouse.* interface that no step covers is reported as pending. Keys are HID keys sent through the host's confirmed tap; the core owns every character mapping.",
+  "cores": {
+    "fes.zx81": {
+      "steps": [
+        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
+         "keys": ["p"], "expect": {"idle_max": 0.0001, "change": 0.0003}},
+        {"keys": ["enter"], "settle": 3},
+        {"name": "tape_mounts", "covers": ["fes.media.zx81-tape"],
+         "media": ["change-tape", "zx81-fes-tape-ok.p"]},
+        {"name": "tape_loads", "covers": ["fes.media.zx81-tape"], "settle": 30,
+         "keys": ["j", "shift+p", "shift+p", "enter"], "expect": {"ocr": "FES TAPE OK"}}
+      ]
+    },
+    "fes.spectrum": {
+      "steps": [
+        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
+         "keys": ["p"], "expect": {"idle_max": 0.0001, "change": 0.0003}},
+        {"keys": ["enter"], "settle": 3},
+        {"name": "tape_mounts", "covers": ["fes.media.spectrum-tape"],
+         "media": ["change-cassette", "spectrum-fes-tape-ok.tap"]},
+        {"name": "tape_loads", "covers": ["fes.media.spectrum-tape"], "settle": 25,
+         "keys": ["j", "ctrl+p", "ctrl+p", "enter"], "expect": {"ocr": "FES TAPE OK"}}
+      ]
+    },
+    "fes.spectrum128": {
+      "steps": [
+        {"name": "tape_mounts", "covers": ["fes.media.spectrum-tape"],
+         "media": ["change-cassette", "spectrum-fes-tape-ok.tap"]},
+        {"name": "tape_loader_runs", "covers": ["fes.keyboard.hid", "fes.media.spectrum-tape"], "settle": 25,
+         "keys": ["enter"], "expect": {"ocr": "FES TAPE OK"}}
+      ]
+    },
+    "fes.c64": {
+      "steps": [
+        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
+         "keys": ["a"], "expect": {"idle_max": 0.0001, "change": 0.0001}},
+        {"keys": ["enter"], "settle": 2},
+        {"name": "disk_mounts", "covers": ["fes.media.c64-disk"],
+         "media": ["change-disk", "c64-fes-blank.d64"]},
+        {"name": "disk_directory", "covers": ["fes.media.c64-disk"], "settle": 12,
+         "keys": ["l", "o", "a", "d", "shift+2", "shift+4", "shift+2", "comma", "8", "enter"]},
+        {"name": "disk_directory_lists", "covers": ["fes.media.c64-disk"], "settle": 4,
+         "keys": ["l", "i", "s", "t", "enter"], "expect": {"ocr": "BLOCKS FREE"}}
+      ]
+    },
+    "fes.atari-st": {
+      "steps": [
+        {"name": "mouse_moves_pointer", "covers": ["fes.mouse.relative"], "settle": 2,
+         "mouse": [120, 80, 0], "expect": {"idle_max": 0.0001, "change": 0.00005}},
+        {"name": "floppy_mounts",
+         "covers": ["fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry"],
+         "media": ["change-disk", "atari-st-fes-blank.st"]}
+      ]
+    }
+  }
+}

@@ -212,7 +212,16 @@ class AffectedTests(unittest.TestCase):
                             ('shared-rtl/fes_menu_control.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
                             ('shared-rtl/fes_computer_mailbox.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
                             ('shared-rtl/fes_display_plane.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
-                            ('shared-rtl/fes_zx81_core.v', ['zx81'])):
+                            ('shared-rtl/fes_zx81_core.v', ['zx81']),
+                            ('scanout/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('scanout/fes_de25_scanout.v', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('zx81-hps/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('zx81-hps/fes_de25_computer.v', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('display/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('combined/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('hps/build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('build.py', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('quartus.lock', ['atari-st', 'c64', 'de25-ramtest', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 
@@ -511,6 +520,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pong/rtl/pixel_pll.v': {'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
+            'cores/fes-pcxt/rtl/pcxt_machine_settings.sv': {'pcxt', 'pc386'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
             'scripts/pcxt_bios.py': {'pcxt'},
@@ -701,7 +711,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
                 sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
-            references = set(re.findall(r'(?:cores/|boards/de25nano/x87/)[A-Za-z0-9_./-]+', recipe))
+            references = set(re.findall(r'(?:cores/|boards/de25nano/(?:x87|ramtest_managed)/)[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)
             for path in references:
                 with self.subTest(core=core, path=path):

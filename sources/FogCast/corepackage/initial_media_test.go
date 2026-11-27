@@ -229,7 +229,7 @@ func TestInitialSTMediaAdoptionRejectsTamperedCompanion(t *testing.T) {
 // input as the ST's does. The receiver learns the medium from the package,
 // stages it as the PC/XT floppy, and refuses any other size or package.
 func TestInitialPcxtMediaRidesWithUploadedFirmware(t *testing.T) {
-	pkg, rom := de25UploadPackage(t, "fes.pcxt-dos", 69632), firmwareImage(69632)
+	pkg, rom := de25UploadPackage(t, "fes.pcxt-dos", 73728), firmwareImage(73728)
 	disk := bytes.Repeat([]byte{0xf6}, 368640)
 	in := ROMInput{Package: pkg, ROM: rom, InitialMedia: &InitialMedia{InterfaceID: "fes.media.pcxt-floppy", GameID: "freedos", BaseMediaID: romDigest(disk), Bytes: disk}}
 	data, err := WriteROMInput(in)

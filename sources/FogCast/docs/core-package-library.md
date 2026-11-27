@@ -413,6 +413,15 @@ comma-separated, in that order) instead of `X-FogCast-Paddle-Speed`; inspect
 adds `X-FogCast-Library-Game` for a pc386 package. Records live under the
 runtime's per-game namespace (`core-data/games/`).
 
+A `fes.pcxt-dos` package declaring `fes.pcxt.machine` uses the same per-game
+`core-data/games/` record keyed by the library entry's `game_id`, with
+`pcxt_machine` carrying `video_card` (`0` CGA, `1` MDA, `2` Hercules) and
+`mono_tint` (`0` white, `1` green, `2` amber). To the target agent, inspect sends
+`X-FogCast-Library-Game`, update sends `X-FogCast-Library-Game` with
+`X-FogCast-PCXT-Machine-Settings` (`video_card,mono_tint`), and library launches
+send `X-FogCast-Library-Game` alongside format-2 packages, format-2 initial-media
+envelopes, or format-3 firmware-upload ROM loads.
+
 | Error | Meaning / next action |
 | --- | --- |
 | `UNSUPPORTED_OPERATION` (400) | Selected core/runtime has no supported persistence contract |

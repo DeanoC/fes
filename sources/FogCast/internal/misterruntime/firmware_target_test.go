@@ -34,7 +34,7 @@ func de25UploadInput(t *testing.T, core string, size int) corepackage.ROMInput {
 	// The PC/XT's 68 KiB image has no shared fixture: it is the 64 KiB one
 	// with the size, and the map's length and digest, rewritten.
 	source := size
-	if size == 69632 {
+	if size == 73728 {
 		source = 65536
 	}
 	text := string(read("manifests", fmt.Sprintf("valid-nano-upload-%d.toml", source)))
@@ -146,7 +146,7 @@ func (c *firmwareTargetControl) LoadLibraryCore(context.Context, string, string,
 	return misterruntime.Protocol2Response{}, nil
 }
 
-func (c *firmwareTargetControl) LoadFirmwareCore(ctx context.Context, path, id, root, firmwarePath string, link corepackage.ROMLinkIdentity, initial *misterruntime.InitialMediaRequest) (misterruntime.Protocol2Response, error) {
+func (c *firmwareTargetControl) LoadFirmwareCore(ctx context.Context, path, id, root, firmwarePath string, link corepackage.ROMLinkIdentity, initial *misterruntime.InitialMediaRequest, _ string) (misterruntime.Protocol2Response, error) {
 	c.calls++
 	source, err := os.ReadFile(firmwarePath)
 	if err != nil {
@@ -324,7 +324,7 @@ func TestFirmwareTargetRejectsAnotherSourceInTheReply(t *testing.T) {
 // A library DE25 PC/XT launch carries its start disk beside its uploaded
 // firmware in the same atomic request, and the kit confirms it.
 func TestFirmwareTargetPcxtLaunchCarriesItsStartDisk(t *testing.T) {
-	input := de25UploadInput(t, "fes.pcxt-dos", 69632)
+	input := de25UploadInput(t, "fes.pcxt-dos", 73728)
 	disk := bytes.Repeat([]byte{0xf6}, int(protocol.PcxtFloppyBytes))
 	input.InitialMedia = &corepackage.InitialMedia{InterfaceID: protocol.PcxtFloppyInterface().ID, GameID: "freedos", BaseMediaID: fmt.Sprintf("%x", sha256.Sum256(disk)), Bytes: disk}
 	transport, err := corepackage.PrepareROMInput(context.Background(), input)

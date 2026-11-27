@@ -21,7 +21,8 @@ PCXT = ROOT / "cores/fes-pcxt"
 WAIVERS = ("WIDTH", "TIMESCALEMOD", "MULTIDRIVEN", "INITIALDLY", "ALWCOMBORDER", "UNOPTFLAT",
            "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP", "PINCONNECTEMPTY", "DECLFILENAME",
            "UNUSEDSIGNAL", "UNUSEDPARAM", "SYNCASYNCNET", "IMPLICITSTATIC", "VARHIDDEN", "CASEX",
-           "BLKSEQ", "MULTITOP", "PINMISSING", "UNDRIVEN", "GENUNNAMED", "SELRANGE", "CMPCONST")
+           "BLKSEQ", "MULTITOP", "PINMISSING", "UNDRIVEN", "GENUNNAMED", "SELRANGE", "CMPCONST",
+           "PROCASSINIT")
 
 
 def load(path, name):
@@ -32,13 +33,13 @@ def load(path, name):
 
 
 def firmware_image():
-    """The upload image: GLaBIOS top-aligned in the F0000 window, then the font."""
+    """The upload image: GLaBIOS top-aligned in the F0000 window, then CGA and MDA fonts."""
     sys.path.insert(0, str(ROOT / "scripts"))
     import pcxt_bios
     import sim_fes_pcxt
     lock = pcxt_bios.json.loads((PCXT / "firmware/hardware-dos.json").read_text())
     bios = pcxt_bios.checked_file(PCXT / lock["bios"]["file"], lock["bios"])
-    return pcxt_bios.firmware_window(bios) + sim_fes_pcxt.cga_font()
+    return pcxt_bios.firmware_window(bios) + sim_fes_pcxt.cga_font() + sim_fes_pcxt.mda_font()
 
 
 def floppy():
@@ -60,13 +61,15 @@ def sources(output):
     sdram.write_bytes(st.retarget_sdram((ROOT / "cores/fes-ramtest/rtl/sdram_addon_port.v").read_bytes())[0])
     video = output / "pcxt_video_de25.sv"
     video.write_bytes(derive.retarget_video((PCXT / "rtl/pcxt_video.sv").read_bytes())[0])
+    video_dynamic = output / "pcxt_video_dynamic_de25.sv"
+    video_dynamic.write_bytes(derive.retarget_video_dynamic((PCXT / "rtl/pcxt_video_dynamic.sv").read_bytes())[0])
     ram = output / "coleco_video_dpram_de25.v"
     ram.write_bytes(derive.retarget_video_ram((COMMON / "rtl/coleco_video_dpram.v").read_bytes())[0])
     reader = output / "fes_menu_reader_de25.v"
     reader.write_bytes(display.retarget_menu_ram((SHARED / "fes_menu_reader.v").read_bytes())[0])
     transport = output / "fes_de25_computer_transport.v"
     transport.write_bytes(st.transport((BOARD / "zx81-hps/fes_de25_computer.v").read_bytes())[0])
-    return [HERE / "fes_de25_pcxt_standard.v", transport, sdram, video, ram, reader,
+    return [HERE / "fes_de25_pcxt_standard.v", transport, sdram, video, video_dynamic, ram, reader,
             ROOT / "cores/fes-ramtest/rtl/sdram_cas3_capture.v",
             SHARED / "fes_pcxt_core.v", SHARED / "fes_pcxt_firmware.v", SHARED / "fes_gp_crossing.v",
             SHARED / "fes_firmware_upload.v", SHARED / "fes_computer_mailbox.v",

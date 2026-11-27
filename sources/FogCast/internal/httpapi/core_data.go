@@ -97,6 +97,22 @@ func registerCoreDataRoutes(mux *http.ServeMux, token string, controller Develop
 					result, apiErr = c.InspectCoreData(r.Context(), r.ContentLength, r.Body, ids[0])
 				}
 			case "/v1/library/core/settings":
+				if settings := r.Header.Values(protocol.PcxtMachineSettingsHeader); len(settings) != 0 {
+					revisions, games := r.Header.Values("X-FogCast-Expected-Revision"), r.Header.Values(protocol.LibraryGameHeader)
+					pcxtMachine, parsed := protocol.ParsePcxtMachineSettings(settings[0])
+					update := protocol.CoreSettingsUpdate{ExpectedPackageID: ids[0], PcxtMachine: &pcxtMachine}
+					if len(settings) == 1 && len(revisions) == 1 && len(games) == 1 &&
+						len(r.Header.Values(protocol.MachineSettingsHeader)) == 0 &&
+						len(r.Header.Values("X-FogCast-Paddle-Speed")) == 0 && parsed {
+						update.ExpectedRevision, update.GameID = revisions[0], games[0]
+					}
+					if !update.Valid() {
+						writeBadRequest(w, r, "pcxt machine settings, revision or game are invalid")
+						return
+					}
+					result, apiErr = c.UpdateCoreSettings(r.Context(), r.ContentLength, r.Body, update)
+					break
+				}
 				if settings := r.Header.Values(protocol.MachineSettingsHeader); len(settings) != 0 {
 					revisions, games := r.Header.Values("X-FogCast-Expected-Revision"), r.Header.Values(protocol.LibraryGameHeader)
 					machine, parsed := protocol.ParseMachineSettings(settings[0])

@@ -529,14 +529,14 @@ func TestLauncherInputClaimsPairedTargetsOwnBridge(t *testing.T) {
 	service.settingsFake.sessionTarget = "kit-a"
 	service.settingsFake.sessionTargetID = launcherID
 	service.settingsFake.playSessions = []fogcast.PlaySession{{Target: "kit-a", TargetID: launcherID, GameID: "pong"}, {Target: "kit-b", TargetID: launcherIDB, GameID: "pong"}}
-	api := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) host.RemoteInputController {
+	api := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) (host.RemoteInputController, error) {
 		if target == "kit-a" {
-			return inputA
+			return inputA, nil
 		}
 		if target == "kit-b" {
-			return inputB
+			return inputB, nil
 		}
-		return nil
+		return nil, errors.New("no input for target " + target)
 	}))
 	handler, err := hostapi.NewLauncherHandler(api, distinctKitConfig())
 	if err != nil {

@@ -50,6 +50,67 @@ class ClosureAuditPrivateCacheTest(unittest.TestCase):
 
 
 class RecipeRegistryTest(unittest.TestCase):
+    def test_quartus_recipes_select_their_edition_root(self):
+        env = {
+            "FES_QUARTUS_LITE_ROOTDIR": "/lite/quartus",
+            "FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus",
+            "QUARTUS_ROOTDIR": "/ambient/quartus",
+        }
+        lite = recipes.recipe_for("fes.zx81")
+        pro = recipes.recipe_for("fes.menu", board="de25-nano")
+        self.assertEqual(recipes.producer_environment(env, lite)["QUARTUS_ROOTDIR"],
+                         "/lite/quartus")
+        self.assertEqual(recipes.producer_environment(env, pro)["QUARTUS_ROOTDIR"],
+                         "/pro/quartus")
+
+    def test_missing_or_empty_edition_root_preserves_ambient_value(self):
+        lite = recipes.recipe_for("fes.zx81")
+        for edition_root in (None, ""):
+            for ambient in ("/ambient/quartus", ""):
+                with self.subTest(edition_root=edition_root, ambient=ambient):
+                    env = {"QUARTUS_ROOTDIR": ambient}
+                    if edition_root is not None:
+                        env["FES_QUARTUS_LITE_ROOTDIR"] = edition_root
+                    result = recipes.producer_environment(env, lite)
+                    self.assertEqual(result["QUARTUS_ROOTDIR"], ambient)
+        absent = recipes.producer_environment({"FES_QUARTUS_LITE_ROOTDIR": ""}, lite)
+        self.assertNotIn("QUARTUS_ROOTDIR", absent)
+
+    def test_lite_does_not_fall_back_to_pro_root(self):
+        env = {"FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus"}
+        result = recipes.producer_environment(env, recipes.recipe_for("fes.zx81"))
+        self.assertNotIn("QUARTUS_ROOTDIR", result)
+
+    def test_oss_recipe_leaves_quartus_root_untouched(self):
+        recipe = recipes.recipe_for("fes.pong")
+        for root in (None, "", "/ambient/quartus"):
+            with self.subTest(root=root):
+                env = {"FES_QUARTUS_LITE_ROOTDIR": "/lite/quartus",
+                       "FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus"}
+                if root is not None:
+                    env["QUARTUS_ROOTDIR"] = root
+                result = recipes.producer_environment(env, recipe)
+                self.assertEqual(result.get("QUARTUS_ROOTDIR"), root)
+
+    def test_unset_edition_roots_preserve_legacy_environment_for_all_recipes(self):
+        # This is the pre-edition-root producer_environment contract: edition
+        # host variables remain ordinary caller environment and do not affect
+        # the selected QUARTUS_ROOTDIR. Compare full mappings, not just the key.
+        for roots in ({}, {"FES_QUARTUS_LITE_ROOTDIR": "",
+                           "FES_QUARTUS_PRO_ROOTDIR": ""}):
+            caller = {"QUARTUS_ROOTDIR": "/ambient/quartus", "KEEP_ME": "value", **roots}
+            for recipe in (r for board in recipes.BOARDS for r in recipes.load_recipes(board=board).values()):
+                with self.subTest(core_id=recipe.core_id, board=recipe.board, roots=roots):
+                    expected = dict(caller)
+                    expected.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+                    expected.pop("FES_TOOLCHAIN_ROOT", None)
+                    expected.pop("FES_TOOLCHAIN_GPU_ROUTER", None)
+                    expected.pop("FES_TOOLCHAIN_HIP_ARCHITECTURES", None)
+                    if recipe.toolchain == "oss":
+                        expected["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
+                        expected["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+                    self.assertEqual(recipes.producer_environment(caller, recipe), expected)
+
     def test_menu_board_selection_is_explicit_and_has_no_cross_board_fallback(self):
         default = recipes.recipe_for('fes.menu')
         self.assertEqual(default.board, 'de10-nano')
@@ -125,6 +186,46 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
+
+    def test_hip_recipe_prefers_hipcc_when_both_compilers_exist(self):
+        recipe = recipes.recipe_for("fes.pong")
+        with patch.object(recipes.shutil, "which", side_effect=lambda name, path=None: "/tool/" + name):
+            env = recipes.producer_environment({"PATH": "/tool"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
+        self.assertNotIn("FES_TOOLCHAIN_CUDA_ARCHITECTURES", env)
+
+    def test_hip_recipe_selects_cuda_when_hipcc_is_missing(self):
+        recipe = recipes.recipe_for("fes.pong")
+        def which(name, path=None):
+            return "/tool/nvcc" if name == "nvcc" else None
+        with patch.object(recipes.shutil, "which", side_effect=which):
+            env = recipes.producer_environment({
+                "PATH": "/tool", "CUDA_HOME": "/caller/cuda", "CUDAARCHS": "75",
+                "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89",
+                "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1030",
+            }, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
+        self.assertEqual(env["FES_TOOLCHAIN_CUDA_ARCHITECTURES"], "86")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "unused")
+        for name in ("CUDA_HOME", "CUDAARCHS"):
+            self.assertNotIn(name, env)
+
+    def test_hip_recipe_keeps_hip_when_no_compiler_is_on_path(self):
+        recipe = recipes.recipe_for("fes.pong")
+        with patch.object(recipes.shutil, "which", return_value=None):
+            env = recipes.producer_environment({"PATH": "/empty"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
+        self.assertNotIn("FES_TOOLCHAIN_CUDA_ARCHITECTURES", env)
+
+    def test_explicit_cuda_recipe_is_accepted_and_uses_cuda_identity(self):
+        recipe = replace(recipes.recipe_for("fes.pong"), gpu_router="CUDA")
+        with patch.object(recipes.shutil, "which", return_value=None):
+            env = recipes.producer_environment({"PATH": "/empty"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
+        self.assertEqual(env["FES_TOOLCHAIN_CUDA_ARCHITECTURES"], "86")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "unused")
 
     def test_c64_ntsc_is_an_explicit_de10_package_selection(self):
         pal = recipes.recipe_for("fes.c64")
@@ -406,7 +507,8 @@ class RecipeDataTest(unittest.TestCase):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
         self.assertEqual(set(self.load_document(document, board='de25-nano')),
-                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64', 'fes.pcxt-dos', 'fes.pc386'})
+                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64',
+                          'fes.pcxt-dos', 'fes.ramtest', 'fes.pc386'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.
@@ -584,7 +686,7 @@ class RecipeDataTest(unittest.TestCase):
             "producer_module": ["scripts.x;exec", "scripts..x", ".scripts.x",
                                 "scripts.class", "scripts.1x"],
             "authenticate": ["x()", "a.b", "class", "x;true", "1x"],
-            "gpu_router": ["OFF", "CUDA", "hip"],
+            "gpu_router": ["OFF", "hip", "cuda", ""],
             "hip_architectures": ["", "gfx1100;$(true)", "gfx1100;;gfx1201"],
             "selection_filename": ["../x.package-selection.toml",
                                    "/x.package-selection.toml", "x.toml"],
@@ -598,6 +700,11 @@ class RecipeDataTest(unittest.TestCase):
                 document["recipes"][0][field] = value
                 with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                     self.load_document(document)
+
+        document = self.document()
+        document["recipes"][0]["gpu_router"] = "CUDA"
+        self.assertEqual(self.load_document(document)[document["recipes"][0]["core_id"]].gpu_router,
+                         "CUDA")
 
     def test_duplicate_identifiers_rejected(self):
         for field in ("core_id", "selection_filename", "package_dir_env",

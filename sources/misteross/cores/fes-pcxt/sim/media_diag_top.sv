@@ -103,6 +103,8 @@ module media_diag_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(1), .FLOPPY(WITH_FLOPPY),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
+        .video_card(2'd0), .hercules_graphics_mode(),
+        .display_pixel_ce(), .display_de(), .display_sof(), .display_eol(), .display_rgbi(),
         .media_frozen(1'b0), .media_write_busy(), .media_changed(),
         .snapshot_read_valid(1'b0), .snapshot_read_address(20'b0),
         .snapshot_read_ready(), .snapshot_read_data(),

@@ -242,6 +242,8 @@ module fes_i386_cpu #(
     output logic             trace_mem_wait,       // D to WB wait for the L1D or the write buffer, or F2 for the L1I
     output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
     output logic             trace_replay,         // WB restarts an instruction for an uncached load
+    output logic             trace_near_return,    // a near RET commits (prediction test)
+    output logic             trace_return_redirect, // that return redirects instead of using its prediction
     output logic             trace_smc,            // ... for self-modifying code (see Self-modifying code)
     output logic             trace_smc_open,       // a DMA write into fetched bytes now restarts the next instruction (ditto)
     output logic             trace_ex_store,       // a store in EX, one stage before it can retire
@@ -672,7 +674,7 @@ module fes_i386_cpu #(
     fes_i386_pkg::ftag_t mem_tag;
     always_ff @(posedge clk) if (reset) pred_on <= !queue16;
     fes_i386_frontend frontend (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load),
+        .clk, .reset, .redirect, .redirect_linear, .code32, .cs_base(seg_base[SEG_CS]), .mem_block, .mem_load(fe_mem_load),
         .mem_data, .mem_valid, .mem_tag, .q_valid, .q, .d_ready, .pred_en(pred_on), .btb_wr, .ras_set_ptr, .ras_set_wr,
         .ras_set_lin, .held_block(fe_block), .held_valid(fe_valid), .held_pp(fe_pp), .held_pk(fe_pk)
     );
@@ -4357,6 +4359,7 @@ module fes_i386_cpu #(
             btb_wr.entry.valid <= 1'b1;
             btb_wr.entry.uncond <= wb_s.uop.op == 5'(fes_i386_pkg::BR_JMP) || wb_s.nret || wb_s.nind;
             btb_wr.entry.call <= wb_s.ncall;
+            btb_wr.entry.call16 <= !wb_s.gov.o32;
             btb_wr.entry.ret <= wb_s.nret;
             btb_wr.entry.ctr <= !wb_s.taken ? (wb_s.bctr == 2'd0 ? 2'd0 : wb_s.bctr - 2'd1)
                               : !wb_s.bm ? 2'd2 : wb_s.bctr == 2'd3 ? 2'd3 : wb_s.bctr + 2'd1;
@@ -4386,7 +4389,7 @@ module fes_i386_cpu #(
     assign ras_cw = ras_c + {3'd0, wb_s.valid && wb_s.ncall} - {3'd0, wb_s.valid && wb_s.nret};
     assign ras_set_ptr = start == 2'd2 || wb_faulted || int_take ? ras_c : ras_cw;
     assign ras_set_wr = !(start == 2'd2 || wb_faulted || int_take) && wb_s.valid && wb_s.ncall;
-    assign ras_set_lin = wb_fall;
+    assign ras_set_lin = wb_s.gov.o32 ? wb_fall : seg_base[SEG_CS] + {16'd0, wb_s.eip_next[15:0]};
     always_ff @(posedge clk) begin
         if (reset) ras_c <= 4'd0;
         else if (wb_commit) ras_c <= ras_cw;
@@ -4400,6 +4403,8 @@ module fes_i386_cpu #(
     // whether it redirects (prof_redir): not predicted, or to another target
     // than the one predicted.
     assign prof_ret = wb_commit && wb_s.nret;
+    assign trace_near_return = prof_ret;
+    assign trace_return_redirect = prof_ret && wb_redir;
     assign prof_ind = wb_commit && wb_s.nind;
     assign prof_redir = wb_redir;
     assign prof_pt = wb_s.pt;

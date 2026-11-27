@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
-module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0, FLOPPY = 0, FLOPPY_WRITE = 0,
+module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0, FLOPPY = 0, FLOPPY_WRITE = 0, HERCULES = 0,
     parameter integer BOARD_CLOCK_HZ = 100000000, parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, reset,
+    input wire [1:0] video_card,
+    output wire hercules_graphics_mode,
     input wire media_present, cold_reset, media_frozen,
     output wire media_write_busy, media_write_valid,
     output wire [9:0] media_write_lba,
@@ -92,6 +94,9 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0
         .cycle_done(cycle_done), .cycle_rdata(cycle_rdata), .cycle_fault(cycle_fault),
         .fault(cpu_fault), .guest_ce(guest_ce), .halted(halted), .bus_locked(bus_locked)
     );
+    wire [7:0] active_switches = HERCULES ?
+        {SWITCHES[7:6], (video_card == 2'd1 || video_card == 2'd2) ? 2'b11 : SWITCHES[5:4], SWITCHES[3:0]} :
+        SWITCHES;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_motherboard #(.CLOCK_HZ(BOARD_CLOCK_HZ)) board (
         .clk(clk), .reset(reset), .guest_ce(board_guest_ce),
@@ -107,15 +112,16 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0
         .terminal_count(terminal_count),
         .isa_valid(isa_valid), .isa_ready(isa_ready), .isa_done(isa_done),
         .isa_rdata(isa_rdata), .isa_fault(isa_fault), .isa_irq(irq[7:2]),
-        .switches(SWITCHES), .parity_error(1'b0), .channel_error(1'b0),
+        .switches(active_switches), .parity_error(1'b0), .channel_error(1'b0),
         .parity_enable(), .channel_check_enable(),
         .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
         .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
         .keyboard_clear(keyboard_clear), .keyboard_irq(),
         .speaker(), .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr), .pit_out(), .pit_clock()
     );
-    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
-        .clk(clk), .reset(reset), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
+    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE), .HERCULES(HERCULES), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
+        .clk(clk), .reset(reset), .video_card(video_card), .hercules_graphics_mode(hercules_graphics_mode),
+        .cycle_valid(isa_valid), .cycle_ready(isa_ready),
         .media_present(media_present), .cold_reset(cold_reset), .media_frozen(media_frozen),
         .media_write_busy(media_write_busy), .media_write_valid(media_write_valid),
         .media_write_lba(media_write_lba), .media_write_index(media_write_index),

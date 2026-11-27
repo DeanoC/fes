@@ -248,6 +248,20 @@ const (
 	FesComputerPc386SbIrqMask                           uint32 = 0xac
 	FesComputerPc386SbIrqDefault                        uint32 = 0x7
 	FesComputerPc386SbDma                               uint32 = 0x1
+	FesComputerPcxtMachineTag                           uint32 = 0x4
+	FesComputerPcxtMachineWordCount                     uint32 = 0x4
+	FesComputerPcxtVideoCardIndex                       uint32 = 0x0
+	FesComputerPcxtMonoTintIndex                        uint32 = 0x1
+	FesComputerPcxtReserved0Index                       uint32 = 0x2
+	FesComputerPcxtReserved1Index                       uint32 = 0x3
+	FesComputerPcxtVideoCardCga                         uint32 = 0x0
+	FesComputerPcxtVideoCardMda                         uint32 = 0x1
+	FesComputerPcxtVideoCardHercules                    uint32 = 0x2
+	FesComputerPcxtVideoCardMax                         uint32 = 0x2
+	FesComputerPcxtMonoTintWhite                        uint32 = 0x0
+	FesComputerPcxtMonoTintGreen                        uint32 = 0x1
+	FesComputerPcxtMonoTintAmber                        uint32 = 0x2
+	FesComputerPcxtMonoTintMax                          uint32 = 0x2
 	FesComputerWallClockWordCount                       uint32 = 0x4
 	FesComputerWallClockYearWord                        uint32 = 0x0
 	FesComputerWallClockMonthDayWord                    uint32 = 0x1
@@ -347,4 +361,8 @@ const (
 	FesComputerInterfaceMediaPcFloppyMajor              uint16 = 1
 	FesComputerInterfaceMediaPcFloppyMinor              uint16 = 0
 	FesComputerCapabilityMediaPcFloppy                  uint32 = 0x400000
+	FesComputerInterfacePcxtMachineID                          = "fes.pcxt.machine"
+	FesComputerInterfacePcxtMachineMajor                uint16 = 1
+	FesComputerInterfacePcxtMachineMinor                uint16 = 0
+	FesComputerCapabilityPcxtMachine                    uint32 = 0x800000
 )

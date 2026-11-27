@@ -72,7 +72,7 @@ func nanoUploadFixture(t *testing.T, size int) (string, []byte) {
 	if size == 36864 {
 		source = 32768
 	}
-	if size == 69632 {
+	if size == 73728 {
 		source = 65536
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "manifests", fmt.Sprintf("valid-nano-upload-%d.toml", source)))

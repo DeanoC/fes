@@ -34,7 +34,7 @@ func (s *Service) CoreProgress(ctx context.Context, gameID string) (CoreDataResu
 	return s.entryCoreData(ctx, gameID, nil)
 }
 func (s *Service) SetCoreSettings(ctx context.Context, gameID string, u protocol.CoreSettingsUpdate) (CoreDataResult, error) {
-	if u.Machine != nil {
+	if u.Machine != nil || u.PcxtMachine != nil {
 		// The entry names the game; a caller never chooses another record.
 		u.GameID = gameID
 	}
@@ -92,12 +92,14 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id, gameID strin
 	if err != nil {
 		return CoreDataResult{}, err
 	}
-	// A pc386 machine record is keyed by its library game; Pong's by its core.
+	// A per-game machine record is keyed by its library game; Pong's by its core.
+	pc386 := protocol.DeclaresPc386Machine(value.Descriptor)
+	pcxt := protocol.DeclaresPcxtMachine(value.Descriptor)
 	game := ""
-	if protocol.DeclaresPc386Machine(value.Descriptor) {
+	if pc386 || pcxt {
 		game = gameID
 	}
-	if (u != nil && (u.Machine != nil) != (game != "")) || (game != "" && !protocol.ValidMediaGameID(game)) {
+	if (u != nil && (pc386 != (u.Machine != nil) || pcxt != (u.PcxtMachine != nil))) || (game != "" && !protocol.ValidMediaGameID(game)) {
 		return CoreDataResult{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	if u != nil && game != "" {

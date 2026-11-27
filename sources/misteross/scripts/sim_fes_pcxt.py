@@ -62,6 +62,7 @@ DISPLAY_SOURCES = (
     'cores/fes-pcxt/expansions/pcxt_display_card.sv',
     'cores/fes-pcxt/expansions/pcxt_cga_card.sv',
     'cores/fes-pcxt/expansions/pcxt_mda_card.sv',
+    'cores/fes-pcxt/expansions/pcxt_hercules_card.sv',
     'cores/fes-pcxt/expansions/pcxt_fdc_card.sv',
     'cores/fes-pcxt/rtl/pcxt_display_bus.sv',
     'cores/fes-pcxt/sim/display_top.sv',
@@ -73,6 +74,7 @@ VIDEO_SOURCES = (
     'cores/fes-common/rtl/fes_video_part_direct.v',
     'cores/fes-common/rtl/fes_video_part_scanlines.v',
     'cores/fes-pcxt/rtl/pcxt_video.sv',
+    'cores/fes-pcxt/rtl/pcxt_video_dynamic.sv',
     'cores/fes-pcxt/rtl/pcxt_video_output.sv',
     'cores/fes-pcxt/sim/video_top.sv',
 )
@@ -125,6 +127,24 @@ def cga_font(root=ROOT):
     font = bytearray(4096)
     for char in range(256):
         font[char * 16:char * 16 + 8] = data[char * 8:char * 8 + 8]
+    return bytes(font)
+
+
+def mda_font(root=ROOT):
+    """Return the MDA/Hercules character ROM image: 256 characters x 16 rows.
+
+    The locked 8x14 source covers all 256 CP437 characters; rows 14..15 of each
+    character are blank because an MDA/Hercules character cell is 14 rows tall.
+    """
+    descriptor = json.loads((Path(root) / 'cores/fes-pcxt/firmware/hardware-dos.json').read_text())['mda_font']
+    data = (Path(root) / 'cores/fes-pcxt' / descriptor['file']).read_bytes()
+    if len(data) != descriptor['size'] or hashlib.sha256(data).hexdigest() != descriptor['sha256']:
+        raise ValueError('PC/XT MDA font differs from its provenance lock')
+    if len(data) != 256 * 14:
+        raise ValueError('PC/XT MDA font must hold 256 characters of 14 rows')
+    font = bytearray(4096)
+    for char in range(256):
+        font[char * 16:char * 16 + 14] = data[char * 14:char * 14 + 14]
     return bytes(font)
 
 
@@ -194,7 +214,7 @@ def cpu_inputs(output, diagnostic="diagnostic"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
-    parser.add_argument('--suite', choices=('all', 'system', 'system-mda', 'system-board50', 'system-board50-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine', 'clock-bridge', 'speaker100', 'speaker50'), default='all')
+    parser.add_argument('--suite', choices=('all', 'system', 'system-mda', 'system-board50', 'system-board50-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'hercules', 'display-machine', 'video', 'video-mda', 'video-dynamic', 'video-machine', 'clock-bridge', 'speaker100', 'speaker50'), default='all')
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
@@ -205,7 +225,7 @@ def main():
                        cwd=ROOT, env=environment, check=True)
     output = ROOT / 'build/sim/fes-pcxt'
     output.mkdir(parents=True, exist_ok=True)
-    for suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine', 'clock-bridge', 'speaker100', 'speaker50') if args.suite == 'all' else (args.suite,):
+    for suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'hercules', 'display-machine', 'video', 'video-mda', 'video-dynamic', 'video-machine', 'clock-bridge', 'speaker100', 'speaker50') if args.suite == 'all' else (args.suite,):
         build = output / suite
         build.mkdir(parents=True, exist_ok=True)
         sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
@@ -223,8 +243,12 @@ def main():
             print('PASS memory model: two late-driver overlaps rejected', flush=True)
         if suite in ('video', 'video-mda'):
             sources = VIDEO_SOURCES + ('cores/fes-pcxt/sim/video_tb.cpp',)
+        if suite == 'video-dynamic':
+            sources = VIDEO_SOURCES[:-1] + ('cores/fes-pcxt/sim/video_dynamic_top.sv', 'cores/fes-pcxt/sim/video_dynamic_tb.cpp')
         if suite == 'display':
             sources = SOURCES[:3] + DISPLAY_SOURCES + ('cores/fes-pcxt/sim/display_tb.cpp',)
+        if suite == 'hercules':
+            sources = SOURCES[:3] + DISPLAY_SOURCES[:-1] + ('cores/fes-pcxt/sim/hercules_top.sv', 'cores/fes-pcxt/sim/hercules_tb.cpp')
         if suite == 'clock-bridge':
             sources = ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/sim/clock_bridge_tb.cpp')
         if suite in ('speaker100', 'speaker50'):

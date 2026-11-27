@@ -16,7 +16,8 @@ _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 from recipes import (FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment,
-                     recipe_for, require_private_audit_cache)
+                     recipe_for, require_private_audit_cache, selected_gpu_router,
+                     CUDA_ROUTER, CUDA_ARCHITECTURES)
 import artifact_cache
 import optional_cores
 from module_sources import normalize_known_origin
@@ -225,7 +226,14 @@ else:
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
-    gpu_router_arguments = [] if selection_only else _de25_gpu_router_arguments(env, recipe)
+    child_env = package_build_environment(env, recipe=recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH')) or _de25_gpu_router(env, recipe)
+    gpu_router_arguments = (
+        ["--gpu-router", selected_router]
+        if not selection_only and (selected_router == CUDA_ROUTER
+                                  or (recipe.board == 'de25-nano' and selected_router is not None))
+        else []
+    )
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
@@ -234,7 +242,11 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
                *(["--quartus-yosys"] if selection_only and recipe.toolchain == "quartus"
                  and recipe.front_end == "yosys" else [])]
     try:
-        child_env = package_build_environment(env, recipe=recipe)
+        router_architecture = None
+        if selected_router == CUDA_ROUTER:
+            router_architecture = 'FES_TOOLCHAIN_CUDA_ARCHITECTURES=' + CUDA_ARCHITECTURES
+        elif recipe.hip_architectures:
+            router_architecture = 'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures
         record = (_bounded_pc386_canonical(command, source, child_env)
                   if _is_de10_pc386(recipe) and not selection_only else
                   subprocess.check_output(command, cwd=source, env=child_env))
@@ -253,8 +265,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
             + shlex.join(['env',
                 'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
                 'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
-                'FES_TOOLCHAIN_GPU_ROUTER=' + recipe.gpu_router,
-                'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
+                'FES_TOOLCHAIN_GPU_ROUTER=' + selected_router,
+                router_architecture,
                 'make', '-C', str(source), 'toolchain']) +
             '; then rerun the original FES command. Use a shell without compiler/toolchain '
             'overrides: FES producer_environment sanitizes those overrides for producers, '
@@ -478,19 +490,24 @@ def _build_package(source, recipe=None, env=None):
     report_path = Path(source) / "build" / optional_cores.PRODUCER_REPORT_NAME
     _discard_producer_report(report_path)
     child_env = package_build_environment(env, recipe=recipe)
-    gpu_router_arguments = _de25_gpu_router_arguments(env, recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH')) or _de25_gpu_router(env, recipe)
+    gpu_router_arguments = (
+        ["--gpu-router", selected_router]
+        if selected_router == CUDA_ROUTER or (recipe.board == 'de25-nano' and selected_router is not None)
+        else []
+    )
     try:
         if recipe.board == 'de25-nano' and recipe.core_id == 'fes.pc386':
-            if not (Path(source) / "build/firmware/pc386/pc386-rom.hex").is_file():
-                subprocess.run(
-                    [sys.executable, "scripts/build_pc386_firmware.py", "--download"],
-                    cwd=source, check=True, env=child_env)
+            subprocess.run(
+                [sys.executable, "scripts/build_pc386_firmware.py", "--download"],
+                cwd=source, check=True, env=child_env)
         subprocess.run(
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
              "--identity-version", "2", *recipe.producer_arguments,
-             *_de25_license_arguments(env, recipe), *gpu_router_arguments],
+             *gpu_router_arguments,
+             *_de25_license_arguments(env, recipe)],
             cwd=source, check=True, env=child_env)
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)

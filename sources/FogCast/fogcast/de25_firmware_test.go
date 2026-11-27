@@ -32,10 +32,10 @@ func de25UploadPackageFixture(t *testing.T, core string, size int) []byte {
 		}
 		return raw
 	}
-	// The PC/XT's 68 KiB image has no shared fixture: it is the 64 KiB one
+	// The PC/XT's 72 KiB image has no shared fixture: it is the 64 KiB one
 	// with the size, and the map's length and digest, rewritten.
 	source := size
-	if size == 69632 {
+	if size == 73728 {
 		source = 65536
 	}
 	text := string(read(fmt.Sprintf("manifests/valid-nano-upload-%d.toml", source)))
@@ -229,7 +229,7 @@ func TestDE25PcxtTitleStartsFromTheBundledDiskBesideItsFirmware(t *testing.T) {
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.corePackages = packages
 	s.SetMachineROMLinker(&forbiddenHostROMLinker{})
-	archive := de25UploadPackageFixture(t, pcxtCoreID, 69632)
+	archive := de25UploadPackageFixture(t, pcxtCoreID, 73728)
 	installed, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestDE25PcxtTitleStartsFromTheBundledDiskBesideItsFirmware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rom, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0x5a}, 69632))
+	rom, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0x5a}, 73728))
 	if err != nil {
 		t.Fatal(err)
 	}

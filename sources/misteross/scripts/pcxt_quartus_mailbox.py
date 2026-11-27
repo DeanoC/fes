@@ -3,15 +3,18 @@
 This is a structural precondition for the optional diagnostic SDC. The actual
 mailbox proof, native timing, reset pulse/MTBF and physical IO remain distinct.
 """
-def validate_mailbox(before: dict, after: dict, *, half_rate_board: bool = True) -> dict:
+def validate_mailbox(before: dict, after: dict, *, half_rate_board: bool = True, dynamic_video: bool = False) -> dict:
     def require(condition, message):
         if not condition:
             raise ValueError('PC/XT mailbox: ' + message)
 
     cells = after['cells']
+    prefix = 'dos_video.video.adapter.' if dynamic_video else 'system.video.adapter.'
     roles = ('received', 'sent', 'ack_meta', 'ack_sync', 'sent_meta', 'sent_sync',
              'hold_meta', 'hold_sync', 'published_bank', 'front')
-    names = {r: 'system.video.adapter.' + r for r in roles}
+    if dynamic_video:
+        roles = (*roles, 'published_mode', 'published_tint', 'front_mode', 'front_tint')
+    names = {r: prefix + r for r in roles}
     names.update(hold_source='system.machine_reset', board_reset='board_reset_domain.board_reset' if half_rate_board else 'sys_reset',
                  pixel_reset='pixel_reset')
     wires, emitted, flops = {}, {}, {}
@@ -37,13 +40,18 @@ def validate_mailbox(before: dict, after: dict, *, half_rate_board: bool = True)
     board = cells['memory_clock']['connections']['outclk'][2 if half_rate_board else 0]
     pixel = cells['video_clock']['connections']['outclk'][0]
     require(board != pixel, 'board/pixel clocks collapsed')
-    for role, clock in [('received', pixel), ('sent', board), ('hold_source', board),
-                        ('published_bank', board), ('front', pixel)]:
+    two_bit = {'published_bank', 'front', 'published_mode', 'published_tint', 'front_mode', 'front_tint'}
+    checks = [('received', pixel), ('sent', board), ('hold_source', board),
+              ('published_bank', board), ('front', pixel)]
+    if dynamic_video:
+        checks.extend([('published_mode', board), ('published_tint', board),
+                       ('front_mode', pixel), ('front_tint', pixel)])
+    for role, clock in checks:
         f = flops[role]
         require(f['type'] in {'$dff', '$sdff', '$dffe', '$sdffe', '$sdffce'} and
                 f['connections']['CLK'] == [clock] and integer(f, 'CLK_POLARITY') == 1,
                 'wrong launch/capture register ' + role)
-        require(len(wires[role]['bits']) == (2 if role in {'published_bank', 'front'} else 1),
+        require(len(wires[role]['bits']) == (2 if role in two_bit else 1),
                 'wrong mailbox register width ' + role)
 
     resets = []

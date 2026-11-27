@@ -120,3 +120,44 @@ func TestMachineCoreDataAndLaunchHeaders(t *testing.T) {
 		t.Fatalf("load headers %v", headers)
 	}
 }
+
+func TestPcxtMachineCoreDataHeadersAndDecode(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	settings := protocol.PcxtMachineSettings{VideoCard: 2, MonoTint: 1}
+	desc := validCoreInspectionDescriptor()
+	desc.Core.ID = "fes.pcxt-dos"
+	desc.ABI = corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}
+	desc.Interfaces = []corepackage.Interface{
+		{ID: "fes.video.fixed-720p60", Major: 1, Required: true},
+		{ID: "fes.media.pcxt-floppy", Major: 1, Required: true},
+		{ID: "fes.persistence.words", Major: 1, Required: true},
+		{ID: "fes.pcxt.machine", Major: 1, Required: true},
+	}
+	var headers http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers = r.Header.Clone()
+		_, _ = io.ReadAll(r.Body)
+		revision := strings.Repeat("e", 64)
+		_ = json.NewEncoder(w).Encode(protocol.CoreDataInspection{
+			CoreData: protocol.CoreData{
+				PackageID: id, CoreID: "fes.pcxt-dos", Mode: "persistent",
+				Layout: &protocol.RuntimeContract{ID: "fes.pcxt.machine", Major: 1}, Revision: revision,
+				GameID: "beast-1984", PcxtMachine: &settings,
+			},
+			Descriptor: desc,
+		})
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	client := targetclient.NewClient(base, "secret", server.Client())
+	result, err := client.InspectGameCoreData(context.Background(), 7, strings.NewReader("package"), id, "beast-1984")
+	if err != nil || result.PcxtMachine == nil || *result.PcxtMachine != settings || headers.Get(protocol.LibraryGameHeader) != "beast-1984" {
+		t.Fatalf("inspect %+v %v %v", result, err, headers)
+	}
+	update := protocol.CoreSettingsUpdate{ExpectedPackageID: id, ExpectedRevision: "absent", GameID: "beast-1984", PcxtMachine: &settings}
+	if _, err := client.UpdateCoreSettings(context.Background(), 7, strings.NewReader("package"), update); err != nil ||
+		headers.Get(protocol.PcxtMachineSettingsHeader) != "2,1" || headers.Get(protocol.MachineSettingsHeader) != "" ||
+		headers.Get("X-FogCast-Paddle-Speed") != "" {
+		t.Fatalf("update %v %v", err, headers)
+	}
+}

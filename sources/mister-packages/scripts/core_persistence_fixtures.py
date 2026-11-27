@@ -145,12 +145,53 @@ def exchanges():
     return {"initial_request_toggle": False, "build_id": original["build_id"], "exchanges": rows}
 
 
+def pcxt_records():
+    core, game, layout = "fes.pcxt-dos", "h-tron", "fes.pcxt.machine"
+    defaults = (0, 0, 0, 0)
+    mda_amber = (1, 2, 0, 0)
+    hgc_green = (2, 1, 0, 0)
+    valid = []
+    for name, words in (("defaults", defaults), ("mda-amber", mda_amber), ("hercules-green", hgc_green)):
+        data = game_record(core=core, game=game, layout=layout, words=words)
+        valid.append({"name": name, "words": list(words), "hex": data.hex(), "revision": hashlib.sha256(data).hexdigest()})
+    default = game_record(core=core, game=game, layout=layout, words=defaults)
+
+    def change(index, value):
+        words = list(defaults)
+        words[index] = value
+        return game_record(core=core, game=game, layout=layout, words=tuple(words))
+
+    invalid = {
+        "pong-envelope": record(core=core, layout=layout, words=defaults),
+        "bad-magic": b"X" + default[1:],
+        "bad-checksum": default[:-1] + bytes([default[-1] ^ 1]),
+        "wrong-core": game_record(core="fes.pc386", game=game, layout=layout, words=defaults),
+        "wrong-game": game_record(core=core, game="other-game", layout=layout, words=defaults),
+        "wrong-layout": game_record(core=core, game=game, layout="fes.pcxt.other", words=defaults),
+        "wrong-major": game_record(core=core, game=game, layout=layout, major=2, words=defaults),
+        "wrong-minor": game_record(core=core, game=game, layout=layout, minor=1, words=defaults),
+        "short-count": game_record(core=core, game=game, layout=layout, words=defaults[:3]),
+        "long-count": game_record(core=core, game=game, layout=layout, words=defaults + (0,)),
+        "invalid-video-card": change(0, 3),
+        "invalid-mono-tint": change(1, 3),
+        "reserved0-nonzero": change(2, 1),
+        "reserved1-nonzero": change(3, 1),
+        "truncated": default[:-1],
+        "trailing-byte": default + b"\x00",
+        "empty": b"",
+    }
+    namespace = hashlib.sha256(b"fes-core-game-data-v1\0" + core.encode() + b"\0" + game.encode()).hexdigest()
+    return {"format": 1, "core_id": core, "game_id": game, "namespace": namespace,
+            "layout": {"id": layout, "major": 1, "minor": 0, "words": 4},
+            "valid": valid, "invalid": [{"name": name, "hex": data.hex()} for name, data in invalid.items()]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     for filename, value in (("records.json", records()), ("exchanges.json", exchanges()),
-                            ("pc386-machine.json", pc386_records())):
+                            ("pc386-machine.json", pc386_records()), ("pcxt-machine.json", pcxt_records())):
         path = OUTPUT / filename
         contents = json.dumps(value, indent=2) + "\n"
         if args.check:

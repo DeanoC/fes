@@ -112,6 +112,36 @@ void SharedMachineRecords()
 	}
 	assert(valid == 3 && invalid >= 20);
 }
+// The shared fes.pcxt.machine vectors: per-game FESGAME1 records.
+void SharedPcxtMachineRecords()
+{
+	std::ifstream fixture("tests/fixtures/core-persistence-v1/pcxt-machine.json");
+	assert(fixture.good());
+	std::string json((std::istreambuf_iterator<char>(fixture)), std::istreambuf_iterator<char>());
+	const std::regex rows(R"rx(\{[^{}]*"hex"[^{}]*\})rx");
+	const std::regex hex(R"rx("hex"\s*:\s*"([0-9a-f]*)")rx");
+	const std::regex revision(R"rx("revision"\s*:\s*"([0-9a-f]{64})")rx");
+	std::size_t valid = 0, invalid = 0;
+	for (std::sregex_iterator row(json.begin(), json.end(), rows), end; row != end; ++row) {
+		const std::string text = row->str();
+		std::smatch h, r;
+		assert(std::regex_search(text, h, hex));
+		auto bytes = Unhex(h[1].str());
+		CoreData data;
+		if (std::regex_search(text, r, revision)) {
+			++valid;
+			assert(DecodeGameData(bytes, "fes.pcxt-dos", "h-tron", &data).ok());
+			assert(data.layout.id == "fes.pcxt.machine" && data.revision == r[1] && data.words.size() == 4);
+			std::vector<unsigned char> encoded;
+			assert(EncodeCoreData(data, &encoded).ok());
+			assert(encoded == bytes);
+		} else {
+			++invalid;
+			assert(!DecodeGameData(bytes, "fes.pcxt-dos", "h-tron", &data).ok());
+		}
+	}
+	assert(valid == 3 && invalid >= 3);
+}
 void MachineNamespace()
 {
 	char tmp[] = "/tmp/runtime-game-data-XXXXXX";
@@ -150,6 +180,7 @@ int main()
 {
 	SharedRecords();
 	SharedMachineRecords();
+	SharedPcxtMachineRecords();
 	MachineNamespace();
 	const std::string id = "org.fes.pong";
 	CoreData data;

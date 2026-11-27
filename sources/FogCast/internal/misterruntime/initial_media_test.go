@@ -271,7 +271,7 @@ func TestInitialPcxtDiskRidesTheFirmwareLaunch(t *testing.T) {
 			reply.Capabilities.MediaUnits[0].Persistence.GameID = "other-game"
 		}
 		socket := newSequenceSocketFixture(t, []string{responseLine(t, before) + "\n", responseLine(t, reply) + "\n"})
-		_, err := NewClient(socket.path).LoadFirmwareCore(context.Background(), "/stage/shell", before.ActivePackage.PackageID, CoreDataRoot, "/stage/firmware.rom", *before.ActivePackage.ROMLink, media)
+		_, err := NewClient(socket.path).LoadFirmwareCore(context.Background(), "/stage/shell", before.ActivePackage.PackageID, CoreDataRoot, "/stage/firmware.rom", *before.ActivePackage.ROMLink, media, "")
 		if (err != nil) != bad {
 			t.Fatalf("bad=%v error=%v", bad, err)
 		}

@@ -664,11 +664,11 @@ func TestTapUsesSelectedTargetLeaseNotForeground(t *testing.T) {
 			rig := newStreamRig(t)
 			service := &tapTargetService{fakeService: fakeService{status: tapHIDStatus()}, foreground: tc.foreground,
 				connections: map[string]fogcast.TargetConnection{"kit-b": tc.paired}}
-			handler := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) host.RemoteInputController {
+			handler := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) (host.RemoteInputController, error) {
 				if target != "kit-b" {
 					t.Fatalf("wrong input target %q", target)
 				}
-				return rig.input
+				return rig.input, nil
 			}))
 			request := func(method, path, body string) *httptest.ResponseRecorder {
 				req := httptest.NewRequest(method, path, strings.NewReader(body))

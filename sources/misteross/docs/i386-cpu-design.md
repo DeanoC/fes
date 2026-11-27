@@ -825,11 +825,13 @@ the ITLB's page is the linear one with A20M applied.
   addresses in one MLAB (one write port, asynchronous read; #1581 S2) and a
   top pointer, in the front end (`fes_i386_ras`). It predicts near RET (C3h, C2h).
   - **Entries.** The BTB keeps an entry for every near RET and CALL rel, with
-    a bit for each. WB allocates a RET's entry as it does a taken branch's,
-    always taken.
+    a bit for each and the CALL's operand size. WB allocates a RET's entry as
+    it does a taken branch's, always taken.
   - **Fetch.** When F2 passes on a block whose chosen entry is a CALL rel's,
-    the stack pushes the linear address after the call's last byte, on the
-    next edge. When it is a RET's, F1 goes to the top, which the stack pops.
+    the stack pushes its return address on the next edge. A 16-bit CALL pushes
+    CS.base plus the low 16 bits of the next EIP; a 32-bit CALL pushes the
+    full fall-through linear address. When it is a RET's, F1 goes to the top,
+    which the stack pops.
     Only a block F2 passes on moves the stack, and only once. The top's
     16:1 select feeds only F1's predicted block register and the half's
     target field. Nothing changes in Q's loop: Q goes on at the target's
@@ -854,8 +856,8 @@ the ITLB's page is the linear one with A20M applied.
   - **Unpredicted CALLs.** A near CALL the front end did not push always
     redirects at WB: a CALL rel or CALL r/m the BTB missed. So does a CALL
     r/m predicted to another target, whose push was right. On that redirect
-    WB writes its return address, CS.base plus the next EIP, at the new
-    top.
+    WB writes its return address at the new top, truncating the next EIP for a
+    16-bit CALL before adding CS.base, as in the speculative push.
   - **Entries are not repaired.** A wrong path's push over a live entry
     costs a later misprediction, never a result.
   - **Overflow and underflow.** The pointer wraps. A seventeenth CALL
