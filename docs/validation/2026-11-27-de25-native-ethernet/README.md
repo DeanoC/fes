@@ -55,3 +55,15 @@ the mapping, read back the invalid stream-table entry, and verified MAC0
 back in reset. The host observer recorded zero frames and zero drops.
 C64 reached Ready and Park before CBL was released. [UART capture](tx06-uart.gz) ·
 [Trial and C64 return receipt](tx06-release.json)
+
+## Gigabit PHY observation
+
+The next run read all three MAC capability registers and confirmed the
+dedicated RGMII interface, FIFO sizes and channel layout. The KSZ9031
+reported `0x0f49` in register 31. Its speed and duplex fields indicated
+gigabit full duplex while its link status check fail bit was set. This
+single sample stopped transmission before descriptor dispatch. The
+target verified mapping revocation and MAC reset, and C64 returned to
+Ready and Park. [UART capture](tx07-uart.gz) ·
+[Trial and C64 return receipt](tx07-release.json) ·
+[KSZ9031RNX register descriptions, table 4-4](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ9031RNX-Data-Sheet-DS00002117.pdf)
