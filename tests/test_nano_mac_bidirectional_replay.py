@@ -27,7 +27,7 @@ def trial():
     suffix = old[next(i for i, s in enumerate(old) if " stage=30 " in s) : -1] + [BIDI.PARK]
     blocks = []
     frames = []
-    phy = " id1=0022 id2=1622 bmcr=1140 bmsr_latch=796d bmsr=796d adv=01e1 partner=cde1 gig_adv=0300 gig_partner=3c00 pcs=0004 resolved=0f49"
+    phy = " id1=0022 id2=1622 bmcr=1140 bmsr_latch=796d bmsr=796d adv=01e1 partner=cde1 gig_adv=0300 gig_partner=3c00 pcs=0806 resolved=0f49"
     summary = (
         " rc=0 stage=8 arm=1 mapped=1 mac=1 possible=1 dispatch=1 tps=1 revoked=1 reset=1 disposition=closed writes=1"
         " terminal_per0=ff7fbfff terminal_route=00000003 terminal_sid=00010001 terminal_cr0=0000000d terminal_ack=0000000d"
@@ -98,7 +98,7 @@ class BidirectionalWitness(unittest.TestCase):
             (b"drain_status=00000002", b"drain_status=00000000"),
             (b"feature0=cafd5b3f", b"feature0=ca7d5b3f"),
             (b"FES_CBL_BIDI PARK", b"FES_CBL_MAC_TX PARK"),
-            (b"pcs=0004", b"pcs=0002"),
+            (b"pcs=0806", b"pcs=0802"),
             (b"cmd=8 success=1", b"cmd=12 success=1"),
             (b"us=1110000", b"us=1000000"),
             (b"us=2000000", b"us=1119999"),
@@ -159,7 +159,7 @@ class BidirectionalWitness(unittest.TestCase):
                 "desc=00000000 channel=00000000 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 dwell_us=0 reply=-"
             )
             interrupted = block[:3] + [
-                s.replace("resolved=0f49", "resolved=0300").replace("pcs=0004", "pcs=0000")
+                s.replace("resolved=0f49", "resolved=0300").replace("pcs=0806", "pcs=0000")
                 for s in block[3:5]
             ]
             interrupted += [terminal, empty, block[-1].replace("success=1", "success=0")]

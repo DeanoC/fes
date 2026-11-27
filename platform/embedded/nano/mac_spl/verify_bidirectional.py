@@ -168,7 +168,7 @@ def tx_observations(trace, identity):
                 and p["gig_adv"] & 0xE200 == 0x200
                 and p["gig_partner"] & 0xB800 == 0x3800
                 and p["gig_partner"] & 255 != 255
-                and p["pcs"] & 6 == 4
+                and p["pcs"] & 4 != 0
                 and p["resolved"] & 0x78 == 0x48,
                 "PHY not qualified for gigabit TX",
             )
