@@ -3832,6 +3832,9 @@ bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`,
 The runtime validates the complete request and owns the physical GP writes.
 The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
 not another network endpoint, and there is no additional virtual-device discovery rule.
+The agent serializes its local socket binds when temporarily changing the
+process umask, so concurrent input, control and software socket startup cannot
+restore another listener's temporary mask as the agent's permanent mask.
 For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
 onto that keyboard matrix. Each physical pad retains its own buttons and axes;
@@ -4824,8 +4827,10 @@ snapshot. Capture keeps the FPGA snapshot frozen and dirty until that
 generation-bound acknowledgement succeeds. Capture, import, catalog, or
 acknowledgement failure returns `save_failed` and leaves the play active so Stop
 can be retried; the runtime independently refuses Stop while an unacknowledged
-SAVE remains. The selected core ID is retained with the launched play, so a
-known non-ZX81 library core skips this bookkeeping without another catalog read.
+SAVE remains. The capture directory is set to owner-only mode 0700 before it is
+passed to the runtime, even under a restrictive process umask. The selected core
+ID is retained with the launched play, so a known non-ZX81 library core skips
+this bookkeeping without another catalog read.
 For a bound ZX81 play, status, package, generation, or required tape-write
 capability mismatches return `save_failed` with structured expected and observed
 values in the host log. An empty capture means no SAVE is pending. When the

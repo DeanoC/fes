@@ -12,13 +12,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/localhid"
+	"github.com/DeanoC/FogCast/internal/localsocket"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -149,9 +149,7 @@ func listenLocalInput(path string) (net.Listener, error) {
 	// A chmod after Listen is too late: Dial succeeds as soon as the socket
 	// exists. umask 0177 makes that first mode 0600; 0077 would leave 0700
 	// until chmod, which the concurrent dial can still observe.
-	oldMask := syscall.Umask(0o177)
-	listener, err := net.Listen("unix", path)
-	syscall.Umask(oldMask)
+	listener, err := localsocket.Listen(path, 0o177)
 	if err != nil {
 		return nil, err
 	}

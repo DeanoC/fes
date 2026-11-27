@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/DeanoC/FogCast/internal/localsocket"
 )
 
 func openInventoryReadOnly(path string) (*os.File, error) {
@@ -26,9 +28,7 @@ func listen(path string) (net.Listener, error) {
 	}
 	// Umask is process-wide. Restore it as soon as Listen returns so the
 	// socket is created 0600 and later files keep the caller's mask.
-	oldMask := syscall.Umask(0o077)
-	listener, err := net.Listen("unix", path)
-	syscall.Umask(oldMask)
+	listener, err := localsocket.Listen(path, 0o077)
 	if err != nil {
 		return nil, err
 	}
