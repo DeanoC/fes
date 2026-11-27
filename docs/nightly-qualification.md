@@ -14,6 +14,10 @@ resolver. A prepared candidate survives a failed or delayed kit run. An
 unchanged retry uses its original SHA and package identity. Different inputs
 prepare a new candidate. Candidates enter the qualified store only after
 applicable hardware acceptance. Initial startup visits every registered cell.
+The shared-RTL and D12 closure-only merge deferrals in
+[AGENTS.md](../AGENTS.md#shared-rtl-under-d12) apply only after this job has
+produced a first baseline. Until then, those PRs need normal pre-merge
+exact-head kit HIL.
 
 ## Configure the worker
 
@@ -97,8 +101,10 @@ recovery selections and credentials in their existing stores.
 
 The job checkpoints individual cells. A failed route, HIL or unavailable
 worker leaves its previous qualified object in place and reports a failing
-nightly. The coordinator checks complete board snapshots newest first. It
-publishes the newest compatible complete set for each release and keeps
+nightly. Lander owns failed cells. A nightly failure is never a reason to
+revert a merged PR. The coordinator checks complete board snapshots newest
+first. It publishes the newest compatible complete set for each release and
+keeps
 historical immutable sets. Independent readers see complete generations.
 Use the release's expected software digest to resolve once, then keep the
 returned set identity in both OS and Tenfoot release evidence:
