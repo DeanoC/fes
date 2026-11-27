@@ -27,6 +27,7 @@ enum fault {
     FLP_LO_WRITE_LOST,
     FLP_RESTORE_LOST,
     FLP_RESTORE_FOREIGN_PHY,
+    FLP_CHANGED_ADVERTISEMENT,
     TRAINING_IDLE_ERRORS,
     NO_CLEANUP_BUDGET,
     PCS_DOWN,
@@ -218,6 +219,7 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         }
         assert(((v>>16)&3)==3);
         *p = phy[number];
+        if (number==4 && f->fault==FLP_CHANGED_ADVERTISEMENT && f->restarts) *p|=1U<<10;
         if (number==13) *p=f->selector;
         if (number==14) {
             unsigned dev=f->selector&31, off=f->offsets[dev];
@@ -447,6 +449,8 @@ static void test(enum fault fault)
     }
     if (fault == FLP_RESTORE_FOREIGN_PHY || fault == FLP_RESTORE_LOST)
         assert(f.transmits && out.phy.applied && !out.phy.restored && out.translation_revoked && out.mac_in_reset);
+    if (fault == FLP_CHANGED_ADVERTISEMENT)
+        assert(!f.transmits && out.phy.restart && !out.phy.restored && out.translation_revoked);
     if (fault == WRONG_PHY) assert(!out.phy.portal && !f.external_writes);
     unsigned writes = f.writes;
     assert(fes_tx_terminal(&io, &out, rc) == expected);
