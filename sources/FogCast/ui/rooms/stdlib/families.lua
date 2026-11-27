@@ -204,7 +204,7 @@ local STATE_WORDS = {
 function M.details(f)
   local lines, order, models = {}, {}, {}
   local settled = M.settled()
-  local family_state = M.state(f)
+  local family_state = not settled and M.state(f)
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
     if not settled and not (family_state == "ready" and machines and machines[v.id] and machines[v.id].ready) then
