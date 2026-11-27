@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -17,10 +18,13 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
-const (
-	defaultMDNSInstance = "FES-TamaGo"
-	defaultMDNSHost     = "fes-tamago.local"
-)
+func defaultMDNSNames(targetID string) (instance, host string) {
+	short := strings.ReplaceAll(targetID, "-", "")
+	if len(short) > 12 {
+		short = short[:12]
+	}
+	return "FES-TamaGo-" + short, "fes-tamago-" + short + ".local"
+}
 
 var (
 	// ErrInvalidConfig is returned when ServiceConfig or StateControllerConfig fails validation.
@@ -253,6 +257,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Controller == nil {
 		return nil, fmt.Errorf("%w: missing controller", ErrInvalidConfig)
 	}
+	if cfg.AdvertiseMDNS && cfg.TLSConfig != nil {
+		return nil, fmt.Errorf("%w: mDNS advertisement does not support TLS endpoints", ErrInvalidConfig)
+	}
 	prefix, err := netip.ParsePrefix(cfg.Endpoint.Address())
 	if err != nil || !prefix.IsValid() || !prefix.Addr().Is4() {
 		return nil, fmt.Errorf("%w: invalid endpoint IPv4 prefix %q", ErrInvalidConfig, cfg.Endpoint.Address())
@@ -307,13 +314,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		if !mdns.ValidID(targetID) {
 			return nil, fmt.Errorf("%w: valid UUID target_id required for mDNS advertisement", ErrInvalidConfig)
 		}
+		defaultInstance, defaultHost := defaultMDNSNames(targetID)
 		instance := cfg.MDNSInstance
 		if instance == "" {
-			instance = defaultMDNSInstance
+			instance = defaultInstance
 		}
 		host := cfg.MDNSHost
 		if host == "" {
-			host = defaultMDNSHost
+			host = defaultHost
 		}
 		info := cfg.MDNSInfo
 		info.TargetID = targetID

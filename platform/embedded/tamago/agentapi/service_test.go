@@ -4,6 +4,7 @@ package agentapi_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -184,6 +185,7 @@ func TestServiceValidationAndAuth(t *testing.T) {
 		{Endpoint: agentapi.NewLinkEndpoint(linkSrv, "not-a-mac"), Port: 8080, Controller: ctrl, AllowUnauthenticated: true},
 		{Endpoint: ep, Port: 8080, Controller: ctrl},
 		{Endpoint: ep, Port: 8080, Controller: ctrl, AllowUnauthenticated: true, AdvertiseMDNS: true, TargetID: "bad-id"},
+		{Endpoint: ep, Port: 8080, Controller: ctrl, AllowUnauthenticated: true, AdvertiseMDNS: true, TargetID: "11111111-2222-4333-8444-555555555555", TLSConfig: &tls.Config{}},
 	}
 	for i, cfg := range badConfigs {
 		if _, err := agentapi.NewService(cfg); err == nil {
@@ -243,5 +245,86 @@ func TestServiceValidationAndAuth(t *testing.T) {
 	_ = authResp.Body.Close()
 	if authResp.StatusCode != http.StatusOK {
 		t.Fatalf("authenticated status = %d, want 200", authResp.StatusCode)
+	}
+}
+
+func TestServiceDefaultMDNSNamesDerivedFromTargetID(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	link1, link2, mac1, mac2, cleanup := setupTestLinkPair(t)
+	defer cleanup()
+
+	const (
+		id1 = "11111111-2222-4333-8444-555555555555"
+		id2 = "aaaa1111-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	)
+
+	svc1, err := agentapi.NewService(agentapi.ServiceConfig{
+		Endpoint:             agentapi.NewLinkEndpoint(link1, mac1),
+		Port:                 8080,
+		TargetID:             id1,
+		AllowUnauthenticated: true,
+		AdvertiseMDNS:        true,
+		Controller:           agentapi.NewStateController(agentapi.StateControllerConfig{Board: "test-1", Address: link1.Prefix().String()}),
+	})
+	if err != nil {
+		t.Fatalf("NewService(1): %v", err)
+	}
+	svc2, err := agentapi.NewService(agentapi.ServiceConfig{
+		Endpoint:             agentapi.NewLinkEndpoint(link2, "02:aa:00:00:01:02"),
+		Port:                 8080,
+		TargetID:             id2,
+		AllowUnauthenticated: true,
+		AdvertiseMDNS:        true,
+		Controller:           agentapi.NewStateController(agentapi.StateControllerConfig{Board: "test-2", Address: link2.Prefix().String()}),
+	})
+	if err != nil {
+		t.Fatalf("NewService(2): %v", err)
+	}
+
+	if err := svc1.Start(ctx); err != nil {
+		t.Fatalf("Start(1): %v", err)
+	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer stopCancel()
+		_ = svc1.Stop(stopCtx)
+	}()
+	if err := svc2.Start(ctx); err != nil {
+		t.Fatalf("Start(2): %v", err)
+	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer stopCancel()
+		_ = svc2.Stop(stopCtx)
+	}()
+
+	browseCtx1, cancelBrowse1 := context.WithTimeout(ctx, 4*time.Second)
+	gotFrom1, err := mdns.Browse(browseCtx1, link2, mdns.BrowseConfig{
+		LocalMAC:    mac2,
+		LocalIP:     netip.MustParseAddr("192.0.2.20"),
+		StopOnFirst: true,
+	}, mdns.FogCastServiceType)
+	cancelBrowse1()
+	if err != nil {
+		t.Fatalf("mdns.Browse(from link1): %v", err)
+	}
+	browseCtx2, cancelBrowse2 := context.WithTimeout(ctx, 4*time.Second)
+	gotFrom2, err := mdns.Browse(browseCtx2, link1, mdns.BrowseConfig{
+		LocalMAC:    [6]byte{0x02, 0xaa, 0x00, 0x00, 0x01, 0x01},
+		LocalIP:     netip.MustParseAddr("192.0.2.10"),
+		StopOnFirst: true,
+	}, mdns.FogCastServiceType)
+	cancelBrowse2()
+	if err != nil {
+		t.Fatalf("mdns.Browse(from link2): %v", err)
+	}
+
+	if len(gotFrom1) != 1 || gotFrom1[0].Instance != "FES-TamaGo-111111112222" || gotFrom1[0].Host != "fes-tamago-111111112222.local" || mdns.ParseFogCastTXT(gotFrom1[0].TXT).TargetID != id1 {
+		t.Fatalf("unexpected default mDNS service for %s: %+v", id1, gotFrom1)
+	}
+	if len(gotFrom2) != 1 || gotFrom2[0].Instance != "FES-TamaGo-aaaa1111bbbb" || gotFrom2[0].Host != "fes-tamago-aaaa1111bbbb.local" || mdns.ParseFogCastTXT(gotFrom2[0].TXT).TargetID != id2 {
+		t.Fatalf("unexpected default mDNS service for %s: %+v", id2, gotFrom2)
 	}
 }
