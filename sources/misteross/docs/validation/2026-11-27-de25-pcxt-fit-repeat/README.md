@@ -84,7 +84,9 @@ codebase drops code that fixes nothing.
   machines (ZX81, Spectrum 48/128, Atari ST, C64) still need an exact RBF
   match.
 - A PC/XT rebuild whose `BUILD_ID` moved only through its closure is checked
-  by its `BUILD_ID`, which must be unchanged, and by its own timing signoff.
+  by its own timing signoff. The record states that its RBF can't be compared
+  with main's, and why, pointing to this README. The timing and seal checks
+  stay as strict as for any other machine.
 - Hardware acceptance follows exact bytes. The PC/XT RBF that gets sealed is
   the one that passes HIL, so a reseal (for example, after the DQ capture/hold
   fix in `2026-11-22-de25-pcxt-compile`) must HIL-test those exact bytes. It
