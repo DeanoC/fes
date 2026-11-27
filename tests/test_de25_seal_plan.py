@@ -37,6 +37,7 @@ class RegistryTests(unittest.TestCase):
 
     def test_pc386_recipe_uses_machine_tool_set_and_sealer_hooks(self):
         recipes = sp.registered()
+        self.assertEqual(recipes['fes.pc386'].front_end, 'yosys')
         self.assertEqual(sp.parse_selection('fes.pc386', recipes), [('fes.pc386', None)])
         self.assertIn('module.MACHINE.tool_set', sp.PROBE)
         sealer = (ROOT / 'scripts/powerboat/de25-seal-auto.sh').read_text()
@@ -45,14 +46,16 @@ class RegistryTests(unittest.TestCase):
 
     def test_a_non_pro_recipe_is_refused(self):
         recipe = sp.registered()['fes.menu']
-        lite = dataclasses.replace(recipe, quartus=dict(recipe.quartus, edition='lite'))
-        original = sp.load_recipes
-        sp.load_recipes = lambda *a, **k: {'fes.menu': lite}
-        try:
-            with self.assertRaisesRegex(sp.PlanError, 'not a DE25 Quartus Pro'):
-                sp.registered()
-        finally:
-            sp.load_recipes = original
+        for bad in (
+                dataclasses.replace(recipe, quartus=dict(recipe.quartus, edition='lite')),
+                dataclasses.replace(recipe, front_end='quartus-lite')):
+            original = sp.load_recipes
+            sp.load_recipes = lambda *a, **k: {'fes.menu': bad}
+            try:
+                with self.assertRaisesRegex(sp.PlanError, 'not a DE25 Quartus Pro'):
+                    sp.registered()
+            finally:
+                sp.load_recipes = original
 
     def test_an_empty_base_registry_is_allowed_for_auto_comparison(self):
         with mock.patch.object(sp, 'load_recipes', return_value={}):

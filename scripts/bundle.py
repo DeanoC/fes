@@ -103,6 +103,10 @@ def _bounded_pc386_canonical(command, source, env, *, timeout=1800):
         return record
 
 
+def _is_de10_pc386(recipe):
+    return recipe.core_id == 'fes.pc386' and recipe.board == 'de10-nano'
+
+
 def canonical_package_record(source, env=None, recipe=None, *, selection_only=False):
     """Derive the selected producer's canonical pre-synthesis record in isolation."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
@@ -146,12 +150,16 @@ repository, revision = producer._require_clean_source(root, **options)
 if "--selection-only" in sys.argv:
     # This record is only a source-selection request. Export and publication
     # reject the explicit marker; these strings are never compiler evidence.
-    identities = (producer.selection_identities() if hasattr(producer, "selection_identities") else
-                  ({name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
-                   if sys.argv[1].startswith("boards.de25nano.")
-                   else {"selection-only": "not authenticated"}))
-    if "--quartus-yosys" in sys.argv and not hasattr(producer, "selection_identities"):
+    if hasattr(producer, "selection_identities"):
+        identities = producer.selection_identities()
+    elif getattr(producer, "MACHINE", None) is not None and hasattr(producer.MACHINE, "tool_set"):
+        identities = {name: "selection-only" for name in producer.MACHINE.tool_set(producer.MACHINE.spec(root))}
+    elif "--quartus-yosys" in sys.argv:
         identities = {"quartus": "selection-only", "yosys": "selection-only"}
+    elif sys.argv[1].startswith("boards.de25nano."):
+        identities = {name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
+    else:
+        identities = {"selection-only": "not authenticated"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
     tools = authenticate(root, cache_root=cache_root)
@@ -185,7 +193,7 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
     try:
         child_env = package_build_environment(env, recipe=recipe)
         record = (_bounded_pc386_canonical(command, source, child_env)
-                  if recipe.core_id == 'fes.pc386' and not selection_only else
+                  if _is_de10_pc386(recipe) and not selection_only else
                   subprocess.check_output(command, cwd=source, env=child_env))
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
@@ -468,7 +476,7 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
             raise ValueError(f"selected package {field} must be a non-symlink directory")
     matches = []
-    local_pc386 = store_override is None and recipe.core_id == 'fes.pc386'
+    local_pc386 = store_override is None and _is_de10_pc386(recipe)
     if local_pc386:
         entries = store / '.pc386-entries'
         if not entries.exists() and not entries.is_symlink():
@@ -499,7 +507,7 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         elif 'identities' in candidate_fields:
             if sidecar.parent.name != candidate_fields['identities']['record']:
                 raise ValueError('cache evidence directory differs from its record digest')
-            ignored = {'build-inputs.json'} | ({'evidence'} if recipe.core_id == 'fes.pc386' else set())
+            ignored = {'build-inputs.json'} | ({'evidence'} if _is_de10_pc386(recipe) else set())
             members = [path for path in sidecar.parent.iterdir() if path.name not in ignored]
             if len(members) != 1:
                 raise ValueError('cache evidence must name exactly one package')
@@ -509,12 +517,12 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if HEX64.fullmatch(identity) is None:
             raise ValueError("matching package evidence has an invalid package ID filename")
         package = store / identity if store_override is None and not local_pc386 else sidecar.parent / identity
-        evidence = sidecar.parent / 'evidence' if recipe.core_id == 'fes.pc386' else None
+        evidence = sidecar.parent / 'evidence' if _is_de10_pc386(recipe) else None
         _plain_directory(package, "candidate")
         inspected = _inspect_package_candidate(source, package, sidecar, recipe=recipe)
         if inspected.get("package_id") != identity:
             raise ValueError("matching package evidence differs from inspected package identity")
-        if recipe.core_id == 'fes.pc386':
+        if _is_de10_pc386(recipe):
             inspected['pc386_evidence'] = {
                 'directory': evidence,
                 'receipt_sha256': _inspect_pc386_evidence(source, package, sidecar, evidence),
@@ -714,7 +722,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
                                            artifact_cache.identity.toolchain_selection(selected)),
         })
     require_private_audit_cache(os.environ if env is None else env)
-    if recipe.core_id == 'fes.pc386':
+    if _is_de10_pc386(recipe):
         evidence_info = inspected['pc386_evidence']
         evidence_dir = evidence_info['directory']
         _sealed(evidence_dir, directory=True)

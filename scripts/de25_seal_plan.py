@@ -110,7 +110,7 @@ def registered(path=None, *, allow_empty=False):
     for core_id, recipe in sorted(recipes.items()):
         quartus = recipe.quartus or {}
         script = recipe.producer_script
-        if (recipe.board != BOARD or recipe.toolchain != 'quartus' or recipe.front_end != 'quartus-pro'
+        if (recipe.board != BOARD or recipe.toolchain != 'quartus' or recipe.front_end not in ('quartus-pro', 'yosys')
                 or quartus.get('edition') != 'pro' or quartus.get('device_family') != 'agilex5'
                 or not script.startswith(PRODUCER_DIR) or not script.endswith('.py')
                 or '..' in Path(script).parts or not CORE_ID.fullmatch(core_id)):
