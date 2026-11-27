@@ -1,0 +1,41 @@
+{
+  "classification": "completed post-F3 C26 host RTL Quake window",
+  "fit_source_revision": "4fe7bada67a8e6689bc4c3dc480a844db72e0076",
+  "revision": "55e6d233191fd05c3aacc7185c859ef38b0a6234",
+  "clock_hz": "4700000000/39",
+  "derived_x87_sha256": "b52d451a6ce93e958fe303852016b37cd5ddf3195eab157609fbf1996585d1dd",
+  "handover_cycle": 542307765,
+  "end_cycle": 2952564213,
+  "end_seconds": "24.500",
+  "end_profile_seconds": 24.500001,
+  "rtl_window_seconds": 20.0,
+  "end_steps": 793106399,
+  "first_sampled_render_s": 15.0,
+  "retired": 661068736,
+  "protected_mode_retired": 436664714,
+  "oracle_fallback_steps": 0,
+  "protected_oracle_steps": 0,
+  "vga": {
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0
+  },
+  "exit_code": 0,
+  "files_sha256": {
+    "game-launch.json": "e502a4335729f156564060a060f8d88e4b0b28d75d45c2c87c344c03fc97406f",
+    "games/analysis.json": "697fd4bae2b70f5f6848b72885fc445917fbe1082ddfaf4169cd70c5b3c1cfa0",
+    "game-control/result.json": "293c3207a1362490b9874d34e70135cdfea088ff6099a3d5f75694ee8a000363",
+    "games/dx-quake/demo-milestone/summary.json": "fcfc1e4acdf5e08a751ea764ba899129aed7fabf3ecee61b37ab3b8483885080",
+    "milestones/quake-t0015.00.png": "b9636ac4539e759b4696a0bbf25fed063e5926a3f8397816745c5e492d2bf358",
+    "milestones/quake-t0020.00.png": "bb272703c5f93995ce4bdbc5a4af865df1aa8f0cf106ecef868049c1ab8d1be8",
+    "milestones/quake-final.png": "e73eeb76772ff5f1ed96299d7d42520cd15136848e6d21fbf453988c7f1c57db",
+    "games/dx-quake/result.json": "e8f8c5c55c76bdfdf2e28f794dc26bf41579bf73cb32b509806122e26591cd8f",
+    "games/dx-quake/command.json": "edfc1ae72f14a05e543cb5e917730fae17d85395ee3ebe0f70698276d12ab39a",
+    "games/dx-quake/run.log": "4c0fc414cbaaa8c8c166a9fe2a8c01a951192d99a7f62463cde4b58602432a27",
+    "games/dx-quake/cpu.prof": "e8385785fb21b9af1ab5fd7605a0d40f59750b508c8100acc00c40cd304ff62c",
+    "games/dx-quake/frames/t0015.00.ppm": "6e59ad5b62bc6654fc3b3dcd05eebb595cb4e9588acdc2d8a84770c134f75b4d",
+    "games/dx-quake/frames/t0020.00.ppm": "05b5824f19d254885bdeffb93ab37e5a4061821e2ffcd087b7d34bbd21330e22",
+    "games/dx-quake/frames/final.ppm": "6821c28f5940aa62f128c0c353a6d0e38b2b9df52eac13e7386fb456f2ece680"
+  }
+}

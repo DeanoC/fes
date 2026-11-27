@@ -228,13 +228,22 @@ The integrated [G4 receipt](sim-c26-f3-g4.json) verifies 75 artifacts.
 Doom reached the same flip-40 handover at cycle 2,678,438,006 on both
 arms. It measured 2,183.921 normalized DX-33 realtics against the 4,682
 limit. 3DBench's DX/reference CPI ratio was 1.0145385. All 48 paired raw
-3DBench frame captures match the earlier `9259873f` replay. G5 is
-still running. Its protected retirement count differs from
+3DBench frame captures match the earlier `9259873f` replay. The G5
+protected retirement count differs from
 `9259873f` at guest time 10 seconds. At guest time 15 seconds the
 integrated replay rendered the Necropolis demo with 411,381,016 RTL
 retirements, including 187,108,920 protected retirements. The first-demo
 receipt SHA-256 is
 `7dec9af2ea71ed62d29f0350b423bce49c753c8739df7eff2aab5db9b077ee8b`.
+
+The integrated [G5 full window](quake-c26-f3-full.json) completed all 20
+RTL seconds at guest time 24.500 and cycle 2,952,564,213. Quake exited 0
+after 661,068,736 RTL retirements, including 436,664,714 protected
+retirements. The trace recorded zero fallback, CPU stops, reset delta,
+video underflows and capture drops. The [game receipt](sim-c26-f3-games.complete.json)
+verifies 119 artifacts from the integrated replay. The aggregate
+receipt SHA-256 is
+`f4df9a316fc7c09a534c91eaecffc55c742c95f93df6b0eeec52dd73c9ed04a8`.
 
 The router-effort candidate `3fa87187a579d401dfbc0f739e29b665b45c480a`
 reproduced the game compile inputs for both arms. The comparison

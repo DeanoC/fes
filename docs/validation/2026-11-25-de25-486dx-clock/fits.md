@@ -1241,6 +1241,10 @@ captured sets of 47 and 38 subjects and the exact new registers' fitted
 proofs. All 56 focused tests, `make check`, fresh DE10 and all seven
 D12 selections passed. Its preparation receipt SHA-256 is
 `03d7f5953d6db5631d3173dfe143a184c632a79a89d1fc139595aee9e83c3991`.
+Seed 3 sealed normally on this revision and passed independent LOADED
+at 2.336 ns. Worst setup was +0.260 ns and the fit used 45,094 ALMs.
+The summary SHA-256 is
+`1f56b1993162e2e93fd77144897524f1e9744e3267c891b91a0a62c5961b4a80`.
 
 ## Running a seed on either builder
 
