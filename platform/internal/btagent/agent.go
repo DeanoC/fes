@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -152,6 +153,9 @@ func (b *bus) readLoop() {
 }
 
 func (b *bus) call(ctx context.Context, msg *Message, body []byte) (*Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	ch := make(chan *Message, 1)
 	b.mu.Lock()
 	b.next++
@@ -715,9 +719,15 @@ func (a *agent) configure(ctx context.Context, path string) {
 	}{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)})
 	configured := true
 	for _, set := range sets {
+		if ctx.Err() != nil {
+			return
+		}
 		if err := a.callVoid(ctx, bluezDest, path, propsIface, "Set", "ssv", set.body, 10*time.Second); err != nil {
 			configured = false
 			log.Printf("bluetooth: adapter setup failed %s set %s: %v", path, set.name, err)
+			if ctx.Err() != nil {
+				return
+			}
 		}
 	}
 	wantDiscovery := a.pairingActive(a.clock())
@@ -727,6 +737,9 @@ func (a *agent) configure(ctx context.Context, path string) {
 		if err != nil && !isName(err, "org.bluez.Error.InProgress") {
 			configured = false
 			log.Printf("bluetooth: adapter setup failed %s start discovery: %v", path, err)
+			if ctx.Err() != nil {
+				return
+			}
 		} else {
 			info.Discovering = true
 			a.adapters[path] = info
@@ -1584,6 +1597,7 @@ func (a *agent) isForgotten(dev devInfo) bool {
 }
 
 func (a *agent) submitControl(ctx context.Context, req controlRequest) (Status, error) {
+	req.ctx = ctx
 	req.reply = make(chan controlResult, 1)
 	select {
 	case a.controlCh <- req:
@@ -1603,9 +1617,23 @@ func (a *agent) submitControl(ctx context.Context, req controlRequest) (Status, 
 }
 
 func (a *agent) handleControl(ctx context.Context, req controlRequest) {
+	if req.ctx != nil && req.ctx.Err() != nil {
+		req.reply <- controlResult{status: a.snapshot(), err: req.ctx.Err()}
+		return
+	}
+	opCtx := ctx
+	if req.ctx != nil {
+		var cancelOp context.CancelFunc
+		opCtx, cancelOp = context.WithCancel(ctx)
+		stopAfter := context.AfterFunc(req.ctx, cancelOp)
+		defer func() {
+			stopAfter()
+			cancelOp()
+		}()
+	}
 	switch req.kind {
 	case controlStartPairing:
-		st, err := a.startPairing(ctx, req.duration)
+		st, err := a.startPairing(opCtx, req.duration)
 		req.reply <- controlResult{status: st, err: err}
 		if err == nil {
 			for _, dev := range a.devices {
@@ -1613,10 +1641,10 @@ func (a *agent) handleControl(ctx context.Context, req controlRequest) {
 			}
 		}
 	case controlStopPairing:
-		st := a.stopPairing(ctx)
+		st := a.stopPairing(ctx, opCtx)
 		req.reply <- controlResult{status: st}
 	case controlForgetDevice:
-		st, err := a.forgetDevice(ctx, req.address)
+		st, err := a.forgetDevice(opCtx, req.address)
 		req.reply <- controlResult{status: st, err: err}
 	default:
 		req.reply <- controlResult{err: &controlError{code: http.StatusBadRequest, err: errors.New("unknown control request")}}
@@ -1627,6 +1655,7 @@ func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Statu
 	if a.bluezOwner == "" || len(a.adapters) == 0 {
 		return a.snapshot(), &controlError{code: http.StatusConflict, err: errors.New("no Bluetooth adapter available")}
 	}
+	prevForgotten := maps.Clone(a.forgotten)
 	clear(a.forgotten)
 	now := a.clock()
 	a.pairingUntil = now.Add(duration)
@@ -1636,13 +1665,29 @@ func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Statu
 	for adapterPath := range a.adapters {
 		delete(a.configuredAdapters, adapterPath)
 		a.configure(ctx, adapterPath)
+		if ctx.Err() != nil {
+			break
+		}
 		if info, ok := a.adapters[adapterPath]; ok && info.Discovering {
 			started = true
 		} else if firstErr == nil {
 			firstErr = errors.New("bluetooth adapter could not start discovery")
 		}
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		a.forgotten = prevForgotten
+		a.pairingUntil = time.Time{}
+		a.stopPairingTimer()
+		if started {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), pairCleanupTimeout)
+			a.stopDiscoveryAll(cleanupCtx)
+			cancel()
+		}
+		a.publishSnapshot()
+		return a.snapshot(), ctxErr
+	}
 	if !started && firstErr != nil {
+		a.forgotten = prevForgotten
 		a.pairingUntil = time.Time{}
 		a.stopPairingTimer()
 		a.publishSnapshot()
@@ -1652,11 +1697,11 @@ func (a *agent) startPairing(ctx context.Context, duration time.Duration) (Statu
 	return a.snapshot(), nil
 }
 
-func (a *agent) stopPairing(ctx context.Context) Status {
+func (a *agent) stopPairing(agentCtx, opCtx context.Context) Status {
 	a.stopPairingTimer()
 	a.pairingUntil = time.Time{}
-	a.resetPairingContext(ctx)
-	a.stopDiscoveryAll(ctx)
+	a.resetPairingContext(agentCtx)
+	a.stopDiscoveryAll(opCtx)
 	a.publishSnapshot()
 	return a.snapshot()
 }
@@ -1670,6 +1715,7 @@ func (a *agent) stopDiscoveryAll(ctx context.Context) {
 		if a.bluezOwner != "" {
 			if err := a.callVoid(ctx, bluezDest, adapterPath, adapterIface, "StopDiscovery", "", nil, 10*time.Second); err != nil && !isStopDiscoveryBenign(err) {
 				a.logf("stop-discovery:"+adapterPath, "bluetooth: stop discovery %s: %v", adapterPath, err)
+				continue
 			}
 		}
 		info.Discovering = false

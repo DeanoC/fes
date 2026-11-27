@@ -75,6 +75,7 @@ type controlResult struct {
 }
 
 type controlRequest struct {
+	ctx      context.Context
 	kind     controlKind
 	duration time.Duration
 	address  string

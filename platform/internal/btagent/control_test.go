@@ -627,3 +627,207 @@ func TestControlIPCForgetPreservesDeviceWhenRemoveDeviceFails(t *testing.T) {
 		t.Fatalf("RunWithControl exit err: %v", fmt.Errorf("%w", err))
 	}
 }
+
+func TestControlIPCCanceledRequestDoesNotCommitDelayedStartOrForget(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	sock := tempSocketPath(t)
+	ctrl, err := ListenControl(sock)
+	if err != nil {
+		t.Fatalf("ListenControl: %v", err)
+	}
+	defer ctrl.Close()
+
+	startSeen := make(chan struct{})
+	releaseStart := make(chan struct{})
+	removeSeen := make(chan struct{})
+	releaseRemove := make(chan struct{})
+
+	go func() {
+		defer serverConn.Close()
+		r := bufio.NewReader(serverConn)
+		line, err := r.ReadString('\n')
+		if err != nil || !strings.Contains(line, "AUTH EXTERNAL") {
+			return
+		}
+		_, _ = serverConn.Write([]byte("OK 00112233\r\n"))
+		begin, err := r.ReadString('\n')
+		if err != nil || begin != "BEGIN\r\n" {
+			return
+		}
+		var serial uint32
+		next := func() uint32 { serial++; return serial }
+		for {
+			msg, err := readMessage(r)
+			if err != nil {
+				return
+			}
+			if msg.Type != msgMethodCall {
+				continue
+			}
+			switch msg.Member {
+			case "Hello":
+				_ = reply(serverConn, next(), msg.Serial, "s", bodyString(":1.1"))
+			case "AddMatch":
+				_ = reply(serverConn, next(), msg.Serial, "", nil)
+			case "GetNameOwner":
+				_ = reply(serverConn, next(), msg.Serial, "s", bodyString(":1.1"))
+			case "RegisterAgent", "RequestDefaultAgent", "Set", "Connect":
+				_ = reply(serverConn, next(), msg.Serial, "", nil)
+			case "GetManagedObjects":
+				objs := []fixtureObj{
+					{
+						path: "/org/bluez/hci0",
+						ifaces: []fixtureIface{{
+							name:  adapterIface,
+							props: []fixtureProp{propString("Alias", "Kit BT Adapter"), propBool("Powered", true)},
+						}},
+					},
+					{
+						path: gamepadPath,
+						ifaces: []fixtureIface{{
+							name: deviceIface,
+							props: []fixtureProp{
+								propString("Address", "AA:BB:CC:DD:EE:FF"),
+								propString("Alias", "DualSense Wireless Controller"),
+								propString("Modalias", "bluetooth:v054Cp0CE6d0100"),
+								propUint("Class", 0x508),
+								propBool("Paired", true),
+								propBool("Connected", true),
+								propStrings("UUIDs", hidUUID),
+							},
+						}},
+					},
+				}
+				_ = reply(serverConn, next(), msg.Serial, "a{oa{sa{sv}}}", encodeObjects(objs))
+			case "StartDiscovery":
+				close(startSeen)
+				<-releaseStart
+				_ = reply(serverConn, next(), msg.Serial, "", nil)
+			case "RemoveDevice":
+				close(removeSeen)
+				<-releaseRemove
+				_ = reply(serverConn, next(), msg.Serial, "", nil)
+			default:
+				_ = reply(serverConn, next(), msg.Serial, "", nil)
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- RunWithControl(ctx, clientConn, ctrl)
+	}()
+
+	hc, closeIdle := httpUnixClient(sock)
+	defer closeIdle()
+
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		resp, err := hc.Get("http://fes-bluetooth/status")
+		if err == nil {
+			var st Status
+			_ = json.NewDecoder(resp.Body).Decode(&st)
+			_ = resp.Body.Close()
+			if len(st.Devices) == 1 {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	probeUnblocked := func() {
+		t.Helper()
+		probeResp, err := hc.Post("http://fes-bluetooth/devices/forget", "application/json", bytes.NewBufferString(`{"address":"00:00:00:00:00:00"}`))
+		if err != nil {
+			t.Fatalf("probe POST /devices/forget: %v", err)
+		}
+		_ = probeResp.Body.Close()
+		if probeResp.StatusCode != http.StatusNotFound {
+			t.Fatalf("probe status code = %d, want 404", probeResp.StatusCode)
+		}
+	}
+
+	// Cancel POST /pairing/start while StartDiscovery is still waiting on BlueZ.
+	reqCtx1, reqCancel1 := context.WithCancel(context.Background())
+	req1, err := http.NewRequestWithContext(reqCtx1, http.MethodPost, "http://fes-bluetooth/pairing/start", strings.NewReader(`{"duration_ms":5000}`))
+	if err != nil {
+		t.Fatalf("NewRequest start: %v", err)
+	}
+	errCh1 := make(chan error, 1)
+	go func() {
+		resp, err := hc.Do(req1)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		errCh1 <- err
+	}()
+	select {
+	case <-startSeen:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for StartDiscovery")
+	}
+	reqCancel1()
+	if err := <-errCh1; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled start pairing err = %v, want context.Canceled", err)
+	}
+	probeUnblocked()
+	close(releaseStart)
+
+	resp, err := hc.Get("http://fes-bluetooth/status")
+	if err != nil {
+		t.Fatalf("GET /status after canceled start: %v", err)
+	}
+	var st Status
+	if err := json.NewDecoder(resp.Body).Decode(&st); err != nil {
+		t.Fatalf("decode status after canceled start: %v", err)
+	}
+	_ = resp.Body.Close()
+	if st.PairingActive {
+		t.Fatalf("expected canceled startPairing not to leave pairing active, got %+v", st)
+	}
+
+	// Cancel POST /devices/forget while RemoveDevice is still waiting on BlueZ.
+	reqCtx2, reqCancel2 := context.WithCancel(context.Background())
+	req2, err := http.NewRequestWithContext(reqCtx2, http.MethodPost, "http://fes-bluetooth/devices/forget", bytes.NewBufferString(`{"address":"AA:BB:CC:DD:EE:FF"}`))
+	if err != nil {
+		t.Fatalf("NewRequest forget: %v", err)
+	}
+	errCh2 := make(chan error, 1)
+	go func() {
+		resp, err := hc.Do(req2)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		errCh2 <- err
+	}()
+	select {
+	case <-removeSeen:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for RemoveDevice")
+	}
+	reqCancel2()
+	if err := <-errCh2; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled forget device err = %v, want context.Canceled", err)
+	}
+	probeUnblocked()
+	close(releaseRemove)
+
+	resp2, err := hc.Get("http://fes-bluetooth/status")
+	if err != nil {
+		t.Fatalf("GET /status after canceled forget: %v", err)
+	}
+	var st2 Status
+	if err := json.NewDecoder(resp2.Body).Decode(&st2); err != nil {
+		t.Fatalf("decode status after canceled forget: %v", err)
+	}
+	_ = resp2.Body.Close()
+	if len(st2.Devices) != 1 || st2.Devices[0].Address != "AA:BB:CC:DD:EE:FF" {
+		t.Fatalf("expected canceled forgetDevice to preserve device, got %+v", st2.Devices)
+	}
+
+	cancel()
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunWithControl exit err: %v", fmt.Errorf("%w", err))
+	}
+}
