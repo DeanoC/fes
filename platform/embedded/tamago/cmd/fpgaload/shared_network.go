@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
@@ -93,10 +95,10 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 	// UUID for this boot, independent of the stable SD-provisioned target ID.
 	var bootID string
 	if provision != nil {
-		if de25nano.EntropySource().IsHardware() {
-			bootID = agentapi.BootID()
+		if id := de25nano.BootID(); id != ([16]byte{}) {
+			bootID = uuid.UUID(id).String()
 		}
-		if bootID == "" || !de25nano.EntropySource().IsHardware() {
+		if bootID == "" {
 			fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=boot-entropy-unavailable")
 			provision = nil
 		}

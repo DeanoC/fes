@@ -63,9 +63,26 @@ func timerNanos() int64
 func uartPut(base uint64, c byte)
 func halt()
 
+var bootID [16]byte
+var rngInitialized bool
+
+// BootID returns the hardware-sampled UUID reserved before the runtime random seed.
+func BootID() [16]byte { return bootID }
+
 //go:linkname initRNG runtime/goos.InitRNG
 //go:nosplit
-func initRNG() { psci.InitHardwareEntropy(psci.ConduitSMC) }
+func initRNG() {
+	if rngInitialized {
+		return
+	}
+	rngInitialized = true
+	source := psci.InitHardwareEntropy(psci.ConduitSMC)
+	if profileNetworkEnabled && source.IsHardware() {
+		var sample [16]byte
+		psci.FillHardwareEntropy(sample[:])
+		bootID = psci.HardwareBootUUID(sample, psci.HardwareEntropySource())
+	}
+}
 
 //go:linkname getRandomData runtime/goos.GetRandomData
 //go:nosplit

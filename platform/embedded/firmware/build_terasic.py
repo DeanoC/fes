@@ -101,6 +101,7 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
+    parser.add_argument("--nano-sdm-trng", action="store_true", help="fill a finite hardware-entropy pool before entering the matched native launcher")
     parser.add_argument("--nano-cold-serial-entry", type=Path, help="opt-in actual SPL/BL31 cold serial producer, bound to this native entry build")
     parser.add_argument("--nano-firmware-ocram", action="store_true", help="experimental matched shared-ROM SPL/EL3/native OCRAM reservation")
     parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
@@ -129,6 +130,8 @@ def main():
         parser.error("firmware MMU requires --nano-firmware-ocram")
     if args.nano_cold_serial_entry is not None and not args.nano_owned_bridges:
         parser.error("cold serial boot requires --nano-owned-bridges")
+    if args.nano_sdm_trng and not args.nano_sdm_input_transfer:
+        parser.error("SDM boot entropy requires the sealed input-transfer mailbox and private firmware mapping")
     if args.nano_firmware_ocram and args.nano_cold_serial_entry is None:
         parser.error('OCRAM firmware requires the exact cold native entry')
     cold = cold_profile = None
@@ -185,6 +188,9 @@ def main():
         import prepare_nano_owned
         producer_inputs += tuple(prepare_nano_owned.inputs())
     producer_inputs += (HERE.parent/'nano/fault_status.py',HERE.parent/'nano/runtime_startup.py',HERE.parent/'nano/call_trace.py',HERE/'nano_firmware_ram.py',HERE/'nano_firmware_runtime.py',HERE/'nano_firmware_call.py',HERE/'nano_firmware_percpu.py',HERE/'nano_firmware_runtime.inc',HERE/'nano_firmware_entry.inc',HERE/'nano_firmware_fault.inc',HERE/'nano_firmware_decode.inc',HERE/'nano_firmware_cache.inc',HERE/'nano_firmware_exit_cache.inc',HERE/'nano_firmware_ram.h')
+    if args.nano_sdm_trng:
+        import nano_trng
+        producer_inputs += (Path(nano_trng.__file__), nano_trng.SOURCE)
     if cold is not None:
         producer_inputs += tuple(cold.sources())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
@@ -209,6 +215,9 @@ def main():
     # default git-describe walk up into FES and embed an unrelated revision.
     command = [str(make), "-j", str(args.jobs), "PLAT=agilex5", "BUILD_STRING=" + label,
                "CROSS_COMPILE=" + args.cross_prefix, "bl31"]
+    if args.nano_sdm_trng:
+        trng_install = nano_trng.install(source)
+        command.append("TRNG_SUPPORT=1")
     if args.nano_firmware_ocram:command.append('SEPARATE_NOBITS_REGION=1')
     with (output / "build.log").open("wb") as log:
         subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -279,6 +288,8 @@ def main():
                               "firmware source transformation is not a signature or production attestation"]}
     report["bridge_mode"] = "owned-unready" if owned else "strict"
     report['firmware_mmu_proof']=mmu_proof
+    if args.nano_sdm_trng:
+        report['boot_entropy'] = nano_trng.verify(image_elf, source, trng_install)
     if owned:
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"

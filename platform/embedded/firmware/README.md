@@ -97,6 +97,16 @@ load-address overlap against BL31/BSS. For the full native launcher chain
 `../nano/launcher_image.py`), see [../nano/launcher.md](../nano/launcher.md)
 and [../entry/README.md](../entry/README.md).
 
+The paired native build may add `--nano-sdm-trng` to a matched
+`--nano-sdm-input-transfer` BL31. Before handing control to U-Boot, TF-A
+collects four 32-byte responses to the fixed Agilex SDM random-number command
+into its reserved private DDR. The standard ARM TRNG service returns those
+bytes once and reports exhaustion. The native network profile reserves its
+per-boot UUID before the Go runtime takes its separate 32-byte seed.
+A busy mailbox or a rejected, short, zero or repeated response leaves the
+entropy service unavailable. A dispatched transaction with uncertain completion
+halts EL3 before subsequent mailbox users can run.
+
 ## Adapter and endpoint
 
 `control.hpp` / `control.cpp` provide an allocation-free, exception/RTTI-free
