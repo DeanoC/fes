@@ -268,4 +268,8 @@ dependencies include the merged floppy verifier. Both machines use
 ATA-only boot with floppy types 0. The 24-file compiled-input receipt
 SHA-256 is
 `6cda85138e00737d660711bf8cacc550822d61926670adf3b5f95f4b8935a212`.
-G2, G4 and G5 are running on this source.
+[G2](sim-c28-f3-g2.json) passed L3 and L4 lockstep, 18,337 direct x87
+checks, 23,795 transcendental checks and 3,356,352 TestFloat vectors.
+All 84 TestFloat streams match their pinned references. Both the direct
+unit and TestFloat unit measured 13 clocks through FMUL, matching the
+single-stage x87. G4 and G5 are running on this source.
