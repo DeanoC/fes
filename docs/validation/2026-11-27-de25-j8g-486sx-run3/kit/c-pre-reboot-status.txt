@@ -1,0 +1,3 @@
+{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":"fes.pc386","last_error":null,"development":true,"core_package":{"media_unit
+window_fds=1
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
