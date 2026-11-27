@@ -378,4 +378,8 @@ def producer_environment(env=None, recipe=None):
     if recipe.toolchain == "oss":
         mapped["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
         mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+    elif recipe.toolchain == "quartus":
+        edition_root = mapped.get(f"FES_QUARTUS_{recipe.quartus['edition'].upper()}_ROOTDIR")
+        if edition_root:
+            mapped["QUARTUS_ROOTDIR"] = edition_root
     return mapped
