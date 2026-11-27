@@ -470,15 +470,24 @@ class Host:
         return self.req("/api/v1/session/input/tap", body)
 
     def cli(self, *args: str) -> tuple[int, dict, str]:
-        # A media change settles after its reply; the next one may meet BUSY
-        # ("another launch or stop transition is running") for a few seconds.
-        for _ in range(30):
+        # A media change can outlive its reply (the host finishes it under its
+        # own deadline, up to 150 s), and the session answers BUSY meanwhile.
+        # Retry through that, and keep every attempt: the first one says why.
+        attempts = []
+        deadline = time.monotonic() + 180
+        while True:
+            started = time.monotonic()
             r = subprocess.run([self.fogcast, "--api", self.api, "--json", *args],
                                capture_output=True, text=True, timeout=300)
             text = (r.stdout + r.stderr).strip()
-            if r.returncode == 0 or '"code":"BUSY"' not in text:
+            attempts.append({"seconds": round(time.monotonic() - started, 1), "rc": r.returncode, "out": text[:400]})
+            if r.returncode == 0 or '"code":"BUSY"' not in text or time.monotonic() > deadline:
                 break
-            time.sleep(1)
+            time.sleep(2)
+        with (self.out / "cli-attempts.jsonl").open("a") as log:
+            log.write(json.dumps({"args": [Path(a).name if "/" in a else a for a in args], "attempts": attempts}) + "\n")
+        if len(attempts) > 1:
+            text = f"[{len(attempts)} attempts; first rc={attempts[0]['rc']} after {attempts[0]['seconds']}s: {attempts[0]['out'][:160]}] " + text
         try:
             value = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
         except ValueError:

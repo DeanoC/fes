@@ -152,20 +152,14 @@
           "covers": [
             "fes.keyboard.hid"
           ],
-          "settle": 2,
+          "settle": 3,
           "keys": [
-            "a"
-          ],
-          "expect": {
-            "idle_max": 0.0001,
-            "change": 0.0001
-          }
-        },
-        {
-          "keys": [
+            "text:print 1e3",
             "enter"
           ],
-          "settle": 2
+          "expect": {
+            "ocr": "1000"
+          }
         },
         {
           "name": "disk_mounts",
