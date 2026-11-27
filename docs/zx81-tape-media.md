@@ -114,7 +114,7 @@ is retired for day-to-day.
 
 | Path | Behavior |
 | --- | --- |
-| Library launch | Optional `MediaRole=blob` + `MediaID` after core up → staged `load_media` / `load_media_stream` ([`core_packages.go`](../sources/FogCast/fogcast/core_packages.go)) |
+| Library launch | Optional `MediaRole=blob` + `MediaID` after core up → staged `load_media` / `load_media_stream` ([`core_packages_launch.go`](../sources/FogCast/fogcast/core_packages_launch.go)) |
 | Development | `POST` development media; CLI `fogcast core-media PATH`; protocol-2 `load_media` |
 | Runtime gate | `Runtime::LoadComputerMedia` admits only `State::running_development` ([`runtime.cpp`](../sources/libmister-runtime/src/runtime.cpp)) |
 | Reset policy | `FesGpCoreDriver::LoadMedia` **Quiesce (hold reset) → begin/data/commit → release** ([`fes_gp.cpp`](../sources/libmister-runtime/src/native/fes_gp.cpp)). Comment: computer consumes committed media while execution reset is held. That is **launch bind policy**, not a second ear-playback ABI. |
