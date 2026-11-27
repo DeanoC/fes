@@ -737,6 +737,21 @@ class QuartusLockGoldenTest(unittest.TestCase):
         self.assertIn(quartus.QUARTUS_LOCK, fields["source_inputs"])
         self.assertEqual(fields["parameters"]["compiler"], "quartus-17.0.2")
 
+    def test_selected_recipe_scopes_to_de10_nano_board(self):
+        entry = quartus.selected_recipe(ROOT)
+        self.assertEqual(entry.get("board", "de10-nano"), "de10-nano")
+        self.assertEqual(entry["producer_script"], quartus.RECIPE)
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            (parent / "config").mkdir()
+            (parent / "sources/misteross/cores/fes-pc386").mkdir(parents=True)
+            shutil.copyfile(ROOT / quartus.QUARTUS_LOCK, parent / "sources/misteross" / quartus.QUARTUS_LOCK)
+            raw = (ROOT.parents[1] / "config/core-recipes.toml").read_text(encoding="utf-8")
+            duplicate = raw + '\n[[recipes]]\ncore_id = "fes.pc386"\nproducer_script = "cores/fes-pc386/tools/build_pc386_product.py"\n'
+            (parent / "config/core-recipes.toml").write_text(duplicate, encoding="utf-8")
+            with self.assertRaisesRegex(board.BuildError, "pc386 must have one product recipe"):
+                quartus.selected_recipe(parent / "sources/misteross")
+
     def test_project_version_lines(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
