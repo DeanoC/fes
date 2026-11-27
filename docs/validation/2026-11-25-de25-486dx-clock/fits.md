@@ -1340,6 +1340,21 @@ compiled C28 game inputs match the earlier controls. `make check` and
 The Tcl fixture SHA-256 is
 `39a677c687b64dbd9f0d6cd6babc7244014272b278df46def6f4f4259e9f5481`.
 
+All four Powerboat seeds on this revision passed ordinary timing,
+producer admission and seal, and independent LOADED. Each seed used
+42 DSPs. The group receipt SHA-256 is
+`8cb3945ef342af82b9e720f80f9c9a5911e9e3b13d1f301d7d16be1db2dfbfa9`.
+
+| Seed | ALMs | Worst setup | Worst removal | LOADED | Producer |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 45,204.6 | +0.189 ns | +0.099 ns | 2.854 ns | Sealed |
+| 2 | 45,083.1 | +0.247 ns | +0.129 ns | 2.577 ns | Sealed |
+| 3 | 45,203.5 | +0.350 ns | +0.006 ns | 2.787 ns | Sealed |
+| 4 | 44,915.2 | +0.263 ns | +0.102 ns | 3.059 ns | Sealed |
+
+The selected DX clock is 111.904762 MHz. C26 still misses the 5.046 ns
+display command datapath gate and C24 remains behind that gate.
+
 ## Running a seed on either builder
 
 From `sources/misteross`, the validation wrapper runs one registered seed
