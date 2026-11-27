@@ -265,16 +265,10 @@ func (r *Responder) Stop() {
 		return
 	}
 	r.mu.Lock()
-	emitGoodbye := false
+	wasStarted := r.started
 	var removeTap func()
 	if !r.stopped {
 		r.stopped = true
-		r.nameMu.Lock()
-		emitGoodbye = r.started && r.claimed && !r.goodbyeSent
-		if emitGoodbye {
-			r.goodbyeSent = true
-		}
-		r.nameMu.Unlock()
 		close(r.stopCh)
 		removeTap = r.removeTap
 		r.removeTap = nil
@@ -287,8 +281,20 @@ func (r *Responder) Stop() {
 	r.wg.Wait()
 	r.running.Store(false)
 
+	var goodbyeHost, goodbyeInst bool
+	emitGoodbye := false
+	if wasStarted {
+		r.nameMu.Lock()
+		goodbyeHost = r.hostClaimedLocked()
+		goodbyeInst = r.instanceClaimedLocked()
+		if (goodbyeHost || goodbyeInst) && !r.goodbyeSent {
+			r.goodbyeSent = true
+			emitGoodbye = true
+		}
+		r.nameMu.Unlock()
+	}
 	if emitGoodbye {
-		_ = r.sendAnnouncement(0, true)
+		_ = r.sendClaimedRecords(goodbyeHost, goodbyeInst, 0, true)
 	}
 }
 
@@ -730,6 +736,12 @@ func (r *Responder) handleResponseConflict(msg dnsMessage) {
 	}
 	if (r.hostProbingLocked() && probeResponseConflicts(r.hostProbeRecords(), remote)) ||
 		(r.instanceProbingLocked() && probeResponseConflicts(r.instanceProbeRecords(), remote)) {
+		defendHost = r.hostClaimedLocked()
+		defendInst = r.instanceClaimedLocked()
+		if (defendHost || defendInst) && !r.goodbyeSent {
+			r.goodbyeSent = true
+			sendGoodbye = true
+		}
 		r.markNameConflictLocked()
 		relinquish = true
 	} else {

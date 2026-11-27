@@ -1402,3 +1402,160 @@ func TestSRVPriorityAndWeightWireAndTieBreak(t *testing.T) {
 		t.Fatal("identical SRV priority/weight/port/target reported a conflict")
 	}
 }
+
+func TestPartialClaimConflictAndStopEmitGoodbye(t *testing.T) {
+	t.Run("conflict-while-partially-claimed", func(t *testing.T) {
+		hub := newWireHub()
+		ep := hub.newEndpoint()
+		peer := hub.newEndpoint()
+		errCh := make(chan error, 4)
+
+		resp, err := NewResponder(ResponderConfig{
+			Port:          ep,
+			LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xef, 0x01},
+			Service:       Service{Instance: "Partial", ServiceType: "_test._tcp", Host: "partial-host.local", Port: 8080, IP: netip.MustParseAddr("192.0.2.150")},
+			AnnounceCount: 1,
+			OnError:       func(e error) { errCh <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var goodbyes []dnsMessage
+		var mu sync.Mutex
+		unsub := peer.AddTap(func(raw []byte) {
+			pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+			if !ok || !pkt.msg.Response {
+				return
+			}
+			mu.Lock()
+			goodbyes = append(goodbyes, pkt.msg)
+			mu.Unlock()
+		})
+		defer unsub()
+
+		resp.running.Store(true)
+		resp.nameMu.Lock()
+		resp.hostProbe.claimed = true
+		resp.instanceProbe.probing = true
+		resp.nameMu.Unlock()
+
+		conflictPayload, err := encodeMDNSMessage(dnsMessage{
+			Response: true,
+			Answers: []dnsRecord{
+				{Name: resp.instanceFQDN, Type: TypeSRV, Class: ClassIN, CacheFlush: true, TTL: 120, SRVPort: 9090, SRVTarget: "other-host.local"},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xef, 0x02}, MulticastMAC(), [4]byte{192, 0, 2, 151}, multicastIPv4Bytes, Port, Port, 1, conflictPayload)
+		resp.handleFrame(frame)
+
+		select {
+		case e := <-errCh:
+			if !errors.Is(e, ErrResponderNameConflict) {
+				t.Fatalf("error = %v, want ErrResponderNameConflict", e)
+			}
+		default:
+			t.Fatal("expected ErrResponderNameConflict on probing instance conflict")
+		}
+		if got := resp.Stats().Goodbyes; got != 1 {
+			t.Fatalf("Goodbyes = %d, want 1", got)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if len(goodbyes) != 1 || len(goodbyes[0].Answers) != 1 {
+			t.Fatalf("captured goodbye messages = %+v, want 1 message with 1 A answer", goodbyes)
+		}
+		rr := goodbyes[0].Answers[0]
+		if rr.Type != TypeA || rr.TTL != 0 || !strings.EqualFold(strings.TrimSuffix(rr.Name, "."), "partial-host.local") {
+			t.Fatalf("unexpected partial goodbye record: %+v", rr)
+		}
+	})
+
+	t.Run("stop-while-partially-claimed", func(t *testing.T) {
+		hub := newWireHub()
+		ep := hub.newEndpoint()
+		peer := hub.newEndpoint()
+		errCh := make(chan error, 4)
+
+		resp, err := NewResponder(ResponderConfig{
+			Port:          ep,
+			LocalMAC:      [6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xef, 0x11},
+			Service:       Service{Instance: "PartialStop", ServiceType: "_test._tcp", Host: "partial-stop.local", Port: 7000, IP: netip.MustParseAddr("192.0.2.160")},
+			AnnounceCount: 1,
+			OnError:       func(e error) { errCh <- e },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.initialProbeDelay = 10 * time.Millisecond
+		resp.tieBreakDelay = 3 * time.Second
+
+		var injected atomic.Bool
+		var responses []dnsMessage
+		var mu sync.Mutex
+		unsub := peer.AddTap(func(raw []byte) {
+			pkt, ok := parseMDNSFrame(raw, [6]byte{}, [4]byte{}, true)
+			if !ok {
+				return
+			}
+			if pkt.msg.Response {
+				mu.Lock()
+				responses = append(responses, pkt.msg)
+				mu.Unlock()
+				return
+			}
+			if len(pkt.msg.Authorities) == 0 || !injected.CompareAndSwap(false, true) {
+				return
+			}
+			// Beat instanceFQDN (9000 > 7000) while losing hostFQDN (192.0.2.10 < 192.0.2.160).
+			payload, err := encodeMDNSMessage(dnsMessage{
+				Questions: pkt.msg.Questions,
+				Authorities: []dnsRecord{
+					{Name: "partial-stop.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+					{Name: "partialstop._test._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 9000, SRVTarget: "partial-stop.local"},
+				},
+			})
+			if err != nil {
+				return
+			}
+			frame := buildMDNSFrame([6]byte{0x02, 0xaa, 0xbb, 0xcc, 0xef, 0x12}, MulticastMAC(), [4]byte{192, 0, 2, 10}, multicastIPv4Bytes, Port, Port, 2, payload)
+			go func() { _ = peer.SendRawFrame(frame) }()
+		})
+		defer unsub()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := resp.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+
+		waitForCondition(t, 2*time.Second, func() bool {
+			hostClaimed, instClaimed := resp.claimedNames()
+			return hostClaimed && !instClaimed
+		}, "responder did not reach partial-claim state (host only)")
+
+		resp.Stop()
+
+		if got := resp.Stats().Goodbyes; got != 1 {
+			t.Fatalf("Goodbyes on partial Stop = %d, want 1", got)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(responses) != 1 || len(responses[0].Answers) != 1 {
+			t.Fatalf("captured responses = %+v, want 1 partial-A goodbye", responses)
+		}
+		rr := responses[0].Answers[0]
+		if rr.Type != TypeA || rr.TTL != 0 || !strings.EqualFold(strings.TrimSuffix(rr.Name, "."), "partial-stop.local") {
+			t.Fatalf("unexpected partial Stop goodbye record: %+v", rr)
+		}
+		select {
+		case e := <-errCh:
+			t.Fatalf("unexpected responder error: %v", e)
+		default:
+		}
+	})
+}
