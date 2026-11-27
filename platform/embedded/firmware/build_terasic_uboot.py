@@ -106,6 +106,12 @@ def checked_bl31(bl31_build, cold_profile=None):
     if any(receipt.get("producer_sources", {}).get(str(p.relative_to(ROOT))) != sha(p) for p in sources):
         raise ValueError("BL31 producer sources differ from its receipt")
     if cold_profile is not None:
+        header_text = (bl31_build / 'source/plat/intel/soc/common/include/fes_nano_cold_profile.h').read_text()
+        want_dma = '#define FES_NANO_SD_DMA ' + str(int(bool(cold_profile.get('sd_dma', False)))) + '\n'
+        if want_dma not in header_text:
+            raise ValueError('BL31 header differs from expected FES_NANO_SD_DMA selection')
+        if cold_profile.get('sd_dma', False) and 'fes_nano_sd_platform_enable_dma' not in build_terasic.nano_firmware_ram.symbols(image_elf):
+            raise ValueError('selected SD DMA BL31 is missing fes_nano_sd_platform_enable_dma')
         if any(sha(ROOT/name)!=expected for name,expected in receipt['producer_sources'].items()):
             raise ValueError('cold BL31 producer sources differ')
         sources=tuple(ROOT/name for name in receipt['producer_sources'])

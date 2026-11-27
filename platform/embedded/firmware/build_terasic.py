@@ -233,6 +233,13 @@ def main():
     import nano_sdm_input_profile
     nano_sdm_input_profile.verify_installed(source,owned.get("sdm_input_transfer") if owned else None,cold_profile)
     sdm_input_proof=nano_sdm_input_profile.verify_image(image_elf,cold_profile)
+    if cold_profile is not None:
+        header_text = (source / 'plat/intel/soc/common/include/fes_nano_cold_profile.h').read_text()
+        want_dma = '#define FES_NANO_SD_DMA ' + str(int(bool(cold_profile.get('sd_dma', False)))) + '\n'
+        if want_dma not in header_text:
+            raise ValueError('BL31 header is missing expected FES_NANO_SD_DMA selection')
+        if cold_profile.get('sd_dma', False) and 'fes_nano_sd_platform_enable_dma' not in nano_firmware_ram.symbols(image_elf):
+            raise ValueError('selected SD DMA BL31 is missing fes_nano_sd_platform_enable_dma')
     if nano_firmware_mmu.checked(cold_profile) is not None:
         binding=owned.get('firmware_mmu') if owned else None
         if binding is None:raise ValueError('selected MMU install binding missing')

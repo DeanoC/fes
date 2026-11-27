@@ -50,8 +50,11 @@ Build all linked artifacts from the same checked contracts:
    `--sd-cmd23`, and `--sd-adma2` (add `--initial-tape` when the package
    supplies tape, or `--shared-core-shell` for Spectrum 48K / C64). `--sd-adma2`
    maps a disjoint 2 MiB uncached DDR pool at `0x95a00000..0x95c00000` and
-   requires both EL3 firmware built with `FES_NANO_SD_DMA=1` and a DMA-capable
-   handoff profile (`sd_control.service = "fes-owned-sd-dma-v1"`). The writable plan is
+   requires `--profile platform/embedded/nano/sd-dma-profile.json`
+   (`sd_control.service = "fes-owned-sd-dma-v1"`), which `entry/build.py` and
+   `cold_profile.py` propagate so `build_terasic.py` compiles BL31 with
+   `#define FES_NANO_SD_DMA 1` and verifies `fes_nano_sd_platform_enable_dma` in
+   `bl31.elf`. The writable plan is
    trusted build input binding
    the expected card CID, sector count, MBR, and protected recovery files.
 2. **Entry stub & EL3 BL31:** build `platform/embedded/entry/` and

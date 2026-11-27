@@ -639,7 +639,7 @@ def build(args):
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('hpsio','usbcheck','fpgaload'):
-        required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
+        required_profile=('sd-dma-profile.json' if sd_adma2 else 'sd-profile.json') if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)

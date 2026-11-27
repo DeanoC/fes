@@ -171,6 +171,8 @@ def main():
     native_menu_read = None
     native_menu_present = False
     native_usb_control = False
+    native_sd_adma2 = False
+    native_sd_dma_base = native_sd_dma_bytes = 0
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -255,6 +257,22 @@ def main():
             raise ValueError('computer storage-return selection differs from the native link command')
         if native_selected_programs!=('-X main.expectedSelectedPrograms=1' in flags):
             raise ValueError('selected program mode differs from the native link command')
+        native_sd_adma2 = receipt.get('sd_adma2', False)
+        if type(native_sd_adma2) is not bool:
+            raise ValueError('SD ADMA2 selection must be boolean')
+        if native_sd_adma2 != ('-X main.expectedSDADMA2=1' in flags):
+            raise ValueError('SD ADMA2 selection differs from the native link command')
+        control_service = profile['sd_control']['service'] if isinstance(profile.get('sd_control'), dict) else None
+        if native_sd_adma2 and control_service != 'fes-owned-sd-dma-v1':
+            raise ValueError('SD ADMA2 requires a DMA-capable firmware profile (fes-owned-sd-dma-v1)')
+        if not native_sd_adma2 and control_service == 'fes-owned-sd-dma-v1':
+            raise ValueError('DMA firmware profile requires --sd-adma2')
+        native_sd_dma_base, native_sd_dma_bytes = module.sd_dma_layout(
+            native_sd_adma2, start, size, profile, native_configuration, native_cpu_map, native_tape_memory, network, display, fpga)
+        if native_sd_adma2 and (receipt.get('sd_dma_base') != native_sd_dma_base or receipt.get('sd_dma_bytes') != native_sd_dma_bytes):
+            raise ValueError('SD ADMA2 DMA window differs from the native cross-build receipt')
+        if not native_sd_adma2 and (receipt.get('sd_dma_base', 0) != 0 or receipt.get('sd_dma_bytes', 0) != 0):
+            raise ValueError('unselected SD ADMA2 DMA window in native cross-build receipt')
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
         if native_io is not None and base64.b64encode(hps.encode(native_io)) not in payload.read_bytes():
@@ -302,6 +320,8 @@ def main():
             exclusions.append((native_tape_memory['base'],native_tape_memory['base']+native_tape_memory['bytes']))
         if native_reader_memory is not None:
             exclusions.append((native_cpu_map['reader_base'],native_cpu_map['reader_base']+native_cpu_map['reader_bytes']))
+        if native_sd_adma2:
+            exclusions.append((native_sd_dma_base, native_sd_dma_base + native_sd_dma_bytes))
         for arena, base, size_key in ((network, "dma_start", "dma_size"),
                                       (display, "base", "size"), (fpga, "base", "size")):
             if arena:
@@ -474,6 +494,7 @@ def main():
               "initial_tape_memory":native_tape_memory,
               "initial_tape_memory_sha256":hps.initial_tape.memory_digest(native_tape_memory) if native_tape_memory else None,
               **({"shared_core_shell": True} if native_shared_shell else {}),
+              **({"sd_adma2": True, "sd_dma_base": native_sd_dma_base, "sd_dma_bytes": native_sd_dma_bytes} if native_sd_adma2 else {}),
               **({"spectrum48_program": native_spectrum_program,
                   "spectrum48_program_sha256": hps.digest(native_spectrum_program)} if native_spectrum_program else {}),
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,

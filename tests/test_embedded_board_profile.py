@@ -67,6 +67,12 @@ class BoardProfileTests(unittest.TestCase):
         dma_profile['sd_control']={'service':'fes-owned-sd-dma-v1','exclusive':True,
                                    'closed_bridges':True,'synchronous_bounded_return':True}
         self.assertEqual(build.profile_constants(dma_profile)[3],200000000)
+        shipped_pio=json.loads((PATH.parents[1]/'nano/sd-profile.json').read_text())
+        shipped_dma=json.loads((PATH.parents[1]/'nano/sd-dma-profile.json').read_text())
+        self.assertEqual(build.profile_constants(shipped_dma)[3],200000000)
+        self.assertTrue(build.sd_adma2_option('fpgaload',True,shipped_dma))
+        with self.assertRaises(ValueError):
+            build.sd_adma2_option('fpgaload',True,shipped_pio)
         self.assertFalse(build.sd_adma2_option('probe',False,profile()))
         self.assertTrue(build.sd_adma2_option('fpgaload',True,dma_profile))
         for program,requested,prof in [
