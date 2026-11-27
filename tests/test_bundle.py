@@ -252,6 +252,58 @@ for core_id, module_name, script, options in json.loads(sys.argv[1]):
                 'FES_TOOLCHAIN_CUDA_ARCHITECTURES=86',
                 'make', '-C', str(source), 'toolchain'])
 
+    def _which(self, hipcc=False, nvcc=False):
+        def which(name, path=None):
+            if name == 'hipcc' and hipcc:
+                return '/tool/hipcc'
+            if name == 'nvcc' and nvcc:
+                return '/tool/nvcc'
+            return None
+        return which
+
+    def test_canonical_record_forwards_cuda_router_to_authenticate(self):
+        """Producers default gpu_router to HIP; CUDA must be passed explicitly."""
+        module = self.module()
+        payload = (
+            b'{"format":2,"repository":"https://github.com/DeanoC/fes.git",'
+            b'"revision":"cccccccccccccccccccccccccccccccccccccccc",'
+            b'"source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            recipe = module.recipe_for('fes.pong')
+            with patch.object(module, 'authenticate_misteross_origin'),                     patch.object(module.subprocess, 'check_output', return_value=payload) as run,                     patch.object(module.selected_gpu_router.__globals__['shutil'], 'which',
+                                 side_effect=self._which(nvcc=True)):
+                module.canonical_package_record(source, recipe=recipe)
+            args = [str(part) for part in run.call_args.args[0]]
+            self.assertIn('--gpu-router', args)
+            self.assertEqual(args[args.index('--gpu-router') + 1], 'CUDA')
+            self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_GPU_ROUTER'], 'CUDA')
+            program = args[args.index('-c') + 1]
+            self.assertIn('kwargs["gpu_router"] = sys.argv[sys.argv.index("--gpu-router") + 1]', program)
+
+    def test_canonical_record_hip_path_omits_gpu_router_flag(self):
+        """HIP keeps the historical authenticate() shape: no --gpu-router flag."""
+        module = self.module()
+        payload = (
+            b'{"format":2,"repository":"https://github.com/DeanoC/fes.git",'
+            b'"revision":"cccccccccccccccccccccccccccccccccccccccc",'
+            b'"source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            recipe = module.recipe_for('fes.pong')
+            with patch.object(module, 'authenticate_misteross_origin'),                     patch.object(module.subprocess, 'check_output', return_value=payload) as run,                     patch.object(module.selected_gpu_router.__globals__['shutil'], 'which',
+                                 side_effect=self._which(hipcc=True, nvcc=True)):
+                module.canonical_package_record(source, recipe=recipe)
+            args = [str(part) for part in run.call_args.args[0]]
+            self.assertNotIn('--gpu-router', args)
+            self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
+            program = args[args.index('-c') + 1]
+            self.assertIn('if "--gpu-router" in sys.argv:', program)
+            self.assertNotIn('gpu_router="CUDA"', program)
+            self.assertNotIn("gpu_router='CUDA'", program)
+
     def test_unknown_origins_are_rejected_without_forging_provenance(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:

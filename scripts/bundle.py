@@ -155,7 +155,10 @@ if "--selection-only" in sys.argv:
         identities = {"quartus": "selection-only", "yosys": "selection-only"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
-    tools = authenticate(root, cache_root=cache_root)
+    kwargs = {"cache_root": cache_root}
+    if "--gpu-router" in sys.argv:
+        kwargs["gpu_router"] = sys.argv[sys.argv.index("--gpu-router") + 1]
+    tools = authenticate(root, **kwargs)
     if hasattr(producer, "record_tool_options"):
         options.update(producer.record_tool_options(tools))
     identities = {name: tool.identity for name, tool in tools.items()}
@@ -176,16 +179,19 @@ else:
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
+    child_env = package_build_environment(env, recipe=recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
                "--producer-script", recipe.producer_script,
                *license_arguments, *(["--selection-only"] if selection_only else []),
                *(["--quartus-yosys"] if selection_only and recipe.toolchain == "quartus"
-                 and recipe.front_end == "yosys" else [])]
+                 and recipe.front_end == "yosys" else []),
+               # HIP keeps the historical authenticate() call; only CUDA is passed
+               # explicitly so producers do not stay on the HIP default.
+               *(["--gpu-router", selected_router] if selected_router == CUDA_ROUTER else [])]
     try:
-        child_env = package_build_environment(env, recipe=recipe)
-        selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
         router_architecture = None
         if selected_router == CUDA_ROUTER:
             router_architecture = 'FES_TOOLCHAIN_CUDA_ARCHITECTURES=' + CUDA_ARCHITECTURES
