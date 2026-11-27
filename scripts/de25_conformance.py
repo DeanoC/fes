@@ -12,8 +12,9 @@ tesseract reads off the screen, or sound on the kit's HDMI audio capture
 tone, which checks the machine's audio rate).
 
 Every fes.media.*, fes.mouse.* and fes.audio.* interface the package declares must be
-covered by a step.  Interfaces nobody covers are listed as pending, so a
-missing check is visible rather than silently passing.
+covered by a step, or named not_applicable with the reason.  Interfaces
+nobody covers are listed as pending, so a missing check is visible rather
+than silently passing.
 
 Exit status: 0 all checks pass, 1 a check failed, 3 the core has no steps.
 The JSON report goes to <out>/conformance.json and to stdout.
@@ -136,9 +137,19 @@ def _tap_block(flag: int, body: bytes) -> bytes:
     return struct.pack("<H", len(data)) + data
 
 
+def spectrum_number(value: int) -> bytes:
+    """A small integer as BASIC stores it in a line: digits, then 0x0E and
+    the five-byte integer form."""
+    return str(value).encode() + b"\x0E\x00\x00" + struct.pack("<H", value) + b"\x00"
+
+
 def spectrum_tap(message: str) -> bytes:
-    """A .tap holding `10 PRINT "message"`, autostarting at line 10."""
-    line = b"\xF5\"" + message.encode("ascii") + b"\"\x0D"
+    """A .tap holding `10 PRINT "message": BEEP 2,9`, autostarting at line 10.
+
+    BEEP 2,9 sounds A above middle C (440 Hz) for two seconds once the
+    program has loaded, which checks the machine's audio rate."""
+    line = (b"\xF5\"" + message.encode("ascii") + b"\":\xD7" + spectrum_number(2) + b","
+            + spectrum_number(9) + b"\x0D")
     program = struct.pack(">H", 10) + struct.pack("<H", len(line)) + line
     header = (bytes([0]) + b"FES".ljust(10, b" ")
               + struct.pack("<HHH", len(program), 10, len(program)))
@@ -240,6 +251,9 @@ def load_spec(path: Path = SPEC) -> dict:
     if spec.get("format") != 1 or not isinstance(spec.get("cores"), dict):
         raise ValueError("unsupported conformance spec")
     for core, entry in spec["cores"].items():
+        for interface, reason in (entry.get("not_applicable") or {}).items():
+            if not interface.startswith(COVERED_PREFIXES) or not isinstance(reason, str) or len(reason) < 20:
+                raise ValueError(f"{core}: not_applicable needs a covered interface and a stated reason")
         names = set()
         for step in entry["steps"]:
             name = step.get("name")
@@ -279,8 +293,8 @@ def package_interfaces(package: Path) -> list[str]:
     return [i["id"] for i in manifest.get("interfaces", [])]
 
 
-def pending_interfaces(steps: list[dict], interfaces: list[str]) -> list[str]:
-    covered = {c for step in steps for c in step.get("covers", [])}
+def pending_interfaces(steps: list[dict], interfaces: list[str], not_applicable: dict | None = None) -> list[str]:
+    covered = {c for step in steps for c in step.get("covers", [])} | set(not_applicable or {})
     return sorted(i for i in interfaces if i.startswith(COVERED_PREFIXES) and i not in covered)
 
 
@@ -456,9 +470,15 @@ class Host:
         return self.req("/api/v1/session/input/tap", body)
 
     def cli(self, *args: str) -> tuple[int, dict, str]:
-        r = subprocess.run([self.fogcast, "--api", self.api, "--json", *args],
-                           capture_output=True, text=True, timeout=300)
-        text = (r.stdout + r.stderr).strip()
+        # A media change settles after its reply; the next one may meet BUSY
+        # ("another launch or stop transition is running") for a few seconds.
+        for _ in range(30):
+            r = subprocess.run([self.fogcast, "--api", self.api, "--json", *args],
+                               capture_output=True, text=True, timeout=300)
+            text = (r.stdout + r.stderr).strip()
+            if r.returncode == 0 or '"code":"BUSY"' not in text:
+                break
+            time.sleep(1)
         try:
             value = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
         except ValueError:
@@ -489,12 +509,14 @@ def wait_units(host, value: dict, covers: list[str]) -> tuple[bool, str]:
 # ---------------------------------------------------------------- run
 
 def run(core: str, steps: list[dict], interfaces: list[str], host: Host, video: str, out: Path,
-        kit: str | None = None, recorder=AudioRecorder, package_id: str = "") -> dict:
+        kit: str | None = None, recorder=AudioRecorder, package_id: str = "",
+        not_applicable: dict | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     fixtures = out / "fixtures"
     fixtures.mkdir(exist_ok=True)
     checks: dict[str, dict] = {}
-    report = {"core": core, "checks": checks, "pending": pending_interfaces(steps, interfaces)}
+    report = {"core": core, "checks": checks, "pending": pending_interfaces(steps, interfaces, not_applicable),
+              "not_applicable": not_applicable or {}}
 
     def check(name, ok, detail):
         checks[name] = {"ok": bool(ok), "detail": detail}
@@ -632,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
     report = run(args.core, entry["steps"], package_interfaces(args.package),
                  Host(args.api, args.fogcast, args.out), args.video, args.out, kit=args.kit,
-                 package_id=args.package_id)
+                 package_id=args.package_id, not_applicable=entry.get("not_applicable"))
     text = json.dumps(report, indent=2)
     (args.out / "conformance.json").write_text(text + "\n")
     print(text)

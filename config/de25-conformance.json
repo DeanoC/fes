@@ -37,8 +37,7 @@
         {
           "name": "tape_loads",
           "covers": [
-            "fes.media.zx81-tape",
-            "fes.audio.pcm-s16-stereo-48k"
+            "fes.media.zx81-tape"
           ],
           "settle": 30,
           "keys": [
@@ -48,13 +47,13 @@
             "enter"
           ],
           "expect": {
-            "ocr": "FES TAPE OK",
-            "audio": {
-              "min_rms": 500
-            }
+            "ocr": "FES TAPE OK"
           }
         }
-      ]
+      ],
+      "not_applicable": {
+        "fes.audio.pcm-s16-stereo-48k": "The base ZX81 has no sound hardware: its audio stream carries silence (kit run of #2365 recorded peak RMS 28 through a tape load). Sound comes with the Zon X expansion, which is outside the baseline cell."
+      }
     },
     "fes.spectrum": {
       "steps": [
@@ -94,7 +93,7 @@
             "fes.audio.pcm-s16-stereo-48k",
             "fes.media.spectrum-tape"
           ],
-          "settle": 25,
+          "settle": 30,
           "keys": [
             "j",
             "ctrl+p",
@@ -104,7 +103,7 @@
           "expect": {
             "ocr": "FES TAPE OK",
             "audio": {
-              "tone_hz": 807.3,
+              "tone_hz": 440.0,
               "tolerance": 0.03,
               "min_rms": 500
             }
@@ -131,14 +130,14 @@
             "fes.keyboard.hid",
             "fes.media.spectrum-tape"
           ],
-          "settle": 25,
+          "settle": 30,
           "keys": [
             "enter"
           ],
           "expect": {
             "ocr": "FES TAPE OK",
             "audio": {
-              "tone_hz": 807.3,
+              "tone_hz": 440.0,
               "tolerance": 0.03,
               "min_rms": 500
             }
@@ -391,6 +390,26 @@
           ]
         },
         {
+          "name": "tape_loader_runs",
+          "covers": [
+            "fes.keyboard.hid",
+            "fes.media.spectrum-tape",
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 30,
+          "keys": [
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FES TAPE OK",
+            "audio": {
+              "tone_hz": 440.0,
+              "tolerance": 0.03,
+              "min_rms": 500
+            }
+          }
+        },
+        {
           "name": "disk_mounts",
           "covers": [
             "fes.media.spectrum-disk",
@@ -400,6 +419,27 @@
             "change-disk",
             "trdos-fes-blank.trd"
           ]
+        },
+        {
+          "keys": [
+            "text:randomize usr 15616",
+            "enter"
+          ],
+          "settle": 4
+        },
+        {
+          "name": "disk_lists",
+          "covers": [
+            "fes.media.spectrum-disk-trdos"
+          ],
+          "settle": 8,
+          "keys": [
+            "k",
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FES TEST"
+          }
         }
       ]
     },

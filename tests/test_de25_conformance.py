@@ -52,7 +52,8 @@ class Fixtures(unittest.TestCase):
         size, autostart, prog = struct.unpack_from("<HHH", header, 12)
         self.assertEqual((autostart, size, prog), (10, len(body) - 2, len(body) - 2))
         self.assertEqual(body[0], 0xFF)
-        self.assertIn(b'\xF5"FES TAPE OK"\x0D', body)
+        # 10 PRINT "FES TAPE OK": BEEP 2,9
+        self.assertIn(b'\xF5"FES TAPE OK":\xD7' + b"2\x0E\x00\x00\x02\x00\x00," + b"9\x0E\x00\x00\x09\x00\x00\x0D", body)
 
     def test_c64_d64_is_empty_and_formatted(self):
         data = conf.c64_blank_d64()
@@ -155,14 +156,21 @@ class Spec(unittest.TestCase):
         # Checks not written yet must show as pending, never as covered.
         pending = {
             "fes.zx81": ["fes.media.zx81-tape-write"],
-            "fes.pentagon": [audio],
             "fes.atari-st": ["fes.media.atari-st-floppy-write"],
         }
         spec = conf.load_spec()["cores"]
         self.assertEqual(set(spec), set(declared))
         for core, interfaces in declared.items():
-            self.assertEqual(conf.pending_interfaces(spec[core]["steps"], interfaces),
+            self.assertEqual(conf.pending_interfaces(spec[core]["steps"], interfaces,
+                                                     spec[core].get("not_applicable")),
                              pending.get(core, []), core)
+        self.assertEqual(list(spec["fes.zx81"]["not_applicable"]), [audio])
+
+    def test_not_applicable_needs_a_reason(self):
+        for na in ({"fes.audio.x": "short"}, {"fes.keyboard.hid": "a reason that is long enough here"}):
+            path = self.write({"fes.x": {"not_applicable": na, "steps": [{"name": "a", "keys": ["p"]}]}})
+            with self.subTest(na=na), self.assertRaises(ValueError):
+                conf.load_spec(path)
 
     def test_text_keys(self):
         self.assertEqual(conf.expand_keys(["text:poke54276,17", "enter"]),
