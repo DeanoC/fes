@@ -42,6 +42,9 @@ var ownedNetworkController *network.Controller
 // firmware MAC/DMA contract; disabled profiles must never invoke it.
 func NetworkEnabled() bool { return profileNetworkEnabled }
 
+// NetworkAdapter identifies the explicitly selected paired launcher adapter.
+func NetworkAdapter() string { return profileNetworkAdapter }
+
 // NetworkStartupTimeout includes the selected physical device open and, when
 // requested, the subsequent DHCP acquisition. It does not bound stack lifetime.
 func NetworkStartupTimeout(dhcp bool) time.Duration {
@@ -52,6 +55,7 @@ func NetworkStartupTimeout(dhcp bool) time.Duration {
 // behaviors forwarded from trusted board startup. Zero values preserve strict
 // 1000BASE-T full-duplex, fail-closed carrier enforcement.
 type NetworkOptions struct {
+	TargetID        string // Stable validated SD pairing for the matched DHCP adapter.
 	Allow100Full    bool
 	RecoverLinkLoss bool
 	ReceiveMDNS     bool
@@ -126,8 +130,19 @@ func openControlledNetwork(
 	if networkAttempted {
 		return nil, nil, fmt.Errorf("de25-nano: Ethernet initialization already attempted")
 	}
+	station := profileNetworkMAC
+	if profileNetworkAdapter != "" {
+		var err error
+		station, err = pairedStation(opts.TargetID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if profileNetworkPoolBytes != xgmac.RequiredBytes {
+			return nil, nil, fmt.Errorf("de25-nano: MAC pool differs from the matched five-page layout")
+		}
+	}
 	networkAttempted = true
-	pool, err := NewUncachedPool(profileNetworkDMAStart, profileNetworkDMABytes)
+	pool, err := NewUncachedPool(profileNetworkDMAStart, profileNetworkPoolBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -143,7 +158,8 @@ func openControlledNetwork(
 			return nil, err
 		}
 		ownedNetworkDevice, control, err = xgmac.OpenControlled(ctx, FabricCPUTransport{}, bootOwner, macRegisters{}, mem, xgmac.Config{
-			MAC:             profileNetworkMAC,
+			MAC:             station,
+			ExpectedVersion: profileNetworkMACVersion,
 			PHYAddress:      profileNetworkPHY,
 			PHYID:           profileNetworkPHYID,
 			CSRClockHz:      profileNetworkClock,

@@ -21,6 +21,8 @@ _fault_spec=importlib.util.spec_from_file_location('fes_selected_sdm_fault64',FW
 sdm_fault=importlib.util.module_from_spec(_fault_spec);_fault_spec.loader.exec_module(sdm_fault)
 _input_spec=importlib.util.spec_from_file_location('fes_selected_sdm_input',FW/'nano_sdm_input_profile.py')
 sdm_input=importlib.util.module_from_spec(_input_spec);_input_spec.loader.exec_module(sdm_input)
+_mac_spec=importlib.util.spec_from_file_location('fes_cold_launcher_ethernet',HERE/'launcher_ethernet.py')
+launcher_ethernet=importlib.util.module_from_spec(_mac_spec);_mac_spec.loader.exec_module(launcher_ethernet)
 EXPERIMENTAL_FILE='FES/UPLOAD.BIN'
 _fit_spec=importlib.util.spec_from_file_location('fes_cold_fit_layout',HERE/'fit_layout.py')
 fit_layout=importlib.util.module_from_spec(_fit_spec);_fit_spec.loader.exec_module(fit_layout)
@@ -63,6 +65,8 @@ def entry(entry_build):
             not usb and receipt.get('usb_input') is not None):
         raise ValueError('USB boot input differs from native selection')
     entry_payload.checked(receipt,image.read_bytes(),(entry_build/'payload.elf').read_bytes())
+    if launcher_ethernet.checked(receipt, (entry_build/'payload.elf').read_bytes(), entry=True) and profile.name != 'sd-profile.json':
+        raise ValueError('paired Ethernet requires the initial contained PIO handoff')
     check_sources(receipt.get('native_build_sources'))
     for name,expected in receipt['sources'].items():
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
@@ -114,7 +118,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','launcher_ethernet.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_mmu_memory.h','nano_mmu_memory.c','nano_mmu_transition.S','nano_mmu_transition.h','nano_mmu_logging.inc','nano_firmware_mmu.py','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_mac.c','nano_mac.h','generated/fes_embedded_mac.h',
@@ -227,6 +231,7 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     sd_dma = profile.name == 'sd-dma-profile.json'
     sd_owned = profile.name in ('sd-profile.json', 'sd-dma-profile.json')
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-dma-preloaded' if sd_dma else 'cold-sd-pio-preloaded' if sd_owned else 'cold-serial-preloaded',
+              **({'launcher_ethernet':build['launcher_ethernet']} if build.get('launcher_ethernet') else {}),
               'sd_pio':sd_owned,**({'sd_dma':True} if sd_dma else {}),'usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
               'configuration_retained':build.get('configuration_retained',False),

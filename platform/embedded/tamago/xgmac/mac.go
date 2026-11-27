@@ -107,10 +107,11 @@ type LinkStats struct {
 }
 
 type Config struct {
-	MAC        string
-	PHYAddress uint8
-	PHYID      uint32
-	CSRClockHz uint32
+	ExpectedVersion uint16 // Optional exact MAC device and Synopsys revision (MAC_Version bits 15:0).
+	MAC             string
+	PHYAddress      uint8
+	PHYID           uint32
+	CSRClockHz      uint32
 	// Explicit hardware contract: Linux generic XGMAC uses bits 14:1;
 	// SoCFPGA U-Boot uses bits 14:4. Never autodetect or silently fall back.
 	RXBufferShift uint8
@@ -377,6 +378,9 @@ func (d *Device) applySpeedLocked(speed LinkSpeed) error {
 
 func (d *Device) initialize(mac net.HardwareAddr) error {
 	id := d.io.Read32(version)
+	if d.config.ExpectedVersion != 0 && uint16(id) != d.config.ExpectedVersion {
+		return fmt.Errorf("xgmac: expected MAC version %#x, read %#x", d.config.ExpectedVersion, id)
+	}
 	switch {
 	case id&0xff == 0x21:
 		d.ringEntries = bufferCount

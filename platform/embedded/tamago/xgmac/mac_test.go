@@ -426,3 +426,12 @@ func TestAdmissionFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchedRevisionRefusesOtherSupportedDevice(t *testing.T) {
+	h := newHardware() // Supported generic version 0x21.
+	cfg := configuration()
+	cfg.ExpectedVersion = 0x7631
+	if _, err := Open(h, h.mem, cfg); err == nil || len(h.writes) != 0 {
+		t.Fatal("matched launcher admitted another MAC", err, h.writes)
+	}
+}

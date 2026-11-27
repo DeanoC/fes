@@ -335,3 +335,22 @@ func TestAcquisitionReservesConfirmationAndStopGenerationSpace(t *testing.T) {
 		t.Fatal(after, valid)
 	}
 }
+
+func TestAvailableQueriesFittedSupplierWithoutAcquiring(t *testing.T) {
+	ctx := context.Background()
+	for _, unready := range []bool{false, true} {
+		r := newRPC(t, unready)
+		ok, err := Available(ctx, r, 17)
+		if err != nil || ok == unready || r.calls != 1 || r.stats[1] != 0 {
+			t.Fatal(ok, err, r.calls, r.stats)
+		}
+		r.mutate = func(reply *[4]uint64) { reply[1] = 0 }
+		if ok, err := Available(ctx, r, 17); ok || err == nil {
+			t.Fatal("corrupt result accepted as absent supplier")
+		}
+	}
+	r := newRPC(t, false)
+	if ok, err := Available(ctx, r, 99); ok || err == nil || r.stats[1] != 0 {
+		t.Fatal("wrong boot owner", ok, err, r.stats)
+	}
+}

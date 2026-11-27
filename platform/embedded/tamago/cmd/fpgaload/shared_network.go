@@ -15,21 +15,14 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/rtc"
 	"github.com/DeanoC/fes/platform/embedded/tamago/xgmac"
 )
 
-// Opt-in build-time linker flags (-X main.expectedNetworkDHCP=1, etc.).
-// When empty (the default), native Ethernet preserves static 1000BASE-T FD
-// fail-closed addressing with no DHCP lease renewal or SNTP clock synchronization.
-//
-// Dormant: build.py refuses every flag that sets these, because fpgaload builds
-// only from nano/sd-profile.json (network: null) and closed-bridge SD ownership
-// excludes Ethernet. No image links them today, so the DHCP, renewal, 100M,
-// link-flap and SNTP code below never runs; a hand-linked image still fails
-// closed in prepareProgramNetwork while NetworkEnabled() is false. See network/README.md.
+// Opt-in network settings from the selected board build.
 var (
 	expectedNetworkDHCP            string
 	expectedNetworkDHCPHostname    string
@@ -93,6 +86,11 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 	}
 	// CNTPCT may repeat after cold reset. The physical target uses one fresh
 	// UUID for this boot, independent of the stable SD-provisioned target ID.
+	adapter := de25nano.NetworkAdapter()
+	if adapter != "" && provision == nil {
+		fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=pairing-required")
+		return func() {}, nil
+	}
 	var bootID string
 	if provision != nil {
 		if id := de25nano.BootID(); id != ([16]byte{}) {
@@ -100,6 +98,9 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 		}
 		if bootID == "" {
 			fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=boot-entropy-unavailable")
+			if adapter != "" {
+				return func() {}, nil
+			}
 			provision = nil
 		}
 	}
@@ -116,6 +117,20 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 				}
 			}
 		},
+	}
+	if adapter != "" {
+		// The first MENU frame has completed. A contained query cannot start
+		// DMA. Only an explicit unsupported reply permits local-only use.
+		available, err := maccontrol.Available(context.Background(), de25nano.FabricCPUTransport{}, programNetworkBootOwner)
+		if err != nil {
+			return func() {}, err
+		}
+		if !available {
+			fmt.Println("FES_NATIVE_AGENT_UNAVAILABLE reason=mac-supplier-unavailable")
+			return func() {}, nil
+		}
+		netOpts.TargetID = provision.TargetID
+		fmt.Println("FES_NATIVE_NETWORK_ADAPTER", adapter)
 	}
 	var iface *network.Interface
 	var networkLifetime context.Context

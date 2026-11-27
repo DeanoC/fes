@@ -96,6 +96,20 @@ func New(ctx context.Context, cpu Caller, bootOwner uint64) (*Client, error) {
 	return &Client{state: &client{cpu: cpu, last: v}}, nil
 }
 
+// Available only queries the supplier. A correctly tagged NOT_READY leaves
+// the local launcher usable. The controlled opener checks the initial owner
+// again immediately before acquiring its generation.
+func Available(ctx context.Context, cpu Caller, bootOwner uint64) (bool, error) {
+	if ctx == nil || cpu == nil || bootOwner == 0 {
+		return false, ErrTransition
+	}
+	_, err := New(ctx, cpu, bootOwner)
+	if errors.Is(err, ErrNotReady) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (c *Client) LastReceipt() (Receipt, bool) {
 	if c == nil || c.state == nil {
 		return Receipt{}, false

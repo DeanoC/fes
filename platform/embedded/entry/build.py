@@ -162,6 +162,7 @@ def main():
     native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_rom = native_program_platform = None
     native_selected_programs = False
     native_menu_program = native_spectrum_program = None
+    native_ethernet = None
     native_shared_shell = False
     native_tenfoot_serial = False
     native_initial_tape = False
@@ -196,6 +197,9 @@ def main():
                 receipt["firmware_profile_sha256"] != sha(profile_bytes) or receipt["elf_sha256"] != sha(payload.read_bytes()) or
                 receipt["source_sha256"].get(str(nano_builder.relative_to(ROOT))) != sha(nano_builder.read_bytes())):
             raise ValueError("Nano ELF/profile does not match its cross-build receipt")
+        native_ethernet = module.launcher_ethernet.checked(receipt, payload.read_bytes())
+        if native_ethernet:
+            network = module.launcher_ethernet.board_network()
         native_sources=receipt["source_sha256"]
         context_spec=importlib.util.spec_from_file_location('fes_entry_hps_context',HERE.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
@@ -443,7 +447,8 @@ def main():
             (profile_bytes is not None and (profile_path.read_bytes() != profile_bytes or receipt_path.read_bytes() != receipt_bytes))):
         raise ValueError("entry build inputs changed")
     if native_sources is not None:check_native_sources()
-    result = {"status": "built", "target": args.target,
+    result = {**({"launcher_ethernet": native_ethernet} if native_ethernet else {}),
+              "status": "built", "target": args.target,
               "classification": ("QEMU-only arm64 U-Boot handoff; not a Nano boot image" if args.target == "qemu" else
                                  "unqualified Nano handoff candidate; profile obligations and hardware unverified"),
               "payload_sha256": sha(payload_bytes), "entry_image_sha256": sha(blob), "entry_elf_sha256": sha(elf.read_bytes()),

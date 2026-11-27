@@ -47,7 +47,7 @@ driver using the pinned `lneto` TCP/IP stack
   tests static IPv4, DNS, DHCP renewal, and SNTP; adding `--dhcp` sets
   `"dhcp": true` in `FES/BOOT.JSON` and verifies the `FES_NETWORK_DHCP` lease
   in `result.json`. Both static and `--dhcp` run in the `tamago` CI lane.
-- **DE25-Nano `fpgaload` (dormant / disabled):** `cmd/fpgaload/shared_network.go`
+- **DE25-Nano `fpgaload` (explicit selection):** `cmd/fpgaload/shared_network.go`
   parses `--network-dhcp`, `--network-dhcp-hostname`, `--network-sntp-server`,
   `--network-sntp-port`, `--network-allow-100m`, and `--network-recover-link-flap`
   with `ParseStartupFlags` and passes opt-in `NetworkOptions` (`Allow100Full`,
@@ -73,12 +73,12 @@ driver using the pinned `lneto` TCP/IP stack
   cold boot), polls on `PollInterval` with exponential backoff and `ErrPaused`
   tolerance, delivers UTC epochs to `WallClockSink.Sync` (`board.WallClock()`),
   and dispatches callbacks through a single bounded worker.
-- **`build.py` rejects all of these flags** against the shipped `nano/sd-profile.json` (`network: null`)
-  because closed-bridge SD ownership excludes Ethernet
-  (`tests/test_tamago_build_network.py` enforces this refusal). Even a
-  hand-linked binary fails closed in `prepareProgramNetwork` while
-  `de25nano.NetworkEnabled()` is false. Enabling Nano Ethernet requires a
-  network-enabled profile plus a qualified EL3 MAC lease/drain supplier.
+- The default PIO launcher keeps Ethernet disabled. Add `--paired-ethernet
+  --network-dhcp` to the matched C64 picker SDK recipe to compile the Ethernet
+  client. The verbatim PIO handoff still enters with MAC0 in reset. The SDK,
+  entry and cold chain retain the adapter contract and exclude its 2 MiB EL1
+  mapping from staging. The MAC pool occupies only the first five 4 KiB pages
+  at `0x95c00000` (descriptor RW, TX R/R, RX W/W under stream ID 1).
 
 ## DE25-Nano target discovery
 
@@ -92,9 +92,14 @@ for host reboot detection. The lease observation binds that boot UUID to the
 SPL-derived owner and the launcher's current state and generation. The target
 API requires a hardware entropy source because the architectural counter used
 in the SPL owner can repeat after cold reset.
-MENU retains the local lease while idle. A provisioned launcher on the
-current SD profile emits `FES_NATIVE_AGENT_UNAVAILABLE reason=ethernet-disabled`
-and continues to the local UI.
+MENU publishes its first frame before the launcher queries the MAC supplier.
+The paired launcher derives a stable station address from the first six bytes
+of SHA-256 over `FES DE25 paired station v1`, one NUL byte and the canonical
+SD target UUID in ASCII. It sets the locally administered bit and clears the
+multicast bit. Provision a separate stable target UUID for each kit. A missing
+pair, missing hardware boot entropy or an explicit firmware MAC NOT_READY
+keeps the local launcher available. A malformed ownership reply or uncertain
+acquire/stop remains a failure. MENU retains the local lease while idle.
 
 CBL’s factory cold-boot UART recorded Linux binding `socfpga-dwmac` to
 `10810000.ethernet`, reporting user ID `0x76`, Synopsys ID `0x31` and
