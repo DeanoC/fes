@@ -126,6 +126,7 @@ type ProgramMultiInputPlatform struct {
 	padProfiles    map[string]inputmap.Profile
 	padProfilesGen uint64
 	lastPadGen     uint64
+	lastPadBTGen   uint64
 
 	btMu         sync.RWMutex
 	btStatus     tenfoot.BluetoothStatus
@@ -1089,12 +1090,14 @@ func (p *ProgramMultiInputPlatform) syncTenfootPadTopology(force bool) {
 	}
 	p.refreshPadProfiles()
 	gen := p.source.GamepadGeneration()
-	if !force && gen == p.lastPadGen {
+	btGen := p.source.BluetoothGeneration()
+	if !force && gen == p.lastPadGen && btGen == p.lastPadBTGen {
 		return
 	}
 	n := p.source.GamepadDevicesInto(p.padCache[:])
 	p.padCount = n
 	p.lastPadGen = gen
+	p.lastPadBTGen = btGen
 
 	if p.pads == nil {
 		p.pads = map[int]*trackedMultiPad{}

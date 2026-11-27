@@ -1675,6 +1675,94 @@ func TestProgramMultiInputPlatformControllersUIFamilyGlyphsAndPerPadProfiles(t *
 	}
 }
 
+func TestProgramMultiInputPlatformRefreshesPadIdentityOnBluetoothGeneration(t *testing.T) {
+	var prefs *ProgramPreferences
+	_, b, _ := backendFixture(t, func(f *serviceFixture) {
+		var err error
+		prefs, err = LoadProgramPreferences(context.Background(), f.s.state.store, false)
+		if err != nil {
+			t.Fatalf("LoadProgramPreferences: %v", err)
+		}
+		if err := f.s.AttachPreferences(prefs); err != nil {
+			t.Fatalf("AttachPreferences: %v", err)
+		}
+	})
+	pad := usbhub.GamepadDevice{
+		ID:           101,
+		Name:         "DualSense Wireless Controller",
+		IdentityName: "DualSense Wireless Controller",
+		Vendor:       0x054c,
+		Product:      0x0ce6,
+		Kind:         controllers.KindDualSense,
+		Bluetooth:    true,
+		Player:       1,
+	}
+	oldGUID := tamagoPadInfo(pad).GUID
+	pad.Version = 0x0100
+	newGUID := tamagoPadInfo(pad).GUID
+	rawPrefs, err := json.Marshal(struct {
+		Controllers map[string]inputmap.Profile `json:"controllers"`
+	}{Controllers: map[string]inputmap.Profile{
+		oldGUID: {Preset: inputmap.PresetSwapAB},
+	}})
+	if err != nil {
+		t.Fatalf("marshal prefs: %v", err)
+	}
+	if err := prefs.WritePreferences(rawPrefs); err != nil {
+		t.Fatalf("WritePreferences: %v", err)
+	}
+	client := tenfoot.NewClient("http://native.invalid", &http.Client{Transport: b, Timeout: 5 * time.Second})
+	app := tenfoot.NewApp(client, 1280, 720, 40)
+	if err := app.SetPreferenceStore(prefs); err != nil {
+		t.Fatalf("SetPreferenceStore: %v", err)
+	}
+	src := newFakeMultiSource()
+	pad.Version = 0
+	src.setPadDevices(pad)
+	cfg := multiTestConfig()
+	cfg.App = app
+	cfg.Preferences = prefs
+	p, err := NewProgramMultiInputPlatform(&programInputBase{}, b, src, cfg)
+	if err != nil {
+		t.Fatalf("NewProgramMultiInputPlatform: %v", err)
+	}
+	step := func() {
+		frame, err := p.Next(context.Background())
+		if err != nil {
+			t.Fatalf("Next failed: %v", err)
+		}
+		for _, cmd := range frame.Commands {
+			app.HandleCommand(cmd, frame.At)
+		}
+	}
+	step()
+	app.HandleCommand(tenfoot.CmdSettings, time.Now())
+	for i, row := range app.Snapshot().Settings.Rows {
+		if row.ID != "section-controllers" {
+			continue
+		}
+		for range i {
+			app.HandleCommand(tenfoot.CmdDown, time.Now())
+		}
+		app.HandleCommand(tenfoot.CmdSelect, time.Now())
+		break
+	}
+	if snap := app.Snapshot().Controllers; !snap.Open || !snap.SwapAB {
+		t.Fatalf("expected initial version-specific profile, got %+v", snap)
+	}
+
+	padGen := src.GamepadGeneration()
+	src.padDevices[0].Version = 0x0100 // SDP identity changed without a gamepad state/topology change.
+	src.btGen++
+	step()
+	if src.GamepadGeneration() != padGen {
+		t.Fatal("test unexpectedly changed GamepadGeneration")
+	}
+	if snap := app.Snapshot().Controllers; snap.SwapAB {
+		t.Fatalf("Bluetooth identity refresh kept the old GUID profile %s instead of using %s: %+v", oldGUID, newGUID, snap)
+	}
+}
+
 func TestProgramMultiInputPlatformQueuedPadEdgesAndGenericHIDLearn(t *testing.T) {
 	var prefs *ProgramPreferences
 	f, b, c := backendFixture(t, func(f *serviceFixture) {
