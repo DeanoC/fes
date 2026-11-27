@@ -68,17 +68,19 @@ type dnsQuestion struct {
 }
 
 type dnsRecord struct {
-	Name       string
-	Type       uint16
-	Class      uint16
-	CacheFlush bool
-	TTL        uint32
-	A          netip.Addr
-	PTR        string
-	SRVPort    uint16
-	SRVTarget  string
-	TXT        []string
-	RawRData   []byte
+	Name        string
+	Type        uint16
+	Class       uint16
+	CacheFlush  bool
+	TTL         uint32
+	A           netip.Addr
+	PTR         string
+	SRVPriority uint16
+	SRVWeight   uint16
+	SRVPort     uint16
+	SRVTarget   string
+	TXT         []string
+	RawRData    []byte
 }
 
 type dnsMessage struct {
@@ -278,6 +280,8 @@ func encodeMDNSMessage(msg dnsMessage) ([]byte, error) {
 				return err
 			}
 			rdata = make([]byte, 6+len(target))
+			binary.BigEndian.PutUint16(rdata[0:2], rr.SRVPriority)
+			binary.BigEndian.PutUint16(rdata[2:4], rr.SRVWeight)
 			binary.BigEndian.PutUint16(rdata[4:6], rr.SRVPort)
 			copy(rdata[6:], target)
 		case TypeTXT:
@@ -420,6 +424,8 @@ func decodeMDNSMessage(msg []byte) (dnsMessage, error) {
 				if rdLen < 7 {
 					return nil, errors.New("mdns: invalid SRV record length")
 				}
+				rr.SRVPriority = binary.BigEndian.Uint16(msg[rdataOff : rdataOff+2])
+				rr.SRVWeight = binary.BigEndian.Uint16(msg[rdataOff+2 : rdataOff+4])
 				rr.SRVPort = binary.BigEndian.Uint16(msg[rdataOff+4 : rdataOff+6])
 				target, end, err := decodeDNSName(msg, rdataOff+6)
 				if err != nil || end != off {

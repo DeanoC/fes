@@ -1112,3 +1112,115 @@ func TestCompareProbeRecordsCrossRRTypeTieBreak(t *testing.T) {
 		t.Fatal("identical probe record sets reported a conflict")
 	}
 }
+
+func TestCompareProbeRecordsPerNameArbitration(t *testing.T) {
+	// Win on a-host.local (higher IP) must not mask a loss on z-svc._fogcast._tcp.local (lower SRV port).
+	localWinEarlyLoseLate := []dnsRecord{
+		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.20")},
+		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 8000, SRVTarget: "a-host.local"},
+	}
+	remoteLoseEarlyWinLate := []dnsRecord{
+		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 9000, SRVTarget: "b-host.local"},
+	}
+	if conflict, localWins := compareProbeRecords(localWinEarlyLoseLate, remoteLoseEarlyWinLate); !conflict || localWins {
+		t.Fatalf("win earlier + lose later = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+	// Loss on earlier name + win on later name must also lose overall.
+	if conflict, localWins := compareProbeRecords(remoteLoseEarlyWinLate, localWinEarlyLoseLate); !conflict || localWins {
+		t.Fatalf("lose earlier + win later = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+
+	// Win on one name + identical record on the second name -> local wins overall.
+	remoteSameLate := []dnsRecord{
+		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 8000, SRVTarget: "a-host.local"},
+	}
+	if conflict, localWins := compareProbeRecords(localWinEarlyLoseLate, remoteSameLate); !conflict || !localWins {
+		t.Fatalf("win earlier + identical later = conflict:%v localWins:%v, want true/true", conflict, localWins)
+	}
+
+	// Win on both names -> local wins overall.
+	remoteLoseBoth := []dnsRecord{
+		{Name: "a-host.local", Type: TypeA, Class: ClassIN, TTL: 120, A: netip.MustParseAddr("192.0.2.10")},
+		{Name: "z-svc._fogcast._tcp.local", Type: TypeSRV, Class: ClassIN, TTL: 120, SRVPort: 7000, SRVTarget: "a-host.local"},
+	}
+	if conflict, localWins := compareProbeRecords(localWinEarlyLoseLate, remoteLoseBoth); !conflict || !localWins {
+		t.Fatalf("win both names = conflict:%v localWins:%v, want true/true", conflict, localWins)
+	}
+}
+
+func TestSRVPriorityAndWeightWireAndTieBreak(t *testing.T) {
+	srvHighPrio := dnsRecord{
+		Name:        "svc._fogcast._tcp.local",
+		Type:        TypeSRV,
+		Class:       ClassIN,
+		TTL:         120,
+		SRVPriority: 10,
+		SRVWeight:   20,
+		SRVPort:     8080,
+		SRVTarget:   "host.local",
+	}
+	encoded, err := encodeMDNSMessage(dnsMessage{
+		Authorities: []dnsRecord{srvHighPrio},
+	})
+	if err != nil {
+		t.Fatalf("encodeMDNSMessage(high prio): %v", err)
+	}
+	decoded, err := decodeMDNSMessage(encoded)
+	if err != nil {
+		t.Fatalf("decodeMDNSMessage(high prio): %v", err)
+	}
+	if len(decoded.Authorities) != 1 {
+		t.Fatalf("len(Authorities) = %d, want 1", len(decoded.Authorities))
+	}
+	got := decoded.Authorities[0]
+	if got.SRVPriority != 10 || got.SRVWeight != 20 || got.SRVPort != 8080 || got.SRVTarget != "host.local" {
+		t.Fatalf("decoded SRV = {prio:%d weight:%d port:%d target:%q}, want {10 20 8080 %q}",
+			got.SRVPriority, got.SRVWeight, got.SRVPort, got.SRVTarget, "host.local")
+	}
+
+	decodeOneSRV := func(prio, weight uint16) []dnsRecord {
+		raw, err := encodeMDNSMessage(dnsMessage{
+			Authorities: []dnsRecord{{
+				Name:        "svc._fogcast._tcp.local",
+				Type:        TypeSRV,
+				Class:       ClassIN,
+				TTL:         120,
+				SRVPriority: prio,
+				SRVWeight:   weight,
+				SRVPort:     8080,
+				SRVTarget:   "host.local",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("encodeMDNSMessage: %v", err)
+		}
+		msg, err := decodeMDNSMessage(raw)
+		if err != nil {
+			t.Fatalf("decodeMDNSMessage: %v", err)
+		}
+		return msg.Authorities
+	}
+
+	prio0 := decodeOneSRV(0, 0)
+	prio10 := decodeOneSRV(10, 0)
+	if conflict, localWins := compareProbeRecords(prio0, prio10); !conflict || localWins {
+		t.Fatalf("prio 0 vs prio 10 = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+	if conflict, localWins := compareProbeRecords(prio10, prio0); !conflict || !localWins {
+		t.Fatalf("prio 10 vs prio 0 = conflict:%v localWins:%v, want true/true", conflict, localWins)
+	}
+
+	weight0 := decodeOneSRV(10, 0)
+	weight20 := decodeOneSRV(10, 20)
+	if conflict, localWins := compareProbeRecords(weight0, weight20); !conflict || localWins {
+		t.Fatalf("weight 0 vs weight 20 = conflict:%v localWins:%v, want true/false", conflict, localWins)
+	}
+	if conflict, localWins := compareProbeRecords(weight20, weight0); !conflict || !localWins {
+		t.Fatalf("weight 20 vs weight 0 = conflict:%v localWins:%v, want true/true", conflict, localWins)
+	}
+	if conflict, _ := compareProbeRecords(weight20, weight20); conflict {
+		t.Fatal("identical SRV priority/weight/port/target reported a conflict")
+	}
+}

@@ -1003,34 +1003,34 @@ func compareProbeRecords(local, remote []dnsRecord) (conflict, localWins bool) {
 	}
 	slices.Sort(names)
 
-	var localOrder, remoteOrder []tieRecord
 	for _, name := range names {
 		ours, theirs := localByName[name], remoteByName[name]
 		sortTieRecords(ours)
 		sortTieRecords(theirs)
-		if len(ours) != len(theirs) {
-			conflict = true
-		} else {
-			for i := range ours {
-				if compareTieRecord(ours[i], theirs[i]) != 0 {
-					conflict = true
-					break
-				}
+		limit := min(len(ours), len(theirs))
+		nameCmp := 0
+		for i := 0; i < limit; i++ {
+			if cmp := compareTieRecord(ours[i], theirs[i]); cmp != 0 {
+				nameCmp = cmp
+				break
 			}
 		}
-		localOrder = append(localOrder, ours...)
-		remoteOrder = append(remoteOrder, theirs...)
-	}
-	if !conflict {
-		return false, false
-	}
-	limit := min(len(localOrder), len(remoteOrder))
-	for i := 0; i < limit; i++ {
-		if cmp := compareTieRecord(localOrder[i], remoteOrder[i]); cmp != 0 {
-			return true, cmp > 0
+		if nameCmp == 0 {
+			switch {
+			case len(ours) < len(theirs):
+				nameCmp = -1
+			case len(ours) > len(theirs):
+				nameCmp = 1
+			}
+		}
+		if nameCmp < 0 {
+			return true, false
+		}
+		if nameCmp > 0 {
+			conflict = true
 		}
 	}
-	return true, len(localOrder) > len(remoteOrder)
+	return conflict, conflict
 }
 
 func recordRData(rr dnsRecord) []byte {
@@ -1044,6 +1044,8 @@ func recordRData(rr dnsRecord) []byte {
 		target, err := encodeDNSName(strings.ToLower(strings.TrimSuffix(rr.SRVTarget, ".")))
 		if err == nil {
 			rdata := make([]byte, 6+len(target))
+			binary.BigEndian.PutUint16(rdata[0:2], rr.SRVPriority)
+			binary.BigEndian.PutUint16(rdata[2:4], rr.SRVWeight)
 			binary.BigEndian.PutUint16(rdata[4:6], rr.SRVPort)
 			copy(rdata[6:], target)
 			return rdata
