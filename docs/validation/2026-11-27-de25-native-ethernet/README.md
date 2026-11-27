@@ -67,3 +67,18 @@ target verified mapping revocation and MAC reset, and C64 returned to
 Ready and Park. [UART capture](tx07-uart.gz) ·
 [Trial and C64 return receipt](tx07-release.json) ·
 [KSZ9031RNX register descriptions, table 4-4](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ9031RNX-Data-Sheet-DS00002117.pdf)
+
+A subsequent trial retained both PHY snapshots at the end of its four-second
+negotiation window. Both reported basic status `0x7949`, zero partner
+advertisement, zero gigabit partner status and zero PCS link. The local
+transceiver still advertised gigabit. The test withheld transmission and
+returned CBL to the original C64 baseline. [PHY snapshots](tx08-uart.gz) ·
+[C64 return receipt](tx08-release.json)
+
+After the Ethernet cable was connected, the PHY reported a partner
+advertisement of `0xcde1` and resolved gigabit full duplex. Basic status
+rose from `0x7949` to `0x796d` over 100 ms. The remote receiver had yet
+to report ready and the idle-error count reached `0xff`. The trial stopped
+at that sample, revoked the mapping and reset the MAC. The original C64
+launcher reached Ready and Park before release.
+[PHY transition](tx09-uart.gz) · [C64 return receipt](tx09-release.json)

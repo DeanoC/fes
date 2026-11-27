@@ -276,14 +276,16 @@ static int verify_link(struct trial *t)
          * preceding qualifying sample breaks that pair. Subsequent pairs can qualify. */
         int stable=attempt && link_ready(&previous) && ready &&
                    (current.bmsr_latch & 0x34)==0x24;
-        int irreversible=current.id1!=0x22 || current.id2!=0x1622 ||
-                         (current.gig_partner & 0xff)==0xff;
+        /* The idle-error count is RO/SC. Training can saturate it
+         * before the partner receiver is ready. Such a sample breaks the
+         * qualifying pair; a later pair still needs every link check. */
+        int wrong_phy=current.id1!=0x22 || current.id2!=0x1622;
         int expired = current.time_us-start >= PHY_WAIT_US ||
                       current.time_us-t->out->started_us >= MAX_US-TX_COMPLETION_US-CLEANUP_RESERVE_US;
-        if (stable || irreversible || expired || attempt==PHY_WAIT_US/PHY_SAMPLE_US) {
+        if (stable || wrong_phy || expired || attempt==PHY_WAIT_US/PHY_SAMPLE_US) {
             if (attempt) t->io->report_phy(t->io->ctx,0,&previous);
             t->io->report_phy(t->io->ctx,attempt!=0,&current);
-            return stable && !irreversible && !expired ? 0 : -1;
+            return stable && !wrong_phy && !expired ? 0 : -1;
         }
         previous=current;
         /* The suite also bounds a stopped counter; reserve the rest of the
