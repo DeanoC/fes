@@ -23,7 +23,7 @@ class PositiveTX(unittest.TestCase):
 
     def test_closed_receipt_and_incomplete_evidence(self):
         identity = "1a2b3c4d5e6f7890"
-        receipt = dict(scope="de25-cbl-positive-mac-spl-v1", status="prepared", startup_predicate_report=True, parking_revision=replay.PARKING, diagnostic_id=identity,
+        receipt = dict(scope="de25-cbl-positive-mac-spl-v1", status="prepared", startup_predicate_report=True, capability_snapshot=True, parking_revision=replay.PARKING, diagnostic_id=identity,
                        frame_sha256=hashlib.sha256(b"fixture only").hexdigest())
         def trace(n, value=0):
             return f"FES_NANO_CPU_TRACE id={identity} stage={n:02x} value={value:08x} mpidr=0000000081000000 el=3"
@@ -40,10 +40,17 @@ class PositiveTX(unittest.TestCase):
                  *(f"FES_CBL_MAC_TX POWER phase={phase} cpu0=90000021 cpu1=00000000 cpu2=00000000 cpu3=00000000 req=00000023 ack=00000023 boot=0070021e" for phase in ("first", "live")),
                  f"FES_CBL_TX_SETUP id={identity} daif_before=2c0 daif_after=3c0 serror=000 l4sp_hz=100000000 emaca_hz=250000000",
                  f"FES_CBL_TX_GATE id={identity} predicate=accepted observed=0000000000000001 required=0000000000000001",
+                 f"FES_CBL_TX_CAPS id={identity} version=00107631 feature0=cafd5b3f feature1=49ef7a27 feature2=221c71c7 interface=00000001",
                  end, *(trace(0x30+i,v) for i,v in enumerate(power_words)), trace(18), replay.PARK]
         raw = ("\r\n".join(lines)+"\r\n").encode()
         self.assertTrue(replay.decode_positive(raw,receipt)["target_closed"])
-        for original,altered in ((b"tps=1",b"tps=0"),(b"ack=00000023",b"ack=00000021"),(b"cpu1=00000000",b"cpu1=00000001"),(b"disposition=closed",b"disposition=cold-recovery"),
+        caps_line = next(line.encode()+b"\r\n" for line in lines if line.startswith("FES_CBL_TX_CAPS"))
+        for optional in ((b"cafd5b3f",b"8afd5b3f"),(b"49ef7a27",b"49eb7a27"),(b"221c71c7",b"231c71c7")):
+            self.assertTrue(replay.decode_positive(raw.replace(*optional), receipt)["target_closed"])
+        for original,altered in ((b"cafd5b3f", b"ca7d5b3f"), (b"cafd5b3f", b"cafd5b1f"),
+                                 (b"49ef7a27",b"49ef3a27"), (b"221c71c7",b"221c71c6"),
+                                 (b"interface=00000001", b"interface=00000003"), (caps_line, b""),
+                                 (b"tps=1",b"tps=0"),(b"ack=00000023",b"ack=00000021"),(b"cpu1=00000000",b"cpu1=00000001"),(b"disposition=closed",b"disposition=cold-recovery"),
                                  (b"arm=1",b"arm=0"),(b"3000003c",b"b000003c"),
                                  (b"3000003c",b"3800003c"),(b"3000003c",b"7000003c"),
                                  (b"daif_before=2c0",b"daif_before=240"),(b"daif_after=3c0",b"daif_after=2c0"),
@@ -69,6 +76,8 @@ class PositiveTX(unittest.TestCase):
         for terminal in (unchanged, unchanged.replace("stage=1","stage=0"), revoked,
                          revoked.replace("stage=4","stage=3").replace("mac=1","mac=0"), revoked.replace("stage=4","stage=5")):
             wire = raw.replace(end.encode(), terminal.encode())
+            if "mac=0" in terminal:
+                wire = wire.replace(caps_line, b"")
             result = replay.decode_closed(wire, receipt)
             self.assertTrue(result["target_closed"])
             self.assertFalse(result["device_frame_dispatched"])
@@ -85,7 +94,7 @@ class PositiveTX(unittest.TestCase):
 
         rejected = b"predicate=sdm-config-status observed=0000000010000000 required=0000000000000000"
         accepted = b"predicate=accepted observed=0000000000000001 required=0000000000000001"
-        startup = raw.replace(accepted, rejected).replace(end.encode(), unchanged.replace("stage=1", "stage=0").encode())
+        startup = raw.replace(caps_line,b"").replace(accepted, rejected).replace(end.encode(), unchanged.replace("stage=1", "stage=0").encode())
         setup = next(line.encode()+b"\r\n" for line in lines if line.startswith("FES_CBL_TX_SETUP"))
         with self.assertRaises(ValueError):
             replay.decode_closed(startup, receipt)

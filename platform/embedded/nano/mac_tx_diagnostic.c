@@ -229,6 +229,46 @@ static int verify_link(struct trial *t)
     }
     return -1;
 }
+/* Only qualify fields that determine this small AXI DMA, MTL and MDIO path.
+ * PHYSEL is a live sample of phy_intf_sel_i, unlike the capability bits. */
+static int check_capabilities(struct trial *t)
+{
+    struct fes_tx_caps caps;
+    caps.version = read_reg(t, MAC + 0x110);
+    caps.feature0 = read_reg(t, MAC + 0x11c);
+    caps.feature1 = read_reg(t, MAC + 0x120);
+    caps.feature2 = read_reg(t, MAC + 0x124);
+    caps.interface = read_reg(t, PHYSEL);
+    t->io->report_caps(t->io->ctx, &caps);
+
+    const uint32_t mdio_gigabit_axi = (1U << 31) | (1U << 5) | 3U;
+    /* One 32 KiB TX FIFO, 16 KiB RX FIFO and 40-bit AXI address path.
+     * All DMA addresses programmed by this diagnostic fit below 4 GiB. */
+    const uint32_t fifo_address = (3U << 14) | (31U << 6) | 31U;
+    /* The fitted device has eight TX/RX DMA channels and eight TX/RX
+     * queues. The admission scan below covers exactly this register window. */
+    const uint32_t queue_counts = (15U << 18) | (15U << 12) | (15U << 6) | 15U;
+    if (caps.version != 0x107631) {
+        t->out->last_address = MAC + 0x110;
+        t->out->last_value = caps.version;
+    } else if ((caps.interface & 3U) != FES_TX_RGMII_SELECT) {
+        t->out->last_address = PHYSEL;
+        t->out->last_value = caps.interface;
+    } else if ((caps.feature0 & mdio_gigabit_axi) != mdio_gigabit_axi ||
+               ((caps.feature0 >> 23) & 3U) != (caps.interface & 3U)) {
+        t->out->last_address = MAC + 0x11c;
+        t->out->last_value = caps.feature0;
+    } else if ((caps.feature1 & fifo_address) != ((1U << 14) | (8U << 6) | 7U)) {
+        t->out->last_address = MAC + 0x120;
+        t->out->last_value = caps.feature1;
+    } else if ((caps.feature2 & queue_counts) != ((7U << 18) | (7U << 12) | (7U << 6) | 7U)) {
+        t->out->last_address = MAC + 0x124;
+        t->out->last_value = caps.feature2;
+    } else {
+        return 0;
+    }
+    return -1;
+}
 static int start_mac(struct trial *t)
 {
     uint32_t per0 = read_reg(t, RST), mode = read_reg(t, PHYSEL);
@@ -238,8 +278,7 @@ static int start_mac(struct trial *t)
     t->out->mac_release_attempted = 1;
     if (set_reg(t, RST, per0 & ~MAC_RESETS))
         return -1;
-    if (read_reg(t, MAC + 0x110) != 0x107631 || read_reg(t, MAC + 0x11c) != 0xca7d5b3f ||
-        read_reg(t, MAC + 0x120) != 0x49ef7a27 || read_reg(t, MAC + 0x124) != 0x221c71c7 ||
+    if (guard(t) || check_capabilities(t) ||
         (read_reg(t, MAC) | read_reg(t, MAC + 4) | read_reg(t, MAC + 0x3000)) & 1)
         return -1;
     for (unsigned i = 0; i < 8; i++)
@@ -333,7 +372,7 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     static const uint8_t header[22] = {2,   0xfe, 0x25, 8,   0xcb, 1,   0x88, 0xb5, 'F', 'E', 'S',
                                        '-', 'C',  'B',  'L', '-',  'T', 'X',  '-',  'v', '1', 0};
     if (!io || !frame || !out || out->stage != FES_TX_INITIAL || out->dispatched || !io->owns ||
-        !io->read || !io->write || !io->store || !io->load || !io->time_us || !io->sync_memory)
+        !io->report_caps || !io->read || !io->write || !io->store || !io->load || !io->time_us || !io->sync_memory)
         return -1;
     struct trial t = {io, out, 0, 13};
     unsigned nonce = 0, nonzero = 0, different = 0;

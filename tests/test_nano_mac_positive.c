@@ -33,6 +33,17 @@ enum fault {
     LOST_ROUTE_BEFORE_TAIL,
     LOST_SMMU_BEFORE_TAIL,
     LOST_PTE_BEFORE_OWN,
+    OPTIONAL_FEATURES,
+    WRONG_VERSION,
+    WRONG_MODE,
+    NO_RGMII,
+    NO_GMII,
+    NO_MDIO,
+    NO_AXI_DMA,
+    SMALL_FIFO,
+    WRONG_ADDRESS_WIDTH,
+    TOO_MANY_CHANNELS,
+    WRONG_QUEUES,
     UNKNOWN_CR2
 };
 struct fixture {
@@ -41,6 +52,7 @@ struct fixture {
     unsigned writes, transmits, queued, acknowledged, revocations, observations;
     enum fault fault;
     uint8_t wire[60];
+    unsigned caps_seen;
 };
 static uint32_t *reg(struct fixture *f, uint32_t a)
 {
@@ -201,6 +213,13 @@ static void barrier(void *ctx)
 {
     (void)ctx;
 }
+static void report_caps(void *ctx, const struct fes_tx_caps *caps)
+{
+    struct fixture *f = ctx;
+    assert(++f->caps_seen == 1 && !(f->reset & 0x101) && !f->transmits);
+    assert(caps->version == *reg(f, M+0x110) && caps->feature0 == *reg(f, M+0x11c));
+    assert(caps->feature1 == *reg(f, M+0x120) && caps->feature2 == *reg(f,M+0x124));
+}
 static int observe(void *ctx)
 {
     struct fixture *f = ctx;
@@ -220,7 +239,7 @@ static void denied_startup(void)
     *reg(&f, S) = 0x080f7e3f;
     *reg(&f, S + 4) = 0x0e739d18;
     *reg(&f, S + 0x14) = 0x400075;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe, report_caps};
     struct fes_tx_result out = {0};
     assert(!owns(&f) && fes_tx_terminal(&io, &out, -1) == FES_TX_UNCHANGED);
     assert(f.observations == 2 && !f.writes && !f.transmits);
@@ -244,24 +263,39 @@ static void test(enum fault fault)
     *reg(&f, S + 0x14) = 0x400075;
     *reg(&f, S + 0x2c) = 4;
     *reg(&f, M + 0x110) = 0x107631;
-    *reg(&f, M + 0x11c) = 0xca7d5b3f;
+    *reg(&f, M + 0x11c) = 0xcafd5b3f;
     *reg(&f, M + 0x120) = 0x49ef7a27;
     *reg(&f, M + 0x124) = 0x221c71c7;
+    if (fault == OPTIONAL_FEATURES) {
+        *reg(&f, M+0x11c) ^= (1U<<30) | (1U<<13);
+        *reg(&f, M+0x120) ^= (1U<<18) | (1U<<20);
+        *reg(&f, M+0x124) ^= 1U<<24;
+    }
+    if (fault == WRONG_VERSION) *reg(&f, M+0x110) ^= 1;
+    if (fault == WRONG_MODE) *reg(&f, M+0x11c) ^= 1U<<23;
+    if (fault == NO_RGMII) *reg(&f, M+0x11c) &= ~1U;
+    if (fault == NO_GMII) *reg(&f, M+0x11c) &= ~2U;
+    if (fault == NO_MDIO) *reg(&f, M+0x11c) &= ~(1U<<5);
+    if (fault == NO_AXI_DMA) *reg(&f, M+0x11c) &= ~(1U<<31);
+    if (fault == SMALL_FIFO) *reg(&f, M+0x120) ^= 15U<<6;
+    if (fault == WRONG_ADDRESS_WIDTH) *reg(&f, M+0x120) ^= 1U<<14;
+    if (fault == TOO_MANY_CHANNELS) *reg(&f, M+0x124) |= 8U<<18;
+    if (fault == WRONG_QUEUES) *reg(&f, M+0x124) ^= 1U<<6;
     if (fault == DIRTY_QUEUE)
         *reg(&f, S + 0x100a8) = 1;
     if (fault == UNKNOWN_CR2)
         *reg(&f, S + 0x2c) = 0;
     if (fault == BAD_ROUTE)
         f.sid = 9;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns, report_caps};
     struct fes_tx_result out = {0};
     uint8_t frame[60] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x45, 2, 0xfe, 0x25, 8, 0xcb, 1, 0x88, 0xb5};
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
     memset(frame + 28, 0x7e, 16);
     int rc = fes_tx_once(&io, frame, &out);
-    assert((rc == 0) == (fault == OK));
+    assert((rc == 0) == (fault == OK || fault == OPTIONAL_FEATURES));
     assert(f.transmits <= 1);
-    if (fault == OK) {
+    if (fault == OK || fault == OPTIONAL_FEATURES) {
         assert(!memcmp(frame, f.wire, 60) && out.mapped && out.dma_possible && out.dispatched &&
                out.process_stopped);
         assert(out.stage == FES_TX_PARKED && out.translation_revoked && out.mac_in_reset &&
@@ -289,8 +323,14 @@ static void test(enum fault fault)
         fault == LOST_PTE_BEFORE_OWN)
         assert(!f.transmits && !out.dispatched && !out.translation_revoked);
     enum fes_tx_disposition expected = FES_TX_COLD_RECOVERY;
-    if (fault == OK)
+    if (fault == OK || fault == OPTIONAL_FEATURES)
         expected = FES_TX_CLOSED;
+    if (fault >= WRONG_VERSION && fault <= WRONG_QUEUES) {
+        assert(f.caps_seen == 1 && !out.dispatched && !out.dma_possible);
+        assert(out.fault_address == M + (fault == WRONG_VERSION ? 0x110 :
+               fault <= NO_AXI_DMA ? 0x11c : fault <= WRONG_ADDRESS_WIDTH ? 0x120 : 0x124));
+        expected = FES_TX_REVOKED_UNDISPATCHED;
+    }
     if (fault == UNKNOWN_CR2)
         expected = FES_TX_UNCHANGED;
     if (fault == WRONG_PHY || fault == SLOW_PHY || fault == FAILED_PHY_CHECK)

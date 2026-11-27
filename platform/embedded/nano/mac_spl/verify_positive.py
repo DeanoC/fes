@@ -12,7 +12,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if (not isinstance(raw, bytes) or len(raw) > 2 << 20 or
             receipt.get("scope") != "de25-cbl-positive-mac-spl-v1" or
             receipt.get("status") != "prepared" or receipt.get("startup_predicate_report") is not True or
-            receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
+            receipt.get("capability_snapshot") is not True or receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
             not re.fullmatch("[0-9a-f]{64}", frame_hash)):
         raise ValueError("invalid positive diagnostic source receipt or UART stream")
     data = raw.replace(b"\r\n", b"\n")
@@ -22,7 +22,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     banners = [i for i, line in enumerate(lines) if line.startswith("U-Boot SPL ")]
     if len(banners) != 1 or not lines[banners[0]].startswith("U-Boot SPL 2025.01-fes-nano-cpu-"+identity+" "):
         raise ValueError("missing matched SPL startup")
-    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP")
+    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP", "FES_CBL_TX_CAPS")
     trace = [s for s in lines if s.startswith(prefixes)]
     if any(s.startswith(prefixes) for s in lines[:banners[0]]):
         raise ValueError("positive diagnostics before matched banner")
@@ -50,6 +50,19 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if trace[:len(expected)] != expected or trace[-9:] != [*late,
             f"FES_NANO_CPU_TRACE id={identity} stage=12 value=00000000 mpidr=0000000081000000 el=3", PARK]:
         raise ValueError("missing ordered matching cold CPU, ownership or park")
+    caps = None
+    capability_rows = [i for i,line in enumerate(trace) if line.startswith("FES_CBL_TX_CAPS")]
+    if capability_rows:
+        index = capability_rows[0]
+        if len(capability_rows) != 1 or index+1 >= len(trace) or not trace[index+1].startswith("FES_CBL_MAC_TX END "):
+            raise ValueError("missing or out-of-order MAC capability snapshot")
+        observed = re.fullmatch(r"FES_CBL_TX_CAPS id=" + identity +
+            r" version=([a-f0-9]{8}) feature0=([a-f0-9]{8}) feature1=([a-f0-9]{8})"
+            r" feature2=([a-f0-9]{8}) interface=([a-f0-9]{8})", trace.pop(index))
+        if not observed:
+            raise ValueError("invalid MAC capability snapshot")
+        caps = dict(zip(("version","feature0","feature1","feature2","interface"),
+                        (int(value,16) for value in observed.groups())))
     if len(trace) not in (len(expected)+13, len(expected)+14):
         raise ValueError("missing or duplicated diagnostic evidence")
     powers = []
@@ -120,6 +133,14 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
                  and state == abort and desc == dma == 0)
     else:
         valid = False
+    if caps is not None and not (mac and stage >= 3):
+        raise ValueError("MAC capability read without a released controller")
+    if stage >= 4:
+        if caps is None or (caps["version"] != 0x107631 or caps["interface"] & 3 != 1 or
+                caps["feature0"] & 0x81800023 != 0x80800023 or
+                caps["feature1"] & 0xc7df != 0x4207 or
+                caps["feature2"] & 0x3cf3cf != 0x1c71c7):
+            raise ValueError("controller did not satisfy the RGMII, MDIO, FIFO or DMA geometry")
     if stage > 0 and not passed_startup:
         raise ValueError("hardware admission followed a rejected startup predicate")
     if not valid:
@@ -132,7 +153,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
                 process_stopped=bool(tps), translation_revoked=bool(revoked), disposition=disposition,
                 mac_in_reset=True, parked=True, terminal_reset=per0, tx_descriptor=desc, dma_status=dma,
                 fault_reg=fault_reg, fault_value=fault_value, phy_status=phy,
-                startup=dict(predicate=predicate, observed=observed, required=required), setup=setup)
+                startup=dict(predicate=predicate, observed=observed, required=required), setup=setup, capabilities=caps)
 
 
 def decode_positive(raw: bytes, receipt: dict) -> dict:

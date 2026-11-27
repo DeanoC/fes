@@ -84,6 +84,12 @@ static int positive_observe_unchanged(void *ctx)
            (positive_rd(ctx,0x10d10024)&14)==14 && !(positive_rd(ctx,0x10d10030)&2) &&
            ((positive_rd(ctx,0x10d10040)>>16)&7)<=1;
 }
+static void positive_report_caps(void *ctx, const struct fes_tx_caps *c)
+{
+    (void)ctx;
+    printf("FES_CBL_TX_CAPS id=%s version=%08x feature0=%08x feature1=%08x feature2=%08x interface=%08x\n",
+           FES_CPU_DIAG_ID,c->version,c->feature0,c->feature1,c->feature2,c->interface);
+}
 static int positive_matches(const char *predicate, unsigned long long observed, unsigned long long required)
 {
     if (observed==required) return 1;
@@ -147,7 +153,7 @@ __attribute__((__noinline__)) void fes_nano_positive_tx(void)
 {
     struct fes_tx_result result={0};
     const struct fes_tx_io io={NULL,positive_rd,positive_wr,positive_ld,positive_st,positive_barrier,
-                               positive_time,positive_owns,positive_observe_unchanged};
+                               positive_time,positive_owns,positive_observe_unchanged,positive_report_caps};
     int rc=-1;
     enum fes_tx_disposition closed;
     static const char *const names[]={"cold-recovery","closed","unchanged","revoked-undispatched"};

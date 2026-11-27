@@ -24,6 +24,9 @@
 #define FES_TX_IOVA   0x94802000U
 #define FES_TX_BUFFER 0x94803000U
 
+struct fes_tx_caps {
+    uint32_t version, feature0, feature1, feature2, interface;
+};
 struct fes_tx_io {
     void *ctx;
     uint32_t (*read)(void *, uint32_t);
@@ -39,6 +42,7 @@ struct fes_tx_io {
     /* Read-only CPU and register-access scope. Only the zero-write terminal
      * path may use this. It cannot grant a hardware write or DMA dispatch. */
     int (*observe_unchanged)(void *);
+    void (*report_caps)(void *, const struct fes_tx_caps *);
 };
 enum fes_tx_stage {
     FES_TX_INITIAL, FES_TX_TABLE_BUILD, FES_TX_ARM, FES_TX_RELEASE_MAC,
