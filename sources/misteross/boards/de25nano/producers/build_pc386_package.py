@@ -42,11 +42,6 @@ def _authenticate_tools(root, *, cache_root=None):
     return MACHINE.authenticate(root, cache_root=cache_root)
 
 
-def selection_identities():
-    """Tool keys expected by create_build_record during selection-only seal probes."""
-    return {name: 'selection-only' for name in ('quartus', 'qsys', 'ipgenerate', 'pfg', 'yosys')}
-
-
 create_build_record = MACHINE.create_build_record
 manifest = MACHINE.manifest
 build = MACHINE.build

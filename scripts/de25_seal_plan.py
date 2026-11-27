@@ -81,7 +81,10 @@ for recipe in json.loads(sys.argv[2]):
         names = models(module)
         repository, revision = module._require_clean_source(source, identity_version=2)
         tools = (module.selection_identities() if hasattr(module, "selection_identities")
-                 else {name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")})
+                 else {name: "selection-only" for name in (
+                     module.MACHINE.tool_set(module.MACHINE.spec(source))
+                     if getattr(module, "MACHINE", None) is not None and hasattr(module.MACHINE, "tool_set")
+                     else ("quartus", "qsys", "ipgenerate", "pfg"))})
         for name in names:
             extra = {} if name is None else {"model": name}
             record = json.loads(module.create_build_record(

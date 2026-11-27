@@ -35,9 +35,10 @@ class RegistryTests(unittest.TestCase):
             self.assertTrue(recipe.producer_script.startswith('boards/de25nano/producers/'))
             self.assertTrue((ROOT / 'sources/misteross' / recipe.producer_script).is_file())
 
-    def test_pc386_recipe_exposes_selection_identities_and_both_models(self):
+    def test_pc386_recipe_uses_machine_tool_set_and_sealer_hooks(self):
         recipes = sp.registered()
         self.assertEqual(sp.parse_selection('fes.pc386', recipes), [('fes.pc386', None)])
+        self.assertIn('module.MACHINE.tool_set', sp.PROBE)
         sealer = (ROOT / 'scripts/powerboat/de25-seal-auto.sh').read_text()
         self.assertIn('build_pc386_firmware.py', sealer)
         self.assertIn('--gpu-router', sealer)
