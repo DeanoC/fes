@@ -4,10 +4,10 @@ On TRWU8CBL the retained 4 GB C64 card uses PIO SD, launcher boot ID
 `af4407e48b21634e`, FIT `be9a5f82a0ff769676e75a64583b19f68f7fbcb5896405c5a574512d91c6fcbb`
 and BL31 `d63e6026c7bcd9741e1055ca1ea829164cdf5e14675b5431fd5ec9f74a31e413`.
 The SPL authenticates the size and SHA-256 of the SD FIT before it passes
-control to firmware. A production trial can preserve this card and QSPI by
-booting a separately prepared PIO card with its matching volatile phase-one
-SOF. The new card needs the matched firmware, Ethernet-enabled launcher and
-provisioned FogCast target UUID and bearer. [C64 startup and handback](README.md) ·
+control to firmware. A production trial needs a matched PIO image, volatile
+first stage, Ethernet-enabled firmware and launcher, and the private FogCast
+pairing. An original-card trial can use the verified full C64 backup for
+rollback; another card needs a build bound to its own identity. [C64 startup and handback](README.md) ·
 [Native FIT check](../../../platform/embedded/nano/spl_cold.c)
 
 ## Memory ownership
@@ -101,6 +101,25 @@ file, so the card's prior FAT cluster layout is unnecessary.
 [U-Boot handoff](../../../platform/embedded/nano/uboot.c) ·
 [Recovery upload](../../../platform/embedded/nano/upload.py) ·
 [Image admission](../../../platform/embedded/nano/launcher_image.py)
+
+## Prepared C64 handoff observer
+
+A private PIO image for CBL's existing 4 GB card carries a matched firmware
+observer at seven handoff points through MENU, C64 and the return to MENU.
+It uses the existing game and reader paths. Its launcher has Ethernet disabled.
+The staged disk image and original backup are each 3,980,394,496 bytes.
+Independent reads on Powerboat verified these SHA-256 digests.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Original C64 whole-card backup | `6380e2cee3c3caf37e06893e8dc93adcf8c7bed2b660ec8698d6d3a0bbd8587d` |
+| Prepared observer disk image | `d133255c4af0b7fcdcd9326140ee5f30960835a1016c8d38cd1bbfc7b5400b16` |
+| Matching volatile HPS-first RBF | `1abe722730e08ab0f6013285e357bbf3ff1a8efb7b205287f62d58f4d89c633b` |
+
+The image builder read back all 15 FAT files and verified the protected boot
+prefix and original card tail. This is file-only preparation. It preserves
+the option of a separate, reversible handoff measurement using the 4 GB
+card after the board is restored and the physical media trial is approved.
 
 ## Wire qualification
 
