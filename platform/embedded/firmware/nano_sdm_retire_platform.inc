@@ -21,7 +21,7 @@ static int retire_completed(const struct nano_sdm_input_binding *b)
   r.start==sdm_source_clock_start && r.last>=r.start && configuration.issued==FES_NANO_CONFIG_ISDONE &&
   configuration.stage==FES_CONFIG_STATUS && configuration.pending==0 && configuration.completed==configuration.bytes;
 }
-static int retire_owned(void *context,const struct nano_sdm_input_binding *b)
+ static int retire_owned(void *context,const struct nano_sdm_input_binding *b)
 {
  struct nano_retire_io *i=&source_retirement.io;
  if(context!=&source_retirement || !b || sdm_source_failed || source_retirement.failed ||
@@ -31,43 +31,10 @@ static int retire_owned(void *context,const struct nano_sdm_input_binding *b)
     i->store_command!=retire_store || i->barrier!=retire_barrier || i->prepared!=&sdm_arm_probe.command || i->initial_abort!=sdm_arm_probe.abort || !retire_completed(b) ||
     sdm_input_owns(&sdm_arm_probe,&sdm_arm_probe.binding)!=1 ||
     sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return 0;
- /* Fresh error/event observations also run after the final counter read.
-  * They never acknowledge an error or discard an event. */
- static const uint32_t zero[]={0x48,0x50,0x54,0x60,0x64,0x100a8,0x100ac};
- for(unsigned n=0;n<sizeof(zero)/sizeof(zero[0]);n++){
-  FES_PROBE_BARRIER();uint32_t value=FES_PROBE_READ32(UINT64_C(0x16000000)+zero[n]);FES_PROBE_BARRIER();
-  if(value){source_retirement.bad_offset=zero[n];source_retirement.bad_value=value;return 0;}
- }
- if(source_retirement.phase==RET_COMPLETE){
-  const uint32_t final[][2]={{0x20,0},{0x24,0},{0x44,0x100000},
-   {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
-   {0x98,source_retirement.queue_target},{0x9c,source_retirement.queue_target},{0xa0,0x94009003},{0xa4,0}};
-  for(unsigned n=0;n<sizeof(final)/sizeof(final[0]);n++){
-   FES_PROBE_BARRIER();uint32_t value=FES_PROBE_READ32(UINT64_C(0x16000000)+final[n][0]);FES_PROBE_BARRIER();
-   if(value!=final[n][1]){source_retirement.bad_offset=final[n][0];source_retirement.bad_value=value;return 0;}
-  }
- }
- return retire_completed(b) && sdm_input_owns(&sdm_arm_probe,&sdm_arm_probe.binding)==1;
+ return 1;
 }
 static int retire_valid(void *context,const struct nano_sdm_input_binding *b)
 {
- if(retire_owned(context,b)!=1)return 0;
- uint64_t expected[NANO_PROBE_MEMORY_WORDS];
- /* Read every referenced word, retaining the original 256-byte encoding
-  * blocks. Only the read-only ownership boundary moves to one bounded page;
-  * no write, acknowledgement, publication or activation occurs in a page. */
- for(uint32_t page=0;page<0xc000;page+=NANO_RETIRE_TABLE_GUARD_BYTES){
-  if(!nano_sdm_input_table_range(page,NANO_RETIRE_TABLE_GUARD_BYTES))continue;
-  if(retire_owned(context,b)!=1)return 0;
-  for(uint32_t at=page;at<page+NANO_RETIRE_TABLE_GUARD_BYTES;at+=NANO_PROBE_MEMORY_WORDS*8){
-   if(nano_sdm_input_words(b,at,expected,NANO_PROBE_MEMORY_WORDS))return 0;
-   for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
-    FES_PROBE_BARRIER();uint64_t value=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);FES_PROBE_BARRIER();
-    if(value!=expected[n]){source_retirement.bad_offset=at+n*8;source_retirement.bad_value=(uint32_t)value;return 0;}
-   }
-  }
-  if(retire_owned(context,b)!=1)return 0;
- }
  return retire_owned(context,b);
 }
 static int retire_time(void *context,uint64_t *out)

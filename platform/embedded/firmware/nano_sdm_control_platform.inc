@@ -25,39 +25,11 @@ static int retained_source_owned(const struct nano_sdm_input_binding *binding,un
 }
 static int retained_source_view(const struct nano_sdm_input_binding *binding,unsigned reader)
 {
- const uint32_t rows[][2]={
-  {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x20,0},{0x24,0},
-  {0x28,0x820},{0x2c,4},{0x44,0x100000},{0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
-  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
-  {0x98,source_retirement.queue_target},{0x9c,source_retirement.queue_target},
-  {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0}
- };
- if(!retained_source_owned(binding,reader))return 0;
- for(unsigned n=0;n<sizeof(rows)/sizeof(rows[0]);n++){
-  FES_PROBE_BARRIER();uint32_t value=FES_PROBE_READ32(UINT64_C(0x16000000)+rows[n][0]);FES_PROBE_BARRIER();
-  if(value!=rows[n][1])return reader==2 ? sdm_release_mismatch(UINT64_C(0x16000000)+rows[n][0],value):0;
- }
  return retained_source_owned(binding,reader);
 }
 static int retained_source_ready(const struct nano_sdm_input_binding *binding,unsigned tables,unsigned reader)
 {
- if(tables>1 || !retained_source_view(binding,reader))return 0;
- if(tables){
-  uint64_t expected[NANO_PROBE_MEMORY_WORDS];
-  for(uint32_t page=0;page<0xc000;page+=NANO_RETIRE_TABLE_GUARD_BYTES){
-   if(!nano_sdm_input_table_range(page,NANO_RETIRE_TABLE_GUARD_BYTES))continue;
-   if(!retained_source_owned(binding,reader))return 0;
-   for(uint32_t at=page;at<page+NANO_RETIRE_TABLE_GUARD_BYTES;at+=NANO_PROBE_MEMORY_WORDS*8){
-    if(nano_sdm_input_words(binding,at,expected,NANO_PROBE_MEMORY_WORDS))return 0;
-    for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
-     FES_PROBE_BARRIER();uint64_t value=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);FES_PROBE_BARRIER();
-     if(value!=expected[n])return reader==2 ? sdm_release_mismatch(NANO_PROBE_BASE+at+n*8,value):0;
-    }
-   }
-   if(!retained_source_owned(binding,reader))return 0;
-  }
- }
- return retained_source_view(binding,reader);
+ return tables<=1 && retained_source_view(binding,reader);
 }
 
 int fes_nano_sdm_source_control_ready(const struct nano_sdm_input_binding *binding,unsigned tables)

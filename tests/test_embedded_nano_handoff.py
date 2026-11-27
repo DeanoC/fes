@@ -1,4 +1,5 @@
 """The real Nano U-Boot handoff policy rejects live owners before entry."""
+import copy
 import ctypes
 import importlib.util
 import json
@@ -8,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from entry_payload_fixture import bind_payload
 
@@ -15,6 +17,9 @@ HERE = Path(__file__).resolve().parents[1] / "platform/embedded/nano"
 spec = importlib.util.spec_from_file_location("nano_prepare", HERE / "prepare_uboot.py")
 prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
+_cold_spec = importlib.util.spec_from_file_location("nano_cold_profile", HERE / "cold_profile.py")
+cold = importlib.util.module_from_spec(_cold_spec)
+_cold_spec.loader.exec_module(cold)
 
 
 class Range(ctypes.Structure):
@@ -197,8 +202,50 @@ class NanoExportTests(unittest.TestCase):
             result=prepare.prepare(source,entry,'a'*64, 16)
             self.assertEqual(result['profile_sha256'],prepare.sha(HERE/'sd-profile.json'))
             self.assertTrue(result['cold_boot_profile']['sd_pio'])
-            self.assertIn('#define FES_NANO_CONTROLLED_SD 1',
-                          (source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text())
+            self.assertFalse(result['cold_boot_profile'].get('sd_dma', False))
+            header_text=(source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text()
+            self.assertIn('#define FES_NANO_CONTROLLED_SD 1',header_text)
+            self.assertIn('#define FES_NANO_SD_DMA 0',header_text)
+        with tempfile.TemporaryDirectory() as tmp:
+            source,entry,_=self.fixture(Path(tmp))
+            path=entry/'result.json';receipt=json.loads(path.read_text())
+            receipt['firmware_profile_sha256']=prepare.sha(HERE/'sd-dma-profile.json')
+            receipt['native_program']='fpgaload'
+            receipt['sd_adma2']=True
+            receipt['sd_dma_base']=0x95a00000
+            receipt['sd_dma_bytes']=2<<20
+            receipt['staging_exclusions']=[[0x95a00000,0x95c00000]]
+            path.write_text(json.dumps(receipt))
+            with patch.object(cold.hps_context,'checked',return_value=None), \
+                    patch.object(cold.hps_context,'checked_control',return_value=None), \
+                    patch.object(cold.hps_context,'checked_configuration',return_value=None), \
+                    patch.object(cold.hps_context,'checked_reader_memory',return_value=None), \
+                    patch.object(cold.hps_context,'checked_cpu_mapping',return_value=None):
+                cold.entry(entry)
+                chain=cold.make(entry)
+                dma_header=cold.header(chain)
+                self.assertEqual(chain['firmware_profile_sha256'],prepare.sha(HERE/'sd-dma-profile.json'))
+                self.assertEqual(chain['profile'],'cold-sd-dma-preloaded')
+                self.assertTrue(chain['sd_pio'])
+                self.assertTrue(chain['sd_dma'])
+                self.assertIn('#define FES_NANO_CONTROLLED_SD 1',dma_header)
+                self.assertIn('#define FES_NANO_SD_DMA 1',dma_header)
+                for mutate in (
+                    lambda r: r.update(firmware_profile_sha256=prepare.sha(HERE/'sd-profile.json')),
+                    lambda r: r.update(sd_adma2=False),
+                    lambda r: r.update(native_program='storage'),
+                    lambda r: r['staging_exclusions'].remove([0x95a00000,0x95c00000]),
+                ):
+                    bad=copy.deepcopy(receipt);mutate(bad);path.write_text(json.dumps(bad))
+                    with self.assertRaises(ValueError):
+                        cold.entry(entry)
+            for mutate in (
+                lambda r: r.update(sd_adma2=False),
+                lambda r: r.update(native_program='storage'),
+            ):
+                bad=copy.deepcopy(receipt);mutate(bad);path.write_text(json.dumps(bad))
+                with self.assertRaises(ValueError):
+                    prepare.prepare(source,entry,'a'*64, 16)
         with tempfile.TemporaryDirectory() as tmp:
             source,entry,_=self.fixture(Path(tmp))
             path=entry/'result.json';receipt=json.loads(path.read_text())

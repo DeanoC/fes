@@ -156,6 +156,7 @@ func (s *Store) WriteBTBonds(ctx context.Context, data []byte) error {
 
 	// Once issued, complete the bounded filesystem replace/flush even if the
 	// requester disconnects. A context timeout is not evidence of rollback.
+	s.invalidateCacheLocked()
 	err := replacer.ReplaceFile(context.Background(), BTBondsPath, data)
 	if !errors.Is(err, fat.ErrMutation) && errors.Is(err, fs.ErrNotExist) {
 		if mk, ok := s.files.(interface {

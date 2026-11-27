@@ -12,7 +12,7 @@ static int fail(struct fes_nano_bridges *b, int result)
 
 static int read_state(struct fes_nano_bridges *b, uint32_t *reset, unsigned *masters)
 {
-    uint32_t first, second;
+    uint32_t first;
     int contained;
     if (!b || !b->initialized || b->failed || b->device_lease) return UNPROVEN;
     if (b->observe_state) {
@@ -27,9 +27,6 @@ static int read_state(struct fes_nano_bridges *b, uint32_t *reset, unsigned *mas
         return fail(b, IO_ERROR);
     contained = b->ops.masters_contained(b->ops.context);
     if (contained != 0 && contained != 1) return fail(b, IO_ERROR);
-    if (b->ops.read_reset(b->ops.context, &second) != 0 || first != second ||
-        b->ops.owns(b->ops.context, b->state.owner, b->epoch) != 1)
-        return fail(b, UNPROVEN);
     *reset = first & FES_NANO_BRIDGES_ALL;
     *masters = (unsigned)contained;
     return 0;

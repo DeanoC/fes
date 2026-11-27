@@ -28,6 +28,8 @@ type storedConfigurationPlan struct {
 	selection              *packagestore.Selection
 	control, configuration []byte
 	payload                []byte
+	payloadDigest          [32]byte
+	payloadValidated       bool
 	region                 *Region
 }
 
@@ -58,8 +60,9 @@ func (v *HPSContextVerifier) PreflightStoredConfiguration(control, configuration
 	if err := checkConfigurationBytes(m, data); err != nil {
 		return nil, err
 	}
+	digest, ok := decodeSHA256Hex(m.CoreSHA256)
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: v, selection: selection, control: bytes.Clone(control),
-		configuration: bytes.Clone(configuration), payload: data}}, nil
+		configuration: bytes.Clone(configuration), payload: data, payloadDigest: digest, payloadValidated: ok}}, nil
 }
 
 // NewTransfer consumes the plan once, including on failure. Only a current
@@ -142,7 +145,14 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	transfer, err := v.newSourceConfigurationTransfer(p.control, p.configuration, region, source, rearm, p.program)
+	var validatedPayload []byte
+	var validatedDigest *[32]byte
+	if p.payloadValidated && len(p.payload) > 0 {
+		validatedPayload = p.payload
+		d := p.payloadDigest
+		validatedDigest = &d
+	}
+	transfer, err := v.newSourceConfigurationTransfer(p.control, p.configuration, region, source, rearm, p.program, validatedPayload, validatedDigest)
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}

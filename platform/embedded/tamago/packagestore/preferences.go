@@ -171,6 +171,7 @@ func (s *Store) WritePreferences(ctx context.Context, data []byte) error {
 	}
 	// Once issued, complete the bounded filesystem replace/flush even if the
 	// requester disconnects. A context timeout is not evidence of rollback.
+	s.invalidateCacheLocked()
 	err = replacer.ReplaceFile(context.Background(), PreferencesPath, data)
 	if observed := s.observe(); observed != nil {
 		return errors.Join(err, observed)

@@ -74,7 +74,7 @@ static int rd(struct nano_probe_setup *s,uint32_t offset,uint32_t *value)
     if(!integrity(s))return fail(s,-13);
     s->last_kind=1;s->last_offset=offset;s->last_value=result ? 0 : *value;s->last_callback_status=result;
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-    return result ? fail(s,result) : guard(s);
+    return result ? fail(s,result) : 0;
 }
 static int equal(struct nano_probe_setup *s,uint32_t offset,uint32_t want)
 {
@@ -89,7 +89,7 @@ static int wr(struct nano_probe_setup *s,uint32_t offset,uint32_t value)
     if(!integrity(s))return fail(s,-13);
     s->last_kind=2;s->last_offset=offset;s->last_value=value;s->last_callback_status=result;
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-    return result ? fail(s,result) : guard(s);
+    return result ? fail(s,result) : 0;
 }
 static int clear(struct nano_probe_setup *s,uint32_t offset,uint32_t bytes)
 {
@@ -98,7 +98,7 @@ static int clear(struct nano_probe_setup *s,uint32_t offset,uint32_t bytes)
     if(!integrity(s))return fail(s,-13);
     s->last_kind=3;s->last_offset=offset;s->last_value=bytes;s->last_callback_status=result;
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-    return result ? fail(s,result) : guard(s);
+    return result ? fail(s,result) : 0;
 }
 static int controls(struct nano_probe_setup *s,uint32_t control)
 {
@@ -191,7 +191,6 @@ static int memory_block(struct nano_probe_setup *s,uint32_t offset,unsigned word
     s->last_value=result ? 0 : values[0];s->last_callback_status=result;
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
     if (result) return fail(s,result);
-    if (guard(s)) return s->first_error;
     if (!writing) for (unsigned first=0;first<words;first+=NANO_PROBE_MEMORY_WORDS) {
         uint64_t expected[NANO_PROBE_MEMORY_WORDS];
         unsigned count=words-first;
@@ -369,57 +368,24 @@ int nano_probe_init_rearmed_input(struct nano_probe_setup *s,struct nano_probe_b
  s->queue_baseline=previous->queue_target;s->queue_target=(s->queue_baseline+6)&15U;s->abort=0x100000;
  return 0;
 }
-static int previous_tables(struct nano_probe_setup *s)
-{
- uint64_t values[NANO_PROBE_SETUP_WORDS];
- for(uint32_t at=0;at<0xc000;at+=sizeof(values)){
-  if(!nano_sdm_input_table_range(at,sizeof(values)))continue;
-  if(guard(s))return s->first_error;
-  s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-  s->loads+=NANO_PROBE_SETUP_WORDS;
-  int error=s->trusted_io.load_block(s->trusted_io.context,at,values,NANO_PROBE_SETUP_WORDS);
-  if(!integrity(s))return fail(s,-13);
-  s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-  if(error)return fail(s,error);
-  if(guard(s))return s->first_error;
-  for(unsigned first=0;first<NANO_PROBE_SETUP_WORDS;first+=NANO_PROBE_MEMORY_WORDS){
-   uint64_t expected[NANO_PROBE_MEMORY_WORDS];
-   unsigned count=NANO_PROBE_SETUP_WORDS-first;
-   if(count>NANO_PROBE_MEMORY_WORDS)count=NANO_PROBE_MEMORY_WORDS;
-   int expected_error=table_words(&s->previous_snapshot.binding,at+first*8,expected,count);
-   if(expected_error)return fail(s,expected_error);
-   for(unsigned n=0;n<count;n++)if(values[first+n]!=expected[n])return fail(s,-5);
-  }
- }
- return 0;
-}
 int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out)
 {
     if (!s || !s->initialized || s->preparing || s->failed) return -22;
     s->preparing=1;
     if (!separate(s,out)) return fail(s,-22);
-    for (unsigned n=0;n<2;n++) {
-        if(s->warm){if(layout(s,0,s->queue_baseline))return s->first_error;}
-        else if (identity(s) || controls(s,0) || equal(s,0x28,0) || equal(s,0x98,0) || equal(s,0x9c,0) ||
-            equal(s,0x100a8,0) || equal(s,0x100ac,0)) return s->first_error;
-    }
-    if(s->warm && previous_tables(s))return s->first_error;
+    if(s->warm){if(layout(s,0,s->queue_baseline))return s->first_error;}
+    else if (identity(s) || controls(s,0) || equal(s,0x28,0) || equal(s,0x98,0) || equal(s,0x9c,0) ||
+        equal(s,0x100a8,0) || equal(s,0x100ac,0)) return s->first_error;
     uint32_t first_end=s->input_selected ? 0x8000U:0x5000U;
     if (!s->warm && (clear(s,0,first_end) || (s->input_selected && clear(s,0xa000,0x2000)) ||
         clear(s,NANO_PROBE_CMDQ,128) || clear(s,NANO_PROBE_EVTQ,256)))return s->first_error;
-    for(unsigned writing=1;writing<3;writing++){
-        for(unsigned offset=0;offset<first_end;offset+=NANO_PROBE_SETUP_WORDS*8)
-            if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,writing==1))return s->first_error;
-        if(s->input_selected)for(unsigned offset=0xa000;offset<0xc000;offset+=NANO_PROBE_SETUP_WORDS*8)
-            if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,writing==1))return s->first_error;
-    }
-    if (!s->warm && (memory_block(s,NANO_PROBE_CMDQ,16,0) || memory_block(s,NANO_PROBE_EVTQ,32,0))) return s->first_error;
+    for(unsigned offset=0;offset<first_end;offset+=NANO_PROBE_SETUP_WORDS*8)
+        if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,1))return s->first_error;
+    if(s->input_selected)for(unsigned offset=0xa000;offset<0xc000;offset+=NANO_PROBE_SETUP_WORDS*8)
+        if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,1))return s->first_error;
     if (!s->warm && (identity(s) || controls(s,0) || wr(s,0x28,0x820) ||
         wr(s,0x80,(uint32_t)NANO_PROBE_BASE) || wr(s,0x84,0) || wr(s,0x88,8) ||
-        wr(s,0x90,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_CMDQ)|3U) || wr(s,0x94,0) ||
-        equal(s,0x28,0x820) || equal(s,0x80,(uint32_t)NANO_PROBE_BASE) || equal(s,0x84,0) ||
-        equal(s,0x88,8) || equal(s,0x90,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_CMDQ)|3U) ||
-        equal(s,0x94,0))) return s->first_error;
+        wr(s,0x90,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_CMDQ)|3U) || wr(s,0x94,0))) return s->first_error;
     if(control(s,8))return s->first_error;
     struct nano_cmdq_binding b={s->binding.owner,s->binding.epoch,s->binding.generation,NANO_PROBE_BASE+NANO_PROBE_CMDQ,s->queue_baseline};
     struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0,cmd_publish};
@@ -427,7 +393,7 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
     if (!s->warm && (wr(s,0xa0,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_EVTQ)|3U) || wr(s,0xa4,0)))return s->first_error;
     if (
         equal(s,0x100a8,0) || equal(s,0x100ac,0) || control(s,12) ||
-        configured(s,12) || configured(s,12) || guard(s)) return s->first_error;
+        configured(s,12) || guard(s)) return s->first_error;
     s->prepared=1;receipt(s,out,12);return 0;
 }
 int nano_probe_arm(struct nano_probe_setup *s,struct nano_probe_receipt *out)
@@ -435,7 +401,7 @@ int nano_probe_arm(struct nano_probe_setup *s,struct nano_probe_receipt *out)
     if (!s || !s->prepared || s->arming || s->failed) return -22;
     s->arming=1;
     if (!separate(s,out)) return fail(s,-22);
-    if (configured(s,12) || configured(s,12) || control(s,13) ||
-        configured(s,13) || configured(s,13) || guard(s)) return s->first_error;
+    if (configured(s,12) || control(s,13) ||
+        configured(s,13) || guard(s)) return s->first_error;
     s->armed=1;receipt(s,out,13);return 0;
 }

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -115,6 +114,7 @@ type ProgramLoader struct {
 	menu            *menuProgramDriver
 	spectrum48      *uploadShellProgram
 	sharedCoreShell bool
+	planCache       *preflightCache
 }
 
 func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configuration, computerRaw []byte) (*ProgramLoader, error) {
@@ -167,7 +167,14 @@ func NewProgramLoader(boot *HPSContextVerifier, compiledSource, control, configu
 	drivers := []runtimeadmission.Driver{{
 		Profile: p.ProgrammingProfile, ABI: runtimeadmission.Contract{ID: p.ABI, Major: int64(p.Major), Minor: int64(p.Minor)}, Interfaces: interfaces,
 	}}
-	loader := &ProgramLoader{boot: boot, platform: p, configuration: config, control: ctrl, computer: comp}
+	loader := &ProgramLoader{
+		boot:          boot,
+		platform:      p,
+		configuration: config,
+		control:       ctrl,
+		computer:      comp,
+		planCache:     newPreflightCache(preflightCacheMaxEntries, preflightCacheMaxBytes),
+	}
 	if p.ProgrammingProfile == NativeComputerProfile {
 		semantic, err := runtimeadmission.NewNanoComputerCompatibility()
 		if err != nil {
@@ -354,22 +361,8 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 		}
 		id.ActivationReceiptSHA256 = romReceipt
 	}
-	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
+	data, config, err := l.loadConfiguredPayload(selection, id.PackageID, id.BuildID, id.ProgrammedSHA256, int(d.Payload.Size))
 	if err != nil {
-		return nil, err
-	}
-	config := l.configuration
-	config.PackageID, config.BuildID, config.CoreSHA256, config.CoreSize = id.PackageID, id.BuildID, id.ProgrammedSHA256, int(d.Payload.Size)
-	sum := sha512.Sum384(data)
-	config.CoreSHA384, config.ChunkSHA384 = hex.EncodeToString(sum[:]), nil
-	for offset := 0; offset < len(data); offset += config.ChunkBytes {
-		sum := sha512.Sum384(data[offset:min(offset+config.ChunkBytes, len(data))])
-		config.ChunkSHA384 = append(config.ChunkSHA384, hex.EncodeToString(sum[:]))
-	}
-	if len(config.ChunkSHA384) > maxProgramChunks {
-		return nil, errors.New("native fabric: selected program exceeds bounded chunk inventory")
-	}
-	if err := checkConfigurationBytes(config, data); err != nil {
 		return nil, err
 	}
 	if romMode {
@@ -386,8 +379,37 @@ func (l *ProgramLoader) Preflight(selection *packagestore.Selection) (*StoredCon
 	if l.menu != nil {
 		program.role = programRoleComputer
 	}
+	digest, ok := decodeSHA256Hex(config.CoreSHA256)
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: program, selection: selection,
-		control: bytes.Clone(control), configuration: bytes.Clone(configurationRaw), payload: data}}, nil
+		control: bytes.Clone(control), configuration: bytes.Clone(configurationRaw), payload: data,
+		payloadDigest: digest, payloadValidated: ok}}, nil
+}
+
+func (l *ProgramLoader) loadConfiguredPayload(selection *packagestore.Selection, packageID, buildID, coreSHA256 string, coreSize int) ([]byte, coldConfigurationMap, error) {
+	config := l.configuration
+	config.PackageID, config.BuildID, config.CoreSHA256, config.CoreSize = packageID, buildID, coreSHA256, coreSize
+	key := preflightCacheKey{
+		packageID:  packageID,
+		buildID:    buildID,
+		coreSHA256: coreSHA256,
+		coreSize:   coreSize,
+		chunkBytes: config.ChunkBytes,
+	}
+	if payload, coreSHA384, chunkSHA384, ok := l.planCache.get(key); ok {
+		config.CoreSHA384 = coreSHA384
+		config.ChunkSHA384 = chunkSHA384
+		return payload, config, nil
+	}
+	l.planCache.recordExtract()
+	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), int64(coreSize)+1))
+	if err != nil {
+		return nil, coldConfigurationMap{}, err
+	}
+	if err := populateProgramConfiguration(&config, data); err != nil {
+		return nil, coldConfigurationMap{}, err
+	}
+	l.planCache.put(key, data, config.CoreSHA384, config.ChunkSHA384)
+	return data, config, nil
 }
 
 func (l *ProgramLoader) program(transfer *ConfigurationTransfer) (*selectedProgram, error) {

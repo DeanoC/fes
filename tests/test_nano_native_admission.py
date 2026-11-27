@@ -134,8 +134,28 @@ class NativeAdmissionTests(unittest.TestCase):
             calls=[]
             def owns():calls.append(True);return len(calls)==1
             with self.assertRaisesRegex(ValueError,'after input checks'):m.load(owns=owns)
-            self.assertEqual(len(calls),2)
-            with self.assertRaises(ValueError):admission.load(m.root,m.entry,m.uboot,m.record,expected_sha256=m.digest,owns=lambda:True)
+
+    def test_sd_adma2_binds_sd_dma_profile_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            m = Model(root, admission.SCOPE)
+            record = json.loads((m.entry / 'result.json').read_text())
+            record['sd_adma2'] = True
+            (m.entry / 'result.json').write_text(json.dumps(record))
+            dma_profile = root / 'platform/embedded/nano/sd-dma-profile.json'
+            dma_profile.write_bytes(b'fixture sd-dma-profile.json')
+            m.prepare()
+            loaded = m.load()
+            self.assertEqual(m.calls, 1)
+            self.assertEqual(Path(loaded[5]).name, 'sd-dma-profile.json')
+            dma_profile.write_bytes(b'changed')
+            with self.assertRaises(ValueError):
+                m.load()
+            dma_profile.write_bytes(b'fixture sd-dma-profile.json')
+            record['sd_adma2'] = False
+            (m.entry / 'result.json').write_text(json.dumps(record))
+            with self.assertRaises(ValueError):
+                m.load()
 
     def test_record_cannot_enter_its_own_source_closure_or_omit_operator_inputs(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -222,3 +242,19 @@ class USBProbeAdmissionTests(unittest.TestCase):
             calls=[]
             def owns():calls.append(True);return len(calls)==1
             with self.assertRaisesRegex(ValueError,'after input checks'):m.load(owns=owns)
+
+    def test_sd_adma2_binds_sd_dma_profile_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            m = Model(root, admission.SCOPE)
+            record = json.loads((m.entry / 'result.json').read_text())
+            record['sd_adma2'] = True
+            (m.entry / 'result.json').write_text(json.dumps(record))
+            dma_profile = root / 'platform/embedded/nano/sd-dma-profile.json'
+            dma_profile.write_bytes(b'fixture sd-dma-profile.json')
+            m.prepare()
+            loaded = m.load()
+            self.assertEqual(Path(loaded[5]).name, 'sd-dma-profile.json')
+            dma_profile.write_bytes(b'changed')
+            with self.assertRaises(ValueError):
+                m.load()

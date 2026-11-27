@@ -189,33 +189,33 @@ static int owned(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch,
     if (!s || !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch) return 0;
     struct fes_nano_cold_sample expected=s->record.last;
     unsigned control=s->control_expected,ddr=s->ddr_expected,core=s->record.core;
-    if (s->control_expected > 1 || s->ddr_expected > 1 || (s->ddr_expected && !s->control_expected)) return fail(s);
-    if (s->control_expected) expected.bridge &= ~FES_NANO_BRIDGES_CONTROL;
-    if (s->ddr_expected) expected.bridge &= ~8U;
+    if (control > 1 || ddr > 1 || (ddr && !control)) return fail(s);
+    if (control) expected.bridge &= ~FES_NANO_BRIDGES_CONTROL;
+    if (ddr) expected.bridge &= ~8U;
     if (s->devices_bound) {
         uint32_t released,after;
         struct fes_nano_cold_sample last;
         if (released_devices(s,&released) || (released & FES_NANO_COLD_SD_RESET) ||
-            owned_sample(s,&now,probe!=0) || !stable(&expected,&now,s->record.core) ||
+            owned_sample(s,&now,probe!=0) || !stable(&expected,&now,core) ||
             (now.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released)) return fail(s);
-        uint32_t bits=0;
-        if (probe) {
-            int error=probe(context,&bits);
-            if (error) {fail(s);return error<0 ? error : -1;}
-            if (bits & ~FES_NANO_PRODUCERS_ALL) return fail(s);
+        if (!probe) {
+            if (usb_contained(s,released)) return fail(s);
+            return 1;
         }
+        uint32_t bits=0;
+        int error=probe(context,&bits);
+        if (error) {fail(s);return error<0 ? error : -1;}
+        if (bits & ~FES_NANO_PRODUCERS_ALL) return fail(s);
         if (usb_contained(s,released) || released_devices(s,&after) || after!=released ||
-            owned_sample(s,&last,probe!=0) || !stable(&now,&last,s->record.core) ||
+            owned_sample(s,&last,1) || !stable(&now,&last,core) ||
             (last.per0 & FES_NANO_MASTER_RESET)!=(FES_NANO_MASTER_RESET & ~released) ||
             !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch ||
-            s->control_expected!=control || s->ddr_expected!=ddr || s->record.core!=core) return fail(s);
-        if (probe) {
-            if (now.bridge!=last.bridge || now.per0!=last.per0) return fail(s);
-            *observation=(struct fes_nano_cold_observation){last.bridge,last.per0,bits};
-        }
+            s->control_expected!=control || s->ddr_expected!=ddr || s->record.core!=core ||
+            now.bridge!=last.bridge || now.per0!=last.per0) return fail(s);
+        *observation=(struct fes_nano_cold_observation){last.bridge,last.per0,bits};
         return 1;
     }
-    if (sample(s,&now) || !stable(&expected,&now,s->record.core) ||
+    if (sample(s,&now) || !stable(&expected,&now,core) ||
         (now.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     return 1;
 }
@@ -292,26 +292,30 @@ static int device_scope(struct fes_nano_cold *s, uint64_t owner,
         uint32_t per0=FES_NANO_MASTER_RESET & ~released;
         if (owned_sample(s,&first,observe!=0) || !stable(&expected,&first,s->record.core) ||
             (first.per0 & FES_NANO_MASTER_RESET)!=per0 ||
-            (observe && observe(context)) ||
-            (mask==FES_NANO_COLD_SD_RESET && usb_contained(s,released)) ||
-            released_devices(s,&after) || after!=owned ||
-            owned_sample(s,&last,observe!=0) || !stable(&first,&last,s->record.core) ||
-            (last.per0 & FES_NANO_MASTER_RESET)!=per0) return fail(s);
-        if (observe && (!s->valid || s->failed || owner!=s->record.boot.owner ||
-            epoch!=s->record.boot.epoch || s->control_expected!=control ||
-            s->ddr_expected!=ddr || s->record.core!=core)) return fail(s);
+            (mask==FES_NANO_COLD_SD_RESET && usb_contained(s,released))) return fail(s);
+        if (observe) {
+            if (observe(context) ||
+                released_devices(s,&after) || after!=owned ||
+                owned_sample(s,&last,1) || !stable(&first,&last,s->record.core) ||
+                (last.per0 & FES_NANO_MASTER_RESET)!=per0 ||
+                !s->valid || s->failed || owner!=s->record.boot.owner ||
+                epoch!=s->record.boot.epoch || s->control_expected!=control ||
+                s->ddr_expected!=ddr || s->record.core!=core) return fail(s);
+        }
         return 0;
     }
     if (s->control_expected || s->ddr_expected) return -1;
     uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? mask : 0U);
     if (owned_sample(s,&first,observe!=0) || !stable(&s->record.last, &first, s->record.core) ||
-        (first.per0 & FES_NANO_MASTER_RESET) != expected ||
-        (observe && observe(context)) ||
-        owned_sample(s,&last,observe!=0) || !stable(&first, &last, s->record.core) ||
-        (last.per0 & FES_NANO_MASTER_RESET) != expected) return fail(s);
-    if (observe && (!s->valid || s->failed || owner!=s->record.boot.owner ||
-        epoch!=s->record.boot.epoch || s->control_expected!=control ||
-        s->ddr_expected!=ddr || s->record.core!=core)) return fail(s);
+        (first.per0 & FES_NANO_MASTER_RESET) != expected) return fail(s);
+    if (observe) {
+        if (observe(context) ||
+            owned_sample(s,&last,1) || !stable(&first, &last, s->record.core) ||
+            (last.per0 & FES_NANO_MASTER_RESET) != expected ||
+            !s->valid || s->failed || owner!=s->record.boot.owner ||
+            epoch!=s->record.boot.epoch || s->control_expected!=control ||
+            s->ddr_expected!=ddr || s->record.core!=core) return fail(s);
+    }
     return 0;
 }
 int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,

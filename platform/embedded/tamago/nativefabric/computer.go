@@ -372,8 +372,8 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	spectrum := binding.program != nil && binding.program.role == programRoleUploadShell
 	if spectrum {
 		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
+		s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
 		if binding.program.identity.ProgrammingProfile == c64Profile {
-			s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
 			s.port.liveMediaBatch, _ = cpu.(liveMediaBatchPlatform)
 		}
 	}

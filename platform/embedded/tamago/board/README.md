@@ -31,7 +31,7 @@ validates all ELF segments against owned RAM:
 - `reserved`: non-empty list of `{start, size, owner}` firmware/secure/DMA
   regions disjoint from Go RAM.
 - `sd_input_clock_hz` (`200000000` or `0`) and `sd_control`
-  (`fes-owned-sd-pio-v1` or `null`).
+  (`fes-owned-sd-pio-v1` in `sd-profile.json`, `fes-owned-sd-dma-v1` in `sd-dma-profile.json` required for `--sd-adma2` / `FES_NANO_SD_DMA=1`, or `null`).
 - `usb_phy_clock_hz` (`60000000` or `0`), `network`, `display`, and
   `fpga_probe` (each explicit or `null`).
 - `handoff`: `el1`, `single_cpu`, `counter_access`, `exclusive_devices`,

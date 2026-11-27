@@ -66,6 +66,15 @@ def profile():
 
 
 class InputProfileTests(unittest.TestCase):
+    def test_control_fast_path_contract_describes_software_checks_only(self):
+        expected = (0, "full-SHA384-before-preparation-and-per-SMC-bounds-and-metadata-checks",
+                    "software-only-no-table-rescan",
+                    "software-owner-phase-binding-queue-only-no-fresh-24-register-reread")
+        for contract in (mode.CONTRACT, mode.REARM_CONTRACT, mode.RECOVERY_CONTRACT):
+            with self.subTest(format=contract["format"]):
+                self.assertEqual((contract["table_recheck_words"], contract["source_digest"],
+                                  contract["control_tables"], contract["control_view"]), expected)
+
     def test_selection_is_explicit_and_exclusive(self):
         self.assertIsNone(mode.selected(None, False))
         self.assertIsNone(mode.checked(None))

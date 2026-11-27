@@ -17,7 +17,7 @@ int main(void)
   p->timed=1;p->start=p->last=m.now+1;
   uint64_t origin=p->start;
   m.now=p->start+(scenario==1 ? 2000000:scenario==2 ? 3900000:0);
-  scope_cost=scenario==0 ? 18000:scenario==3 ? 60000:3600;
+  scope_cost=scenario==0 ? 18000:scenario==3 ? 110000:3600;
   register_cost=900;
   unsigned before=m.writes;
   struct nano_probe_receipt receipt={0};int error=nano_probe_prepare(p,&receipt);
@@ -26,11 +26,12 @@ int main(void)
    assert(!error && p->prepared && !p->failed && !nano_probe_arm(p,&receipt));
    assert(p->armed && receipt.DMA_access_granted && !receipt.interconnect_drained);
    uint64_t elapsed=p->last-p->start;
-   assert(elapsed>1000000 && elapsed<=NANO_PROBE_BOUND_US);
+   if(scenario==1)assert(elapsed>2000000);
+   assert(elapsed<=NANO_PROBE_BOUND_US);
    if(elapsed>slowest)slowest=elapsed;
    for(uint32_t off=0;off<0xc000;off+=8){
     unsigned table=nano_sdm_input_table_range(off,8);
-    assert(stores_seen[off/8]==table && reads_seen[off/8]==table*(warm ? 2U:1U));
+    assert(stores_seen[off/8]==table && !reads_seen[off/8]);
    }
    assert(p->command.completion_seen && p->command.publication_seen && p->command.completion_us-p->command.publication_us<=100000);
   }else{

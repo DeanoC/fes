@@ -100,9 +100,9 @@ def profile_constants(profile):
     else:
         keys = {"service", "exclusive", "closed_bridges", "synchronous_bounded_return"}
         if (not isinstance(control, dict) or set(control) != keys or
-                control["service"] != "fes-owned-sd-pio-v1" or
+                control["service"] not in ("fes-owned-sd-pio-v1", "fes-owned-sd-dma-v1") or
                 any(control[k] is not True for k in keys - {"service"}) or frequency != 200000000):
-            raise ValueError("SD requires the explicit owned PIO service and qualified 200 MHz input")
+            raise ValueError("SD requires the explicit owned PIO/DMA service and qualified 200 MHz input")
         if (profile["usb_phy_clock_hz"] != 0 or profile["network"] is not None or
                 profile["display"] is not None or profile["fpga_probe"] is not None or
                 any(handoff[k] for k in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))):
@@ -345,13 +345,73 @@ def writable_storage_option(program,path,profile,selected,tenfoot):
 
 
 def sd_transfer_clock_option(program, requested, plan, writable_plan=None):
-    if type(requested) is not int or requested not in (0,25000000):
-        raise ValueError('SD transfer clock must be 0 or the explicit 25 MHz experiment')
-    if writable_plan is not None and requested!=25000000:
-        raise ValueError('native installer requires the selected 25 MHz transport')
+    if type(requested) is not int or requested not in (0,25000000,50000000):
+        raise ValueError('SD transfer clock must be 0, 25 MHz, or 50 MHz')
+    if writable_plan is not None and requested not in (25000000,50000000):
+        raise ValueError('native installer requires the selected 25 MHz or 50 MHz transport')
+    if requested==50000000 and not (program=='fpgaload' and writable_plan is not None):
+        raise ValueError('50 MHz SD transfer clock requires Nano fpgaload with a writable storage plan')
     if requested and not (program=='sdfile' and plan is not None or program=='fpgaload' and writable_plan is not None):
         raise ValueError('25 MHz SD requires a separately bound writable Nano selection')
     return requested
+
+
+def sd_transport_options(program, bus_width, multi_block, cmd23, profile):
+    if type(bus_width) is not int or bus_width not in (1,4):
+        raise ValueError('SD bus width must be 1 or 4')
+    if type(multi_block) is not bool or type(cmd23) is not bool:
+        raise ValueError('SD multi-block and CMD23 flags must be boolean')
+    if cmd23 and not multi_block:
+        raise ValueError('--sd-cmd23 requires --sd-multi-block')
+    if bus_width!=1 or multi_block or cmd23:
+        if program!='fpgaload' or profile['sd_control'] is None:
+            raise ValueError('fast SD transport options require Nano fpgaload with owned SD')
+    return bus_width, multi_block, cmd23
+
+
+SD_DMA_BASE = 0x95a00000
+SD_DMA_BYTES = 2 << 20
+
+
+def sd_adma2_option(program, requested, profile):
+    if type(requested) is not bool:
+        raise ValueError('--sd-adma2 flag must be boolean')
+    if requested:
+        control = profile.get('sd_control')
+        if program != 'fpgaload' or not isinstance(control, dict) or control.get('service') != 'fes-owned-sd-dma-v1':
+            raise ValueError('--sd-adma2 requires Nano fpgaload with a DMA-capable sd_control profile (service=fes-owned-sd-dma-v1)')
+    return requested
+
+
+def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
+    if not sd_adma2:
+        return 0, 0
+    base, amount = SD_DMA_BASE, SD_DMA_BYTES
+    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
+            base + amount > 0xc0000000 or base >> 30 != start >> 30):
+        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
+    exclusions = [
+        (start, start + size),
+        (0x94000000, 0x94800000),
+        (0x96080000, 0x96080000 + (32 << 20)),
+        (0x99000000, 0x9a000000),
+    ]
+    exclusions.extend((r['start'], r['start'] + r['size']) for r in profile['reserved'])
+    if configuration_map is not None:
+        exclusions.append((configuration_map['base'], configuration_map['base'] + configuration_map['size']))
+    if cpu_map is not None and cpu_map.get('reader_base'):
+        exclusions.append((cpu_map['reader_base'], cpu_map['reader_base'] + cpu_map['reader_bytes']))
+    if tape_memory is not None:
+        exclusions.append((tape_memory['base'], tape_memory['base'] + tape_memory['bytes']))
+    if net is not None:
+        exclusions.append((net['dma_start'], net['dma_start'] + net['dma_size']))
+    if display is not None:
+        exclusions.append((display['base'], display['base'] + display['size']))
+    if fpga is not None:
+        exclusions.append((fpga['base'], fpga['base'] + fpga['size']))
+    if any(base < end and begin < base + amount for begin, end in exclusions):
+        raise ValueError('SD ADMA2 DMA window overlaps Go RAM, firmware, or device arena')
+    return base, amount
 
 
 def sd_file_option(path, profile):
@@ -514,6 +574,8 @@ def build(args):
     sd_write_plan=sd_write_option(args.program,getattr(args,'sd_write_plan',None),profile)
     writable_storage_plan=writable_storage_option(args.program,getattr(args,'writable_storage_plan',None),profile,getattr(args,'selected_programs',False),getattr(args,'tenfoot_serial',False))
     sd_transfer_clock=sd_transfer_clock_option(args.program,getattr(args,'sd_transfer_clock',0),sd_write_plan,writable_storage_plan)
+    sd_bus_width,sd_multi_block,sd_cmd23=sd_transport_options(args.program,getattr(args,'sd_bus_width',1),getattr(args,'sd_multi_block',False),getattr(args,'sd_cmd23',False),profile)
+    sd_adma2=sd_adma2_option(args.program,getattr(args,'sd_adma2',False),profile)
     writable_storage_encoded=base64.b64encode(json.dumps(writable_storage_plan,sort_keys=True,separators=(',',':')).encode()).decode() if writable_storage_plan else None
     sd_write_encoded=base64.b64encode(json.dumps(sd_write_plan,sort_keys=True,separators=(',',':')).encode()).decode() if sd_write_plan else None
     sd_scratch_inspect=scratch_inspect_option(args.program,getattr(args,'sd_scratch_inspect',False),profile)
@@ -580,7 +642,7 @@ def build(args):
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('hpsio','usbcheck','fpgaload'):
-        required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
+        required_profile=('sd-dma-profile.json' if sd_adma2 else 'sd-profile.json') if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)
@@ -632,6 +694,7 @@ def build(args):
     tape_memory = hps.initial_tape.staging_layout(cpu_map, profile['reserved'],
         dict(base=0x96080000, bytes=16 << 20)) if args.initial_tape else None
     tape_memory_sha = hps.initial_tape.memory_digest(tape_memory) if tape_memory else None
+    sd_dma_base, sd_dma_bytes = sd_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
     initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
         cpu_mapping=cpu_map,
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
@@ -762,6 +825,7 @@ def build(args):
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\nprofileConfigurationRetained = '+str(configuration_retained).lower()+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
+        stream.write('const (\nprofileSDDMABase = '+str(sd_dma_base)+'\nprofileSDDMABytes = '+str(sd_dma_bytes)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
@@ -839,6 +903,10 @@ def build(args):
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
+    if sd_bus_width==4:link_flags+=' -X main.expectedSDBusWidth=4'
+    if sd_multi_block:link_flags+=' -X main.expectedSDMultiBlock=1'
+    if sd_cmd23:link_flags+=' -X main.expectedSDCMD23=1'
+    if sd_adma2:link_flags+=' -X main.expectedSDADMA2=1'
     if writable_storage_encoded:link_flags+=' -X main.expectedWritableStoragePlan='+writable_storage_encoded
     if sd_scratch_inspect:link_flags+=' -X main.expectedScratchInspect=1'
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
@@ -926,6 +994,10 @@ def build(args):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if sd_bus_width==4 and b'4' not in data:
+        raise ValueError('selected SD bus width was not linked')
+    if (sd_multi_block or sd_cmd23 or sd_adma2) and b'1' not in data:
+        raise ValueError('selected SD multi-block/CMD23/ADMA2 setting was not linked')
     if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
         raise ValueError('selected watchdog settings were not linked')
     if network_dhcp and b'1' not in data:
@@ -943,6 +1015,10 @@ def build(args):
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "sd_bus_width":sd_bus_width,
+              "sd_multi_block":sd_multi_block,
+              "sd_cmd23":sd_cmd23,
+              "sd_adma2":sd_adma2,"sd_dma_base":sd_dma_base,"sd_dma_bytes":sd_dma_bytes,
               "lifecycle_trace":lifecycle_trace,
               "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
