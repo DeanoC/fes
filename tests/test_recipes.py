@@ -125,6 +125,46 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_hip_recipe_prefers_hipcc_when_both_compilers_exist(self):
+        recipe = recipes.recipe_for("fes.pong")
+        with patch.object(recipes.shutil, "which", side_effect=lambda name, path=None: "/tool/" + name):
+            env = recipes.producer_environment({"PATH": "/tool"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
+        self.assertNotIn("FES_TOOLCHAIN_CUDA_ARCHITECTURES", env)
+
+    def test_hip_recipe_selects_cuda_when_hipcc_is_missing(self):
+        recipe = recipes.recipe_for("fes.pong")
+        def which(name, path=None):
+            return "/tool/nvcc" if name == "nvcc" else None
+        with patch.object(recipes.shutil, "which", side_effect=which):
+            env = recipes.producer_environment({
+                "PATH": "/tool", "CUDA_HOME": "/caller/cuda", "CUDAARCHS": "75",
+                "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89",
+                "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1030",
+            }, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
+        self.assertEqual(env["FES_TOOLCHAIN_CUDA_ARCHITECTURES"], "86")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "unused")
+        for name in ("CUDA_HOME", "CUDAARCHS"):
+            self.assertNotIn(name, env)
+
+    def test_hip_recipe_keeps_hip_when_no_compiler_is_on_path(self):
+        recipe = recipes.recipe_for("fes.pong")
+        with patch.object(recipes.shutil, "which", return_value=None):
+            env = recipes.producer_environment({"PATH": "/empty"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
+        self.assertNotIn("FES_TOOLCHAIN_CUDA_ARCHITECTURES", env)
+
+    def test_explicit_cuda_recipe_is_accepted_and_uses_cuda_identity(self):
+        recipe = replace(recipes.recipe_for("fes.pong"), gpu_router="CUDA")
+        with patch.object(recipes.shutil, "which", return_value=None):
+            env = recipes.producer_environment({"PATH": "/empty"}, recipe)
+        self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
+        self.assertEqual(env["FES_TOOLCHAIN_CUDA_ARCHITECTURES"], "86")
+        self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "unused")
+
     def test_c64_ntsc_is_an_explicit_de10_package_selection(self):
         pal = recipes.recipe_for("fes.c64")
         ntsc = recipes.recipe_for("fes.c64-ntsc")
@@ -582,7 +622,7 @@ class RecipeDataTest(unittest.TestCase):
             "producer_module": ["scripts.x;exec", "scripts..x", ".scripts.x",
                                 "scripts.class", "scripts.1x"],
             "authenticate": ["x()", "a.b", "class", "x;true", "1x"],
-            "gpu_router": ["OFF", "CUDA", "hip"],
+            "gpu_router": ["OFF", "hip", "cuda", ""],
             "hip_architectures": ["", "gfx1100;$(true)", "gfx1100;;gfx1201"],
             "selection_filename": ["../x.package-selection.toml",
                                    "/x.package-selection.toml", "x.toml"],
@@ -596,6 +636,11 @@ class RecipeDataTest(unittest.TestCase):
                 document["recipes"][0][field] = value
                 with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                     self.load_document(document)
+
+        document = self.document()
+        document["recipes"][0]["gpu_router"] = "CUDA"
+        self.assertEqual(self.load_document(document)[document["recipes"][0]["core_id"]].gpu_router,
+                         "CUDA")
 
     def test_duplicate_identifiers_rejected(self):
         for field in ("core_id", "selection_filename", "package_dir_env",
