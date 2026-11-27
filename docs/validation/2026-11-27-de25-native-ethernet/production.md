@@ -35,36 +35,74 @@ and the BL31 receipt is `22c1a200180d430323e12d3838e829f0595f50f404fd2ddf9aceccf
 | `0x99000000–0x9a000000` | Current matched producer's verified FIT copy |
 | `0xb0000000–0xc0000000` | High SPL/U-Boot memory reservation |
 
-A build can test the proposed Ethernet pool by adding its exclusion to the
-entry producer and confirming disjointness in the emitted launch receipt,
-EL1 uncached map and firmware map. The production XGMAC API currently uses
+SDK and entry build checks at `74b301c0d` compare the proposed Ethernet
+pool with the compiled configuration and reader ranges, selected tape,
+SDM control memory, boot reservations and the full entry staging envelope.
+The emitted EL1 and EL3 mappings still require verification. The production XGMAC API currently uses
 identity DMA addresses. Restrict SID 1 access to the actual descriptor and
 packet pages within the pool. The standalone diagnostic's physical frame
 and descriptor pages at `0x94800000` overlap the C64 configuration source.
 [Saved FIT geometry](../../../platform/embedded/nano/fit_layout.py) ·
 [Native entry exclusions](../../../platform/embedded/entry/build.py)
 
-## Firmware and wire qualification
+## First MENU and later handoffs
 
-Bind the existing EL3 MAC lease to the accepted boot owner and epoch. Keep
-one owner of the nonsecure SMMU command queue, stream table and invalidations
-across MAC SID 1 and the SDM configuration stream. The protected control
-pages must be accessible to the SMMU's nonsecure table walker while
-remaining outside the client DMA mappings and EL1's writable regions.
-Keep secure firmware metadata separate. The current SDM source gate checks
-for a completely uninitialized MAC. Supporting an initialized, contained
-MAC requires positive verification of its retired grant and the selected
-SDM mapping under the existing firmware lock. [EL3 MAC lease](../../../platform/embedded/firmware/nano_mac.h) ·
-[SDM ownership checks](../../../platform/embedded/firmware/nano_sdm_source_platform.inc) ·
-[Arm SMMUv3 security states, section 3.10](https://documentation-service.arm.com/static/6813b2bbefb0f21122c144c2)
+The paired launcher reads startup files over PIO SD, programs MENU and
+presents its first frame before `startProgramNetwork` runs. At Ready the UI
+generation is zero, the first SDM transfer has retired, and its configuration
+source is retained. Secure source release for reuse happens later, during a
+program transition. The cold SDM gate requires a completely uninitialized MAC,
+so registering a contained MAC early would already reject this first load.
+[Tenfoot startup](../../../platform/embedded/tamago/cmd/fpgaload/tenfoot.go) ·
+[First MENU frame](../../../platform/embedded/tamago/nativefabric/program_menu.go) ·
+[SDM ownership](../../../platform/embedded/firmware/nano_sdm_source_platform.inc)
 
-`ProgramService` already pauses the network before a program transition,
-resumes it after a successful return to Ready or Running, and retains it
-stopped at Park. Its secure Stop must establish device and interconnect
-quiescence before SDM reconfiguration. Following the SDM's verified release,
-each MAC restart needs a fresh Acquire and Confirm. The PIO card can serve
-the launcher throughout without allocating an SD ADMA window.
-[ProgramService network lifecycle](../../../platform/embedded/tamago/nativefabric/program_network.go)
+SDM retirement sets global Non-secure abort, disables translation and both
+queues (`CR0=CR0ACK=0`), and records the consumed command pointer. Its table
+still contains a translated SID 10. Enabling that table for Ethernet would
+also re-enable SDM access. The next SDM load checks the previous retirement
+receipt, table and exact queue pointer. Separate tables need a common EL3
+owner that accounts for every intervening command and invalidation. A
+software-supplied replacement pointer cannot satisfy that requirement.
+The MENU reader's sealed route is **Secure SID 1**. Its window gate checks
+both banks disabled and Non-secure global abort. MAC0 is **Non-secure SID
+1**. MAC Stop in the standalone diagnostic leaves its bank enabled with an
+abort entry, a different hardware state. [SDM setup and rearm](../../../platform/embedded/firmware/sdm_input_probe_setup.c) ·
+[SDM retirement](../../../platform/embedded/firmware/source_retire.c) ·
+[Reader proof](../../../platform/embedded/firmware/nano_sdm_reader.c)
+
+### Matched trial
+
+1. Build a PIO measurement image with the ordinary MAC supplier disabled.
+   Capture paired, read-only EL3 snapshots after the first MENU frame, at
+   C64 launch before source reuse, and on return to MENU. Record boot owner
+   and epoch, role and source generations, both banks' controls and status,
+   Non-secure table/queue bases and producer/consumer pointers, SID 1 and
+   SID 10 entries, MAC reset/SID routing, and reader/SD/USB ownership.
+   Compare them with the corresponding retirement, reader and release receipts.
+2. Qualify a bounded switch using disjoint protected table memory. Show
+   complete MAC stop/drain, disabled-and-aborting Non-secure control between
+   owners, the inactive stream denied, acknowledged invalidations, and a
+   fresh consumed queue position at each switch. The MAC grant must preserve
+   the running MENU reader, leave the Secure bank unchanged and receive a
+   matching reply. Repeat through C64 and back to MENU under the same boot
+   owner, then verify the normal Park closure. [EL3 MAC lease](../../../platform/embedded/firmware/nano_mac.h) ·
+   [ProgramService transitions](../../../platform/embedded/tamago/nativefabric/program_network.go)
+
+The supported cold chain has no RAM-only input for a new launcher. SPL reads
+and hashes `FES/UPLOAD.BIN`, and U-Boot verifies its preloaded entry. The
+recovery TFTP tool writes its verified upload to FAT. A separate trial card
+can preserve the original. Before linking the writable launcher SDK, obtain
+that card's driver-format CID (30 hex digits) and 512-byte sector count.
+The recovery template supplies the MBR and protected recovery file sizes
+and hashes. The builder assembles and reads back FAT in a regular image
+file, so the card's prior FAT cluster layout is unnecessary.
+[SPL FIT verification](../../../platform/embedded/nano/spl_cold.c) ·
+[U-Boot handoff](../../../platform/embedded/nano/uboot.c) ·
+[Recovery upload](../../../platform/embedded/nano/upload.py) ·
+[Image admission](../../../platform/embedded/nano/launcher_image.py)
+
+## Wire qualification
 
 After a qualified TX, the next bounded hardware test is an independent
 host-to-CBL unicast frame with fresh bytes, a single RX descriptor and a
