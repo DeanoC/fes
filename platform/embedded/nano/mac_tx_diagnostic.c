@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "mac_tx_diagnostic.h"
+#ifdef FES_CBL_BIDIRECTIONAL
+#include "mac_rx_diagnostic.h"
+#endif
 
 #define MAC 0x10810000U
 #define SMMU 0x16000000U
@@ -31,9 +34,12 @@
 struct trial {
     const struct fes_tx_io *io;
     struct fes_tx_result *out;
-    unsigned prod, expected_ste;
+    unsigned prod, expected_ste, vmid;
+#ifdef FES_CBL_BIDIRECTIONAL
+    unsigned inherited;
+#endif
 };
-static uint64_t table_word(uint32_t a);
+static uint64_t table_word(uint32_t a, unsigned vmid);
 static uint32_t read_reg(struct trial *t, uint32_t a);
 static int queues_clean(struct trial *t);
 static int domain_current(struct trial *t)
@@ -44,7 +50,11 @@ static int domain_current(struct trial *t)
                              S2_ROOT + 8 * ((FES_TX_IOVA >> 30) & 511),
                              S2_MID + 8 * ((FES_TX_IOVA >> 21) & 511),
                              S2_LEAF + 8 * ((FES_TX_IOVA >> 12) & 511),
-                             S2_LEAF + 8 * ((FES_TX_BUFFER >> 12) & 511)};
+                             S2_LEAF + 8 * ((FES_TX_BUFFER >> 12) & 511),
+#ifdef FES_CBL_BIDIRECTIONAL
+                             S2_LEAF + 8 * ((FES_RX_DATA_IOVA >> 12) & 511),
+#endif
+    };
     if (read_reg(t, STREAM) != 3 || read_reg(t, SID) != 0x10001 || read_reg(t, SMMU + 0x20) != 13 ||
         read_reg(t, SMMU + 0x24) != 13 || read_reg(t, SMMU + 0x28) != 0x820 ||
         read_reg(t, SMMU + 0x44) != NS_ABORT || read_reg(t, SMMU + 0x88) != 8 || queues_clean(t) ||
@@ -54,7 +64,7 @@ static int domain_current(struct trial *t)
         t->io->load(t->io->ctx, SID1_STE) != t->expected_ste)
         return 0;
     for (unsigned i = 0; i < sizeof(walk) / sizeof(walk[0]); i++) {
-        if (t->io->load(t->io->ctx, walk[i]) != table_word(walk[i]))
+        if (t->io->load(t->io->ctx, walk[i]) != table_word(walk[i], t->vmid))
             return 0;
     }
     return 1;
@@ -74,7 +84,11 @@ static int guard(struct trial *t)
             goto lost;
         }
     }
-    if (t->out->mapped && !domain_current(t))
+    unsigned check_domain = t->out->mapped;
+#ifdef FES_CBL_BIDIRECTIONAL
+    check_domain |= t->inherited;
+#endif
+    if (check_domain && !domain_current(t))
         goto lost;
     t->out->last_us = now;
     return 0;
@@ -124,7 +138,7 @@ static int queues_clean(struct trial *t)
     return read_reg(t, SMMU + 0x60) || read_reg(t, SMMU + 0x64) || read_reg(t, SMMU + 0x100a8) ||
            read_reg(t, SMMU + 0x100ac);
 }
-static uint64_t table_word(uint32_t a)
+static uint64_t table_word(uint32_t a, unsigned vmid)
 {
     if (a < S2_ROOT) {
         if (a == SID1_STE)
@@ -132,7 +146,7 @@ static uint64_t table_word(uint32_t a)
         if (a == SID1_STE + 8)
             return 1ULL << 44;
         if (a == SID1_STE + 16)
-            return 1U | (0x2060ULL << 32) | (1ULL << 51) | (1ULL << 54) | (1ULL << 58);
+            return vmid | (0x2060ULL << 32) | (1ULL << 51) | (1ULL << 54) | (1ULL << 58);
         if (a == SID1_STE + 24)
             return S2_ROOT;
         return (a - FES_TX_TABLES) % 64 == 0 ? 1 : 0; /* valid abort STE */
@@ -145,15 +159,28 @@ static uint64_t table_word(uint32_t a)
         return FES_TX_DESC | DESC_FLAGS | (3U << 6);
     if (a == S2_LEAF + 8 * ((FES_TX_BUFFER >> 12) & 511))
         return FES_TX_DATA | DESC_FLAGS | (1U << 6);
+#ifdef FES_CBL_BIDIRECTIONAL
+    if (a == S2_LEAF + 8 * ((FES_RX_DATA_IOVA >> 12) & 511))
+        return FES_RX_DATA | DESC_FLAGS | (2U << 6); /* device-write only */
+#endif
     return 0;
 }
-static int mem_init(struct trial *t, const uint8_t frame[60])
+static int init_tables(struct trial *t)
 {
     for (uint32_t a = FES_TX_TABLES; a < FES_TX_TABLES + 0xa000; a += 8) {
-        if (((a & 255) == 0 && guard(t)) || store(t, a, table_word(a)))
+        if (((a & 255) == 0 && guard(t)) || store(t, a, table_word(a, t->vmid)))
             return -1;
     }
-    for (uint32_t a = FES_TX_DESC; a < FES_TX_BUFFER + PAGE; a += 8) {
+    return 0;
+}
+static int init_packets(struct trial *t, const uint8_t frame[60])
+{
+#ifdef FES_CBL_BIDIRECTIONAL
+    const uint32_t end = FES_RX_DATA_IOVA + PAGE;
+#else
+    const uint32_t end = FES_TX_BUFFER + PAGE;
+#endif
+    for (uint32_t a = FES_TX_DESC; a < end; a += 8) {
         uint64_t word = 0;
         if (a >= FES_TX_DATA && a < FES_TX_DATA + 60) {
             unsigned offset = a - FES_TX_DATA;
@@ -181,6 +208,9 @@ static int command_sync(struct trial *t, uint64_t op, uint64_t argument)
     if (set_reg(t, SMMU + 0x98, p) || poll(t, SMMU + 0x9c, ~0U, p) || queues_clean(t))
         return -1;
     t->prod = p;
+#ifdef FES_CBL_BIDIRECTIONAL
+    t->out->command = p;
+#endif
     return 0;
 }
 static int region64(struct trial *t, uint32_t offset, uint32_t base)
@@ -322,7 +352,7 @@ static int start_mac(struct trial *t)
             return -1;
     return write_reg(t, MAC + 0x3000, 1) || poll(t, MAC + 0x3000, 1, 0);
 }
-static int send_frame(struct trial *t)
+static int setup_tx(struct trial *t)
 {
     if (set_reg(t, MAC + 0x1100, 127U << 16 | 2U << 2 | 2) || set_reg(t, MAC + 0x3004, 2) ||
         set_reg(t, MAC + 0x3100, 0) || set_reg(t, MAC + 0x3104, 4U << 16) ||
@@ -332,6 +362,10 @@ static int send_frame(struct trial *t)
         set_reg(t, MAC, FES_TX_GIGABIT_SPEED) || write_reg(t, MAC + 0x3160, 0xffff) ||
         read_reg(t, MAC + 0x3160) & (FAULTS | 2))
         return -1;
+    return 0;
+}
+static int send_frame(struct trial *t)
+{
     if (guard(t) || store(t, FES_TX_DESC, FES_TX_BUFFER) ||
         store(t, FES_TX_DESC + 8, (uint64_t)(FIRST_LAST | OWN | 60) << 32 | 60))
         return -1;
@@ -369,7 +403,20 @@ static int send_frame(struct trial *t)
     }
     return -1;
 }
-static int stop_mac(struct trial *t)
+static int sample_tx_drain(struct trial *t, unsigned dma_mask)
+{
+    for (unsigned j=0; j<2; j++) {
+        if (guard(t)) return -1;
+        t->io->sync_memory(t->io->ctx);
+        t->out->drain_dma=read_reg(t,MAC+0x3020);
+        t->out->drain_mtl=read_reg(t,MAC+0x1108);
+        t->out->drain_status=read_reg(t,MAC+0x3160);
+        if ((t->out->drain_dma & dma_mask) || (t->out->drain_mtl & MTL_TX_ACTIVITY) ||
+            (t->out->drain_status & (FAULTS | 2)) != 2) return -1;
+    }
+    return 0;
+}
+static int stop_mac(struct trial *t, unsigned dma_mask)
 {
     /* Only TX channel 0 ran. Require a fresh process-stopped acknowledgement. */
     if (read_reg(t, MAC + 0x3160) & (FAULTS | 2) || set_reg(t, MAC + 0x3104, 4U << 16) ||
@@ -379,17 +426,7 @@ static int stop_mac(struct trial *t)
         if (guard(t)) return -1;
         if (!(read_reg(t,MAC+0x1108) & MTL_TX_ACTIVITY)) {
             if (set_reg(t,MAC,FES_TX_GIGABIT_SPEED)) return -1;
-            for (unsigned j=0; j<2; j++) {
-                if (guard(t)) return -1;
-                t->io->sync_memory(t->io->ctx);
-                t->out->drain_dma=read_reg(t,MAC+0x3020);
-                t->out->drain_mtl=read_reg(t,MAC+0x1108);
-                t->out->drain_status=read_reg(t,MAC+0x3160);
-                /* Ch0 RX/TX DMA FSM stopped, AXI R/W inactive, MTL drained. */
-                if ((t->out->drain_dma & 0xff03) || (t->out->drain_mtl & MTL_TX_ACTIVITY) ||
-                    (t->out->drain_status & (FAULTS | 2)) != 2)
-                    return -1;
-            }
+            if (sample_tx_drain(t,dma_mask)) return -1;
             t->out->process_stopped=1;
             return 0;
         }
@@ -409,7 +446,7 @@ static int revoke(struct trial *t)
     if (store(t, SID1_STE, 0))
         return -1;
     t->expected_ste = 0;
-    if (command_sync(t, 3U | (1ULL << 32), 1) || command_sync(t, 0x28U | (1ULL << 32), 0) ||
+    if (command_sync(t, 3U | (1ULL << 32), 1) || command_sync(t, 0x28U | ((uint64_t)t->vmid << 32), 0) ||
         guard(t) || store(t, SID1_STE, 1))
         return -1;
     t->expected_ste = 1;
@@ -422,6 +459,9 @@ static int revoke(struct trial *t)
     t->out->mac_in_reset = 1;
     return 0;
 }
+#ifdef FES_CBL_BIDIRECTIONAL
+#include "mac_bidirectional.inc"
+#endif
 int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_tx_result *out)
 {
     /* The private build verifies the complete frame SHA, including the witness's unicast address.
@@ -431,7 +471,7 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     if (!io || !frame || !out || out->stage != FES_TX_INITIAL || out->dispatched || !io->owns ||
         !io->report_phy || !io->report_caps || !io->read || !io->write || !io->store || !io->load || !io->time_us || !io->sync_memory)
         return -1;
-    struct trial t = {io, out, 0, 13};
+    struct trial t = {.io=io, .out=out, .expected_ste=13, .vmid=1};
     unsigned nonce = 0, nonzero = 0, different = 0;
     for (unsigned i = 0; i < 6; i++) {
         nonzero |= frame[i];
@@ -449,6 +489,15 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     }
     out->started_us = out->last_us = io->time_us(io->ctx);
     out->stage = FES_TX_TABLE_BUILD;
+#ifdef FES_CBL_BIDIRECTIONAL
+    if (!out->rx || !io->report_grant || !nonce) return -1;
+    out->vmid=out->previous ? 2 : 1;
+    for (unsigned i=0; i<16; i++) out->nonce[i]=frame[28+i];
+    if (out->previous) {
+        if (regrant(&t,frame)) return -1;
+        goto granted;
+    }
+#endif
     if (!nonce || guard(&t) || (read_reg(&t, RST) & MAC_RESETS) != MAC_RESETS ||
         read_reg(&t, SMMU) != 0x080f7e3f || read_reg(&t, SMMU + 4) != 0x0e739d18 ||
         read_reg(&t, SMMU + 0x14) != 0x400075 || read_reg(&t, SMMU + 0x20) ||
@@ -465,13 +514,20 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
         return -1;
     if (set_reg(&t, SID, 0x10001) || set_reg(&t, STREAM, 3) ||
         write_reg(&t, SMMU + 0x44, (1U << 31) | NS_ABORT) || poll(&t, SMMU + 0x44, ~0U, NS_ABORT) ||
-        mem_init(&t, frame))
+        init_tables(&t) || init_packets(&t, frame))
         return -1;
     out->stage = FES_TX_ARM;
     out->arm_attempted = 1;
     if (arm(&t))
         return -1;
+#ifdef FES_CBL_BIDIRECTIONAL
+granted:
+#endif
     out->mapped = 1;
+#ifdef FES_CBL_BIDIRECTIONAL
+    if (guard(&t) || read_reg(&t,SMMU+0x98)!=t.prod || read_reg(&t,SMMU+0x9c)!=t.prod) return -1;
+    io->report_grant(io->ctx,t.vmid,t.prod,t.expected_ste);
+#endif
     out->stage = FES_TX_RELEASE_MAC;
     if (start_mac(&t))
         goto failed;
@@ -479,10 +535,14 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     if (verify_link(&t))
         goto failed;
     out->stage = FES_TX_DISPATCH;
-    if (send_frame(&t))
-        goto failed;
+    if (setup_tx(&t)) goto failed;
+#ifdef FES_CBL_BIDIRECTIONAL
+    if (bidi_transfer(&t,frame)) goto failed;
+#else
+    if (send_frame(&t)) goto failed;
+#endif
     out->stage = FES_TX_STOP;
-    if (stop_mac(&t))
+    if (!out->process_stopped && stop_mac(&t,0xff03))
         goto failed;
     out->stage = FES_TX_REVOKE;
     if (revoke(&t))
@@ -490,14 +550,18 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     out->stage = FES_TX_PARKED;
     return 0;
 failed:
-    out->fault_address = out->last_address;
-    out->fault_value = out->last_value;
+    if (!out->fault_address) {
+        out->fault_address = out->last_address;
+        out->fault_value = out->last_value;
+    }
     /* Revoke only while the original controlled domain is still proved present. */
     if (!guard(&t) && !queues_clean(&t)) {
         /* Only a completion failure after the tail doorbell can take the
          * normal stop path. A failed stop is never retried or called drained. */
+#ifndef FES_CBL_BIDIRECTIONAL
         if (out->stage == FES_TX_DISPATCH && out->dma_possible && out->dispatched)
-            (void)stop_mac(&t);
+            (void)stop_mac(&t,0xff03);
+#endif
         (void)revoke(&t);
     }
     return -1;
@@ -511,7 +575,15 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
         r->fault_address = r->last_address;
         r->fault_value = r->last_value;
     }
-    struct trial t = {io, r, 0, 1};
+    struct trial t = {.io=io, .out=r, .expected_ste=1, .vmid=1};
+#ifdef FES_CBL_BIDIRECTIONAL
+    if (r->vmid == 2) t.vmid=2;
+    t.prod=r->command;
+    if (r->rx && r->rx->dma_possible) {
+        if (!r->rx->stopped || !r->translation_revoked || !r->mac_in_reset ||
+            !r->process_stopped || retained_after_reset(&t)) return FES_TX_COLD_RECOVERY;
+    }
+#endif
     if (r->scope_lost)
         return FES_TX_COLD_RECOVERY;
     if (rc && r->stage <= FES_TX_TABLE_BUILD && !r->write_attempted && !r->arm_attempted &&

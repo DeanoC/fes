@@ -31,6 +31,7 @@ struct fes_tx_phy_sample {
     uint64_t time_us;
     uint16_t id1, id2, bmcr, bmsr_latch, bmsr, adv, partner, gig_adv, gig_partner, pcs, resolved;
 };
+struct fes_tx_result;
 struct fes_tx_io {
     void *ctx;
     uint32_t (*read)(void *, uint32_t);
@@ -48,6 +49,9 @@ struct fes_tx_io {
     int (*observe_unchanged)(void *);
     void (*report_caps)(void *, const struct fes_tx_caps *);
     void (*report_phy)(void *, unsigned, const struct fes_tx_phy_sample *);
+#ifdef FES_CBL_BIDIRECTIONAL
+    void (*report_grant)(void *, unsigned vmid, unsigned command, unsigned ste);
+#endif
 };
 enum fes_tx_stage {
     FES_TX_INITIAL, FES_TX_TABLE_BUILD, FES_TX_ARM, FES_TX_RELEASE_MAC,
@@ -55,6 +59,13 @@ enum fes_tx_stage {
 };
 struct fes_tx_result {
     enum fes_tx_stage stage;
+#ifdef FES_CBL_BIDIRECTIONAL
+    struct fes_rx_result *rx;
+    struct fes_tx_result *previous;
+    unsigned vmid, command, retained, consumed;
+    uint8_t nonce[16];
+    uint64_t dwell_us;
+#endif
     uint32_t last_address, last_value, descriptor_status, channel_status;
     unsigned scope_lost, write_attempted, arm_attempted, mapped, mac_release_attempted, dma_possible, dispatched;
     uint32_t terminal_per0, terminal_route, terminal_sid, terminal_cr0, terminal_ack, terminal_ste;

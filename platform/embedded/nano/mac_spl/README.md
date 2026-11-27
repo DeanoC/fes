@@ -34,3 +34,10 @@ The PHY admission samples Clause 22 status twice at least 100 ms apart within an
 The overall domain guard expires after 18 seconds. Before making DMA possible, the SPL reserves two seconds for descriptor completion and five seconds for cleanup. The eight-second negotiation window covers the stock CBL Linux observation of 4.09 seconds from configuring RGMII to reporting 1 Gb/s. [Factory CBL wire log](../../../../docs/validation/2026-10-31-de25-owner-binding/bus-boot-serial.log)
 
 If a dispatched descriptor fails or times out under the still-owned domain, the SPL issues the normal channel stop once and requires a fresh process-stopped acknowledgement. It disables transmission and samples the stopped channel FSMs, idle AXI master and empty MTL twice before revoking translation and resetting the controller. A completed recovery is reported as `failed-drained`. Only `closed` qualifies a successful target TX.
+
+
+## Two grants in one boot
+
+Pass a second private request to `build_positive.py` with `--second-frame` and `--second-frame-sha256` to build the distinct bidirectional diagnostic. The two frames must have the same endpoints and different 128-bit nonces. Each witness reply reverses the MAC addresses and changes the marker to `FES-CBL-RX-v1`. The build emits the request and expected reply hashes in `mac-bidirectional.json`.
+
+The receiver adds one nonidentity, device-write-only page and places its 32 descriptors in the unused half of the existing descriptor page. Only one receive descriptor is posted. After each exchange the SPL stops TX, closes ingress, stops RX, verifies both channel FSMs and the shared AXI master idle, revokes SID1, and reads back the hard reset. It monitors the retired buffers and abort mapping over at least 10 ms. The second grant requires the exact retired bytes and a complete stream and stage-2 table comparison. With MAC0 held in reset it breaks the abort STE, synchronizes invalidation, invalidates the new VMID, rebuilds the buffers and publishes a translated STE for VMID2. The SMMU stays enabled across the transition. Each grant requires a fresh matching reply. A failed first grant leaves the second unopened.

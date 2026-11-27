@@ -56,7 +56,7 @@ enum fault {
 };
 struct fixture {
     uint32_t smmu[0x10100 / 4], mac[0x3800 / 4], reset, sys, ctrl, sid;
-    uint64_t table[0xa000 / 8], packet[0x4000 / 8], ticks;
+    uint64_t table[0xa000 / 8], packet[0x6000 / 8], ticks;
     unsigned writes, transmits, queued, acknowledged, revocations, observations;
     enum fault fault;
     uint8_t wire[60];
@@ -264,7 +264,7 @@ static void denied_startup(void)
     *reg(&f, S) = 0x080f7e3f;
     *reg(&f, S + 4) = 0x0e739d18;
     *reg(&f, S + 0x14) = 0x400075;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe, report_caps, report_phy};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe, report_caps, .report_phy=report_phy};
     struct fes_tx_result out = {0};
     assert(!owns(&f) && fes_tx_terminal(&io, &out, -1) == FES_TX_UNCHANGED);
     assert(f.observations == 2 && !f.writes && !f.transmits);
@@ -312,7 +312,7 @@ static void test(enum fault fault)
         *reg(&f, S + 0x2c) = 0;
     if (fault == BAD_ROUTE)
         f.sid = 9;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns, report_caps, report_phy};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns, report_caps, .report_phy=report_phy};
     struct fes_tx_result out = {0};
     uint8_t frame[60] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x45, 2, 0xfe, 0x25, 8, 0xcb, 1, 0x88, 0xb5};
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
@@ -380,4 +380,5 @@ int main(void)
     for (enum fault i = OK; i <= UNKNOWN_CR2; i++)
         test(i);
     puts("CBL TX domain/translation, frame and retirement fault checks passed");
+    return 0;
 }

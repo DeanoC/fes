@@ -33,7 +33,7 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
-def customize(source, trace, base, frame, parking):
+def customize(source, trace, base, frames, parking):
     soc = source / "arch/arm/mach-socfpga"
     board = soc / "spl_agilex5.c"
     original = trace.function(board.read_text(), "board_init_f")
@@ -80,20 +80,37 @@ void fes_nano_positive_clock_rates(unsigned *l4sp, unsigned *emac)
 }
 ''')
     copied = []
-    for path, name in [(HERE / "positive.inc", "fes_positive.inc"),
+    sources = [(HERE / "positive.inc", "fes_positive.inc"),
                        (HERE.parent / "mac_tx_diagnostic.c", "mac_tx_diagnostic.c"),
-                       (HERE.parent / "mac_tx_diagnostic.h", "mac_tx_diagnostic.h")]:
+                       (HERE.parent / "mac_tx_diagnostic.h", "mac_tx_diagnostic.h")]
+    if len(frames) == 2:
+        sources.append((HERE / "bidi_report.inc", "fes_bidi_report.inc"))
+        for name in ("mac_bidirectional.inc", "mac_rx_diagnostic.c", "mac_rx_diagnostic.h"):
+            sources.append((HERE.parent / name, name))
+    for path, name in sources:
         dest = soc / name
         shutil.copyfile(path, dest)
         copied.append(dest)
     frame_header = soc / "fes_mac_positive_frame.h"
-    frame_header.write_text("static const unsigned char fes_positive_frame[60] = {" +
-                            ",".join(str(x) for x in frame) + "};\n")
+    arrays = ["static const unsigned char "+name+"[60] = {"+",".join(str(x) for x in frame)+"};"
+              for name,frame in zip(("fes_positive_frame","fes_second_frame"),frames)]
+    frame_header.write_text("\n".join(arrays)+"\n")
     make = soc / "Makefile"
-    make.write_text(make.read_text() + "\nifdef CONFIG_SPL_BUILD\nobj-y += mac_tx_diagnostic.o\nendif\n")
+    extra = "ccflags-y += -DFES_CBL_BIDIRECTIONAL\nobj-y += mac_rx_diagnostic.o\n" if len(frames)==2 else ""
+    make.write_text(make.read_text() + "\nifdef CONFIG_SPL_BUILD\nobj-y += mac_tx_diagnostic.o\n" + extra + "endif\n")
     for path in [report, board, make, clock, frame_header, *copied]:
         hashes[str(path.relative_to(source))] = digest(path)
     return hashes
+
+
+def read_frame(path,expected):
+    frame = path.read_bytes()
+    header = bytes.fromhex("02fe2508cb0188b5") + b"FES-CBL-TX-v1\0"
+    if (len(frame) != 60 or frame[0] & 1 or not any(frame[:6]) or frame[:6] == frame[6:12] or
+            frame[6:28] != header or not any(frame[28:44]) or any(frame[44:])
+            or hashlib.sha256(frame).hexdigest() != expected):
+        raise ValueError("incorrect pinned CBL Ethernet witness frame")
+    return frame
 
 
 def main():
@@ -101,17 +118,23 @@ def main():
     parser.add_argument("--trace-checkout", type=Path, required=True)
     parser.add_argument("--frame", type=Path, required=True)
     parser.add_argument("--frame-sha256", required=True)
+    parser.add_argument("--second-frame",type=Path)
+    parser.add_argument("--second-frame-sha256")
     args, rest = parser.parse_known_args()
     root = args.trace_checkout.resolve(strict=True)
     if subprocess.check_output(["git", "-C", root, "rev-parse", "HEAD"], text=True).strip() != TRACE or subprocess.check_output(
             ["git", "-C", root, "status", "--porcelain", "--untracked-files=no"]):
         raise ValueError("positive build requires the clean pinned trace checkout")
-    frame = args.frame.read_bytes()
-    header = bytes.fromhex("02fe2508cb0188b5") + b"FES-CBL-TX-v1\0"
-    if (len(frame) != 60 or frame[0] & 1 or not any(frame[:6]) or frame[:6] == frame[6:12] or
-            frame[6:28] != header or not any(frame[28:44]) or any(frame[44:])
-            or hashlib.sha256(frame).hexdigest() != args.frame_sha256):
-        raise ValueError("incorrect pinned CBL Ethernet witness frame")
+    frame=read_frame(args.frame,args.frame_sha256)
+    frames=[frame]
+    if bool(args.second_frame) != bool(args.second_frame_sha256):
+        raise ValueError("second round requires both frame file and digest")
+    if args.second_frame:
+        second=read_frame(args.second_frame,args.second_frame_sha256)
+        if second[:28]!=frame[:28] or second[28:44]==frame[28:44]:
+            raise ValueError("both grants need the same endpoint and distinct nonces")
+        frames.append(second)
+    bidi=len(frames)==2
     if "--console-control" in rest:
         raise ValueError("positive image requires full cold proof")
     producer = root / "platform/embedded/nano/cpu_diagnostic.py"
@@ -119,10 +142,10 @@ def main():
     spec = importlib.util.spec_from_file_location("original_cbl_cpu_trace", producer)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.PARK = "FES_CBL_MAC_TX PARK no-storage no-bl31"
+    module.PARK = ("FES_CBL_BIDI" if bidi else "FES_CBL_MAC_TX") + " PARK no-storage no-bl31"
     base = module.contain_source
     parking = parking_inputs(root)
-    module.contain_source = lambda src, _: customize(src, module, base, frame, parking)
+    module.contain_source = lambda src, _: customize(src, module, base, frames, parking)
     output = Path(rest[rest.index("--output")+1]).resolve()
     sys.argv = [str(producer), *rest]
     module.main()
@@ -130,13 +153,17 @@ def main():
     # selector. Replace it in this new, private build output with the true scope.
     original_receipt = output / "result.json"
     receipt = json.loads(original_receipt.read_bytes())
-    receipt.update(classification="Standalone CBL pre-storage TX-only DMA diagnostic with vendor DDR calibration",
-                   diagnostic_mode="mac-tx", diagnostic_runtime_qualified=False)
+    role="bidirectional" if bidi else "tx"
+    receipt.update(classification=f"Standalone CBL pre-storage {role} DMA diagnostic with vendor DDR calibration",
+                   diagnostic_mode="mac-"+role, diagnostic_runtime_qualified=False)
     original_receipt.write_text(json.dumps(receipt, sort_keys=True, indent=2)+"\n")
     asm = (output/"spl-disassembly.log").read_text()
     for name in ("fes_tx_once","fes_nano_positive_tx","fes_nano_cpu_diag_park"):
         if not re.search(r"^[0-9a-f]+ <"+name+r">:",asm,re.M):
             raise ValueError(f"positive SPL lacks {name}")
+    if bidi and any(not re.search(r"^[0-9a-f]+ <"+name+r">:",asm,re.M)
+                    for name in ("fes_rx_arm","fes_rx_wait","fes_rx_stop","fes_rx_retained")):
+        raise ValueError("bidirectional SPL lacks RX retirement path")
     # Inspect the emitted ARM code for the one local exception-mask transition.
     setup_instruction = re.findall(r"\bmsr\s+daifset,\s*#0x4\b", asm, re.I)
     if not setup_instruction or not re.search(r"\bmrs\s+x[0-9]+,\s*isr_el1\b", asm, re.I):
@@ -153,7 +180,19 @@ def main():
                   build_receipt_sha256=digest(original_receipt),embedded_spl=covered,
                   source_sha256={p.name:digest(p) for p in (Path(__file__),HERE/"positive.inc",
                   HERE.parent/"mac_tx_diagnostic.c",HERE.parent/"mac_tx_diagnostic.h",HERE.parent/"sof_hps.py")})
-    (output/"mac-positive.json").write_text(json.dumps(result,sort_keys=True,indent=2)+"\n")
+    if bidi:
+        result["scope"]="de25-cbl-bidirectional-mac-spl-v1"
+        result["frames"]=[]
+        for request in frames:
+            reply=bytearray(request[6:12]+request[:6]+request[12:])
+            reply[22]=ord("R")
+            result["frames"].append(dict(request_sha256=hashlib.sha256(request).hexdigest(),
+                reply_sha256=hashlib.sha256(reply).hexdigest(),nonce_hex=request[28:44].hex()))
+        for path in (HERE/"bidi_report.inc",HERE.parent/"mac_bidirectional.inc",
+                     HERE.parent/"mac_rx_diagnostic.c",HERE.parent/"mac_rx_diagnostic.h"):
+            result["source_sha256"][path.name]=digest(path)
+    filename="mac-bidirectional.json" if bidi else "mac-positive.json"
+    (output/filename).write_text(json.dumps(result,sort_keys=True,indent=2)+"\n")
 
 
 if __name__ == "__main__":

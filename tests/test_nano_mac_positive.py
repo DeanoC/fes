@@ -21,6 +21,15 @@ class PositiveTX(unittest.TestCase):
                             str(NANO / "mac_tx_diagnostic.c"), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True, capture_output=True, timeout=15)
 
+    def test_two_bidirectional_grants_and_failed_retirement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "bidirectional"
+            subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-DFES_CBL_BIDIRECTIONAL",
+                            "-I", str(NANO), str(ROOT / "tests/test_nano_mac_bidirectional.c"),
+                            str(NANO / "mac_tx_diagnostic.c"), str(NANO / "mac_rx_diagnostic.c"),
+                            "-o", str(exe)], check=True)
+            subprocess.run([str(exe)], check=True, timeout=15)
+
     def test_closed_receipt_and_incomplete_evidence(self):
         identity = "1a2b3c4d5e6f7890"
         receipt = dict(scope="de25-cbl-positive-mac-spl-v1", status="prepared", startup_predicate_report=True, capability_snapshot=True, phy_samples=True, parking_revision=replay.PARKING, diagnostic_id=identity,
