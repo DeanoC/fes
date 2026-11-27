@@ -64,6 +64,11 @@ func (r *Runtime) CaptureZX81Tape(ctx context.Context, packageID string, generat
 		return nil, unavailableError()
 	}
 	defer os.RemoveAll(dir)
+	// MkdirTemp's 0700 is filtered by the process umask. The runtime requires
+	// owner-only read, write and search permissions on the capture directory.
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return nil, unavailableError()
+	}
 	path := filepath.Join(dir, "program.p")
 	response, err := control.CaptureZX81Tape(ctx, path, packageID, generation)
 	r.noteDispatch("capture_zx81_tape", err == nil && response.OK)
