@@ -1162,8 +1162,15 @@ TMC rules. Its summary SHA-256 is
 `ade872961ce73efad3adb220cb0d320e8977758f84e9bd59f1e39725ca2c955d`.
 The Chip trial used the same source and Yosys commit with that host's
 authenticated executable. It is an independent candidate fit.
-The same revision also started on Powerboat for comparison with the
-earlier fits from that builder.
+The Powerboat fit of the same revision also failed admission. It reproduced
+−0.033 ns setup, −0.213 ns command datapath, 3.234 ns independent LOADED,
+45,174.7 ALMs, 42 DSPs and the same three unreviewed TMC rules. The two
+collector records agree on all recorded path and timing data after removing
+`host`, `build_inputs_sha256` and `fit.netlist_sha256` with `jq -S`.
+The Powerboat raw netlist SHA-256 is
+`e54a42acc6586c9570e8eba4a2c88e28bc3687a4b463c7234518ef026e74d2e8`.
+The Powerboat summary SHA-256 is
+`970d7f493f6319f088fe90168dd5ebc7979133f471e866e22477ae9310873675`.
 
 ## Integrated C0 = 28 fallback
 
