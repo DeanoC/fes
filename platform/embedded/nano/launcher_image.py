@@ -188,13 +188,14 @@ def admit_inputs(uboot, entry, sdk, recovery, files, *, recovery_profile='standa
         (uboot/'result.json', 1 << 20), (entry/'result.json', 1 << 20),
         (sdk/'result.json', 1 << 20), (recovery/'result.json', 131072),
         (recovery/'RECOVERY.JSON', 16384), (recovery/'u-boot.itb', 8 << 20))}
-    receipt_inputs.update({str(p): sha(p) for p in (Path(__file__), Path(__file__).with_name('package.py'),
-                          Path(__file__).with_name('upload.py'), Path(__file__).with_name('cold_profile.py'),
-                          Path(__file__).with_name('usb_selection.py'))})
+    producer = Path(__file__).resolve()
+    for name in (producer.name, 'package.py', 'upload.py', 'cold_profile.py', 'usb_selection.py'):
+        path = producer.with_name(name)
+        receipt_inputs[str(path)] = sha(path)
     base = checked_recovery(recovery, recovery_profile, recovery_source_root)
     if recovery_profile == 'return-trace':
         for name in ('recovery_return_package.py', 'recovery_return_trace.py', 'recovery_package.py', 'recovery.py'):
-            path = Path(__file__).with_name(name)
+            path = producer.with_name(name)
             receipt_inputs[str(path)] = sha(path)
     image = recovery/'nano-recovery-sd.img'
     receipt_inputs[str(image)] = base['image_sha256']

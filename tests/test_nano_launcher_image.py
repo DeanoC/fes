@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -267,7 +268,11 @@ class LauncherImageTests(unittest.TestCase):
             return launcher_image_verify.verify(self.uboot, self.entry, self.sdk, self.recovery, self.staged, self.output)
 
     def test_standalone_verify_is_read_only_and_rejects_mismatched_provenance(self):
-        receipt = self.prepare()
+        # Keep the same provenance for a relative build invocation and for the
+        # verifier, which imports the producer by its absolute module path.
+        with patch.object(image, '__file__', os.path.relpath(image.__file__)):
+            receipt = self.prepare()
+        self.assertTrue(all(Path(name).is_absolute() for name in receipt['inputs']))
         before = {p: p.stat().st_mtime_ns for p in self.output.rglob('*')}
         self.assertEqual(self.verify_prepared(), receipt['image_sha256'])
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in self.output.rglob('*')})
