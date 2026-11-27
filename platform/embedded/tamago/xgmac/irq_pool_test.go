@@ -241,6 +241,35 @@ func (h *irqHardware) deliverRX(t *testing.T, frame []byte) bool {
 	return true
 }
 
+func TestDMAPagesSeparateDescriptorTXAndRX(t *testing.T) {
+	// A non-page-aligned pool must still allocate whole, independently mappable pages.
+	const base = 0x92000040
+	pool, err := dmaops.NewPool(base, make([]byte, 64<<10), dmaops.Uncached, &testCoherency{line: 64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := NewPoolMemory(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Base() != 0x92001000 || m.Size() != 5*4096 || m.Cap() != m.Size() {
+		t.Fatalf("DMA allocation base=%#x size=%#x reserved=%#x", m.Base(), m.Size(), m.Cap())
+	}
+
+	if txRing != 0 || txRing+2*agilexRingSize*16 > 4096 || txBuffers != 4096 ||
+		rxBuffers != 3*4096 || txBuffers+bufferCount*bufferSize > rxBuffers ||
+		uint64(rxBuffers+bufferCount*bufferSize) > m.Size() {
+		t.Fatal("descriptor, TX and RX spans exceed their dedicated pages")
+	}
+	// A cache-line-aligned raw Memory can bypass the pool allocator. Reject it
+	// before touching either MMIO or the unaligned descriptor page.
+	unaligned := &stopMemory{memory: newMemory(), base: base}
+	hw := &hardware{}
+	if _, err := Open(hw, unaligned, configuration()); err == nil || hw.accesses != 0 {
+		t.Fatal("accepted raw DMA memory sharing a physical page with its neighbours")
+	}
+}
+
 func TestPoolMemoryValidationRoundTripAndPoison(t *testing.T) {
 	coh := &testCoherency{line: 64}
 

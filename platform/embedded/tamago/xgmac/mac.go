@@ -54,10 +54,13 @@ const (
 	agilexRingSize   = 32 // Agilex 5 can prefetch up to 32 descriptors per channel.
 	bufferSize       = 1600
 	maxFrame         = 1514
+	// Keep descriptor writeback, TX reads and RX writes on separate SMMU pages.
+	dmaPageSize      = 4096
 	txRing           = uint32(0)
-	txBuffers        = uint32(4096)
-	rxBuffers        = txBuffers + bufferCount*bufferSize
-	RequiredBytes    = uint64(rxBuffers + bufferCount*bufferSize)
+	txBuffers        = uint32(dmaPageSize)
+	bufferPagesBytes = (bufferCount*bufferSize + dmaPageSize - 1) &^ (dmaPageSize - 1)
+	rxBuffers        = txBuffers + bufferPagesBytes
+	RequiredBytes    = uint64(rxBuffers + bufferPagesBytes)
 	own              = uint32(1 << 31)
 	contextDesc      = uint32(1 << 30)
 	first            = uint32(1 << 29)
@@ -71,7 +74,7 @@ type Registers interface {
 	Now() time.Time
 }
 
-// Memory is exclusive, pinned Normal noncacheable memory, with ordered access.
+// Memory is page-aligned, exclusive, pinned Normal noncacheable memory, with ordered access.
 // Barrier publishes/acquires descriptor ownership. It has no free operation.
 type Memory interface {
 	Base() uint64
@@ -186,7 +189,7 @@ func Open(io Registers, memory Memory, config Config) (*Device, error) {
 	if config.IRQ != 0 && (config.IRQ < gic.FirstSPI || config.IRQ >= gic.MaxINTID) {
 		return nil, fmt.Errorf("xgmac: invalid SPI interrupt ID %d", config.IRQ)
 	}
-	if io == nil || memory == nil || memory.Base()%64 != 0 || memory.Size() < RequiredBytes || memory.Base() >= 1<<32 || memory.Size() > 1<<32-memory.Base() {
+	if io == nil || memory == nil || memory.Base()%dmaPageSize != 0 || memory.Size() < RequiredBytes || memory.Base() >= 1<<32 || memory.Size() > 1<<32-memory.Base() {
 		return nil, fmt.Errorf("xgmac: invalid pinned DMA region")
 	}
 	if adopter, ok := memory.(interface{ adopt() error }); ok {

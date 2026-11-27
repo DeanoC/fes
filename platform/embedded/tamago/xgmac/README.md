@@ -31,7 +31,9 @@ QEMU uses its separate VirtIO-net driver.
   per direction. Revision 2.10 uses four 16-byte descriptors per ring. The
   Agilex 5 instance with device ID `0x76` and revision `0x31` uses 32 slots
   per ring to cover the documented maximum descriptor cache. Each completed
-  receive buffer moves to the next free descriptor. The rings and buffers
+  receive buffer moves to the next free descriptor. The 20 KiB allocation
+  reserves one 4 KiB page for descriptor writeback, two for DMA reads of TX
+  data and two for DMA writes of RX data. The rings and buffers
   live in a permanently reserved Normal-noncacheable DDR
   window outside Go RAM (no Go heap pointers in DMA). Offloads, jumbo frames,
   promiscuous mode, and pause negotiation are disabled. Fatal DMA faults or TX
