@@ -20,18 +20,20 @@ Default configuration uses conservative **1-bit, single-sector, polling PIO**
 | `Config.TransferClockHz` (`25000000`) | Switches from `<=400 kHz` ID clock to 25 MHz after verifying card default-speed CSD | Restores disabled ID clock on `Quiesce` and re-applies on `Resume`; failure retires the device with no silent fallback. |
 | `Config.TransferClockHz` (`50000000`) | SD High-Speed via `ACMD51` SCR version check (`SD_SPEC >= 1`), `CMD6` mode-0 check and mode-1 Switch Function (`0x00fffff1` / `0x80fffff1`, advertised current must fit `Config.HighSpeedMaxCurrentMA`, default 200 mA), Host Control 1 High-Speed bit 2, and 50 MHz divider (`HighSpeed()`, `TransferClockHz()`) | Restores the identification divider on `Quiesce` and re-establishes High-Speed on `Resume`. |
 | `Config.BusWidth4Bit` | Queries SCR (`CMD55`+`ACMD51`), switches via `ACMD6(2)`, sets Host Control 1 bit 1 | Enforces readback across clock changes and `Resume`. |
-| `Config.MultiBlock` | `CMD18`/`CMD25` with Block Count and Auto-CMD12 (up to 128 sectors / 64 KiB) | Works in both PIO and ADMA2 modes. |
+| `Config.MultiBlock` | `CMD18`/`CMD25` with Block Count and Auto-CMD12 (up to 256 sectors / 128 KiB) | Works in both PIO and ADMA2 modes. |
 | `Config.UseCMD23` | Issues pre-defined `CMD23` (`SET_BLOCK_COUNT`) before `CMD18`/`CMD25` without Auto-CMD12 | Requires `Config.MultiBlock` and card `SCR[33]` (`SupportsCMD23`); verified across `Resume`. |
-| `Config.UseADMA2` + `DMAPool` | 32-bit/64-bit ADMA2 descriptors + 64 KiB pinned staging buffer from `dmaops.Pool` | Any ADMA fault permanently poisons both buffers and retires the device; physical Nano use awaits EL3 BL31 SMMU stream grant. |
+| `Config.UseADMA2` + `DMAPool` | 32-bit/64-bit ADMA2 descriptors + 128 KiB pinned staging buffer from `dmaops.Pool` | Any ADMA fault permanently poisons both buffers and retires the device; requires EL3 BL31 SMMU SD-DMA bypass (`FES_NANO_SD_DMA=1`). |
 | `(*Device).EnableIRQ(g, irqID)` | Routes status waits onto a GICv3 SPI (e.g. `de25nano.IRQSDMMC` = 128) | Level-triggered handler masks `signalEnable = 0` immediately so idle/quiesce invariants hold. |
 
 ## Quiesce, resume, and fail-closed retirement
 
-- **`Identity()` / `CardInfo()`:** `Identity()` returns immutable `CID[127:8]`
+- **`Identity()` / `CardInfo()` / `Stats()`:** `Identity()` returns immutable `CID[127:8]`
   (excluding R2 CRC/reserved high byte) and discovered sector count for continuity
   checks across reset. `CardInfo()` decodes CID, CSD, and (when queried) SCR
   fields including manufacturer, product name, capacity, write-protect flags, SD
   spec version, and `CMD23` support (`CardInfo.SupportsCMD23` / `CMD23Active()`).
+  `Stats()` snapshots cumulative read/write/sector/PIO/ADMA2/CMD23/error/IRQ
+  telemetry alongside active bus width, transfer clock, and lifecycle state.
 - **`Quiesce()`:** Fences new reads/writes, finishes the current sector
   (returning `ErrQuiesced` on remaining batch work), checks DMA/clock/error
   state, masks IRQs, confirms card-ready and clock-stop readback. `Flush()`

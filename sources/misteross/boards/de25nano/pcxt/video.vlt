@@ -1,0 +1,16 @@
+`verilator_config
+// The DE25 derivation gives these mailbox registers a power-on value while
+// their clocked processes run without a synchronous reset. Restrict the
+// waiver to this generated file and these signals; other PROCASSINIT warnings
+// remain enabled. See derive.retarget_video for the coordinated reset contract.
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'ack_meta'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'ack_sync'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'sent_meta'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'sent_sync'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'hold_launch'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'sent_held'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'pixel_loaded'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'published_code'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'pixel_code'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'hold_meta'*"
+lint_off -rule PROCASSINIT -file "*/pcxt_video_de25.sv" -match "*'hold_sync'*"

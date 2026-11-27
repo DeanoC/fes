@@ -1,0 +1,17 @@
+[11-23 09:47:25] ########## spectrum128 (c3)
+[11-23 10:02:52] spectrum128.c3 rc=0 (0be20e575)
+[11-23 10:02:52] spectrum128.c3 rbf 36d9c70e1007943bbf8e63d427354934b1983b226e3fbea5bdf16387cb48a0a3
+[11-23 10:02:52] RESULT spectrum128 condition 3: gates passed, BUILD_ID 
+[11-23 10:02:52]        package 7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de.fcore
+[11-23 10:02:52]        package 7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de.build-inputs.json
+[11-23 10:02:52]        package 7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de.86860b22f3f4a5433482dc2f8d7e58233f485c81ad458d6463fbc03c45d59443.build-inputs.json
+[11-23 10:02:52]        package 7eca1fb1f58357f377287e764457c261d0ad11047bdc7fd4baa63c9d8bae30de
+[11-23 10:02:52] ########## pentagon (c3)
+[11-23 10:22:46] pentagon.c3 rc=0 (0be20e575)
+[11-23 10:22:46] pentagon.c3 rbf 03e3285d17bc480003155a161e342a14c79b0871ecab1656757d10ab5ea033d2
+[11-23 10:22:47] RESULT pentagon condition 3: gates passed, BUILD_ID 
+[11-23 10:22:47]        package 451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd.85fa4c32900f3e3bbb890bcaf31a633f891e48f662bf2c32eac8a02ddbc331a0.build-inputs.json
+[11-23 10:22:47]        package 451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd
+[11-23 10:22:47]        package 451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd.build-inputs.json
+[11-23 10:22:47]        package 451d783edd489a446bef4570e822bf27b19e87758c531dda92e828a946a2c7dd.fcore
+[11-23 10:22:47] stream done

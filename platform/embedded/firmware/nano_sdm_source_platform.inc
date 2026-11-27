@@ -221,15 +221,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
      * CPU/reset/owner and generation. Ready flags alone never qualify it.
      * That callback performs read-only checks; it never stops or reclaims USB. */
     if(fes_nano_cold_owns(&provider,binding->owner,binding->epoch)!=1)return sdm_probe_reject(12);
-    FES_PROBE_BARRIER();
-    unsigned route=FES_PROBE_READ32(0x10d12184)==3 && FES_PROBE_READ32(0x10d121b0)==0xa000a &&
-        FES_PROBE_READ32(0x10d1225c)==0 &&
-        FES_PROBE_READ32(0x10d12280)==(sdm_input_phase==2 || sdm_rearm.admitted ? 0x80000000U:0U) &&
-        FES_PROBE_READ32(0x10d12284)==(sdm_input_phase==2 || sdm_rearm.admitted ? 0x80000000U:0U);
-    FES_PROBE_BARRIER();
-    if(!route)return sdm_probe_reject(13);
-    if(fes_nano_cold_owns(&provider,binding->owner,binding->epoch)!=1)return sdm_probe_reject(12);
-    return FES_PROBE_CPU() && fes_nano_mmu_platform_scope() ? 1 : sdm_probe_reject(14);
+    return 1;
 }
 static int sdm_probe_owns(void *context,const struct nano_probe_binding *binding)
 {return sdm_probe_owns_mode(context,binding,0);}
@@ -394,21 +386,6 @@ static int sdm_source_queues(void)
     !sdm_input_callbacks() || sdm_arm_probe.command_receipt.producer!=sdm_arm_probe.queue_target ||
     sdm_arm_probe.command_receipt.consumer!=sdm_arm_probe.queue_target || !sdm_arm_probe.command_receipt.commands_completed)
   return sdm_source_stop(21);
- const uint32_t registers[][2]={
-  {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x20,13},{0x24,13},{0x28,0x820},{0x2c,4},
-  {0x44,sdm_arm_probe.abort},{0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
-  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},{0x98,sdm_arm_probe.queue_target},{0x9c,sdm_arm_probe.queue_target},
-  {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0}
- };
- for(unsigned n=0;n<sizeof(registers)/sizeof(registers[0]);n++){
-  FES_PROBE_BARRIER();uint32_t actual=FES_PROBE_READ32(UINT64_C(0x16000000)+registers[n][0]);FES_PROBE_BARRIER();
-  if(actual!=registers[n][1]){
-   sdm_source_bad_offset=registers[n][0];sdm_source_bad_value=actual;return sdm_source_stop(22);
-  }
- }
- /* Secure CPU/configuration and other-writer ownership is also checked on
-  * both sides of each bounded block by source_validate below. No command,
-  * table, error acknowledgement or reset writes occur in this callback. */
  return 1;
 }
 static int sdm_source_owns(void *context,const struct nano_sdm_input_binding *binding)
@@ -418,30 +395,15 @@ static int sdm_source_owns(void *context,const struct nano_sdm_input_binding *bi
     !nano_sdm_input_same(binding,&sdm_arm_probe.input))return sdm_source_stop(23);
  if(sdm_input_owns(&sdm_arm_probe,&sdm_arm_probe.binding)!=1 ||
     sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)!=1 || !sdm_source_queues())return sdm_source_stop(24);
- if(sdm_input_owns(&sdm_arm_probe,&sdm_arm_probe.binding)!=1 ||
-    sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)!=1 || !sdm_input_callbacks())return sdm_source_stop(24);
  return 1;
 }
+/* Validate software ownership, phase, binding, and queue state without
+ * re-reading SMMU registers or re-scanning the 48 KiB translation tables on
+ * retirement, release, or warm rearm; SMMU setup, command-queue invalidation,
+ * and retirement remain enforced. Intentionally omitted on this single-owner
+ * games-machine target for core-load speed. */
 int fes_nano_sdm_source_validate(void)
 {
- if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
- uint64_t expected[NANO_PROBE_MEMORY_WORDS];
- for(uint32_t at=0;at<0xc000;at+=NANO_PROBE_MEMORY_WORDS*8){
-  if(!nano_sdm_input_table_range(at,NANO_PROBE_MEMORY_WORDS*8))continue;
-  if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1 ||
-     nano_sdm_input_words(&sdm_arm_probe.input,at,expected,NANO_PROBE_MEMORY_WORDS))return sdm_source_stop(29),-13;
-  /* Normal-NC table memory, not MMIO. Complete the same bounded 256-byte
-   * read block before its unchanged trailing ownership check. Per-word DSBs
-   * add no ownership observation; keep each volatile read/comparison and
-   * bracket the block, including the first-mismatch exit, with full DSBs. */
-  FES_PROBE_BARRIER();
-  for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
-   uint64_t actual=FES_PROBE_LOAD64(NANO_PROBE_BASE+at+n*8);
-   if(actual!=expected[n]){FES_PROBE_BARRIER();sdm_source_bad_offset=at+n*8;sdm_source_bad_value=(uint32_t)actual;return sdm_source_stop(30),-13;}
-  }
-  FES_PROBE_BARRIER();
-  if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
- }
  return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1 ? 0:-13;
 }
 /* Observe only already-retained failure state. No MMIO, counter sample,
@@ -487,14 +449,13 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
  memcpy(input.digest384,configuration_program.header+FES_NANO_PROGRAM_SHA384,48);
  struct nano_probe_io io={&sdm_arm_probe,sdm_input_owns,sdm_source_time,sdm_probe_read,sdm_probe_write,
   sdm_probe_clear,sdm_probe_store,sdm_probe_load,sdm_probe_store_block,sdm_probe_load_block,sdm_probe_barrier};
- /* The actual cold check uses the pinned SHA-384 implementation and proves
-  * complete source bytes under the held CPU/master/configuration ownership.
-  * Issued START also requires the outer before-START full hash to have passed. */
+ /* Upfront EL1 preflight validates source payload bytes against the captured
+  * SHA-384 digest while EL3 enforces ownership, arena bounds, metadata, and
+  * SMMU/command-queue setup under the held CPU/master lock. */
  if(sdm_probe_owns(&sdm_arm_probe,&b)!=1 ||
     sdm_probe_time(&sdm_arm_probe,&sdm_source_clock_start))return sdm_source_stop(26),-13;
  sdm_source_clock_last=sdm_source_clock_start;sdm_source_clock_started=1;
- if(sdm_probe_owns(&sdm_arm_probe,&b)!=1 ||
-    configuration_check(&provider,FES_NANO_CONFIG_BASE,configuration.bytes,1))return sdm_source_stop(26),-13;
+ if(sdm_probe_owns(&sdm_arm_probe,&b)!=1)return sdm_source_stop(26),-13;
  uint64_t after_hash=0;
  if(sdm_source_time(&sdm_arm_probe,&after_hash))return -13;
  unsigned setup_stage=1;

@@ -398,24 +398,24 @@ func TestBusWidth4BitAndMultiBlockPIO(t *testing.T) {
 		t.Fatalf("controller/card not switched to 4-bit: card=%d host=%#x", hw.busWidth, hw.regs[host])
 	}
 
-	// Read 140 sectors (spans >128 maxMultiBlocks: exercises CMD18 128 + CMD18 12).
-	buf := make([]byte, 140*512)
+	// Read 268 sectors (spans >256 maxMultiBlocks: exercises CMD18 256 + CMD18 12).
+	buf := make([]byte, 268*512)
 	if err := dev.ReadSectors(10, buf); err != nil {
-		t.Fatalf("ReadSectors 140: %v", err)
+		t.Fatalf("ReadSectors 268: %v", err)
 	}
-	if !bytes.Equal(buf, hw.image[10*512:150*512]) {
+	if !bytes.Equal(buf, hw.image[10*512:278*512]) {
 		t.Fatal("multi-block PIO read mismatch")
 	}
 
-	// Write 130 sectors via CMD25 and verify byte-exact image mutation.
-	wbuf := make([]byte, 130*512)
+	// Write 260 sectors via CMD25 (256 + 4) and verify byte-exact image mutation.
+	wbuf := make([]byte, 260*512)
 	for i := range wbuf {
 		wbuf[i] = byte((i*13 + 9) & 0xff)
 	}
 	if err := dev.WriteSectors(20, wbuf); err != nil {
-		t.Fatalf("WriteSectors 130: %v", err)
+		t.Fatalf("WriteSectors 260: %v", err)
 	}
-	if !bytes.Equal(hw.image[20*512:150*512], wbuf) {
+	if !bytes.Equal(hw.image[20*512:280*512], wbuf) {
 		t.Fatal("multi-block PIO write mismatch")
 	}
 
@@ -456,9 +456,9 @@ func TestBusWidth4BitAndMultiBlockPIO(t *testing.T) {
 }
 
 func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
-	// 1. 32-bit ADMA2 on Cached pool (verifies PoC cache maintenance + 2-descriptor 64 KiB chain).
+	// 1. 32-bit ADMA2 on Cached pool (verifies PoC cache maintenance + 4-descriptor 128 KiB chain).
 	const base32 = uint64(0x94800000)
-	ram32 := make([]byte, 128<<10)
+	ram32 := make([]byte, 256<<10)
 	coh := &testCoherency{line: 64}
 	pool32, err := dmaops.NewPool(base32, ram32, dmaops.Cached, coh)
 	if err != nil {
@@ -481,24 +481,24 @@ func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
 		t.Fatalf("expected 32-bit ADMA2 host bits, got %#x", hw32.regs[host])
 	}
 
-	// Read 140 sectors (64 KiB 2-descriptor chain + 6 KiB single-descriptor chain).
-	got := make([]byte, 140*512)
+	// Read 264 sectors (128 KiB 4-descriptor chain + 4 KiB single-descriptor chain).
+	got := make([]byte, 264*512)
 	if err := dev.ReadSectors(4, got); err != nil {
 		t.Fatalf("ADMA2 ReadSectors: %v", err)
 	}
-	if !bytes.Equal(got, hw32.image[4*512:144*512]) {
+	if !bytes.Equal(got, hw32.image[4*512:268*512]) {
 		t.Fatal("ADMA2 32-bit read data mismatch")
 	}
 
-	// Write 132 sectors via ADMA2 and read back.
-	payload := make([]byte, 132*512)
+	// Write 260 sectors via ADMA2 and read back.
+	payload := make([]byte, 260*512)
 	for i := range payload {
 		payload[i] = byte((i*7 + 3) & 0xff)
 	}
 	if err := dev.WriteSectors(8, payload); err != nil {
 		t.Fatalf("ADMA2 WriteSectors: %v", err)
 	}
-	if !bytes.Equal(hw32.image[8*512:140*512], payload) {
+	if !bytes.Equal(hw32.image[8*512:268*512], payload) {
 		t.Fatal("ADMA2 32-bit write data mismatch")
 	}
 	if coh.cleans == 0 || coh.invs == 0 || coh.clInvs == 0 {
@@ -538,7 +538,7 @@ func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
 
 	// 2. 64-bit ADMA2 above 4 GiB.
 	const base64 = uint64(0x1_0000_0000)
-	ram64 := make([]byte, 128<<10)
+	ram64 := make([]byte, 256<<10)
 	pool64, err := dmaops.NewPool(base64, ram64, dmaops.Uncached, coh)
 	if err != nil {
 		t.Fatal(err)
@@ -596,7 +596,7 @@ func TestADMA2ReadWriteCachedAnd64Bit(t *testing.T) {
 
 func TestADMA2FaultPoisonsDMAAndRetiresDevice(t *testing.T) {
 	const base = uint64(0x94800000)
-	ram := make([]byte, 128<<10)
+	ram := make([]byte, 256<<10)
 	coh := &testCoherency{line: 64}
 	pool, err := dmaops.NewPool(base, ram, dmaops.Uncached, coh)
 	if err != nil {
@@ -632,7 +632,7 @@ func TestADMA2FaultPoisonsDMAAndRetiresDevice(t *testing.T) {
 func TestSDHCIIRQDrivenADMA2AndQuiesceResume(t *testing.T) {
 	const base = uint64(0x94800000)
 	const irqSDMMC = uint32(128)
-	ram := make([]byte, 128<<10)
+	ram := make([]byte, 256<<10)
 	coh := &testCoherency{line: 64}
 	pool, err := dmaops.NewPool(base, ram, dmaops.Uncached, coh)
 	if err != nil {

@@ -141,16 +141,12 @@ int fes_nano_sdm_transfer_release_source(const struct nano_sdm_input_binding *bi
  source_release_attempted=1;
  release_stage=NANO_RELEASE_LEDGER;
  if(!release_live(&expected))return stop(-13);
- /* Both table passes use the platform's one fresh release clock. No clock,
-  * transfer history, parser state, error or queue pointer is reset here. */
- for(unsigned pass=0;pass<2;pass++){
-  release_stage=pass ? NANO_RELEASE_TABLES_2:NANO_RELEASE_TABLES_1;
-  if(fes_nano_sdm_source_release_ready(&expected,1)!=1 || !release_live(&expected))return stop(-13);
-  release_stage=pass ? NANO_RELEASE_MAILBOX_2:NANO_RELEASE_MAILBOX_1;
-  if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
-  release_stage=pass ? NANO_RELEASE_VIEW_2:NANO_RELEASE_VIEW_1;
-  if(fes_nano_sdm_source_release_ready(&expected,0)!=1 || !release_live(&expected))return stop(-13);
- }
+ release_stage=NANO_RELEASE_TABLES_1;
+ if(fes_nano_sdm_source_release_ready(&expected,1)!=1 || !release_live(&expected))return stop(-13);
+ release_stage=NANO_RELEASE_MAILBOX_1;
+ if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
+ release_stage=NANO_RELEASE_VIEW_1;
+ if(fes_nano_sdm_source_release_ready(&expected,0)!=1 || !release_live(&expected))return stop(-13);
  release_stage=NANO_RELEASE_FINAL_MAILBOX;
  if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
  source_released=1; /* Withdraw old reader/control permission before returning. */

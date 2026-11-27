@@ -134,8 +134,20 @@ func (s *sharedProgramMulti) NextGamepadUpdate() (usbhub.GamepadUpdate, bool) {
 	}
 	return upd, ok
 }
+func (s *sharedProgramMulti) NextMouseUpdate() (usbhub.MouseUpdate, bool) {
+	upd, ok := s.hub.NextMouseUpdate()
+	if ok {
+		s.metrics.reports++
+	}
+	return upd, ok
+}
+func (s *sharedProgramMulti) GamepadGeneration() uint64 { return s.hub.GamepadGeneration() }
+func (s *sharedProgramMulti) GamepadDevicesInto(dst []usbhub.GamepadDevice) int {
+	return s.hub.GamepadDevicesInto(dst)
+}
 func (s *sharedProgramMulti) KeyboardNeutral() bool { return s.hub.KeyboardNeutral() }
 func (s *sharedProgramMulti) GamepadNeutral() bool  { return s.hub.GamepadNeutral() }
+func (s *sharedProgramMulti) MouseNeutral() bool    { return s.hub.MouseNeutral() }
 func (s *sharedProgramMulti) SetGameplayActive(active bool) error {
 	return s.hub.SetGameplayActive(active)
 }

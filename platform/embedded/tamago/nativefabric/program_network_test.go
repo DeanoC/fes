@@ -10,7 +10,6 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
-	gnet "github.com/usbarmory/go-net"
 )
 
 // Models platform ownership only; these callbacks are not physical DMA proof.
@@ -26,7 +25,7 @@ func (*programNetwork) Transmit([]byte) error       { return nil }
 func newProgramNetwork(t *testing.T, lifetime ...context.Context) (*programNetwork, *network.Controller) {
 	t.Helper()
 	n := &programNetwork{}
-	l, err := network.NewLink(gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig()), n, "192.0.2.2/24", "02:00:00:00:00:02", "")
+	l, err := network.NewLink(nil, n, "192.0.2.2/24", "02:00:00:00:00:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,11 +233,21 @@ func TestProgramNetworkServiceReturnsRestartError(t *testing.T) {
 	n, _ := attachProgramNetwork(t, f.s, f.loader)
 	request, _, _ := addProgram(t, f.loader, f.files, 0)
 	n.startErr = errors.New("restart completion lost")
+	var final ProgramServiceState
+	var finalErr error
+	f.s.state.launchTrace = func(view ProgramServiceStatus, stage string, err error) {
+		if stage == "complete" {
+			final, finalErr = view.State, err
+		}
+	}
 	if _, err := f.s.Launch(context.Background(), 0, request); !errors.Is(err, n.startErr) || !errors.Is(err, ErrProgramRetired) {
 		t.Fatal("direct service omitted deferred restart error", err)
 	}
 	if f.s.Status().State != ProgramRebootRequired {
 		t.Fatal("direct caller saw healthy state")
+	}
+	if final != ProgramRebootRequired || !errors.Is(finalErr, n.startErr) {
+		t.Fatalf("completion trace missed the restart failure: %s, %v", final, finalErr)
 	}
 }
 

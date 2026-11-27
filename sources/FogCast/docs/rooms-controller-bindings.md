@@ -6,7 +6,7 @@ connected controller; this page is the physical table those prompts resolve
 to.
 
 **Present tense** describes `ui/tenfoot` on main tip (`input.go`,
-`keyboard.go`, `sdl.go` GUIDE, `room.go` delivery). Rows marked **proposed**
+`keyboard.go`, `sdl_keys.go` GUIDE, `room.go` delivery). Rows marked **proposed**
 or **gap** are not current room behaviour.
 
 Attract is not a common controller action. Decided policy (2026-09-19, PR
@@ -171,7 +171,7 @@ binding drive-by:
 | --- | --- |
 | `ui/tenfoot/input.go` | `CommandFromButton`, hold-gate, long-press map |
 | `ui/tenfoot/keyboard.go` | `CommandFromKey` |
-| `ui/tenfoot/sdl.go` | `SDL_GAMEPAD_BUTTON_GUIDE` → `CmdSettings` |
+| `ui/tenfoot/sdl_keys.go` | `SDL_GAMEPAD_BUTTON_GUIDE` → `CmdSettings` |
 | `ui/tenfoot/room.go` | room delivery; Home vs unconsumed Back |
 | `ui/tenfoot/pointer.go` | compact destination strip hit → Details |
 | `ui/tenfoot/hints.go` | affinity prompt words (A / B / GUIDE / Enter / Esc) |

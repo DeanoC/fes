@@ -29,6 +29,7 @@ RULES = [
         'scripts/de25_restore.py',
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
+        'scripts/bundle.py', 'scripts/core_catalog.py', 'scripts/nightly_qualification.py',
     )],
     # This offline capture classifier reads saved frames and does not access a kit.
     ('scripts/de25_boot_screen.py', 'none', None),
@@ -63,6 +64,9 @@ RULES = [
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
     ('scripts/build.py', 'full', 'build-system'),
     ('scripts/environment.py', 'full', 'build-system'),
+    # Bare-metal TamaGo is an opt-in, Linux-free target. It has no Kit D25
+    # deployment path yet; validate it with host tests, QEMU and cross-builds.
+    ('platform/embedded/**', 'none', None),
     ('scripts/media*.py', 'full', 'boot-media'), ('platform/**', 'full', 'platform'),
     ('sources/FogCast/build/**', 'full', 'image'),
     ('sources/FogCast/Makefile', 'full', 'build-system'),
@@ -102,6 +106,8 @@ RULES = [
     ('sources/misteross/boards/de25nano/**/*_harness.v', 'none', None),
     ('sources/misteross/boards/de25nano/**/sim.py', 'none', None),
     ('sources/misteross/boards/de25nano/**/*_sim.py', 'none', None),
+    # Only the Verilator benches consume this board-specific lint config.
+    ('sources/misteross/boards/de25nano/pcxt/video.vlt', 'none', None),
     # The managed SDRAM smoke embeds the scanner and controller from the
     # standalone lane; those files now have deployed DE25 consumers.
     ('sources/misteross/boards/de25nano/ramtest/managed/**', 'overlay', 'core:de25-ramtest'),
@@ -146,6 +152,9 @@ RULES = [
     # disks in fogcast-api.
     ('sources/FogCast/cmd/fes-spectrum-restore/**', 'none', None),
     ('sources/FogCast/cmd/fes-spectrum-disk/**', 'none', None),
+    # RetainArchive and Archive are currently used only by the Linux-free
+    # TamaGo target; the callsite boundary is guarded in test_hil_plan.py.
+    ('sources/FogCast/corepackage/archive.go', 'none', None),
     ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
     # ui/** is compiled into fogcast-kit, fogcast-tenfoot and fogcast-api, so it
     # falls through to kit-go+host below.
@@ -608,6 +617,10 @@ def expand(row, consumers):
 
 GO_INVENTORY = 'config/hil-go-consumers.json'
 GO_ROOTS = ('sources/FogCast/', 'sources/misteross/expansion/')
+# This source file provides the retained archive API used by the opt-in
+# embedded target. Package-level build consumers are broader than its call
+# graph, so import reachability alone must not imply kit deployment.
+EMBEDDED_ONLY_GO_INPUTS = frozenset({'sources/FogCast/corepackage/archive.go'})
 # Go 1.26 go/build.fileListForExt, plus Go source.
 GO_SOURCE_SUFFIXES = ('.go', '.c', '.cc', '.cpp', '.cxx', '.m', '.h', '.hh',
                       '.hpp', '.hxx', '.f', '.F', '.for', '.f90', '.s', '.S',
@@ -822,7 +835,8 @@ def plan(paths, texts=None, go_inventories=None, go_graph_changes=None, inventor
             if texts is None:
                 texts = script_texts()
             expand(row, script_importers(row['path'], texts))
-    possible = [row for row in rows if row['path'].startswith(GO_ROOTS)]
+    possible = [row for row in rows if row['path'].startswith(GO_ROOTS) and
+                row['path'] not in EMBEDDED_ONLY_GO_INPUTS]
     commands, unknown = [], []
     if possible:
         inventories = go_inventories if go_inventories is not None else [read_go_inventory()]
@@ -856,11 +870,12 @@ def plan(paths, texts=None, go_inventories=None, go_graph_changes=None, inventor
     if worst == 'none':
         result['kit_targets'] = []
     elif any(component.startswith('core:de25-') for component in components) or any(
-            'de25' in row['path'].lower() for row in rows):
+            'de25' in row['path'].lower() for row in rows if row['class'] != 'none'):
         result['kit_targets'] = ['D25']
     else:
         result['kit_targets'] = ['A', 'B']
-    relevant = [row for row in rows if go_input(row)]
+    relevant = [row for row in rows if go_input(row) and
+                row['path'] not in EMBEDDED_ONLY_GO_INPUTS]
     if relevant or commands or inventory_errors:
         required = [command for command in commands
                     if command['role'] in ('image', 'host-tool', 'builder')]

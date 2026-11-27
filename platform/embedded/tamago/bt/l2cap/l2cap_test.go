@@ -189,11 +189,23 @@ func TestBondStoreJSONRoundTripAndBounds(t *testing.T) {
 		Name:      "DualSense Wireless Controller",
 		VendorID:  0x054c,
 		ProductID: 0x0ce6,
+		Version:   0x0100,
 		Kind:      controllers.KindDualSense,
 		Slot:      0,
 	}
 	if err := store.Upsert(rec); err != nil || !store.Dirty() {
 		t.Fatalf("Upsert: err=%v dirty=%t", err, store.Dirty())
+	}
+	// Upserting metadata for an existing bond with Version==0 preserves the stored Version.
+	if err := store.Upsert(BondRecord{
+		Addr:      addr,
+		LinkKey:   rec.LinkKey,
+		Name:      "DualSense Wireless Controller",
+		VendorID:  0x054c,
+		ProductID: 0x0ce6,
+		Kind:      controllers.KindDualSense,
+	}); err != nil {
+		t.Fatalf("Upsert metadata update: %v", err)
 	}
 	raw, err := store.MarshalJSON()
 	if err != nil {
@@ -209,7 +221,7 @@ func TestBondStoreJSONRoundTripAndBounds(t *testing.T) {
 		t.Fatalf("UnmarshalJSON: %v", err)
 	}
 	got, ok := reloaded.Lookup(addr)
-	if !ok || got.LinkKey != rec.LinkKey || got.Name != rec.Name || got.Kind != controllers.KindDualSense {
+	if !ok || got.LinkKey != rec.LinkKey || got.Name != rec.Name || got.Version != 0x0100 || got.Kind != controllers.KindDualSense {
 		t.Fatalf("reloaded mismatch: ok=%t got=%+v", ok, got)
 	}
 	if !reloaded.Remove(addr) || len(reloaded.List()) != 0 {
@@ -789,8 +801,8 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Keyboards, mice, combo devices, and other Peripheral subclasses are rejected.
-	for i, cod := range []uint32{0x000540, 0x000580, 0x00050c, 0x0005c0, 0x002548, 0x5a020c} {
+	// Keyboards, combo devices, remotes, and non-HID classes are rejected fail-closed.
+	for i, cod := range []uint32{0x000540, 0x00050c, 0x0005c0, 0x00058c, 0x002548, 0x5a020c} {
 		peer := BDAddr{0x66, 0x55, 0x44, 0x33, 0x22, byte(i + 1)}
 		req := append([]byte{hci.EventConnectionRequest, 10}, peer[:]...)
 		req = append(req, byte(cod), byte(cod>>8), byte(cod>>16), 0x01)
@@ -803,7 +815,7 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 		}
 	}
 
-	// Gamepad CoD 0x002508 is accepted during pairing.
+	// Gamepad CoD 0x002508 and pointing/mouse CoD 0x000580 are accepted during pairing.
 	gamepad, _ := ParseBDAddr("77:66:55:44:33:22")
 	hidReq := append([]byte{hci.EventConnectionRequest, 10}, gamepad[:]...)
 	hidReq = append(hidReq, 0x08, 0x25, 0x00, 0x01)
@@ -814,9 +826,19 @@ func TestPairingRejectsUnsupportedPeripheralConnection(t *testing.T) {
 	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], gamepad[:]) {
 		t.Fatalf("expected gamepad CoD to be accepted during pairing, got %x", got)
 	}
+	mouse, _ := ParseBDAddr("77:66:55:44:33:23")
+	mouseReq := append([]byte{hci.EventConnectionRequest, 10}, mouse[:]...)
+	mouseReq = append(mouseReq, 0x80, 0x05, 0x00, 0x01)
+	bus.evPipe.inQueue = append(bus.evPipe.inQueue, mouseReq)
+	if err := mgr.Service(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bus.lastParams[hci.OpcodeAcceptConnectionRequest]; len(got) < 6 || !bytes.Equal(got[:6], mouse[:]) {
+		t.Fatalf("expected mouse CoD to be accepted during pairing, got %x", got)
+	}
 }
 
-func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
+func TestPairingInquiryConnectsOnlyGamepadJoystickOrMouse(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		cod  uint32
@@ -824,9 +846,11 @@ func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
 	}{
 		{name: "gamepad", cod: 0x002508, want: true},
 		{name: "joystick", cod: 0x002504, want: true},
+		{name: "mouse", cod: 0x000580, want: true},
+		{name: "mouse minor class", cod: 0x002580, want: true},
 		{name: "keyboard", cod: 0x000540},
-		{name: "mouse", cod: 0x000580},
 		{name: "remote control", cod: 0x00050c},
+		{name: "pointing remote combo", cod: 0x00058c},
 		{name: "keyboard and mouse", cod: 0x0005c0},
 		{name: "gamepad with keyboard flag", cod: 0x002548},
 	} {
@@ -862,6 +886,21 @@ func TestPairingInquiryConnectsOnlyGamepadOrJoystick(t *testing.T) {
 			_, got := bus.lastParams[hci.OpcodeCreateConnection]
 			if got != tc.want {
 				t.Fatalf("CreateConnection present=%t, want %t for CoD %#06x", got, tc.want, tc.cod)
+			}
+			if tc.name == "mouse" {
+				// Complete pairing -> persisted bond records KindMouse cleanly.
+				connOK := append([]byte{hci.EventConnectionComplete, 11, 0, 0x41, 0x00}, peer[:]...)
+				connOK = append(connOK, 0x01, 0x00)
+				linkKey := append([]byte{hci.EventLinkKeyNotification, 23}, peer[:]...)
+				linkKey = append(linkKey, make([]byte, 16)...)
+				linkKey = append(linkKey, 0x04)
+				bus.evPipe.inQueue = append(bus.evPipe.inQueue, connOK, linkKey)
+				if err := mgr.Service(); err != nil {
+					t.Fatal(err)
+				}
+				if rec, ok := mgr.Bonds().Lookup(peer); !ok || rec.Kind != controllers.KindMouse {
+					t.Fatalf("expected bonded mouse KindMouse, got ok=%t rec=%+v", ok, rec)
+				}
 			}
 		})
 	}
@@ -1169,14 +1208,26 @@ func TestManagerResumesInquiryAfterPairingDisconnect(t *testing.T) {
 	}
 }
 
-func makeSDPPnPAttrList(vid, pid uint16) []byte {
+func makeSDPPnPAttrList(vid, pid, version uint16) []byte {
+	if version == 0 {
+		return []byte{
+			0x35, 0x0e, // Outer DES (14 bytes)
+			0x35, 0x0c, // Record DES (12 bytes)
+			0x09, 0x02, 0x01, // AttrID 0x0201 (VendorID)
+			0x09, byte(vid >> 8), byte(vid),
+			0x09, 0x02, 0x02, // AttrID 0x0202 (ProductID)
+			0x09, byte(pid >> 8), byte(pid),
+		}
+	}
 	return []byte{
-		0x35, 0x0e, // Outer DES (14 bytes)
-		0x35, 0x0c, // Record DES (12 bytes)
+		0x35, 0x14, // Outer DES (20 bytes)
+		0x35, 0x12, // Record DES (18 bytes)
 		0x09, 0x02, 0x01, // AttrID 0x0201 (VendorID)
 		0x09, byte(vid >> 8), byte(vid),
 		0x09, 0x02, 0x02, // AttrID 0x0202 (ProductID)
 		0x09, byte(pid >> 8), byte(pid),
+		0x09, 0x02, 0x03, // AttrID 0x0203 (Version)
+		0x09, byte(version >> 8), byte(version),
 	}
 }
 
@@ -1217,7 +1268,7 @@ func TestSDPPnPDistinguishesDualSenseAndDualShock4NamedWirelessController(t *tes
 		resolved = append(resolved, kind)
 	}
 
-	resolveViaSDP := func(handle uint16, addr BDAddr, vid, pid uint16, twoChunk bool) {
+	resolveViaSDP := func(handle uint16, addr BDAddr, vid, pid, version uint16, twoChunk bool) {
 		t.Helper()
 		_ = bonds.Upsert(BondRecord{Addr: addr, LinkKey: [16]byte{byte(handle)}})
 		connOK := append([]byte{hci.EventConnectionComplete, 11, 0, byte(handle), byte(handle >> 8)}, addr[:]...)
@@ -1280,7 +1331,7 @@ func TestSDPPnPDistinguishesDualSenseAndDualShock4NamedWirelessController(t *tes
 			return tx
 		}
 
-		attrList := makeSDPPnPAttrList(vid, pid)
+		attrList := makeSDPPnPAttrList(vid, pid, version)
 		if twoChunk {
 			tx1 := lastSDPTxID()
 			if tx1 == 0 {
@@ -1326,15 +1377,15 @@ func TestSDPPnPDistinguishesDualSenseAndDualShock4NamedWirelessController(t *tes
 
 	dsAddr, _ := ParseBDAddr("77:11:22:33:44:55")
 	ds4Addr, _ := ParseBDAddr("77:11:22:33:44:56")
-	resolveViaSDP(0x0049, dsAddr, 0x054c, 0x0ce6, true)
-	resolveViaSDP(0x004a, ds4Addr, 0x054c, 0x09cc, false)
+	resolveViaSDP(0x0049, dsAddr, 0x054c, 0x0ce6, 0x0100, true)
+	resolveViaSDP(0x004a, ds4Addr, 0x054c, 0x09cc, 0, false)
 
 	recDS, ok1 := bonds.Lookup(dsAddr)
 	recDS4, ok2 := bonds.Lookup(ds4Addr)
-	if !ok1 || recDS.Kind != controllers.KindDualSense || recDS.VendorID != 0x054c || recDS.ProductID != 0x0ce6 {
+	if !ok1 || recDS.Kind != controllers.KindDualSense || recDS.VendorID != 0x054c || recDS.ProductID != 0x0ce6 || recDS.Version != 0x0100 {
 		t.Fatalf("DualSense named 'Wireless Controller' misclassified: ok=%t rec=%+v", ok1, recDS)
 	}
-	if !ok2 || recDS4.Kind != controllers.KindDualShock4 || recDS4.VendorID != 0x054c || recDS4.ProductID != 0x09cc {
+	if !ok2 || recDS4.Kind != controllers.KindDualShock4 || recDS4.VendorID != 0x054c || recDS4.ProductID != 0x09cc || recDS4.Version != 0 {
 		t.Fatalf("DualShock 4 named 'Wireless Controller' misclassified: ok=%t rec=%+v", ok2, recDS4)
 	}
 	if len(resolved) < 4 || resolved[1] != controllers.KindDualSense || resolved[3] != controllers.KindDualShock4 {

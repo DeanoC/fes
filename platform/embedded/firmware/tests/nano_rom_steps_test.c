@@ -241,8 +241,8 @@ int main(int argc,char **argv)
     } else {
         assert(result<0 && computer_rom.failed && !computer_rom.complete);
         if(fault==1)assert(result==FES_NANO_ROM_LIMIT && !modeled_ownership[1]);
-        if(fault==2 || fault==3 || fault==4 || fault==16)assert(sink.words<=8);
-        if(fault>=5 && fault<=15)assert(sink.words<=5);
+        if(fault==2 || fault==3 || fault==4 || fault==6 || fault==7 || fault==16)assert(sink.words<=8);
+        if(fault==5 || (fault>=8 && fault<=15))assert(sink.words<=5);
         if(fault==20)assert(!sink.words && computer_rom_step.polls==FES_EMBEDDED_ROM_MAX_POLLS);
         if(fault==21 || fault==22)assert(result==FES_NANO_ROM_LIMIT && sink.words==5);
         if(fault==24)assert(result==FES_NANO_ROM_INTEGRITY && !sink.reads && !sink.writes);

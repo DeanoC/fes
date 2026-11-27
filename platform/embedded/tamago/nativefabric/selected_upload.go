@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -120,12 +121,29 @@ func (l *ProgramLoader) admitUploadPackage(selection *packagestore.Selection, sh
 	if err != nil || int64(len(firmware)) != d.ROM.SourceSize || hex.EncodeToString(digest[:]) != r.ROMSourceSHA256 {
 		return nil, errors.New("native fabric: uploaded firmware differs from the retained receipt")
 	}
-	payload, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
-	if err != nil {
-		return nil, err
+	key := preflightCacheKey{
+		packageID:  i.PackageID,
+		buildID:    d.Build.ID,
+		coreSHA256: shell.configuration.CoreSHA256,
+		coreSize:   shell.configuration.CoreSize,
+		chunkBytes: shell.configuration.ChunkBytes,
 	}
-	if err := checkConfigurationBytes(shell.configuration, payload); err != nil {
-		return nil, err
+	var payload []byte
+	if cached, coreSHA384, chunkSHA384, ok := l.planCache.get(key); ok {
+		if coreSHA384 != shell.configuration.CoreSHA384 || !slices.Equal(chunkSHA384, shell.configuration.ChunkSHA384) {
+			return nil, errors.New("native fabric: staged core differs from compiled package")
+		}
+		payload = cached
+	} else {
+		l.planCache.recordExtract()
+		payload, err = io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
+		if err != nil {
+			return nil, err
+		}
+		if err := checkConfigurationBytes(shell.configuration, payload); err != nil {
+			return nil, err
+		}
+		l.planCache.put(key, payload, shell.configuration.CoreSHA384, shell.configuration.ChunkSHA384)
 	}
 	id := fabricmodel.PackageIdentity{PackageID: i.PackageID, BuildID: d.Build.ID, CoreID: d.Core.ID,
 		ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), Platform: d.Target.Platform, Device: d.Target.Device,

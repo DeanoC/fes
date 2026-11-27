@@ -53,7 +53,7 @@ class SupportMatrixTests(unittest.TestCase):
         for closed in ('#1402', '#1561', '#1613'):
             self.assertNotIn(closed, row['signals']['open_issues'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
-        self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data))
+        self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
 
     def test_pc386_records_the_sealed_development_package_on_a_kit(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -104,7 +104,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertNotIn('separate row', meaning)
         self.assertIn('dated evidence on the row', meaning)
         self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
-                      SUPPORT_MATRIX.render(data))
+                      SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
 
     def test_check_level_is_derived_from_the_quality_ladder(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -126,9 +126,39 @@ class SupportMatrixTests(unittest.TestCase):
                 self.assertEqual('held-back', by_id[core_id]['release'])
         self.assertEqual('via-consumer', by_id['i386']['check_level'])
         self.assertEqual('none', by_id['fes.c64-ntsc']['check_level'])
-        self.assertIn('- **Reduced checks:** `fes.pong`', SUPPORT_MATRIX.render(data))
-        self.assertIn(SUPPORT_MATRIX.CHECK_IN_FORCE, SUPPORT_MATRIX.render(data))
-        self.assertNotIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data))
+        self.assertIn('- **Reduced checks:** `fes.pong`', SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
+        self.assertIn(SUPPORT_MATRIX.CHECK_IN_FORCE, SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
+        self.assertNotIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
+
+    def test_long_check_level_meaning_wraps_without_losing_text(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        meaning = next(
+            level['meaning'] for level in data['check_policy']['levels']
+            if level['id'] == 'full'
+        )
+        lines = SUPPORT_MATRIX.render_check_policy(data)
+        start = lines.index('| Checks | Expected evidence |') + 2
+        full_rows = []
+        in_full = False
+        for line in lines[start:]:
+            if not line.startswith('| '):
+                break
+            cells = [part.strip() for part in line.split('|')]
+            label, value = cells[1], cells[2]
+            if label == 'Full':
+                in_full = True
+            elif label and in_full:
+                break
+            if in_full:
+                full_rows.append(value)
+
+        self.assertEqual(meaning, ' '.join(full_rows))
+        self.assertGreater(len(full_rows), 1)
+        self.assertTrue(all(
+            len(line) <= SUPPORT_MATRIX.HUMAN_TABLE_ROW_LIMIT
+            for line in lines
+            if line.startswith('| ') and not line.startswith('| ---')
+        ))
 
     def test_a_hand_set_check_level_or_quality_tier_is_rejected(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -446,24 +476,49 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('v2', by_id['fes.pc386']['release'])
         self.assertEqual('held-back', by_id['fes.coleco']['release'])
         self.assertNotIn('release', by_id['fes.menu'])
-        self.assertIn('- **v2:** `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data))
+        self.assertIn('- **v2:** `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
         del by_id['fes.sms']['release']
         by_id['z80']['release'] = 'v1'
         errors = SUPPORT_MATRIX.validate(ROOT, data)
         self.assertIn("fes.sms release None is not one of v1, v2, held-back", errors)
         self.assertIn('z80 is not a release package but records release', errors)
 
-    def test_de25_cell_is_blank_for_rows_without_board_bitstreams(self):
+    def test_de25_cells_follow_producers_and_distinguish_partial_groups(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
-        for core_id in ('sim.pong', 'i386', 'z80', 'cpu6502', 'fx68k', 'tv80'):
+        ids = SUPPORT_MATRIX.de25_core_ids(ROOT)
+        for core_id in ('fes.c64-ntsc', 'fes.c64-early-ntsc', 'fes.c64c',
+                        'fes.c64c-ntsc', 'fes.pong', 'sim.pong', 'i386'):
             with self.subTest(core_id=core_id):
-                self.assertNotEqual('de10', by_id[core_id]['board'])
-                self.assertEqual('—', SUPPORT_MATRIX.de25_cell(by_id[core_id]))
-        # pc386's sealed development package has a DE10-Nano bitstream, so its
-        # DE25 cell follows the policy line like every other board row.
-        self.assertEqual('de10', by_id['fes.pc386']['board'])
-        self.assertEqual('Quartus', SUPPORT_MATRIX.de25_cell(by_id['fes.pc386']))
+                self.assertEqual('—', SUPPORT_MATRIX.de25_cell([by_id[core_id]], ids))
+        for core_id in ('fes.menu', 'fes.c64', 'fes.pcxt-dos', 'fes.pc386',
+                        'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon'):
+            with self.subTest(core_id=core_id):
+                self.assertEqual('Quartus', SUPPORT_MATRIX.de25_cell([by_id[core_id]], ids))
+        rendered = SUPPORT_MATRIX.render(data, ids)
+        self.assertIn('| ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | Quartus | Quartus (fes.zx81 only) |', rendered)
+        self.assertIn('| Spectrum (48K, 128K, +2, +2A/+3, Pentagon) | Current | OSS | Quartus |', rendered)
+
+    def test_de25_ids_follow_registry_and_literal_machine_models(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'config').mkdir()
+            (root / 'config/core-recipes.toml').write_text(
+                '[[recipes]]\ncore_id = "registered"\nboard = "de25-nano"\n'
+                '[[recipes]]\ncore_id = "de10-only"\nboard = "de10-nano"\n')
+            producers = root / SUPPORT_MATRIX.DE25 / 'producers'
+            producers.mkdir(parents=True)
+            producer = producers / 'build_example_package.py'
+            producer.write_text("MACHINE = Machine(core_id='dev', descriptions={'other': 'Other'}, "
+                                "model_core_ids={'other': 'dev.other'})\n")
+            self.assertEqual({'registered', 'dev', 'dev.other'}, SUPPORT_MATRIX.de25_core_ids(root))
+            producer.write_text("MACHINE = Machine(core_id='dev', descriptions={}, "
+                                "model_core_ids={'removed': 'dev.other'})\n")
+            with self.assertRaisesRegex(ValueError, 'malformed producer core IDs'):
+                SUPPORT_MATRIX.de25_core_ids(root)
+            producer.write_text("MACHINE = Machine(core_id=dynamic_id)\n")
+            with self.assertRaisesRegex(ValueError, 'producer core IDs must be literal'):
+                SUPPORT_MATRIX.de25_core_ids(root)
 
     def test_optional_atari_st_row_shows_derived_tier(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -473,7 +528,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('experimental', row['signals']['catalog_standing'])
         self.assertEqual('current', row['tier'])
         line = next(
-            line for line in SUPPORT_MATRIX.render(data).splitlines()
+            line for line in SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)).splitlines()
             if line.startswith('| Atari ST (520ST) |')
         )
         self.assertIn('| Current |', line)
@@ -486,7 +541,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('unresolved', SUPPORT_MATRIX.derive_tier(coleco))
         self.assertEqual('aging', coleco['tier'])
         self.assertEqual('Deano 2026-10-29', coleco['tier_override']['reason'])
-        rendered = SUPPORT_MATRIX.render(data)
+        rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
         self.assertIn('| `fes.coleco` | Aging |', rendered)
         self.assertNotIn('Unresolved', rendered)
         self.assertIn('Spectrum (48K, 128K, +2, +2A/+3, Pentagon)', rendered)
@@ -525,7 +580,7 @@ class SupportMatrixTests(unittest.TestCase):
         # the tier, and the derived level keeps them in closure sweeps.
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
-        rendered = SUPPORT_MATRIX.render(data)
+        rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
         for core_id, display in (('fes.c64c', 'C64C (PAL)'), ('fes.c64c-ntsc', 'C64C (NTSC)')):
             with self.subTest(core_id=core_id):
                 row = by_id[core_id]
@@ -704,6 +759,138 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('tape, disk (some), keys, HDMI', SUPPORT_MATRIX.feature_union(
             ['fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon']))
         self.assertEqual('tape, keys, HDMI', SUPPORT_MATRIX.feature_union(['fes.zx81', 'fes.zx80']))
+
+    def test_de25_progress_covers_every_tier1_core_once(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual([], SUPPORT_MATRIX.validate_de25_progress(ROOT, data, by_id))
+        machines = data['de25_tier1']['machines']
+        spectrum = next(m for m in machines if m['label'] == 'Spectrum family')
+        del spectrum['cells']['fes.pentagon']
+        machines[0]['cells']['fes.c64'] = 'builds'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 has no cell for tier 1 core fes.pentagon', errors)
+        self.assertIn('de25_tier1 records fes.c64 twice', errors)
+
+    def test_de25_progress_state_must_match_producers_and_recipes(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        cells = {cid: m['cells'] for m in data['de25_tier1']['machines'] for cid in m['cells']}
+        cells['fes.zx80']['fes.zx80'] = 'builds'
+        cells['fes.pc386']['fes.pc386'] = 'sealed'
+        cells['fes.c64']['fes.c64'] = 'none'
+        cells['fes.atari-st']['fes.atari-st'] = 'kit-accepted'
+        cells['fes.pcxt-dos']['fes.pcxt-dos'] = 'shipped'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 fes.zx80 says builds but no DE25 producer builds it', errors)
+        self.assertIn('de25_tier1 fes.pc386 says sealed without a registered DE25 recipe', errors)
+        self.assertIn('de25_tier1 fes.c64 says none but a DE25 producer builds it', errors)
+        self.assertIn('de25_tier1 fes.atari-st says kit-accepted without the package that ran on Kit D25', errors)
+        self.assertIn("de25_tier1 fes.pcxt-dos state 'shipped' is not a DE25 state", errors)
+
+    def test_de25_registered_ids_include_models_of_registered_producers_only(self):
+        registered = SUPPORT_MATRIX.de25_registered_ids(ROOT)
+        built = SUPPORT_MATRIX.de25_core_ids(ROOT)
+        self.assertIn('fes.pentagon', registered)
+        self.assertIn('fes.pc386', built)
+        self.assertNotIn('fes.pc386', registered)
+
+    def test_de25_progress_renders_states_per_machine(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
+        self.assertIn('## DE25 tier 1 progress', rendered)
+        self.assertIn('| pc386 | builds: `fes.pc386` |', rendered)
+        self.assertIn('none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; builds: `fes.zx81`', rendered)
+
+    def test_de25_sealed_needs_the_exact_package_in_a_smoke_record(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        machine = next(m for m in data['de25_tier1']['machines'] if 'fes.atari-st' in m['cells'])
+        machine['cells']['fes.atari-st'] = 'sealed'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('de25_tier1 fes.atari-st says sealed without the package that ran on Kit D25', errors)
+
+    def test_de25_smoke_receipt_must_match_core_package_kit_and_pass(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        good = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.atari-st', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def run(receipt, name='smoke.json', digest=sha):
+                (root / name).write_text(receipt if isinstance(receipt, str) else json.dumps(receipt))
+                return check(root, 'fes.atari-st', 'sealed', {'sha256': digest, 'evidence': name})
+            self.assertEqual([], run(good))
+            self.assertIn('package sha256 is not a lowercase SHA-256', run(good, digest=sha.upper())[0])
+            self.assertIn('not JSON', run('ab' * 32, name='record.md')[0])
+            self.assertIn('outside the repository',
+                          check(root / 'inner', 'fes.atari-st', 'sealed', {'sha256': sha, 'evidence': '../smoke.json'})[0])
+            self.assertIn('outside the repository',
+                          check(root, 'fes.atari-st', 'sealed', {'sha256': sha, 'evidence': str(root / 'smoke.json')})[0])
+            self.assertIn('unreadable', run('{', name='bad.json')[0])
+            for key, value in (('core_id', 'fes.zx81'), ('package_sha256', 'cd' * 32),
+                               ('kit_serial', 'TRWU8CBL'), ('verdict', 'FAIL')):
+                with self.subTest(key=key):
+                    errors = run({**good, key: value})
+                    self.assertEqual(1, len(errors), errors)
+                    self.assertIn(f'has {key} {value!r}', errors[0])
+
+    def test_de25_kit_acceptance_needs_its_own_per_core_receipt(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        smoke = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.pentagon', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'smoke.json').write_text(json.dumps(smoke))
+            package = {'sha256': sha, 'evidence': 'smoke.json'}
+            self.assertEqual([], check(root, 'fes.pentagon', 'sealed', package))
+            errors = check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)
+            self.assertIn('acceptance receipt is missing or not JSON', errors[0])
+            accepted = {**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}
+            (root / 'accept.json').write_text(json.dumps({**accepted, 'core_id': 'fes.spectrum'}))
+            package['acceptance'] = 'accept.json'
+            errors = check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn("has core_id 'fes.spectrum'", errors[0])
+            (root / 'accept.json').write_text(json.dumps({**accepted, 'corpus': 'FAIL'}))
+            self.assertIn("has corpus 'FAIL'", check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True)[0])
+            (root / 'accept.json').write_text(json.dumps(accepted))
+            self.assertEqual([], check(root, 'fes.pentagon', 'kit-accepted', package, acceptance=True))
+
+    def test_de25_acceptance_needs_persistence_for_cores_that_save(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for core_id, persistent in (('fes.atari-st', True), ('fes.c64', False)):
+                with self.subTest(core_id=core_id):
+                    smoke = {'kit_serial': 'TRWU8J8G', 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
+                    (root / 'smoke.json').write_text(json.dumps(smoke))
+                    (root / 'accept.json').write_text(json.dumps({**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}))
+                    package = {'sha256': sha, 'evidence': 'smoke.json', 'acceptance': 'accept.json'}
+                    errors = check(root, core_id, 'kit-accepted', package, acceptance=True)
+                    if persistent:
+                        self.assertEqual(1, len(errors), errors)
+                        self.assertIn('has persistence None', errors[0])
+                    else:
+                        self.assertEqual([], errors)
+
+    def test_de25_released_needs_a_release_receipt_on_the_de10_tag(self):
+        check = SUPPORT_MATRIX.de25_package_errors
+        sha = 'ab' * 32
+        smoke = {'kit_serial': 'TRWU8J8G', 'core_id': 'fes.c64', 'package_sha256': sha, 'verdict': 'PASS'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'smoke.json').write_text(json.dumps(smoke))
+            (root / 'accept.json').write_text(json.dumps({**smoke, 'conformance': 'PASS', 'corpus': 'PASS'}))
+            package = {'sha256': sha, 'evidence': 'smoke.json', 'acceptance': 'accept.json'}
+            run = lambda: check(root, 'fes.c64', 'released', package, acceptance=True, release=True)
+            self.assertIn('release receipt is missing or not JSON', run()[0])
+            package['release'] = 'release.json'
+            release = {'core_id': 'fes.c64', 'package_sha256': sha, 'board': 'de25-nano', 'tag': 'v1.1', 'de10_tag': 'v1.0'}
+            (root / 'release.json').write_text(json.dumps(release))
+            self.assertIn('does not name one tag shared with DE10', run()[0])
+            (root / 'release.json').write_text(json.dumps({**release, 'de10_tag': 'v1.1', 'package_sha256': 'cd' * 32}))
+            self.assertIn("has package_sha256 'cdcd", run()[0])
+            (root / 'release.json').write_text(json.dumps({**release, 'de10_tag': 'v1.1'}))
+            self.assertEqual([], run())
 
 
 if __name__ == '__main__':

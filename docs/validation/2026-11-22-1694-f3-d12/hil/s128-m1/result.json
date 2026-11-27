@@ -1,0 +1,190 @@
+{
+ "kit": "A",
+ "plan": {
+  "package": "/data/fes-f3-d12/cond23-m279/s2/9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40.fcore",
+  "package_id": "9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40",
+  "firmware": "/home/deano/roms/sinclair/spectrum-128.rom",
+  "games": {
+   "machine": "fes.spectrum128 F3 D12 s128-m1"
+  },
+  "disks": {
+   "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+  },
+  "media_role": "cassette",
+  "rom_id": "spectrum128-firmware"
+ },
+ "events": [
+  {
+   "op": "import",
+   "package_id": "9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40",
+   "archive_sha256": "4a30df716f1bdb87479e3c107d525eaa7c92e07798d72893da0df660c48efd05",
+   "compatible": true,
+   "compat": "{'package_id': '9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40', 'descriptor': {'rom': {'id': 'spectrum128-firmware', 'role': 'firmware', 'source_size': 32768, 'file': 'rom-map.json', 'size': 2967557, 'sha256': 'e77840ee13bef62e02c57c020ac7e5dbff073cf4eea582e5f3807192656b52ee'}, 'f",
+   "t": 3.51
+  },
+  {
+   "op": "upload",
+   "file": "spectrum-128.rom",
+   "sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+   "media_id": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+   "t": 3.55
+  },
+  {
+   "op": "entry",
+   "game": "machine",
+   "game_id": "fpga-fes-spectrum128-f3-d12-s128-m1-fbef35922e13",
+   "rom_id": "spectrum128-firmware",
+   "t": 10.57
+  },
+  {
+   "op": "upload",
+   "file": "fes-hil.tap",
+   "sha256": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "media_id": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "t": 10.57
+  },
+  {
+   "op": "launch",
+   "args": {
+    "game": "machine",
+    "disk": "tape"
+   },
+   "reply": {
+    "state": "active",
+    "package_id": "9f50650de885d6e7fe3a7b8ef8797bf861ffd5da7af5ecd0d9d03821c8822a40",
+    "generation": 1,
+    "media_units": [
+     {
+      "unit": 0,
+      "interface": {
+       "id": "fes.media.spectrum-tape",
+       "major": 2,
+       "minor": 0
+      },
+      "min_bytes": 10,
+      "max_bytes": 16777216,
+      "chunk_bytes": 512,
+      "state": "ready"
+     }
+    ],
+    "build_id": "41ce687dde354e670768ffa6c3027a70",
+    "seconds": 14.73
+   },
+   "t": 25.31
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 8
+   },
+   "reply": {},
+   "t": 33.61
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "menu"
+   },
+   "reply": {
+    "grab": "menu",
+    "ok": true,
+    "sha256": "7287e128549a41d90b08fba92b505dcc36b968e362b60a0ad0dcc7f949e6f03f"
+   },
+   "t": 34.23
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "enter"
+   },
+   "reply": {},
+   "t": 34.8
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 25
+   },
+   "reply": {},
+   "t": 60.1
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "loaded"
+   },
+   "reply": {
+    "grab": "loaded",
+    "ok": true,
+    "sha256": "cd8060352221211e63721c191f5c6aaed16f225dafff7397602756caec9e7872"
+   },
+   "t": 60.66
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "space"
+   },
+   "reply": {},
+   "t": 61.22
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 63.52
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "break"
+   },
+   "reply": {
+    "grab": "break",
+    "ok": true,
+    "sha256": "f89567e9b027d2b665f53b076360273166cc6b9fdef4d789e75d6d20c3b22078"
+   },
+   "t": 64.07
+  },
+  {
+   "op": "type",
+   "args": {
+    "text": "print 22\n"
+   },
+   "reply": {},
+   "t": 66.45
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 68.75
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "typed"
+   },
+   "reply": {
+    "grab": "typed",
+    "ok": true,
+    "sha256": "58b8aa119ac342fe2b0c4f18f57864393d450a84fc009a641f0d316b2f0821c0"
+   },
+   "t": 69.31
+  },
+  {
+   "op": "stop",
+   "args": {},
+   "reply": {
+    "code": 200,
+    "state": "idle",
+    "error": null
+   },
+   "t": 73.21
+  }
+ ]
+}

@@ -5,6 +5,7 @@ import base64
 import importlib.util
 import ipaddress
 import re
+import shutil
 import json
 import os
 from pathlib import Path
@@ -99,9 +100,9 @@ def profile_constants(profile):
     else:
         keys = {"service", "exclusive", "closed_bridges", "synchronous_bounded_return"}
         if (not isinstance(control, dict) or set(control) != keys or
-                control["service"] != "fes-owned-sd-pio-v1" or
+                control["service"] not in ("fes-owned-sd-pio-v1", "fes-owned-sd-dma-v1") or
                 any(control[k] is not True for k in keys - {"service"}) or frequency != 200000000):
-            raise ValueError("SD requires the explicit owned PIO service and qualified 200 MHz input")
+            raise ValueError("SD requires the explicit owned PIO/DMA service and qualified 200 MHz input")
         if (profile["usb_phy_clock_hz"] != 0 or profile["network"] is not None or
                 profile["display"] is not None or profile["fpga_probe"] is not None or
                 any(handoff[k] for k in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))):
@@ -344,13 +345,73 @@ def writable_storage_option(program,path,profile,selected,tenfoot):
 
 
 def sd_transfer_clock_option(program, requested, plan, writable_plan=None):
-    if type(requested) is not int or requested not in (0,25000000):
-        raise ValueError('SD transfer clock must be 0 or the explicit 25 MHz experiment')
-    if writable_plan is not None and requested!=25000000:
-        raise ValueError('native installer requires the selected 25 MHz transport')
+    if type(requested) is not int or requested not in (0,25000000,50000000):
+        raise ValueError('SD transfer clock must be 0, 25 MHz, or 50 MHz')
+    if writable_plan is not None and requested not in (25000000,50000000):
+        raise ValueError('native installer requires the selected 25 MHz or 50 MHz transport')
+    if requested==50000000 and not (program=='fpgaload' and writable_plan is not None):
+        raise ValueError('50 MHz SD transfer clock requires Nano fpgaload with a writable storage plan')
     if requested and not (program=='sdfile' and plan is not None or program=='fpgaload' and writable_plan is not None):
         raise ValueError('25 MHz SD requires a separately bound writable Nano selection')
     return requested
+
+
+def sd_transport_options(program, bus_width, multi_block, cmd23, profile):
+    if type(bus_width) is not int or bus_width not in (1,4):
+        raise ValueError('SD bus width must be 1 or 4')
+    if type(multi_block) is not bool or type(cmd23) is not bool:
+        raise ValueError('SD multi-block and CMD23 flags must be boolean')
+    if cmd23 and not multi_block:
+        raise ValueError('--sd-cmd23 requires --sd-multi-block')
+    if bus_width!=1 or multi_block or cmd23:
+        if program!='fpgaload' or profile['sd_control'] is None:
+            raise ValueError('fast SD transport options require Nano fpgaload with owned SD')
+    return bus_width, multi_block, cmd23
+
+
+SD_DMA_BASE = 0x95a00000
+SD_DMA_BYTES = 2 << 20
+
+
+def sd_adma2_option(program, requested, profile):
+    if type(requested) is not bool:
+        raise ValueError('--sd-adma2 flag must be boolean')
+    if requested:
+        control = profile.get('sd_control')
+        if program != 'fpgaload' or not isinstance(control, dict) or control.get('service') != 'fes-owned-sd-dma-v1':
+            raise ValueError('--sd-adma2 requires Nano fpgaload with a DMA-capable sd_control profile (service=fes-owned-sd-dma-v1)')
+    return requested
+
+
+def sd_dma_layout(sd_adma2, start, size, profile, configuration_map=None, cpu_map=None, tape_memory=None, net=None, display=None, fpga=None):
+    if not sd_adma2:
+        return 0, 0
+    base, amount = SD_DMA_BASE, SD_DMA_BYTES
+    if (base < 0x80000000 or amount < (256 << 10) or base % (2 << 20) or amount % (2 << 20) or
+            base + amount > 0xc0000000 or base >> 30 != start >> 30):
+        raise ValueError('SD ADMA2 DMA window must be 2 MiB aligned inside the Go L1 section')
+    exclusions = [
+        (start, start + size),
+        (0x94000000, 0x94800000),
+        (0x96080000, 0x96080000 + (32 << 20)),
+        (0x99000000, 0x9a000000),
+    ]
+    exclusions.extend((r['start'], r['start'] + r['size']) for r in profile['reserved'])
+    if configuration_map is not None:
+        exclusions.append((configuration_map['base'], configuration_map['base'] + configuration_map['size']))
+    if cpu_map is not None and cpu_map.get('reader_base'):
+        exclusions.append((cpu_map['reader_base'], cpu_map['reader_base'] + cpu_map['reader_bytes']))
+    if tape_memory is not None:
+        exclusions.append((tape_memory['base'], tape_memory['base'] + tape_memory['bytes']))
+    if net is not None:
+        exclusions.append((net['dma_start'], net['dma_start'] + net['dma_size']))
+    if display is not None:
+        exclusions.append((display['base'], display['base'] + display['size']))
+    if fpga is not None:
+        exclusions.append((fpga['base'], fpga['base'] + fpga['size']))
+    if any(base < end and begin < base + amount for begin, end in exclusions):
+        raise ValueError('SD ADMA2 DMA window overlaps Go RAM, firmware, or device arena')
+    return base, amount
 
 
 def sd_file_option(path, profile):
@@ -423,6 +484,45 @@ def prepare_rom_selection(archive, rom_path, package_id, rom_bytes, host_go, out
     return record
 
 
+def write_program_catalog(encode, directory, entries):
+    """Write matching selection and UI records for staged program choices."""
+    programs = [choice for _, _, choice in entries]
+    ui = [dict(id=core_id, title=title, program=index)
+          for index, (core_id, title, _) in enumerate(entries)]
+    if not 1 <= len(programs) <= 16 or len({entry['id'] for entry in ui}) != len(ui):
+        raise ValueError('bounded, unique program catalogue entries required')
+    records = {
+        'CORESEL.JSN': encode(dict(format=1, scope='nano-program-selection-v1', programs=programs)),
+        'UI.JSON': encode(dict(format=1, scope='nano-tenfoot-catalog-v1', entries=ui)),
+    }
+    if any(len(raw) > 8192 for raw in records.values()):
+        raise ValueError('program catalogue exceeds the native record limit')
+    for name, raw in records.items():
+        with (directory / name).open('xb') as output:
+            output.write(raw)
+
+
+def stage_shared_catalog(encode, directory, entries):
+    """Combine verified SDK assets without aliasing any selected FAT file."""
+    files = {}
+    for _, _, choice, source in entries:
+        paths = [choice['path'], choice['metadata_path']]
+        paths.extend(rom['path'] for rom in choice.get('sources', ()))
+        if 'tape' in choice:
+            paths.append(choice['tape']['path'])
+        for path in paths:
+            name = path.removeprefix('FES/')
+            if not path.startswith('FES/') or not re.fullmatch(r'[A-Z0-9]{1,8}\.[A-Z0-9]{1,3}', name) or name in {
+                    'CORESEL.JSN', 'UI.JSON', 'MENU.FCP', 'MENU.JSN', 'MENUSEL.JSN',
+                    'UPLOAD.BIN', 'RECOVERY.JSON', 'PREFS.JSON', 'INSTALL.JSN'} or name in files:
+                raise ValueError('shared catalogue contains an invalid or aliased file: '+path)
+            files[name] = source[name]
+    directory.mkdir(parents=True)
+    for name, path in files.items():
+        shutil.copyfile(path, directory / name)
+    write_program_catalog(encode, directory, [entry[:3] for entry in entries])
+
+
 def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, platform, configuration):
     stage.mkdir()
     archive = shell.read(archive_path, shell.MAX_ARCHIVE)
@@ -448,11 +548,9 @@ def stage_c64(shell, proof, archive_path, rom, disk, host_go, stage, context, pl
             raise ValueError('C64 requires a standard 174848-byte D64')
         (export / 'C64.D64').write_bytes(data)
         choice['tape'] = dict(path='FES/C64.D64', format='c64-d64', size=len(data), sha256=shell.sha(data))
-    (export / 'CORESEL.JSN').write_bytes(shell.encode(dict(
-        format=1, scope='nano-program-selection-v1', programs=[choice])))
-    (export / 'UI.JSON').write_bytes(shell.encode(dict(
-        format=1, scope='nano-tenfoot-catalog-v1',
-        entries=[dict(id='c64', title='Commodore 64 PAL', program=0)])))
+    entry = ('c64', 'Commodore 64 PAL', choice)
+    write_program_catalog(shell.encode, export, [entry])
+    return (*entry, {path.name: path for path in export.iterdir()})
 
 
 def build(args):
@@ -476,6 +574,8 @@ def build(args):
     sd_write_plan=sd_write_option(args.program,getattr(args,'sd_write_plan',None),profile)
     writable_storage_plan=writable_storage_option(args.program,getattr(args,'writable_storage_plan',None),profile,getattr(args,'selected_programs',False),getattr(args,'tenfoot_serial',False))
     sd_transfer_clock=sd_transfer_clock_option(args.program,getattr(args,'sd_transfer_clock',0),sd_write_plan,writable_storage_plan)
+    sd_bus_width,sd_multi_block,sd_cmd23=sd_transport_options(args.program,getattr(args,'sd_bus_width',1),getattr(args,'sd_multi_block',False),getattr(args,'sd_cmd23',False),profile)
+    sd_adma2=sd_adma2_option(args.program,getattr(args,'sd_adma2',False),profile)
     writable_storage_encoded=base64.b64encode(json.dumps(writable_storage_plan,sort_keys=True,separators=(',',':')).encode()).decode() if writable_storage_plan else None
     sd_write_encoded=base64.b64encode(json.dumps(sd_write_plan,sort_keys=True,separators=(',',':')).encode()).decode() if sd_write_plan else None
     sd_scratch_inspect=scratch_inspect_option(args.program,getattr(args,'sd_scratch_inspect',False),profile)
@@ -506,6 +606,12 @@ def build(args):
         raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    c64_disk_swap = getattr(args, 'c64_disk_swap', False)
+    if c64_disk_swap and not (getattr(args, 'shared_core_shell', False) and getattr(args, 'c64_d64', None) and tenfoot_serial):
+        raise ValueError('--c64-disk-swap requires shared-shell serial Tenfoot with an initial C64 D64')
+    lifecycle_trace = getattr(args, 'lifecycle_trace', False)
+    if lifecycle_trace and not (args.program == 'fpgaload' and tenfoot_serial):
+        raise ValueError('--lifecycle-trace requires Nano fpgaload with --tenfoot-serial')
     watchdog_timeout, watchdog_clock_hz = watchdog_option(
         args.program, selected_programs, tenfoot_serial,
         getattr(args, 'watchdog_timeout', 0), getattr(args, 'watchdog_clock_hz', 0),
@@ -536,7 +642,7 @@ def build(args):
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('hpsio','usbcheck','fpgaload'):
-        required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
+        required_profile=('sd-dma-profile.json' if sd_adma2 else 'sd-profile.json') if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
         hps_project=hps_project.resolve(strict=True)
@@ -588,6 +694,7 @@ def build(args):
     tape_memory = hps.initial_tape.staging_layout(cpu_map, profile['reserved'],
         dict(base=0x96080000, bytes=16 << 20)) if args.initial_tape else None
     tape_memory_sha = hps.initial_tape.memory_digest(tape_memory) if tape_memory else None
+    sd_dma_base, sd_dma_bytes = sd_dma_layout(sd_adma2, start, size, profile, configuration_map, cpu_map, tape_memory, net, display, fpga)
     initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
         cpu_mapping=cpu_map,
         initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
@@ -597,6 +704,8 @@ def build(args):
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
     shared_shell = getattr(args, 'shared_core_shell', False)
     uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if c64_disk_swap and (not usb_shared or usb_input != 'boot-keyboard' or uart_only):
+        raise ValueError('--c64-disk-swap requires the shared USB boot keyboard')
     if uart_only and not (usb_shared and shared_shell):
         raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
     if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
@@ -613,13 +722,18 @@ def build(args):
     c64_paths = [getattr(args, 'c64_' + name, None) for name in ('build', 'package', 'rom')]
     c64_disk = getattr(args, 'c64_d64', None)
     c64_proof = None
+    zx81_tape = getattr(args, 'zx81_tape', None)
+    if zx81_tape is not None and not (shared_shell and initial_tape):
+        raise ValueError('--zx81-tape requires the shared shell and initial tape service')
     if any(c64_paths) or c64_disk is not None:
-        if not all(c64_paths) or not shared_shell or spectrum_proof is not None or rom_host_go is None:
+        if not all(c64_paths) or not shared_shell or rom_host_go is None:
             raise ValueError('C64 requires a sealed build, package, ROM and shared-shell Tenfoot')
         producer, c64_archive, c64_rom = (path.resolve(strict=True) for path in c64_paths)
         worker = Path(hps.spectrum48.__file__)
         c64_proof = json.loads(subprocess.check_output(
             [sys.executable, str(worker), '--c64', str(producer), str(c64_archive)], timeout=180))
+    if c64_disk_swap and (menu_program_map is None or not c64_proof or not c64_proof.get('c64_picker')):
+        raise ValueError('--c64-disk-swap requires paired HDMI Tenfoot and a sealed C64 picker')
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -628,8 +742,8 @@ def build(args):
         rom_selection=prepare_rom_selection(package_archive,firmware_rom,context['package_id'],rom_map['bytes'],rom_host_go,output)
         program_metadata=hps.selected_program(hps_project,rom_selection['rom_receipt_sha256'])
         (output/'hps-rom.json').write_bytes(hps.encode(rom_map))
+    companion_entries = []
     if spectrum_proof is not None:
-        import shutil
         stage = output/'spectrum48'
         stage.mkdir()
         archive = hps.spectrum48.read(spectrum_archive, hps.spectrum48.MAX_ARCHIVE)
@@ -655,14 +769,13 @@ def build(args):
             (export/'SPEC48.PZX').write_bytes(tape)
             choice['tape'] = dict(path='FES/SPEC48.PZX', format='spectrum-tape',
                                   size=len(tape), sha256=hps.spectrum48.sha(tape))
-        (export/'CORESEL.JSN').write_bytes(hps.encode(dict(
-            format=1, scope='nano-program-selection-v1', programs=[choice])))
-        (export/'UI.JSON').write_bytes(hps.encode(dict(
-            format=1, scope='nano-tenfoot-catalog-v1',
-            entries=[dict(id='spectrum48', title='ZX Spectrum 48K trial', program=0)])))
+        spectrum_entry = ('spectrum48', 'ZX Spectrum 48K trial', choice)
+        write_program_catalog(hps.encode, export, [spectrum_entry])
+        companion_entries.append((*spectrum_entry, {path.name: path for path in export.iterdir()}))
     if c64_proof is not None:
-        stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk, rom_host_go,
-                  output / 'c64', context, program_platform, configuration_map)
+        companion_entries.append(stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk,
+                                           rom_host_go, output / 'c64', context, program_platform,
+                                           configuration_map))
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -686,6 +799,21 @@ def build(args):
                                     'sha256':rom_selection['source_sha256']}],rom_receipt_sha256=rom_selection['rom_receipt_sha256'])
         choices={'format':1,'scope':'nano-program-selection-v1','programs':[request]*(2 if computer_reload else 1)}
         (output/'CORESEL.JSN').write_bytes(hps.encode(choices))
+        if shared_shell and (companion_entries or zx81_tape is not None):
+            if rom_selection is None:
+                raise ValueError('shared catalogue requires the primary held-ROM export')
+            primary = dict(request)
+            files = {'PKGTEST.BIN': output/'package.fcore', 'PROGRAM.JSN': output/'PROGRAM.JSN',
+                     'FIRMWARE.BIN': output/'FIRMWARE.BIN'}
+            if zx81_tape is not None:
+                # The native DE25 mailbox reserves nine bytes of its 16 KiB tape window.
+                tape = hps.spectrum48.read(zx81_tape.resolve(strict=True), 0x3ff7)
+                tape_file = output/'GAME.P'
+                tape_file.write_bytes(tape)
+                files['GAME.P'] = tape_file
+                primary['tape'] = dict(path='FES/GAME.P', size=len(tape), sha256=hps.spectrum48.sha(tape))
+            stage_shared_catalog(hps.encode, output/'export'/'FES',
+                                 [('zx81', 'ZX81 trial', primary, files), *companion_entries])
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
@@ -697,6 +825,7 @@ def build(args):
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\nprofileConfigurationRetained = '+str(configuration_retained).lower()+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
+        stream.write('const (\nprofileSDDMABase = '+str(sd_dma_base)+'\nprofileSDDMABytes = '+str(sd_dma_bytes)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
@@ -774,6 +903,10 @@ def build(args):
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if sd_write_encoded:link_flags+=' -X main.expectedSDWritePlan='+sd_write_encoded
     if sd_transfer_clock:link_flags+=' -X main.expectedSDTransferClock='+str(sd_transfer_clock)
+    if sd_bus_width==4:link_flags+=' -X main.expectedSDBusWidth=4'
+    if sd_multi_block:link_flags+=' -X main.expectedSDMultiBlock=1'
+    if sd_cmd23:link_flags+=' -X main.expectedSDCMD23=1'
+    if sd_adma2:link_flags+=' -X main.expectedSDADMA2=1'
     if writable_storage_encoded:link_flags+=' -X main.expectedWritableStoragePlan='+writable_storage_encoded
     if sd_scratch_inspect:link_flags+=' -X main.expectedScratchInspect=1'
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
@@ -786,6 +919,8 @@ def build(args):
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if c64_disk_swap:link_flags+=' -X main.expectedC64DiskSwap=1'
+    if lifecycle_trace:link_flags+=' -X main.expectedLifecycleTrace=1'
     if watchdog_timeout:
         link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
     if network_dhcp:
@@ -859,6 +994,10 @@ def build(args):
         raise ValueError('SD write plan changed during compilation or was not linked')
     if sd_transfer_clock and str(sd_transfer_clock).encode() not in data:
         raise ValueError('selected SD transfer clock was not linked')
+    if sd_bus_width==4 and b'4' not in data:
+        raise ValueError('selected SD bus width was not linked')
+    if (sd_multi_block or sd_cmd23 or sd_adma2) and b'1' not in data:
+        raise ValueError('selected SD multi-block/CMD23/ADMA2 setting was not linked')
     if watchdog_timeout and (str(watchdog_timeout).encode() not in data or str(watchdog_clock_hz).encode() not in data):
         raise ValueError('selected watchdog settings were not linked')
     if network_dhcp and b'1' not in data:
@@ -876,6 +1015,11 @@ def build(args):
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "sd_write_plan":sd_write_plan,"sd_write_plan_sha256":hashlib.sha256(base64.b64decode(sd_write_encoded)).hexdigest() if sd_write_encoded else None,
               "sd_transfer_clock_hz":sd_transfer_clock,
+              "sd_bus_width":sd_bus_width,
+              "sd_multi_block":sd_multi_block,
+              "sd_cmd23":sd_cmd23,
+              "sd_adma2":sd_adma2,"sd_dma_base":sd_dma_base,"sd_dma_bytes":sd_dma_bytes,
+              "lifecycle_trace":lifecycle_trace,
               "watchdog_timeout_seconds":watchdog_timeout,"watchdog_clock_hz":watchdog_clock_hz,
               "network_dhcp":network_dhcp,"network_dhcp_hostname":network_dhcp_hostname,
               "network_sntp_server":network_sntp_server,"network_sntp_port":network_sntp_port,
@@ -899,6 +1043,7 @@ def build(args):
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
+              "c64_disk_swap":c64_disk_swap,
               "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
                  if spectrum_program is not None and not shared_shell else {}),

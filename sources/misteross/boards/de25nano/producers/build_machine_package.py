@@ -118,12 +118,13 @@ class Machine:
     def memory_parameters(self, root, spec, model, native_shell):
         """Guest memory and firmware: the parameters that differ between machines."""
         if spec.board.has_window(spec):
-            memory = {'f2sdram_master_profile': 'scanout+window', 'guest_memory': 'hps-window',
+            memory = {'f2sdram_master_profile': 'scanout+window', 'f2sdram_data_width': 128,
+                      'guest_memory': 'hps-window',
                       'window_contract': '%s %d.%d' % WINDOW_INTERFACE,
                       'window_bridge_reset_review_policy': bridge_reset.POLICY}
         else:
             memory = {'f2sdram_master_profile': 'native-scanout-and-probe' if native_shell else 'scanout-only',
-                      'guest_memory': self.guest_memory}
+                      'f2sdram_data_width': 256, 'guest_memory': self.guest_memory}
         if uploads_firmware(spec):
             return {**memory, 'firmware_delivery': UPLOAD_ENCODING, 'firmware_bytes': spec.FIRMWARE_BYTES[model]}
         # A machine whose models have their own clocks records the model's guest rates.
@@ -164,9 +165,9 @@ class Machine:
                 'expansion_socket': False, **self.memory_parameters(root, spec, model, native_shell),
                 'machine_clock_hz': spec.board.clocks(spec, model)[0], 'audio_clock_requested_hz': 12288000,
                 'fifo_reset_sharing': common.SHARED_FIFO_RESETS,
-                'f2s_data_width': 0, 'f2sdram_data_width': 256, 'scanout_master_data_width': 128,
+                'f2s_data_width': 0, 'scanout_master_data_width': 128,
                 'hps_warm_reset_handshake': True, 'reset_timing_policy': common.TIMED_RESET_RELEASE,
-                'signoff_policy': async_inputs.POLICY, 'seed': seed, 'threads': 2,
+                'signoff_policy': async_inputs.POLICY, 'seed': seed, 'threads': 8,
                 'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
                 'hdmi_video_timing_policy': async_inputs.video_outputs.POLICY,
                 'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,

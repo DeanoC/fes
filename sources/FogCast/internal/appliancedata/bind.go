@@ -8,6 +8,7 @@
 package appliancedata
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -489,22 +490,54 @@ func productionProbe(path string) error {
 }
 
 func findDevice(cfg Config) (string, bool) {
+	device, ok, _ := findDeviceContext(context.Background(), cfg)
+	return device, ok
+}
+
+func findDeviceContext(ctx context.Context, cfg Config) (string, bool, error) {
+	if ctx == nil {
+		return "", false, errors.New("missing device selection context")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", false, err
+	}
+	cfg = applyDefaults(cfg)
 	for _, path := range cfg.Devices {
-		if !cfg.DevicePresent(path) {
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		present := cfg.DevicePresent(path)
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		if !present {
 			continue
 		}
-		if err := cfg.Probe(path); errors.Is(err, blockprobe.ErrSkip) {
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		probeErr := cfg.Probe(path)
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		if errors.Is(probeErr, blockprobe.ErrSkip) {
 			continue
 		}
 		if strings.HasSuffix(path, "/"+cfg.Label) {
-			return path, true
+			return path, true, nil
 		}
-		label, err := cfg.ReadLabel(path)
-		if err == nil && label == cfg.Label {
-			return path, true
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		label, readErr := cfg.ReadLabel(path)
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		if readErr == nil && label == cfg.Label {
+			return path, true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 func pathExists(path string) bool {

@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
+ADAPTER_IP = 'hps_subsys/ip/hps_subsys/f2sdram_adapter.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
 MANAGED_FABRIC = 'managed-scanout-initiators-v4'
 GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
@@ -36,8 +37,54 @@ def constant(definition, name):
     return int(values[0], 16)
 
 
-def retarget_adapter(data, definition):
-    """Retarget SMMU fields and bounded read credits for isolated scanout."""
+def order_window_reads(text):
+    """Keep the narrow scanout and window replies in AXI issue order."""
+    queue = r"""// The generated Avalon path expects responses in issue order.
+// Use one F2SDRAM read ID and restore the original owner from a FIFO.
+reg \[4:0\] read_id_fifo \[0:15\];
+reg \[3:0\] read_head, read_tail;
+reg \[4:0\] read_count;
+wire read_have_credit = !reset && read_count != 5'd16;
+wire read_have_id = !reset && read_count != 5'd0;
+wire read_accepted = sub_arvalid && sub_arready;
+wire read_finished = man_rvalid && man_rready && man_rlast;
+always @(posedge clk) begin
+    if (reset) begin
+        read_head <= 4'd0;
+        read_tail <= 4'd0;
+        read_count <= 5'd0;
+    end else begin
+        if (read_accepted) begin
+            read_id_fifo\[read_tail\] <= sub_arid;
+            read_tail <= read_tail + 4'd1;
+        end
+        if (read_finished) read_head <= read_head + 4'd1;
+        case ({read_accepted, read_finished})
+            2'b10: read_count <= read_count + 5'd1;
+            2'b01: read_count <= read_count - 5'd1;
+            default: ;
+        endcase
+    end
+end
+
+assign sub_rid     = read_id_fifo\[read_head\];
+assign sub_arready = read_have_credit && man_arready;"""
+    changes = (
+        ("assign sub_rid     = man_rid;\nassign sub_arready = man_arready;", queue),
+        ("assign sub_rvalid  = man_rvalid;", "assign sub_rvalid  = read_have_id && man_rvalid;"),
+        ("assign man_rready   = sub_rready;", "assign man_rready   = read_have_id && sub_rready;"),
+        ("assign man_arvalid  = sub_arvalid;", "assign man_arvalid  = read_have_credit && sub_arvalid;"),
+        ("assign man_arid     = sub_arid;", "assign man_arid     = 5'd0;"),
+    )
+    for before, after in changes:
+        if text.count(before) != 1:
+            raise ValueError('vendor F2SDRAM read channel changed')
+        text = text.replace(before, after)
+    return text
+
+
+def retarget_adapter(data, definition, *, window=False):
+    """Retarget SMMU fields and bounded read credits for the selected masters."""
     # Quartus 26.3 intel_hps/sm/common/parameters_data.tcl, f2sdram_SMMU:
     # raw AxUSER[8] is AxMMUSECSID and [24:9] is AxMMUSID.
     # The ACE5-Lite translator CSR uses a different register layout.
@@ -64,31 +111,44 @@ def retarget_adapter(data, definition):
     # The vendor adapter is an ID-preserving AXI pass-through. Its original
     # one-transaction metadata makes Platform Designer insert a serializing
     # limiter, even when the reader and CDC can reserve sixteen bursts. The
-    # selected HPS F2SDRAM interface accepts sixteen reads; match that limit
-    # only in this isolated, read-only Linux profile. Write credits stay one.
-    for interface, fields in (('axi4_man', ('readIssuingCapability', 'combinedIssuingCapability')),
-                              ('axi4_sub', ('readAcceptanceCapability', 'combinedAcceptanceCapability'))):
+    # selected HPS F2SDRAM interface accepts sixteen reads and sixteen writes.
+    # Raise read and combined credits in this isolated Linux profile; raise
+    # write credits too when the HPS window shares the adapter, so interleaved
+    # guest and presenter writes do not stall behind one posted-write slot.
+    interfaces = [
+        ('axi4_man', ['readIssuingCapability', 'combinedIssuingCapability']),
+        ('axi4_sub', ['readAcceptanceCapability', 'combinedAcceptanceCapability']),
+    ]
+    if window:
+        interfaces[0][1].append('writeIssuingCapability')
+        interfaces[1][1].append('writeAcceptanceCapability')
+    for interface, fields in interfaces:
         for field in fields:
             before = f'set_interface_property {interface} {field} 1\n'
             if text.count(before) != 1:
                 raise ValueError('vendor AXI transaction capability changed')
             text = text.replace(before, before.replace(' 1\n', ' 16\n'))
-    return text.encode(), {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
+    if window:
+        text = order_window_reads(text)
+    profile = {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
         'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0, 'read_transactions': 16,
         'scope': 'scanout-only generated F2SDRAM path', 'master_ownership': 'scanout-only',
         'original_sha256': hashlib.sha256(data).hexdigest(), 'derived_sha256': hashlib.sha256(text.encode()).hexdigest(),
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
+    if window:
+        profile['write_transactions'] = 16
+    return text.encode(), profile
 
 
 def configure(project, definition, hps, *, managed_fabric=False, window=False):
     path = project / ADAPTER
-    data, profile = retarget_adapter(path.read_bytes(), definition)
+    data, profile = retarget_adapter(path.read_bytes(), definition, window=window)
     path.write_bytes(data)
     if window:
         # The window's master shares the scanout's stream: one SID, reads and
         # writes. Its write credits stay the adapter's one.
         profile.update(scope='scanout and window generated F2SDRAM path', master_ownership='scanout+window',
-                       window_master=WINDOW_BRIDGE)
+                       window_master=WINDOW_BRIDGE, data_bits=128)
     child = hps.tcl_word(project / 'hps_subsys/hps_subsys.qsys')
     script = f'''# Explicit Linux SMMU profile. This changes port exposure, not boot data.
 load_system {child}
@@ -122,8 +182,24 @@ foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga
 '''
         changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
         changes[HPS_IP]['H2F_Width'] = {'before': '128', 'after': '0'}
+    if window:
+        # The 256-bit hard bridge requires 32-byte command addresses. The
+        # window's 128-bit master can issue at any 16-byte boundary, including
+        # masked status-ring writes. Match the scanout and window paths at 128
+        # bits so neither read nor write commands need 32-byte alignment.
+        script += '''load_component agilex_hps
+if {[get_component_parameter_value f2sdram_data_width] != 256} {error "vendor F2SDRAM data width changed"}
+set_component_parameter_value f2sdram_data_width 128
+save_component
+'''
+        changes[HPS_IP]['f2sdram_data_width'] = {'before': '256', 'after': '128'}
+        changes[ADAPTER_IP] = {'DATA_WIDTH': {'before': '256', 'after': '128'}}
     script += f'''load_component f2sdram_adapter
 if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
+'''
+    if window:
+        script += 'set_component_parameter_value DATA_WIDTH 128\n'
+    script += f'''\
 foreach port {{man_aruser man_awuser}} {{
     if {{[get_component_interface_port_property axi4_man $port WIDTH] != 25}} {{error "SMMU USER width changed"}}
 }}
@@ -353,8 +429,14 @@ def verify(project, hps, profile):
         raise ValueError('captured Linux DMA stream differs')
     if hps.digest(project / ADAPTER) != profile['derived_sha256']:
         raise ValueError('derived SMMU adapter changed')
-    if hps.module_parameters(project / HPS_IP).get('f2sdram_SMMU') != 'true':
+    parameters = hps.module_parameters(project / HPS_IP)
+    if parameters.get('f2sdram_SMMU') != 'true':
         raise ValueError('generated HPS SMMU ports not enabled')
+    data_bits = 128 if window else 256
+    if ((window and profile.get('data_bits') != data_bits)
+            or parameters.get('f2sdram_data_width') != str(data_bits)
+            or hps.module_parameters(project / ADAPTER_IP).get('DATA_WIDTH') != str(data_bits)):
+        raise ValueError('generated F2SDRAM hard bridge/adapter data width differs')
     import xml.etree.ElementTree as ET
     tree = ET.parse(project / 'qsys_top/qsys_top.sopcinfo')
     modules = {m.get('path'): m for m in tree.findall('module')}
@@ -363,15 +445,25 @@ def verify(project, hps, profile):
         ports = hps.component_ports(modules[name], interface)
         if any(ports.get(channel + 'user') != (direction, 25) for channel in ('ar', 'aw')):
             raise ValueError('generated SMMU USER path width differs')
+        response_direction = 'Output' if direction == 'Input' else 'Input'
+        if (ports.get('rdata') != (response_direction, data_bits)
+                or ports.get('wdata') != (direction, data_bits)
+                or ports.get('wstrb') != (direction, data_bits // 8)):
+            raise ValueError('generated F2SDRAM data or strobe width differs')
     if profile.get('read_transactions') != 16:
         raise ValueError('Linux scanout read transaction limit differs')
+    if window and profile.get('write_transactions') != 16:
+        raise ValueError('Linux window write transaction limit differs')
+    write_limit = '16' if window else '1'
+    hps_fields = {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16'}
+    if window:
+        hps_fields['writeAcceptanceCapability'] = '16'
     for module, interface, fields in (
             ('subsys_hps.f2sdram_adapter', 'axi4_man',
-             {'readIssuingCapability': '16', 'combinedIssuingCapability': '16', 'writeIssuingCapability': '1'}),
+             {'readIssuingCapability': '16', 'combinedIssuingCapability': '16', 'writeIssuingCapability': write_limit}),
             ('subsys_hps.f2sdram_adapter', 'axi4_sub',
-             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16', 'writeAcceptanceCapability': '1'}),
-            ('subsys_hps.agilex_hps', 'f2sdram',
-             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16'})):
+             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16', 'writeAcceptanceCapability': write_limit}),
+            ('subsys_hps.agilex_hps', 'f2sdram', hps_fields)):
         selected = modules[module].find("interface[@name='" + interface + "']")
         if selected is None:
             raise ValueError('missing generated transaction capability interface')
@@ -399,6 +491,11 @@ def verify(project, hps, profile):
             sources.append(path)
     if len(sources) != 1:
         raise ValueError('generated adapter does not drive the selected nonsecure stream')
+    if window:
+        generated = sources[0].read_text()
+        if not (re.search(r"assign man_arid\s*=\s*5'd0\s*;", generated)
+                and re.search(r"assign sub_rid\s*=\s*read_id_fifo\[read_head\]\s*;", generated)):
+            raise ValueError('generated F2SDRAM window adapter does not restore ordered read IDs')
     return {**profile, 'generated_adapter': str(sources[0].relative_to(project)),
             'generated_adapter_sha256': hps.digest(sources[0]), 'generated_qip_sha256': hps.digest(qip),
             'address_user_word': word, 'master_handoff': ownership,

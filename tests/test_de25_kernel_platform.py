@@ -189,8 +189,9 @@ class OwnerFragmentTests(unittest.TestCase):
         fragment = platform.owner_fragment(self.GENERATED)
         self.assertIn('reg = <0 0x20010200 0 0x100>, <0 0x20010400 0 0x40>;', fragment)
         self.assertIn('memory-region = <&fes_de25_window_pool>;', fragment)
-        self.assertIn('compatible = "shared-dma-pool";', fragment)
-        self.assertIn('reusable;', fragment)
+        self.assertIn('compatible = "fes,de25-window-pool";', fragment)
+        self.assertNotIn('shared-dma-pool', fragment)
+        self.assertNotIn('reusable', fragment)
         self.assertNotIn('no-map', fragment)
         self.assertNotIn('dma-coherent', fragment)
         first, end = platform.WINDOW_POOL_RANGE
@@ -198,7 +199,7 @@ class OwnerFragmentTests(unittest.TestCase):
         # Inside region 0 of the F2SDRAM firewall, above the service buffer.
         self.assertGreaterEqual(first, 0x82000000)
         self.assertLessEqual(end, 0xc0000000)
-        self.assertGreaterEqual(platform.WINDOW_POOL_BYTES, 0x10000000 + 0x800000)
+        self.assertEqual(platform.WINDOW_POOL_BYTES, 0x10000000)
 
     def test_missing_window_constant_refuses(self):
         with tempfile.TemporaryDirectory() as temp:

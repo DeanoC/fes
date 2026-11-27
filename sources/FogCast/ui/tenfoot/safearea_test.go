@@ -78,7 +78,7 @@ func TestAppSafeAreaNudgePersists(t *testing.T) {
 // it survive.
 func TestPersistingASettingKeepsPadProfiles(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tenfoot.json")
-	const guid = "0300e9f51f08000001e4000010010000"
+	const guid = "0300cb231f08000001e4000010010000"
 	saved := inputmap.Profile{Preset: inputmap.PresetSwapAB, Bindings: map[string]string{"l": "keypad-1"}}
 	if err := saveTenfootPrefs(path, tenfootPrefs{Controllers: map[string]inputmap.Profile{guid: saved}}); err != nil {
 		t.Fatal(err)

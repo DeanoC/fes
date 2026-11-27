@@ -67,7 +67,7 @@ func TestPreferenceStoreQueuedSettingsShowPendingAndFailure(t *testing.T) {
 }
 
 func TestPreferenceStoreRestoresAndPersists(t *testing.T) {
-	const guid = "0300e9f51f08000001e4000010010000"
+	const guid = "0300cb231f08000001e4000010010000"
 	initial := tenfootPrefs{
 		SafeAreaPct: 0.08, Layout: "shelf", AttractEnabled: boolPtr(false),
 		Home: "rooms", HomeRoom: " arcade ", PinnedRooms: []string{"arcade", " arcade ", "", "computers"},

@@ -6,11 +6,15 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 namespace mister { namespace native {
-// A cached observation of one fes.fabric.de25-hps-window grant. The kernel
+class Clock;
+// An observation of one fes.fabric.de25-hps-window grant. The kernel
 // owner allocates the window, publishes it to the control block and reports
 // what it published; no CPU or DMA address is ever part of it. The window
 // block has no build register: build_id is the identity the owner observed
@@ -62,12 +66,18 @@ public:
  Error Open(const std::array<std::uint32_t,4>& build_id);
  // The owner offers windows; says nothing about one being open.
  bool OwnerAvailable();
+ // A poisoned window is not usable, but its descriptor remains live until it
+ // is safely retired.
+ bool IsOpen() const;
  bool Ready() const;
- // Reads the kernel's cached report; a latched fault is returned as an
+ // Reads the kernel's report; a latched fault is returned as an
  // error naming the ports and the reason, and poisons the window.
  Error Check();
  // Every range must have been revoked and closed first.
  Error Release();
+ // After execution hold is acknowledged, wait for this grant's ports to
+ // be held and drained before asking the owner to revoke it.
+ Error ReleaseAfterQuiesce(const Clock&, std::uint64_t deadline);
  // Refuses while a window that faulted or failed its release is held: it
  // stays poisoned, and nothing may be programmed over it. Touches no owner.
  Error Blocking() const;
@@ -87,23 +97,78 @@ private:
  mutable std::mutex mutex_;
  int window_=-1;
  unsigned ranges_=0;
- bool poisoned_=false;
+ bool poisoned_=false,check_poisoned_=false;
  std::uint64_t generation_=0;
  std::array<std::uint32_t,4> expected_{};
 };
-// The owner operations of a runtime without the kernel owner's window ABI:
-// nothing is offered, so fes.memory.hps-ddr stays refused on the DE25.
-class De25NoWindowOwner final : public De25WindowOperations {
+// The kernel owner's window ABI 1 (de25_dma.h), one call each. The Linux
+// translation lives with the scanout's (native/linux/de25_menu.cpp); tests
+// script it. Errors keep the kernel's errno in their message.
+struct De25WindowKernelInfo {
+ std::uint64_t generation=0;
+ std::uint32_t version=0,reserved=0,contract=0,span=0,status=0,fault=0,state=0,flags=0;
+ std::array<std::uint32_t,4> build_id{};
+};
+class De25WindowKernel {
 public:
- bool Available() override { return false; }
- Error Allocate(int*) override;
- Error Info(int,De25WindowGrant*) override;
- Error Grant(int,std::uint64_t,std::uint64_t,int*) override;
- Error Map(int,std::size_t,void**) override;
- void Unmap(void*,std::size_t) override {}
- Error Revoke(int) override;
- Error Release(int) override;
- void Close(int) override {}
+ virtual ~De25WindowKernel() {}
+ // OWNER_WINDOW_ABI. An older kernel (ENOTTY) or a tree without the window
+ // block (ENODEV) is not an error: it offers nothing.
+ virtual Error WindowAbi(bool* offered,std::uint32_t* version)=0;
+ virtual Error Allocate(int* window)=0;
+ virtual Error Info(int window,De25WindowKernelInfo*)=0;
+ // WINDOW_REVOKE: zaps every mapping and clears the grant (only while
+ // every port is drained). Ends the window for good.
+ virtual Error Revoke(int window)=0;
+ virtual Error Duplicate(int fd,int* out)=0;
+ // Shared, read/write, at a page offset of the window.
+ virtual Error Map(int fd,std::uint64_t offset,std::size_t bytes,void** mapping)=0;
+ virtual void Unmap(void* mapping,std::size_t bytes)=0;
+ // Orders every CPU store before what follows, for the system (DSB SY).
+ virtual void Barrier()=0;
+ // OWNER_INFO: whether the owner holds a scanout allocation (ENODATA: none).
+ virtual Error ScanoutAllocated(bool* allocated)=0;
+ // OWNER_REAP: retires what the owner still pins, window first. Only the
+ // menu's own retirement may reap while a scanout allocation exists.
+ virtual Error Reap()=0;
+ virtual void Close(int fd)=0;
+};
+// The kernel's state bits on WINDOW_INFO (FES_DE25_DMA_REVOKED and the rest).
+constexpr std::uint32_t kDe25WindowRevoked=1,kDe25WindowExposed=2,kDe25WindowUncertain=4;
+constexpr std::uint32_t kDe25WindowAbi=1;
+// De25WindowOperations over the kernel owner. The kernel has no range
+// descriptor: a range is a duplicate of the window descriptor that maps at
+// the range's offset, and its revoke unmaps it. The window mapping is the
+// owner's coherent DMA mapping, uncached on the DE25, so nothing is written
+// back: a full barrier before the range ends puts every CPU store in DDR,
+// and the next mapping reads DDR. Release is WINDOW_REVOKE. The owner keeps
+// a revoked window pinned until OWNER_REAP, and allocates nothing while it
+// does: where no scanout allocation is left for the menu's retirement to
+// reap, Release reaps. The owner's window ABI is probed once, on first use.
+class De25KernelWindowOwner final : public De25WindowOperations {
+public:
+ explicit De25KernelWindowOwner(De25WindowKernel&);
+ ~De25KernelWindowOwner() override;
+ bool Available() override;
+ Error Allocate(int* window) override;
+ Error Info(int window,De25WindowGrant*) override;
+ Error Grant(int window,std::uint64_t offset,std::uint64_t bytes,int* range) override;
+ Error Map(int range,std::size_t bytes,void** mapping) override;
+ void Unmap(void* mapping,std::size_t bytes) override;
+ Error Revoke(int range) override;
+ Error Release(int window) override;
+ void Close(int fd) override;
+private:
+ struct Range {
+  std::uint64_t offset=0,bytes=0;
+  bool revoked=false;
+  std::vector<std::pair<void*,std::size_t>> mappings;
+ };
+ void UnmapAll(Range&);
+ De25WindowKernel& kernel_;
+ std::mutex mutex_;
+ bool probed_=false,available_=false;
+ std::map<int,Range> ranges_;
 };
 // The first fault word of the control block as text: "port 0+2, outside".
 std::string De25WindowFaultText(std::uint32_t fault);

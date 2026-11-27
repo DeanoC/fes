@@ -53,6 +53,7 @@ func (d *Device) EnableIRQ(g *gic.Controller, irqID uint32) error {
 		// cannot re-trigger before the goroutine inspects and clears status.
 		d.io.Write32(signalEnable, 0)
 		d.irqCount.Add(1)
+		d.totalIRQs.Add(1)
 		d.irqMu.Unlock()
 		select {
 		case d.irqWake <- struct{}{}:
@@ -106,6 +107,10 @@ func (d *Device) disableIRQLocked() {
 		d.irqGIC.Register(d.irqID, nil)
 		d.irqGIC = nil
 		d.irqID = 0
+	}
+	if d.irqTimer != nil {
+		d.irqTimer.Stop()
+		d.irqTimer = nil
 	}
 }
 

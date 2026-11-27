@@ -23,6 +23,7 @@ type ConfigurationArena struct {
 	ready         bool
 	failed        bool
 	retained      bool
+	compare       arenaComparison
 	sourceMatches func() bool // called only with mu held
 }
 
@@ -208,7 +209,7 @@ func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Regi
 			// bytes this atomic successor reservation will copy during the call.
 			next = bytes.Clone(next)
 			unchanged := func() bool {
-				return a.active == region && a.ready && bytes.Equal(region.Bytes, owned) &&
+				return a.active == region && a.ready && a.compare.equal(region.Bytes, owned) &&
 					(a.metadata == nil || published && bytes.Equal(a.metadata[:len(header)], header) && romUnchanged())
 			}
 			if err := a.barrier(); err != nil {
@@ -235,7 +236,7 @@ func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Regi
 		}
 	}
 	a.sourceMatches = func() bool {
-		return !a.failed && a.active == region && a.ready && bytes.Equal(region.Bytes, owned) &&
+		return !a.failed && a.active == region && a.ready && a.compare.equal(region.Bytes, owned) &&
 			(a.metadata == nil || published && bytes.Equal(a.metadata[:len(header)], header) && romUnchanged())
 	}
 	clear(a.metadata)
@@ -244,7 +245,7 @@ func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Regi
 		a.failed = true
 		return nil, err // The arena retains its active region and full mapping.
 	}
-	if !bytes.Equal(region.Bytes, owned) {
+	if !a.compare.equal(region.Bytes, owned) {
 		a.failed = true
 		return nil, errors.New("native fabric: staged configuration copy changed")
 	}

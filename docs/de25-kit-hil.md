@@ -45,7 +45,8 @@ head's `scripts/de25_seal_plan.py`, which:
   the kit still runs an exact-head package;
 - refuses any name that is not a registered DE25 Quartus Pro recipe or model.
 
-A producer with models (Spectrum `48`/`128`, Atari ST `520st`) offers them as
+A producer with models (Spectrum `48`/`128`/`plus3`/`pentagon`/`native48`,
+Atari ST `520st`, C64 `pal`/`nativepal`) offers them as
 its `--model` choices. Each model is its own package with its own BUILD_ID, so
 each is sealed and run on the kit. All models of one recipe share one source
 closure, so a source change cannot be attributed to a single model: the
@@ -135,7 +136,8 @@ restore evidence. A run records a fresh pre-state, then verifies after Stop:
 - The root, kernel, boot files, persistent data mount and protected state
   match the pre-run capture or the named baseline diff.
 - The restored FES Welcome/MENU screen is visible on the approved capture
-  node.
+  node. The runner uses bounded `ffmpeg` and `tesseract` attempts and saves
+  the frames and OCR output in `out/restore-menu.*`. It rejects a room error.
 
 Only then release the ledger and locks. Failed restore checks keep the ledger
 claimed and trigger the documented recovery path; do not report HIL PASS.
@@ -163,19 +165,29 @@ baseline unchanged.
 ### J8G serial-checked recovery
 
 The only recovery console in this procedure is
-`/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0` (J8G, observed
-as `/dev/ttyUSB2`). Start with a receive-only probe using
+`/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0` (J8G). The tool
+checks that the link resolves to a `ttyUSB` device whose sysfs USB identity is
+J8G interface 02 on a DE25-Nano. The kernel's `ttyUSB` number can change and
+is recorded with the observation rather than pinned. Start with a receive-only
+probe using
 `python3 scripts/de25_serial_recovery.py --probe --serial TRWU8J8G --output
 <evidence>/serial-probe.json`. The tool refuses any other serial identity or
-resolved port. It records Linux boot output and whether a login prompt exists;
+USB interface. It records the resolved port and USB identity, Linux boot output
+and whether a login prompt exists;
 the production image removes the serial getty, so recovery uses the enabled
 kernel SysRq console path rather than an assumed login.
 
-When network restore fails, keep the D25 claim and both locks. Capture the last
-authenticated target and boot identity, then use
-`python3 scripts/de25_serial_recovery.py --reboot --serial TRWU8J8G --output
-<evidence>/serial-reboot.json`. This sends a serial BREAK followed by SysRq
-`b` and records the boot output. Wait for the same J8G target ID to return on
+When network restore fails, keep the D25 claim and both locks. Before using a
+serial reboot, verify that Stop completed and J8G returned to MENU. An HPS
+reset can leave an older HPS-window bitstream running and stall the next boot
+([#2245](https://github.com/DeanoC/fes/issues/2245)). If Stop fails or the
+fabric state is unknown, use the receive-only probe and arrange the authorized
+J8G power cycle.
+
+With MENU verified, capture the last authenticated target and boot identity,
+then run `python3 scripts/de25_serial_recovery.py --reboot --menu-confirmed
+--serial TRWU8J8G --output <evidence>/serial-reboot.json`. This sends a serial
+BREAK followed by SysRq `b` and records the boot output. Wait for the same J8G target ID to return on
 the network, capture fresh post-reboot state, and create a recovery receipt
 with the before/after boot IDs and observed Linux boot marker:
 

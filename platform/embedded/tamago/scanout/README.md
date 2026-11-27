@@ -8,9 +8,10 @@ legacy diagnostic window reader.
 ## Boot-owned surface (`Surface`)
 
 Copies private Go RGBA pixels into a dedicated Normal noncacheable XRGB8888
-reservation outside Go's heap and orders stores in `Publish`. Writes serialize;
-a write or publication failure poisons the surface and retains the reservation
-until reboot.
+reservation outside Go's heap and orders stores in `Publish`. Writes serialize
+across full-frame (`Present`) and dirty-rectangle (`PresentRect`) updates,
+accounting cumulative traffic in `Stats()`; a write or publication failure
+poisons the surface and retains the reservation until reboot.
 
 ### Nano firmware contract
 

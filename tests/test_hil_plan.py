@@ -49,6 +49,45 @@ class HilPlanTest(unittest.TestCase):
         mixed = planner.plan([path, 'image/buildroot/config'], texts={})
         self.assertEqual(mixed['decision'], 'FULL_IMAGE')
 
+    def test_bare_metal_tamago_paths_do_not_require_linux_kit_hil(self):
+        planner = hil_module()
+        paths = [
+            'platform/embedded/firmware/nano_sd_platform.c',
+            'platform/embedded/tamago/nativefabric/program_service.go',
+            'platform/embedded/tamago/nativefabric/plan_cache_test.go',
+            'sources/FogCast/corepackage/archive.go',
+            'docs/design/de25-native-secure-lifecycle.md',
+        ]
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual(planner.classify_path(path)['class'], 'none')
+        result = planner.plan(paths, texts={}, go_inventories=[{}], go_graph_changes=[])
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+
+    def test_documentation_path_does_not_select_d25_for_an_overlay(self):
+        planner = hil_module()
+        paths = [
+            'sources/FogCast/fogcast/service.go',
+            'docs/design/de25-native-secure-lifecycle.md',
+        ]
+        result = planner.plan(paths, texts={}, go_inventories=[{}], go_graph_changes=[])
+        self.assertEqual(result['deployment_decision'], 'OVERLAY kit-go+host')
+        self.assertEqual(result['kit_targets'], ['A', 'B'])
+
+    def test_retained_archive_api_is_used_only_by_bare_metal_tamago(self):
+        import re
+        pattern = re.compile(r'\bcorepackage\.(?:Archive|RetainArchive)\b')
+        callers = []
+        for root in (ROOT / 'sources', ROOT / 'platform'):
+            for path in root.rglob('*.go'):
+                if path.name.endswith('_test.go') or 'vendor' in path.parts:
+                    continue
+                if pattern.search(path.read_text()):
+                    callers.append(path.relative_to(ROOT).as_posix())
+        self.assertTrue(callers)
+        self.assertTrue(all(path.startswith('platform/embedded/tamago/') for path in callers), callers)
+
     def test_catalog_metadata_does_not_require_deployment(self):
         planner = hil_module()
         catalog = 'config/core-library.toml'
@@ -243,6 +282,15 @@ class HilPlanTest(unittest.TestCase):
             self.assertEqual(row['class'], 'none', command)
         # Optional standalone tools are not installed by the image or bundle.
         self.assertEqual(plan.classify_path('sources/FogCast/cmd/fes-parts/main.go')['class'], 'none')
+
+    def test_de25_pcxt_video_lint_config_is_host_only(self):
+        planner = hil_module()
+        board = 'sources/misteross/boards/de25nano/pcxt/'
+        result = planner.plan([board + 'video.vlt', board + 'sim.py'], texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+        # Do not turn arbitrary board configuration files into host-only input.
+        self.assertEqual(planner.classify_path(board + 'other.vlt')['class'], 'overlay')
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
@@ -634,6 +682,8 @@ class HilPlanTest(unittest.TestCase):
                      'scripts/check_govet.py',
                      'scripts/host_affected.py',
                      'scripts/test_policy.py', 'scripts/ci_gate.py',
+                     'scripts/bundle.py', 'scripts/core_catalog.py',
+                     'scripts/nightly_qualification.py',
                      'scripts/hil_plan.py', 'scripts/consistency.py',
                      'scripts/generate.py'):
             with self.subTest(path=path):
@@ -643,6 +693,15 @@ class HilPlanTest(unittest.TestCase):
         result = run('classify', '--paths-file',
                      self.path_file('scripts/check_deadcode.py\nimage/buildroot/config'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+
+    def test_nightly_release_tooling_set_does_not_request_hardware(self):
+        planner = hil_module()
+        paths = ['scripts/bundle.py', 'scripts/core_catalog.py',
+                 'scripts/nightly_qualification.py']
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+        self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
 
     def test_go_vet_gate_change_set_does_not_request_hardware(self):
         planner = hil_module()

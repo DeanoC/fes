@@ -98,6 +98,7 @@ class MachineProducerTests(unittest.TestCase):
             with self.subTest(core=producer.MACHINE.core_id, model=model):
                 record = self.record(producer, model)
                 parameters = verify_record_source_at_revision(self.root, record)['parameters']
+                self.assertEqual(parameters['threads'], 8)
                 self.assertEqual(parameters['core_id'], core_id)
                 self.assertEqual(parameters['rom_id'], rom_id)
                 self.assertEqual((parameters['model'], parameters['firmware_bytes']), (model, size))
@@ -184,11 +185,13 @@ class MachineProducerTests(unittest.TestCase):
         fields = verify_record_source_at_revision(self.root, record)
         self.assertIn(shared.NATIVE_SPECTRUM_COMPOSER, fields['source_inputs'])
         self.assertEqual(fields['parameters']['f2sdram_master_profile'], 'native-scanout-and-probe')
+        self.assertEqual(fields['parameters']['f2sdram_data_width'], 256)
         self.assertEqual(fields['parameters']['fabric_initiator_policy'], 'native-maintenance-absent-v1')
         self.assertFalse(fields['parameters']['linux_dma'])
         linux = json.loads(self.record(spectrum, '48'))
         self.assertNotIn(shared.NATIVE_SPECTRUM_COMPOSER, linux['source_inputs'])
         self.assertTrue(linux['parameters']['linux_dma'])
+        self.assertEqual(linux['parameters']['f2sdram_data_width'], 256)
         manifest = tomllib.loads(spectrum.manifest(record, payload).decode())
         self.assertEqual(manifest['target']['programming_profile'], 'de25-native-spectrum48-v1')
         self.assertNotEqual(build_identity(record), build_identity(self.record(spectrum, '48')))
@@ -311,6 +314,7 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual((parameters['f2sdram_master_profile'], parameters['guest_memory'],
                           parameters['window_contract']),
                          ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
+        self.assertEqual(parameters['f2sdram_data_width'], 128)
         # The 486SX's own machine clock (pc386/build.py MODEL_CLOCKS): C0 = 34 on the 3,133.333 MHz VCO.
         self.assertEqual(parameters['machine_clock_hz'], 92156863)
         spec = pc386.MACHINE.spec(ROOT)
@@ -337,7 +341,9 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual(manifest['format'], 2)
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         versions = {i['id']: (i['major'], i['minor']) for i in manifest['interfaces']}
-        self.assertEqual(versions, {**{name: (1, 0) for name in sealer.INTERFACES},
+        self.assertNotIn('fes.media.pc-floppy', versions)
+        shared_interfaces = set(sealer.INTERFACES) - {'fes.media.pc-floppy'}
+        self.assertEqual(versions, {**{name: (1, 0) for name in shared_interfaces},
                                     'fes.fabric.de25-hps-window': (1, 0), 'fes.fabric.de25-scanout': (1, 3)})
         self.assertTrue(all(i['required'] for i in manifest['interfaces']))
         # Format 2: no ROM map, and no ROM metadata.

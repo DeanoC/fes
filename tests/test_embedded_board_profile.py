@@ -32,6 +32,7 @@ class BoardProfileTests(unittest.TestCase):
             path=Path(tmp)/'storage.json';path.write_text(json.dumps(plan))
             self.assertEqual(build.writable_storage_option('fpgaload',path,p,True,True),plan)
             self.assertEqual(build.sd_transfer_clock_option('fpgaload',25000000,None,plan),25000000)
+            self.assertEqual(build.sd_transfer_clock_option('fpgaload',50000000,None,plan),50000000)
             with self.assertRaises(ValueError):build.sd_transfer_clock_option('fpgaload',0,None,plan)
             for program,selected,tenfoot,prof in [('sdfile',True,True,p),('fpgaload',False,True,p),('fpgaload',True,False,p),('fpgaload',True,True,profile())]:
                 with self.subTest(program=program,selected=selected,tenfoot=tenfoot),self.assertRaises(ValueError):
@@ -41,6 +42,63 @@ class BoardProfileTests(unittest.TestCase):
                 with self.subTest(change=change),self.assertRaises(ValueError):build.writable_storage_option('fpgaload',path,p,True,True)
             path.write_text(json.dumps(plan)[:-1]+',"format":1}')
             with self.assertRaisesRegex(ValueError,'duplicate'):build.writable_storage_option('fpgaload',path,p,True,True)
+
+    def test_sd_transport_options_require_owned_fpgaload_and_valid_combinations(self):
+        p=profile();p.update(sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
+        self.assertEqual(build.sd_transport_options('probe',1,False,False,profile()),(1,False,False))
+        self.assertEqual(build.sd_transport_options('fpgaload',4,True,True,p),(4,True,True))
+        for program,width,multi,cmd23,prof in [
+            ('sdfile',4,False,False,p),
+            ('fpgaload',4,False,False,profile()),
+            ('fpgaload',2,False,False,p),
+            ('fpgaload',1,False,True,p),
+            ('fpgaload',4,True,True,profile()),
+        ]:
+            with self.subTest(program=program,width=width,multi=multi,cmd23=cmd23),self.assertRaises(ValueError):
+                build.sd_transport_options(program,width,multi,cmd23,prof)
+
+    def test_sd_adma2_option_and_uncached_dma_layout(self):
+        pio_profile=profile();pio_profile.update(ram_start=0x84000000,entry=0x84020000,sd_control={'service':'fes-owned-sd-pio-v1'},usb_phy_clock_hz=0)
+        dma_profile=profile()
+        dma_profile['ram_start']=0x84000000;dma_profile['entry']=0x84020000
+        dma_profile['usb_phy_clock_hz']=0
+        dma_profile['handoff']['usb_platform_ready']=False
+        dma_profile['sd_input_clock_hz']=200000000
+        dma_profile['sd_control']={'service':'fes-owned-sd-dma-v1','exclusive':True,
+                                   'closed_bridges':True,'synchronous_bounded_return':True}
+        self.assertEqual(build.profile_constants(dma_profile)[3],200000000)
+        shipped_pio=json.loads((PATH.parents[1]/'nano/sd-profile.json').read_text())
+        shipped_dma=json.loads((PATH.parents[1]/'nano/sd-dma-profile.json').read_text())
+        self.assertEqual(build.profile_constants(shipped_dma)[3],200000000)
+        self.assertTrue(build.sd_adma2_option('fpgaload',True,shipped_dma))
+        with self.assertRaises(ValueError):
+            build.sd_adma2_option('fpgaload',True,shipped_pio)
+        self.assertFalse(build.sd_adma2_option('probe',False,profile()))
+        self.assertTrue(build.sd_adma2_option('fpgaload',True,dma_profile))
+        for program,requested,prof in [
+            ('sdfile',True,dma_profile),
+            ('fpgaload',True,profile()),
+            ('fpgaload',True,pio_profile),
+            ('fpgaload',1,dma_profile),
+        ]:
+            with self.subTest(program=program,requested=requested),self.assertRaises(ValueError):
+                build.sd_adma2_option(program,requested,prof)
+        self.assertEqual(build.sd_dma_layout(False,0x84000000,256<<20,dma_profile),(0,0))
+        base,size=build.sd_dma_layout(
+            True,0x84000000,256<<20,dma_profile,
+            configuration_map={'base':0x94800000,'size':8<<20},
+            cpu_map={'reader_base':0x95000000,'reader_bytes':8<<20},
+            tape_memory={'base':0x95800000,'bytes':2<<20},
+        )
+        self.assertEqual((base,size),(0x95a00000,2<<20))
+        self.assertEqual(base%(2<<20),0)
+        self.assertEqual(size%(2<<20),0)
+        overlapping=copy.deepcopy(dma_profile)
+        overlapping['reserved'].append({'start':0x95a00000,'size':2<<20,'owner':'overlap'})
+        with self.assertRaises(ValueError):
+            build.sd_dma_layout(True,0x84000000,256<<20,overlapping)
+        with self.assertRaises(ValueError):
+            build.sd_dma_layout(True,0x84000000,256<<20,dma_profile,tape_memory={'base':0x95a00000,'bytes':2<<20})
 
     def test_transfer_clock_requires_explicit_owned_fat_file_mode(self):
         self.assertEqual(build.sd_transfer_clock_option('sdfile',25000000,{'bound':'plan'}),25000000)
@@ -171,6 +229,8 @@ class BoardProfileTests(unittest.TestCase):
         p['sd_control'] = {'service':'fes-owned-sd-pio-v1', 'exclusive':True,
                            'closed_bridges':True, 'synchronous_bounded_return':True}
         self.assertEqual(build.profile_constants(p)[3], 200000000)
+        dma = copy.deepcopy(p); dma['sd_control']['service'] = 'fes-owned-sd-dma-v1'
+        self.assertEqual(build.profile_constants(dma)[3], 200000000)
         for key, value in (('service','mmio'), ('exclusive',False), ('exclusive',1),
                            ('closed_bridges',False), ('synchronous_bounded_return',False)):
             bad = copy.deepcopy(p); bad['sd_control'][key] = value

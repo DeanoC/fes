@@ -5,6 +5,7 @@ package dmaops
 import (
 	"encoding/binary"
 	"errors"
+	"sync"
 	"testing"
 )
 
@@ -230,4 +231,149 @@ func TestRingPoisonAndPartialAllocRollback(t *testing.T) {
 	if pool2.Stats().LiveBuffers != liveBefore {
 		t.Fatalf("Close partially freed buffers: before=%d after=%d", liveBefore, pool2.Stats().LiveBuffers)
 	}
+}
+
+func TestRingStatsAvailableAndConcurrency(t *testing.T) {
+	hw := newMockCoherency(64)
+	pool, err := NewPool(0x50000000, make([]byte, 8192), Uncached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ring, err := NewRing(pool, RingConfig{Count: 4, DescSize: 16, BufSize: 256})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if avail := ring.Available(); avail != 4 {
+		t.Fatalf("initial Available=%d want 4", avail)
+	}
+	st := ring.Stats()
+	if st.Count != 4 || st.DescSize != 16 || st.Available != 4 || st.Acquired != 0 || st.InFlight != 0 || st.Closed || st.Poisoned {
+		t.Fatalf("unexpected initial stats: %+v", st)
+	}
+
+	// Acquire 4 slots to hit full, reject 5th, release 1, publish 2, retire 1.
+	slots := make([]Slot, 4)
+	for i := range slots {
+		slots[i], err = ring.Acquire()
+		if err != nil {
+			t.Fatalf("Acquire[%d]: %v", i, err)
+		}
+	}
+	if ring.Available() != 0 {
+		t.Fatalf("full Available=%d want 0", ring.Available())
+	}
+	if _, err := ring.Acquire(); !errors.Is(err, ErrRingFull) {
+		t.Fatalf("expected ErrRingFull, got %v", err)
+	}
+	if err := ring.ReleaseAcquired(slots[3]); err != nil {
+		t.Fatalf("ReleaseAcquired: %v", err)
+	}
+	if err := ring.Publish(slots[0], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+	if err := ring.Publish(slots[1], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+	// Invalid Publish (out-of-order / bad direction) must not move counters.
+	if err := ring.Publish(slots[1], ToDevice); !errors.Is(err, ErrInvalidSlot) {
+		t.Fatalf("duplicate Publish got %v", err)
+	}
+	if err := ring.Publish(slots[2], Direction(99)); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("bad dir Publish got %v", err)
+	}
+	if err := ring.Retire(slots[0], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+
+	st = ring.Stats()
+	if st.Available != 2 || st.Acquired != 2 || st.InFlight != 1 ||
+		st.MaxAcquired != 4 || st.MaxInFlight != 2 ||
+		st.TotalAcquired != 4 || st.TotalReleased != 1 ||
+		st.TotalPublished != 2 || st.TotalRetired != 1 ||
+		st.FullRejects != 1 || st.Closed || st.Poisoned {
+		t.Fatalf("mid-flight stats mismatch: %+v", st)
+	}
+
+	// Drain remaining slots and verify wraparound keeps high-water marks monotonic.
+	if err := ring.Publish(slots[2], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+	if err := ring.Retire(slots[1], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+	if err := ring.Retire(slots[2], ToDevice); err != nil {
+		t.Fatal(err)
+	}
+	if err := ring.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st = ring.Stats()
+	if !st.Closed || st.Available != 0 || st.TotalPublished != 3 || st.TotalRetired != 3 || st.MaxAcquired != 4 || st.MaxInFlight != 2 {
+		t.Fatalf("closed stats mismatch: %+v", st)
+	}
+	if ring.Available() != 0 {
+		t.Fatalf("closed Available=%d want 0", ring.Available())
+	}
+
+	// Poisoning either the ring or its parent pool reports Poisoned=true and Available=0
+	// while keeping InFlight/Acquired visible for diagnostics.
+	pPool, err := NewPool(0x50000000, make([]byte, 4096), Uncached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pRing, err := NewRing(pPool, RingConfig{Count: 2, DescSize: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps0, err := pRing.Acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pRing.Publish(ps0, FromDevice); err != nil {
+		t.Fatal(err)
+	}
+	pPool.Poison(errors.New("bus fault"))
+	st = pRing.Stats()
+	if !st.Poisoned || st.Available != 0 || st.InFlight != 1 || st.Acquired != 1 {
+		t.Fatalf("pool-poisoned ring stats mismatch: %+v", st)
+	}
+	if pRing.Available() != 0 {
+		t.Fatalf("poisoned Available=%d want 0", pRing.Available())
+	}
+
+	// Concurrent producer/consumer + Stats/Available readers under -race.
+	cPool, err := NewPool(0x50000000, make([]byte, 8192), Uncached, hw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cRing, err := NewRing(cPool, RingConfig{Count: 4, DescSize: 16, BufSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 64; i++ {
+			s, err := cRing.Acquire()
+			if err == nil {
+				_ = cRing.Publish(s, ToDevice)
+			}
+			if p, err := cRing.PeekComplete(); err == nil {
+				_ = cRing.Retire(p, ToDevice)
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 64; i++ {
+			_ = cRing.Available()
+			snap := cRing.Stats()
+			if snap.InFlight > snap.Count || snap.MaxInFlight > snap.Count {
+				t.Errorf("invalid concurrent stats: %+v", snap)
+			}
+		}
+	}()
+	wg.Wait()
 }

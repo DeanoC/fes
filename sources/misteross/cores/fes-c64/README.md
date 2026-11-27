@@ -32,17 +32,17 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 
 ## Machine
 
-The DE10 library offers four C64 family packages. `fes.c64` (PAL 6569) and
-`fes.c64-ntsc` (NTSC 6567R8) use the MOS6581. `fes.c64c` and
-`fes.c64c-ntsc` use the MOS8580 with their respective regional timing. All
-share the 6526 CIAs, independently clocked 1541 and the same 36 KiB firmware
-layout. Each title binds firmware and disks to its selected package.
+The DE10 library offers six C64 family packages. `fes.c64` (PAL 6569) and
+`fes.c64-ntsc` (NTSC 6567R8), and `fes.c64-early-ntsc` (NTSC 6567R56A) use the MOS6581. `fes.c64c` and
+`fes.c64c-ntsc` use the MOS8580 with their respective regional timing.
+`fes.c64-pal-n` uses a MOS6581 with 6572 PAL-N timing. All share the 6526
+CIAs, independently clocked 1541 and the same 36 KiB firmware layout. Each title binds firmware and disks to its selected package.
 The reference schedules are the VICE [C64 clocks](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/c64/c64.h)
 and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de806e309b7f0a2a27043c896cf7c259061/vice/src/viciisc/vicii-chip-model.c).
 
 - 6510 is the shared NMOS 6502 plus the processor port at `$00`/`$01`. Phi2 is
   a fractional enable of the 52.224 MHz system clock, 0.985248 MHz for PAL or
-  1.022730 MHz for NTSC.
+  1.022730 MHz for NTSC, and 1.023440 MHz for PAL-N.
 - 64 KiB RAM. Standard banking, plus 8 KiB, 16 KiB and Ultimax cartridge maps
   from `/EXROM` and `/GAME`.
 - 36 KiB linked firmware: BASIC at bytes 0..8191, KERNAL at 8192..16383,
@@ -71,7 +71,7 @@ and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de80
   consumer samples them at edge 26 or later, so the bus-level timing is
   unchanged and those paths stay out of the device read mux.
   Three indexed-color buffers retain complete 384×272 PAL or 384×247 NTSC
-  frames, including borders for HDMI.
+  frames, including borders for HDMI; PAL-N uses the PAL window.
   Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
   publication keeps both the reader's buffer and queued frame protected.
@@ -84,9 +84,10 @@ and [VIC-II cycle tables](https://github.com/VICE-Team/svn-mirror/blob/08b38de80
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame. The
-  6567R8 has 65 cycles per line and 263 lines per frame. Across its frame
-  wrap, guest reads of `$D011`/`$D012` still report raster 262 on cycle 1
-  and report zero on cycle 2.
+  6567R8 has 65 cycles per line and 263 lines per frame. The 6572 PAL-N has
+  65 cycles per line and 312 lines per frame. Across frame wrap, guest reads
+  of `$D011`/`$D012` report raster 262 for 6567R8 or 311 for 6572 on cycle 1,
+  then zero on cycle 2.
   [Native machine timing](rtl/c64_timing.vh) defines the machine clocks,
   raster geometry, border and capture windows, and DMA slots. VIC cycles
   are one-based. On PAL, sprite 2 finishes on cycle 63 and sprite 3 starts
@@ -367,8 +368,9 @@ for one simulated second, including alternate parameter cases with adjacent
 pulses. The NTSC case checks every Phi and TOD pulse, the guest bus phase,
 filtered SID completions and the independent 1 MHz drive clock. Rates at or
 above half the system clock retain the original direct enable.
+`make sim-fes-c64-paln-timing` and `make sim-fes-c64-paln-display` check 6572 raster and display behavior; `make sim-fes-c64-clock` checks its 1.02344 MHz Phi and 50 Hz TOD.
 `make sim-fes-c64-ntsc-timing` checks raster IRQ, matrix and sprite DMA, BA
-and beam X against the 6567R8 schedule.
+and beam X against the 6567R8 schedule. `make sim-fes-c64-early-ntsc-timing` checks the 6567R56A schedule, including its 262-line, 64-cycle raster and sprite fetches across line wrap. Early NTSC hardware acceptance remains open.
 
 `make sim-fes-c64-sprite-pal` checks 100,800 dots against offline output
 from unchanged VICE 3.10 `draw_sprites8`, using its PAL cycle table and

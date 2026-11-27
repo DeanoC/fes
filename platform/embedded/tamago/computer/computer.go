@@ -86,6 +86,15 @@ type Computer struct {
 	initialTape  InitialTapeLoader
 }
 
+// Capabilities returns the validated fes.computer capability bitmap reported by
+// the live hardware identity when the session was opened.
+func (c *Computer) Capabilities() uint32 {
+	if c == nil {
+		return 0
+	}
+	return c.identity.Capabilities
+}
+
 type inputBatchIO interface {
 	WithInputBatch(func(IO) error) error
 }
@@ -180,19 +189,17 @@ type snapshot struct{ status, gpo, gpi, fault uint32 }
 func (o *operation) snapshot() (s snapshot, err error) {
 	// Bracket a complete snapshot. State may complete while observed, so a
 	// changing pair is retried by the bounded caller, never accepted as ACK.
-	for _, f := range []struct {
-		offset uint32
-		dst    *uint32
-	}{
-		{g.FesDe25ComputerStatusOffset, &s.status},
-		{g.FesDe25ComputerGpoOffset, &s.gpo},
-		{g.FesDe25ComputerGpiOffset, &s.gpi},
-		{g.FesDe25ComputerFaultOffset, &s.fault},
-	} {
-		*f.dst, err = o.read(f.offset)
-		if err != nil {
-			return s, err
-		}
+	if s.status, err = o.read(g.FesDe25ComputerStatusOffset); err != nil {
+		return s, err
+	}
+	if s.gpo, err = o.read(g.FesDe25ComputerGpoOffset); err != nil {
+		return s, err
+	}
+	if s.gpi, err = o.read(g.FesDe25ComputerGpiOffset); err != nil {
+		return s, err
+	}
+	if s.fault, err = o.read(g.FesDe25ComputerFaultOffset); err != nil {
+		return s, err
 	}
 	if s.fault != 0 || s.status & ^(g.FesDe25ComputerStatusReady|g.FesDe25ComputerStatusBusy) != 0 ||
 		s.status&g.FesDe25ComputerStatusReady == 0 ||

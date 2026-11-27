@@ -51,7 +51,7 @@ SOURCES = ({BOARD + "c64/" + name for name in LOCAL_FILES} |
 
 
 NATIVE_HEADER = "sources/misteross/prototypes/de25_board_control/generated/fes_de25_computer.vh"
-NATIVE_SOURCES = {BOARD + "spectrum/derive.py", NATIVE_HEADER}
+NATIVE_SOURCES = {BOARD + "spectrum/derive.py", BOARD + "c64/fes_de25_c64_picker.v", NATIVE_HEADER}
 
 
 def load(path, name):
@@ -85,7 +85,7 @@ def component_files(sources, *, native=False):
         sources[CORE + "c64_d64_medium.sv"])
     files["fes_de25_sdram.v"] = sources[BOARD + "ramtest/sdram.v"]
     files["c64_frame_store_de25.sv"], derived["c64_frame_store_de25.sv"] = derive.retarget_frame_store(
-        sources[CORE + "c64_frame_store.sv"])
+        sources[CORE + "c64_frame_store.sv"], native=native)
     files["fes_de25_computer_transport.v"], derived["fes_de25_computer_transport.v"] = derive.transport(
         sources[BOARD + "zx81-hps/fes_de25_computer.v"])
     if native:
@@ -99,6 +99,9 @@ def component_files(sources, *, native=False):
         files[header] = sources[NATIVE_HEADER]
         tcl = "fes_de25_c64_standard_hw.tcl"
         files[tcl] += b"\nadd_fileset_file generated/fes_native_de25_computer.vh VERILOG_INCLUDE PATH generated/fes_native_de25_computer.vh\n"
+        name = "fes_de25_c64_picker.v"
+        files[name] = sources[BOARD + "c64/" + name]
+        files[tcl] += b"add_fileset_file fes_de25_c64_picker.v SYSTEM_VERILOG PATH fes_de25_c64_picker.v\n"
     return files, derived
 
 

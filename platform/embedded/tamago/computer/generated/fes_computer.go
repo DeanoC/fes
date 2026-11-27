@@ -203,6 +203,17 @@ const (
 	FesComputerDiskCommitCRC32LoWord                    uint32 = 0x5
 	FesComputerDiskCommitCRC32HiWord                    uint32 = 0x6
 	FesComputerDiskCommitReservedWord                   uint32 = 0x7
+	FesComputerPcFloppyUnitA                            uint32 = 0x1
+	FesComputerPcFloppyUnitB                            uint32 = 0x2
+	FesComputerPcFloppyWindowOffset                     uint32 = 0x1800000
+	FesComputerPcFloppyWindowStride                     uint32 = 0x400000
+	FesComputerPcFloppyMinBytes                         uint32 = 0x28000
+	FesComputerPcFloppyMaxBytes                         uint32 = 0x2d0000
+	FesComputerPcFloppySectorBytes                      uint32 = 0x200
+	FesComputerPcFloppyMaxCylinders                     uint32 = 0x50
+	FesComputerPcFloppyMaxHeads                         uint32 = 0x2
+	FesComputerPcFloppyMaxSectorsPerTrack               uint32 = 0x24
+	FesComputerDiskCommitWriteProtectMask               uint32 = 0x1
 	FesComputerDataFreeze                               uint32 = 0x0
 	FesComputerDataBegin                                uint32 = 0x1
 	FesComputerDataCommit                               uint32 = 0x2
@@ -332,4 +343,8 @@ const (
 	FesComputerInterfaceMediaPcxtFloppyWriteMajor       uint16 = 1
 	FesComputerInterfaceMediaPcxtFloppyWriteMinor       uint16 = 0
 	FesComputerCapabilityMediaPcxtFloppyWrite           uint32 = 0x200000
+	FesComputerInterfaceMediaPcFloppyID                        = "fes.media.pc-floppy"
+	FesComputerInterfaceMediaPcFloppyMajor              uint16 = 1
+	FesComputerInterfaceMediaPcFloppyMinor              uint16 = 0
+	FesComputerCapabilityMediaPcFloppy                  uint32 = 0x400000
 )

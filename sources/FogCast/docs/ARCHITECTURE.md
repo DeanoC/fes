@@ -669,7 +669,12 @@ passes through the actual Unix client, so a running display cannot conceal an
 unreadable capability reply. Decoder rejection keeps native readiness false.
 Active-package validation accepts the declared DE25 BRAM computer, standard
 `de25-linux-computer-v1` computer and MENU profiles
-with the exact DE25 target, ABI family and observed build/ABI identity. A native
+with the exact DE25 target, ABI family and observed build/ABI identity. The
+fes.computer minor is per machine (`corepackage.DE25ComputerABI`): 1.1 for the
+PC/XT, whose floppy is a 1.1 interface, and for the pc386, whose ATA disk,
+machine words and wall clock are; 1.0 for every other machine. A DE25 pc386
+session is then checked as the DE10 one is: its ATA disk unit, library disk
+binding and persistent media are board-neutral. A native
 computer status fixture exercises the actual Unix client after FPGA Start;
 unknown profiles, crossed targets and missing observed identity remain rejected.
 The live ZX81 tape limit is checked against that selected target. DE25's BRAM
@@ -1526,10 +1531,12 @@ The **core screen** (`example.core`, `widgets.core_screen`) is what Home opens
 for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
 fixed facts on the left, and its drive and games on the right. For C64 the
-default model is PAL (`fes.c64`). Show all cores also exposes the DE10 NTSC
-6567R8 model (`fes.c64-ntsc`). Each model launches its own library entries
-and binds the user's 36 KiB firmware to its selected package. Both use the
-same D64 drive interface. The screen reads the
+default model is PAL (`fes.c64`). Show all cores also exposes the DE10 6567R8 NTSC (`fes.c64-ntsc`),
+6567R56A early NTSC (`fes.c64-early-ntsc`), Drean PAL-N (`fes.c64-pal-n`),
+and PAL and NTSC C64C
+(`fes.c64c`, `fes.c64c-ntsc`) models. Each model launches its own library
+entries and binds the user's 36 KiB firmware to its selected package. All use
+the same D64 drive interface. The screen reads the
 family with the `home_family` library query, the only one that marks a row as
 a machine entry or a title: the machine entry is listed first as the computer
 on its own, and the count is of titles. Home opens the screen with that
@@ -1840,8 +1847,10 @@ embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
 masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
 face and copied into a mask per string, and a mask draws in any colour with
-alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
-SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window creation lives
+in `ui/tenfoot/sdl.go`, while events, gamepad, mouse, key mapping, and smoke helpers
+are split across `ui/tenfoot/sdl_events.go`, `ui/tenfoot/sdl_keys.go`, and
+`ui/tenfoot/sdl_smoke.go` (sharing `ui/tenfoot/sdl_cgo.h`). USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
@@ -1909,6 +1918,9 @@ gate. Bounded wheel refreshes compare the complete frame content and reuse
 the rendered revision when it is identical; motion bypasses reuse and forces
 a final settled paint. Input polling, App updates, scripted rooms and snapshots continue at 30 Hz.
 The runtime menu backend is selected as `menu-display` or `menudisplay`.
+Its kit frame trace records the duration and outcome of actual `FrameCache`
+scene-command comparisons separately from whole-render and worker-present timings; see
+[frame trace](frame-trace.md).
 Rendered-frame revisions skip framebuffer comparison in `MenuDisplay`; ordinary
 callers retain byte-identical change detection. An unchanged submission that has
 not failed or been dropped is skipped. Once a second after a successful present, that skip
@@ -3327,17 +3339,10 @@ at most 200ms for an in-progress warm. If the warm is still running it returns
 HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
 bytes for that request. The kit-local client surfaces that as `warming` without
 waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
-a list succeeds; the installed-cores room does the same. `POST
-/v1/local/cores/{package_id}/launch` resolves the package through that same
-list. A launch that arrives while the warm is still running returns the same
-HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
-The kit-local client returns `warming` as soon as that response arrives, as it
-does for a list, so the caller can retry. It does not treat the response as an
-unavailable agent and does not reconcile it as a lost launch. Home's queued
-Play polls the read-only list before posting Launch, so Stop during catalog
-warm ends the queue before any core load. If the catalog starts warming again
-between the successful list and Launch, it waits for another successful list
-before retrying. A successful list is the finished catalog, not a partial one.
+a list succeeds; the installed-cores room does the same. A successful list is
+the finished catalog, not a partial one. The local-control socket is inventory
+only; the kit host prepares the selected entry and launches it through the
+normal host session path, which retains its own lease and readiness checks.
 The list handler waits on the request context, so a client disconnect ends
 that wait and leaves the warm running. One catalog scan runs at a time. A
 fingerprint change while that scan is in progress waits for it to finish, then
@@ -3441,10 +3446,17 @@ selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.
 The host view opens in the background; calls made meanwhile get the unavailable
-error at once instead of waiting. The lock waits until the caller's context
+error at once instead of waiting. Closing the host cancels the background
+open and prevents retries or publication into the closed view; filesystem
+calls already in progress must return before they can observe cancellation.
+The lock waits until the caller's context
 ends, so a list, inspect or read without a deadline is bounded to one minute. An import
-reads its whole body under the lock and keeps the caller's context, as the
-agent's own install does. Durable and factory inspections are cached by stat
+reads and validates its bounded archive in private memory before taking the
+shared lock; one import per process is admitted through publication so slow
+uploads cannot accumulate unbounded retained archives. Waiting admission is
+cancellable. It rechecks selected packages and publishes under the shared lock
+with the caller's context. An imported factory package is also retained durably,
+so it stays available if a later image omits that factory package. Durable and factory inspections are cached by stat
 fingerprint, as above. A factory cache stores only its fingerprint and
 inspection; later reads with a matching fingerprint rebuild the canonical
 archive from the package directory without hashing members or decoding a ROM
@@ -3454,8 +3466,11 @@ unpacked members or decoding a ROM map again; mister-agent verifies those bytes
 before programming, and its own select and launch paths keep the full `Read`. If
 the durable store cannot be opened, the host follows
 the agent: it withholds the factory packages too and reports HTTP 503
-`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
-the open error. It retries the open at most every five seconds, so a host that
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import. The
+public response has a generic message; the host logs an open failure. The same
+store-unavailable response applies if a durable operation fails after opening,
+while invalid package input and a missing package retain their own errors.
+The host retries a failed open at most every five seconds, so a host that
 starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
@@ -3528,9 +3543,17 @@ actual next cursor to show `+` only when additional titles remain. The filtered
 page resolves only its returned entry IDs in one bounded batch; a missing
 identity fails the read instead of guessing. If machine entries alone exceed
 the budget, Home blocks that family instead of choosing an incomplete machine
-list while reporting its machine-admission state. The launcher converts family
-rows and editions to Lua in batches of at most 128 items per Step. Home and
-setup count at most 64 title rows per update and publish only completed counts.
+list while reporting its machine-admission state. Initial `families.load` dispatches
+every family's `library.query` immediately during `load`. On `on_resume`,
+`families.reload` synchronously cancels any in-flight prior family queries,
+starts fresh `kit.cores` and `hardware.read` refreshes, publishes Checking, and
+queues the per-family `library.query` reads rather than starting all of them
+inside `on_resume`; `families.update` processes at most one pending response
+batch (64 title rows) per frame and returns, otherwise lazily builds `core_ids`
+for and dispatches at most one queued family query per frame, and checks
+scheduled transient retries only when no pending batch or queued query remains.
+The launcher converts family rows and editions to Lua in batches of at most
+128 items per Step, and Home and setup publish only completed counts.
 Initial and data-changed Home pictures add one family tile per draw callback.
 Machine admission remains independent in `hardware.computers`; catalog rows,
 cache refreshes and editions never establish that readiness. A refresh discards
@@ -3926,18 +3949,26 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+lease. The controller Start button never exits a kit-host launcher, including
+while session ownership is unavailable or changing; a supervised launcher
+would otherwise immediately restart during somebody else's play. Desktop
+launchers keep their existing Start-to-quit behavior. Select+Start held for
+one second posts an explicit `POST /api/v1/session/stop`
 for this host's active or failed session: `retain_lease` false with the captured
-play. Package plays send that generation. Package-free plays send the session
+play. On a kit host the stop chord and roomless Guide, F12, and Ctrl+Home
+shortcuts require matching owned-lease and session observations from the preceding
+five seconds; a foreign, missing, future-dated or stale observation is consumed
+without posting Stop or interrupting local play. Package plays send that generation. Package-free plays send the session
 id, launch flight, game, and target, and are not posted unbound. A queued chord
 keeps the play from chord time. Idle cleanup releases that play's grant and
 renewal of that grant stops; grants retained on other targets stay until shell
 exit or Release kit. A release that fails after idle retries the idle-grant
 release rather than the captured play. Rooms B/Back stays the retain
-request. For a kit-local run it goes to local
-control `POST /v1/local/stop` instead, with the exact launch generation. A
-foreign-owned core accepts local play controls, but this launcher cannot stop
-it. Stop and kit menu actions stay on the kit. If the
+request. Kit-host launches and stops use the host session API; the local-control
+socket exposes core inventory but no launch or stop route. A busy foreign lease
+keeps the existing local pad and play-HID fence, and this launcher cannot stop
+it; delegated physical-keyboard input follows its separate authority checks. Stop and kit
+menu actions stay on the kit. If the
 socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input
@@ -3949,7 +3980,12 @@ replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
 in place. When the host has observed that the stream is unavailable and cannot
 reconnect, a new launcher input POST or event POST returns 503
-`INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
+`INPUT_UNAVAILABLE` (`no live input stream`). A host whose configuration does
+not enable `[remote_input]` has no input bridge for the session: attach,
+detach, tap and event return 503 `INPUT_UNAVAILABLE` (`remote input is not
+enabled in this host's configuration`). That check comes before the kit-lease
+and connection checks, so a disconnected or foreign-leased target gives the
+same answer. An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
 its initial ready response does not acknowledge individual events. Launcher
 clients can request sequenced event receipts; the original stream has no
@@ -4372,6 +4408,14 @@ and `ata_disk`; the runtime writes the image into the DDR window before release.
 Machine settings are a per-game record on the kit, read and written with the
 library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
 The fixed disk takes no live media operations; Stop saves its delta.
+
+For a pc386 package that declares `fes.media.pc-floppy`, a library entry with
+the `floppy` role selects disk 1 as its boot image. Catalog selection and Home
+readiness require an image readable by drive A:. Launch checks again before
+staging an existing entry, then uploads the image by digest and binds it to
+A: in the library load with the ATA disk empty. The BIOS tries A: then C:.
+B:-only images can be imported and inserted into B: during a running session.
+The live media path checks the geometry against the requested drive.
 
 ## Initial Atari ST library disk
 

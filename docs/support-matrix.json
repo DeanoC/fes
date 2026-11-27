@@ -55,8 +55,8 @@
   ],
   "policy": [
     "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Registered recipes select either their declared OSS lane or an explicit Quartus lane. A failed OSS route never falls back to Quartus.",
-    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 × (Quartus best − OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
-    "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Rows with a DE10 board bitstream show Quartus; rows without a board bitstream show no DE25 toolchain cell. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
+    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
+    "DE25-Nano (Agilex 5) is Quartus-only (policy). policy: Deano 2026-10-29. A Quartus cell indicates a registered DE25 recipe or a development producer profile for that core ID, not hardware acceptance; a dash means neither is present. Grouped rows name the available core IDs when only some members have producers. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)).",
     "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. PC/XT has a sole registered Quartus DOS package producer and an advisory nextpnr diagnostic. pc386 retains pack-only nextpnr synthesis, and i386 retains the Quartus 17.0.2 fit of its Yosys netlist ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
     "ColecoVision still uses the old media handling. Its example arcade room has an empty-library status when no matching titles are available. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
   ],
@@ -1022,6 +1022,114 @@
         "reason": "Deano 2026-10-29",
         "note": "The NTSC recipe and library entry are available. Release standing remains held back."
       }
+    },
+    {
+      "id": "fes.c64-early-ntsc",
+      "label": "C64 early NTSC",
+      "tier": "bring-up",
+      "release": "held-back",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_c64_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-c64/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "DE10 nextpnr GPU route with the C64 timing constraints.",
+      "quartus": "No Quartus producer for the DE10 C64.",
+      "features": "6567R56A early NTSC, 64 cycles per line and 262 lines per frame. Linked 36 KiB firmware, native 1541 read-only D64, keyboard, two joysticks and fixed 720p60 HDMI.",
+      "notes": "Experimental DE10 library selection, held back from release. Hardware acceptance for this profile remains open.",
+      "evidence": [
+        "sources/misteross/cores/fes-c64/README.md"
+      ],
+      "tier_role": "bring-up",
+      "family": "c64",
+      "variant": "early NTSC",
+      "display": "C64 (early NTSC)",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      },
+      "quality_tier": null,
+      "check_level": "full"
+    },
+    {
+      "id": "fes.c64-pal-n",
+      "label": "C64 PAL-N",
+      "tier": "bring-up",
+      "release": "held-back",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_c64_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-c64/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "DE10 nextpnr GPU route with the C64 timing constraints.",
+      "quartus": "No Quartus producer for the DE10 C64.",
+      "features": "6572 PAL-N, 65 cycles per line and 312 lines per frame, 1.02344 MHz CPU and 50 Hz TOD. Linked 36 KiB firmware, native read-only 1541 D64, keyboard, two joysticks and fixed 720p60 HDMI.",
+      "notes": "Experimental DE10 library selection, held back from release. Hardware acceptance for this package identity remains open.",
+      "evidence": [
+        "sources/misteross/cores/fes-c64/README.md"
+      ],
+      "tier_role": "bring-up",
+      "family": "c64",
+      "variant": "PAL-N",
+      "display": "Drean C64 (PAL-N)",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      },
+      "quality_tier": null,
+      "check_level": "full"
     },
     {
       "id": "fes.c64c",
@@ -2151,7 +2259,8 @@
     "note": [
       "In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule beside D12 in [AGENTS.md](../AGENTS.md): a core at `check_level: reduced` owes a closure sweep only D12's netlist comparison, which is still measured and recorded, and not the RBF reproduction, the timing and seal gate or the HIL. This page is where the levels are listed; AGENTS.md is where the obligation is written. Neither lowers a gate on work being done to a core.",
       "The [forward plan](plans/forward-plan.md) assigns quality tiers per machine and board. Coleco, SMS, SG-1000 and Apple II are tier 2 candidates pending their ports. The freshness tier is derived independently from dates.",
-      "`check_level` says what a change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
+      "Shared RTL consumed by multiple machines or board variants follows the [D12 shared RTL merge rule](../AGENTS.md#shared-rtl-under-d12). After the protected main nightly qualification has produced a first baseline, affected simulations and synthesis gate source merge, and the frozen nightly candidate carries timing, seal and applicable kit evidence for the combined changes. Until then, shared-RTL PRs need normal pre-merge exact-head kit HIL. Releases may select older compatible qualified artifacts. The same first-baseline gate applies to a D12 closure-only sweep: after that baseline exists, the PR records the netlist comparison pre-merge and defers the RBF reproduction, the timing and seal gate and the HIL to the nightly candidate; a failed netlist comparison keeps every pre-merge gate.",
+      "`check_level` says what a closure-only change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included; after the first nightly baseline, a closure-only sweep (producer, lock or helper, no RTL change) records the netlist comparison pre-merge and defers the RBF reproduction, the timing and seal gate and the HIL to the nightly candidate, and a failed netlist comparison keeps every pre-merge gate. Until that baseline exists, all three conditions stay pre-merge. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
       "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of 2026-11-15, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This rule is close to that call but not the same one: it drops the same two conditions for the same held-back cores by rule, while it keeps at full the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon). Whether the representative scoping should be a rule too is a separate question.",
       "The levels never lower a gate on work being done to a core: a netlist that is not byte-identical, a change that touches the core's own RTL, programs, lock or placement recipe, and any change that ships it, all put that core back under the full rule. AGENTS.md's hard rule against relaxing a timing or seal check stands above this one and is unchanged."
     ],
@@ -2159,7 +2268,7 @@
       {
         "id": "full",
         "label": "Full",
-        "meaning": "Every change that moves the core's `BUILD_ID` carries that core's own evidence."
+        "meaning": "Every change that moves the core's `BUILD_ID` carries that core's own evidence. After the first nightly baseline, a closure-only sweep records the netlist comparison pre-merge and defers the RBF, seal and HIL to nightly."
       },
       {
         "id": "reduced",
@@ -2196,5 +2305,111 @@
     ],
     "decided_on": "2026-11-15",
     "rule": "AGENTS.md, the hard rule beside D12"
+  },
+  "de25_tier1": {
+    "note": [
+      "Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).",
+      "A cell is sealed only when its exact package SHA-256 is recorded with an in-repo JSON smoke receipt for that core and package on Kit D25 (`kit_serial`, `core_id`, `package_sha256`, `verdict` PASS), so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate those receipts, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open."
+    ],
+    "states": [
+      {
+        "id": "none",
+        "meaning": "No DE25 producer builds it."
+      },
+      {
+        "id": "builds",
+        "meaning": "A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25."
+      },
+      {
+        "id": "sealed",
+        "meaning": "Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) passed the lifecycle smoke on Kit D25, per an in-repo JSON receipt."
+      },
+      {
+        "id": "kit-accepted",
+        "meaning": "Conformance, the DE10 corpus and any declared save round-trip pass on Kit D25 for that package, per a per-core JSON receipt."
+      },
+      {
+        "id": "released",
+        "meaning": "In a DE25 release cut from the same tag as DE10, per a per-core JSON release receipt for that package."
+      }
+    ],
+    "machines": [
+      {
+        "label": "ZX81 family",
+        "cells": {
+          "fes.zx81": "builds",
+          "fes.zx80": "none",
+          "fes.ts1000": "none",
+          "fes.ts1500": "none"
+        },
+        "issues": [
+          2262,
+          1568,
+          1875
+        ],
+        "proven": "MENU and ZX81 baseline promotion; launch, F12 to the media selector, Stop and verified restore (`docs/validation/2026-11-16-de25-kit-parity/`).",
+        "missing": "ZX80, TS1000 and TS1500 models in the DE25 producer and `kDe25StandardCores`; typed keyboard input; conformance; a ZX81 game corpus, which DE10 does not have either. Zon X and 16K carts wait on expansions."
+      },
+      {
+        "label": "Spectrum family",
+        "cells": {
+          "fes.spectrum": "builds",
+          "fes.spectrum128": "builds",
+          "fes.spectrum-plus3": "builds",
+          "fes.pentagon": "builds"
+        },
+        "issues": [
+          2042,
+          2262
+        ],
+        "proven": "48K and 128K exact-head HILQ smoke 9/9 with the screens checked (#2042); +2A/+3 `.dsk` and Pentagon `.trd` boots with restore verified (#2046).",
+        "missing": "keyboard input on the +3 and Pentagon; the Pentagon ROM in the HILQ firmware table; tape and snapshot media on the board; the audio-clock review; conformance; the Fuse corpus."
+      },
+      {
+        "label": "Atari ST",
+        "cells": {
+          "fes.atari-st": "builds"
+        },
+        "issues": [
+          2042
+        ],
+        "proven": "smoke 10/10; TOS 1.04 UK and EmuTOS reach the GEM desktop (#1937, #2042).",
+        "missing": "the Hatari corpus (Xenon, Gomoku with the mouse, The Lurking Horror disk save, Terramex disk swap); a cycle comparison with DE10; a long board SDRAM run; the audio-clock review; conformance."
+      },
+      {
+        "label": "C64",
+        "cells": {
+          "fes.c64": "builds"
+        },
+        "issues": [
+          2262
+        ],
+        "proven": "HDMI frame and D64 mount (#2234).",
+        "missing": "typed keyboard input; conformance; the corpus from `docs/validation/2026-11-07-c64-game-acceptance/`; the audio-clock review."
+      },
+      {
+        "label": "PC/XT",
+        "cells": {
+          "fes.pcxt-dos": "builds"
+        },
+        "issues": [
+          2182
+        ],
+        "proven": "smoke 9/9 with restore verified; FreeDOS reached `A:\\>` only on the superseded +4.0 ns package (#2069).",
+        "missing": "a reproducible Quartus compile; a reseal after the SDRAM DQ capture/hold fix; FreeDOS on the new package; SDRAM at 100 MHz under load; the qualification set; conformance."
+      },
+      {
+        "label": "pc386",
+        "cells": {
+          "fes.pc386": "builds"
+        },
+        "issues": [
+          2029,
+          2245
+        ],
+        "proven": "nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run.",
+        "missing": "the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip."
+      }
+    ]
   }
 }

@@ -35,7 +35,7 @@ type tapeCPU struct {
 	used, starts, commits, runs, mediaOpens int
 	mediaGeneration                         uint64
 	held, ready                             bool
-	spectrum, disk                          bool
+	spectrum, disk, allowLiveDisk           bool
 	fault                                   string
 	now                                     *time.Time
 	cancel                                  context.CancelFunc
@@ -60,7 +60,7 @@ func (c *tapeCPU) writeMedia(op, index uint32, value uint16) error {
 	if op < cg.FesComputerOpcodeMediaInfo || op > cg.FesComputerOpcodeMediaEject {
 		return nil
 	}
-	if !c.held {
+	if !c.held && !(c.disk && c.allowLiveDisk) {
 		return errors.New("media operation outside held execution")
 	}
 	if c.files != nil && (c.mediaOpens == 0 || c.mediaGeneration != c.base.state.Generation) {

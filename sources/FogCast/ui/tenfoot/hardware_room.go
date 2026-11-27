@@ -415,6 +415,11 @@ func (a *App) stopWithoutRoomLocked(down bool, now time.Time) bool {
 	if a.firmwarePickerOpen {
 		return false
 	}
+	// Consume local Stop shortcuts without changing a foreign or unknown
+	// session. A rejected Stop must not temporarily fence the owner's input.
+	if a.kitHost && !a.kitHostOwnsActiveSessionLocked(now) {
+		return true
+	}
 	if down {
 		a.noteActivityLocked(now)
 		a.startReleaseStopLocked()

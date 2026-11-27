@@ -270,6 +270,8 @@ A floppy is small, so it is saved whole, as the PC/XT floppy is:
 - **Layout:** `fes.pc386-floppy.image` 1.0. The `fes-media-data-v1` envelope holds the whole current image, published with the existing tmp-fsync-rename rule (`MP/docs/media-data.md:44-50`).
 - **Key:** the existing `fes-media-data-v1` namespace of core, game, unit and base image SHA-256 (`MP/docs/media-data.md:9-12`, `:28`), with the unit field fixed at **1** for every pc386 floppy record, whichever drive holds the disk. The drive (unit 1 or 2 on the wire) is never part of the key, so the base SHA alone tells disks apart. Disk 2 of a set keeps its saved game whether the player puts it in A: or B:, and whichever disk was in a drive at Stop. The runtime maps a floppy unit to namespace unit 1 when it binds the record; `media-data.md` records the rule beside the layout.
 - **One drive per writable image.** The runtime refuses to insert a writable disk whose namespace is already bound to the other drive; FogCast says the disk is already in A: (or B:). The same base image may sit in both drives only write-protected, where no record is written. A disk keeps one binding, so each save has one writer.
+
+  **As built in F3 (22 November 2026):** there is no such check. With A: fixed at 1.44M and B: at 1.2M (D11), no image size fits both drives, so a writable image can only ever be in one of them and the refusal could never fire.
 - **Dirty state:** one flag per unit, set when a sector store lands. A Format Track also sets it.
 - **Read-only inserts:** the host can insert any disk write-protected (ST3 WP; writes end with ST1 NW). The library default is writable for disks of a game's own set, and write-protected for install media from a shared OS folder (**D9**).
 - **Reset disk:** FogCast's existing "reset disk" (discard the record) applies per image.
@@ -485,6 +487,8 @@ Slice C2 records the measured command latency distribution and the ARM load of t
 
 ### ABI changes
 
+**As built in F3 (21 November 2026):** `fes.media.pc-floppy` 1.0 was added as capability bit 22 inside `fes.computer` **1.1**, with no minor bump. A manifest that declares it is already refused by any runtime that does not know the interface, as `pcxt-floppy-write`, the ST geometry and `spectrum-disk` were added inside 1.1 before. DiskCommit is indexed `unit*8+word`, which is unchanged for unit 0; word 7 carries flags, bit 0 write-protect. The shared `fes_computer_storage` endpoint is not changed: a pc386-local front (`pc386_floppy_media`) answers units 1 and 2 on the storage port, and the shared mailbox only gains a gated `ENABLE_PC_FLOPPY` capability bit. The text below is the original plan.
+
 These are owned as `core-media-evolution.md:113-128` says.
 
 **mister-packages** (`MP/packages/abi/fes_computer.yaml`, `MP/docs/computer-io.md`):
@@ -515,7 +519,17 @@ These are owned as `core-media-evolution.md:113-128` says.
 - the tenfoot picker gets a drive row, "A: Disk 2 of 5", and one-press next and previous within the set;
 - the launch's boot device (C, A or CD) is a per-entry setting written into the `fes.pc386.machine` record.
 
+**As built in F3 (22 November 2026):**
+
+- A `floppy` media role, catalog schema 27. Disk 1 must fit A: for boot. The host stages it on the kit by digest and the runtime inserts it while the machine is held, with the hard disk empty. Disks 2 to N can be selected during play.
+- The host checks the launch result shows the disk in its drive. An older kit agent ignores the floppy header and starts the machine with the drive empty; the host stops it and asks for a kit update.
+- Live media is `insert_library_media` and `eject_media` on units 1 and 2, with an optional `write_protected`. Either drive takes any floppy image in the library, not only the entry's set (Deano, 22 November 2026), so a hard-disk title boots install floppies and installs to C:. The record is keyed by the title's game and the floppy's own image. The host gets a unit-aware eject for A:/B:, and the CLI gets `insert-floppy` and `eject-floppy`. There is no `swap_media`: inserting into a full drive saves and ejects the old disk first.
+- Not built in F3: the tenfoot drive row (deferred to the core-screens slice 6 tenfoot work) and a per-image floppy reset-disk.
+- `scripts/consistency.py` checks FogCast's format table against the runtime's.
+
 ### Machine configuration
+
+**As built in F3 (Deano, 21 November 2026):** neither is a per-entry setting. A: is a 3.5" 1.44M drive and B: a 5.25" 1.2M one (CMOS types 4 and 2), and the machine boots like an AT: A:, then C: (CMOS 3Dh=21h, 38h=30h, 2Dh bit 5), so a disk left in A: boots. `fes.pc386.machine` stays at 1.0. The text below is the original plan.
 
 The drive types and the boot device are per-entry settings. `fes.pc386.machine` 1.0 has no room for them: words 0–6 are settings, word 7 is reserved and must be 0, and words 8–71 are CMOS (`MP/docs/computer-io.md:554-570`). F3 therefore defines **`fes.pc386.machine` 1.1**, with these words added after the CMOS words:
 
@@ -769,3 +783,6 @@ Deano accepted each recommendation below on 11 November 2026.
 | **D7** | Area at 91.6% after both devices, with Phase 5 still landing | Land the floppy first. Start C1 once Phase 5's measured area is known. Drop to one floppy drive or defer CD-DA if the seal will not close. Never relax gates |
 | **D8** | CD-DA in mono now, or wait for #1441's stereo mixer | Mono now (L+R at half scale). Stereo when #1441 lands |
 | **D9** | Write-protect default | Writable for disks in a game's own media set; write-protected for OS and tool install media from a shared folder; the player can flip it per insert |
+| **D10** | Boot device (21 Nov 2026, for core screens slice 6) | Fixed like an AT: A:, then C:. No per-game setting |
+| **D11** | Drive types (21 Nov 2026) | Fixed at A: 1.44M, B: 1.2M; the machine record stays 1.0 |
+| **D12** | Other `fes.computer` cores (21 Nov 2026) | The shared changes are gated (a mailbox parameter, an additive header). Each other core is cleared with a byte-identical netlist and a byte-identical RBF rebuild with main's `BUILD_ID`, recorded in the F3 PR |

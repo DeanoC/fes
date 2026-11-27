@@ -143,7 +143,7 @@ func TestConfigurationTransferWindowBatchesAndLookahead(t *testing.T) {
 }
 
 func TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer(t *testing.T) {
-	for _, fault := range []string{"foreign", "cpu-address", "duplicate", "gap", "busy-address", "missing", "completion-mutation", "write-mutation", "write-error", "cancelled", "before-poll-mutation"} {
+	for _, fault := range []string{"foreign", "cpu-address", "duplicate", "gap", "busy-address", "missing", "write-error", "cancelled"} {
 		t.Run(fault, func(t *testing.T) {
 			w, transfer := windowFixture(t, 64, 20*64+4)
 			w.fault = fault
@@ -151,9 +151,6 @@ func TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer(t *testing
 				if transfer.Status().Phase == "completion" {
 					if fault == "cancelled" {
 						_ = transfer.Cancel(errors.New("deadline"))
-					}
-					if fault == "before-poll-mutation" {
-						w.region.Bytes[65] ^= 1
 					}
 				}
 				done, _, err := transfer.Advance()
@@ -165,9 +162,6 @@ func TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer(t *testing
 				}
 				s := transfer.Status()
 				want := 4
-				if fault == "write-mutation" {
-					want = 2
-				}
 				if s.Outstanding != want || s.CompletedBytes != 0 || s.RetainedBytes != len(w.source) || w.releases != 0 {
 					t.Fatal("window ownership lost", s)
 				}

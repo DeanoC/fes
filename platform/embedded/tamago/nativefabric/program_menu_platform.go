@@ -20,6 +20,7 @@ type ProgramMenuPlatform struct {
 	dmaPollAt   time.Time
 	dmaNotified uint64
 	dmaArmed    uint64
+	c64Picker   *programC64Picker
 }
 
 func NewProgramMenuPlatform(service *ProgramService, inner tenfoot.Platform, framebuffer func() *stdimage.RGBA) (*ProgramMenuPlatform, error) {
@@ -70,6 +71,9 @@ func (p *ProgramMenuPlatform) Present(ctx context.Context, snapshot tenfoot.Snap
 		if view := p.service.Status(); view.State == ProgramRunning {
 			p.dmaArmed = view.Generation
 		}
+	}
+	if err := p.presentC64Picker(ctx, snapshot.TapePicker); err != nil {
+		return p.service.Retire(err)
 	}
 	if err := p.inner.Present(ctx, snapshot); err != nil {
 		return p.service.Retire(err)

@@ -3,7 +3,9 @@
 `sdm/` contains two distinct components:
 1. **`Client` (read-only DE25-Nano discovery):** queries SDM `CONFIG_STATUS`
    (`0x04`) and `GET_IDCODE` (`0x10`) through TF-A
-   `INTEL_SIP_SMC_MBOX_SEND_CMD` (`0xc200003c`).
+   `INTEL_SIP_SMC_MBOX_SEND_CMD` (`0xc200003c`), returning an `Observation`
+   with structured decoders (`PinStatus`, `SoftStatus`, `IDCodeInfo`,
+   `HasError`, `Configured`, and `String`).
 2. **`ConfigModel` (off-board software protocol model):** models the
    `START`/`WRITE`/`COMPLETED_WRITE`/`ISDONE` state machine for QEMU/host tests
    under [fabricmodel](../fabricmodel/README.md).

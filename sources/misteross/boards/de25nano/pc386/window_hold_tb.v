@@ -55,7 +55,7 @@ module window_hold_tb (
     wire p0_drained, p1_drained, p2_drained;
     /* verilator lint_off PINCONNECTEMPTY */
     fes_de25_hps_window window (
-        .hold(hold), .grant_valid(1'b1), .grant_base(grant_base),
+        .reset_n(!reset), .hold(hold), .grant_valid(1'b1), .grant_base(grant_base),
         .fault_clear(1'b0), .fault_port(fault_port), .fault_no_grant(), .fault_outside(),
         .p0_clk(clk), .p0_reset(p0_reset), .p0_drained(p0_drained),
         .p0_address(p0_address), .p0_burstcount(p0_burstcount), .p0_waitrequest(p0_waitrequest),

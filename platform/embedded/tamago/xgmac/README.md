@@ -41,9 +41,11 @@ QEMU uses its separate VirtIO-net driver.
 - **Multicast hash filtering & MMC counters:** `SetMulticastMACs` programs the
   Synopsys XGMAC 2.10 `MAC_Hash_Table_Reg0..7` and `MAC_Packet_Filter.HMC`
   with readback verification (re-applied across `BindControl.Stop/Start`).
-  `HardwareStats()` reads MMC RX/TX and error counters (with opt-in
-  `Config.ResetMMCOnRead` accumulating clear-on-read deltas across polls and
-  `Stop`/`Start` resets).
+  `SetAllMulticast` toggles `MAC_Packet_Filter.PM` (pass all multicast frames
+  without enabling promiscuous mode) while `FilterStatus()` reports the
+  configured filter state. `HardwareStats()` reads MMC RX/TX and error
+  counters (with opt-in `Config.ResetMMCOnRead` accumulating clear-on-read
+  deltas across polls and `Stop`/`Start` resets).
 
 ## Pause, stop, and restart control (`BindControl` / `OpenControlled`)
 

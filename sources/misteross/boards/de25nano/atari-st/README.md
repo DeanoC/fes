@@ -70,8 +70,8 @@ memory master, PLLs, SDRAM pad timing and HDMI are not modeled.
 ## Open
 
 - The 520ST [passes signoff and packages](../../../docs/validation/2026-11-18-de25-machine-signoff/README.md).
-  The package is a candidate with no hardware acceptance, and its
-  audio-clock review uses the new `de25-machine-pll-audio-clocks-v1` policy,
+  It has booted on Kit D25 (below) but has no conformance or game-corpus
+  acceptance there yet, and its audio-clock review uses the new `de25-machine-pll-audio-clocks-v1` policy,
   which is unreviewed.
 - ROM read timing against the DE10 machine. `st_rom` answered in five clocks;
   the SDRAM port answers in the CPU's slot. EmuTOS and TOS 1.04 boot, but no

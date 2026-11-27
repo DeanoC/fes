@@ -15,6 +15,7 @@ int main(int argc,char **argv) {
         std::printf("SID preparation guard masks oscillator=%x envelope=%x expected27\n",top.prepared,top.envelope_prepared);
         return 1;
     }
+    unsigned paln_phase=0, paln_tod_phase=0, paln_cycles=0;
     unsigned ntsc_phase=0, tod_phase=0, last_phi=0, drive_cycles=0, sid_results=0, active_cycles=0;
     for(unsigned tick=0;tick<52224000;++tick) {
         for(unsigned i=0;i<system.size();++i) {
@@ -26,6 +27,21 @@ int main(int argc,char **argv) {
                 return 1;
             }
             if(expected){phase[i]-=system[i];++count[i];}
+        }
+        paln_phase += 1023440;
+        const bool paln_phi = paln_phase >= 52224000;
+        if (paln_phi) { paln_phase -= 52224000; ++paln_cycles; }
+        if (top.paln_phi != paln_phi) {
+            std::fprintf(stderr, "PAL-N Phi mismatch at SYS %u\n", tick);
+            return 1;
+        }
+        if (top.paln_reset) paln_tod_phase = 0;
+        else if (paln_phi) paln_tod_phase += 50;
+        const bool paln_tod = paln_tod_phase >= 1023440;
+        if (paln_tod) paln_tod_phase -= 1023440;
+        if (top.paln_tod != paln_tod) {
+            std::fprintf(stderr, "PAL-N TOD mismatch at SYS %u\n", tick);
+            return 1;
         }
         ntsc_phase += 1022730;
         const bool phi = ntsc_phase >= 52224000;
@@ -55,12 +71,13 @@ int main(int argc,char **argv) {
         sid_results += top.sid_done;
         top.clk=1;top.eval();top.clk=0;top.eval();
     }
-    if (count[0]!=985248 || drive_cycles!=1000000 || active_cycles!=1022730-15 ||
+    if (paln_cycles!=1023440 || count[0]!=985248 || drive_cycles!=1000000 || active_cycles!=1022730-15 ||
         sid_results+1!=active_cycles) {
         std::fprintf(stderr, "NTSC active Phi %u, SID results %u, drive Phi %u\n",
                      active_cycles, sid_results, drive_cycles);
         return 1;
     }
+    std::puts("PAL-N clock PASS: 1023440 Phi/s and 50 Hz TOD");
     std::puts("NTSC clock PASS: 1022730 Phi/s, 60 Hz TOD, CPU strobe/sample phases, 1 MHz drive and one filtered SID result per completed guest cycle");
     std::puts("C64 clock PASS: 52224000 motherboard ticks match independent fractional reference, PAL/boundary/fractional2-3/adjacent/full-rate enables and SID preparation guard");
 }

@@ -42,6 +42,22 @@ reason (`FaultNoGrant`, `FaultOutside`), and the port stays waiting. No
 burst crosses a `BoundaryBytes` boundary. All three ports reach HPS memory
 through one SMMU stream, for reads and writes.
 
+When the window and scanout share F2SDRAM, the hard bridge and its AXI
+adapter both use 128-bit data. The window can issue a command on any
+16-byte boundary, including masked writes from the status ring. Agilex 5
+requires 32-byte command alignment on the 256-bit F2SDRAM path.
+[Agilex 5 EMIF access requirements](https://docs.altera.com/r/docs/817467/25.3.1/external-memory-interfaces-emif-ip-user-guide-agilextm-5-fpgas-and-socs/lockstep-configuration#unaligned-memory-access)
+
+The adapter issues reads with one AXI ID so the hard bridge returns them
+in issue order. Its 16-entry FIFO restores each Avalon request's ID
+through the last read beat, including when scanout and guest reads are
+both pending. On shared window builds, the adapter also raises AXI write
+credits from one to sixteen to match `agilex_hps.f2sdram`, and the window
+arbiter prioritizes display ports (`p1` before `p2` before `p0` on reads,
+`p2` before `p1` before `p0` on writes, with bounded `p0` anti-starvation)
+while batching within a direction to limit `PREVENT_HAZARDS` read/write
+turnaround stalls on the single-ID bridge.
+
 ## The control block
 
 The block sits at `PeripheralOffset` on the lightweight bridge,
@@ -61,8 +77,30 @@ The block sits at `PeripheralOffset` on the lightweight bridge,
 A fault is fatal in 1.0. The faulting command stays presented, so its port
 never drains and `CommandClear` (which needs every port drained) can't be
 accepted: after a fault the window cannot be cleared or re-granted until the
-FPGA is reprogrammed.
+window logic is reset.
 
 This contract assigns no Linux device, firewall, boot or runtime admission.
 The kernel owner's allocation and the runtime's use of it are slice 4 of
 #2029.
+
+## HPS reset
+
+On HPS-window machine builds the GHRD's active-high `h2f_reset` output
+asserts the common fabric reset. This resets the grant registers, the machine
+and both sides of the F2SDRAM clock crossing. The port guards discard old
+commands and outstanding replies. Their reset synchronizers capture the reset
+with the port clock stopped and hold it through the first two returning clock
+edges. Both sides of the fault handshake clear their state. A normal hold
+still drains outstanding operations.
+
+The DE25 pc386 board wrapper also latches an execution hold when
+`machine_reset_n` asserts. Its mailbox survives that reset, so the hold stays
+active after reset release even if the mailbox still reports execution
+released. The wrapper hands off only when a fresh grant crosses into the
+machine clock domain and the mailbox and normal port hold both report held.
+This lets the machine verify the ATA image through port 2 while execution is
+still held. A retained Run state cannot resume by acquiring a grant alone.
+
+The reset manager owns fencing and draining on the HPS side. Validate its
+behavior across HPS cold, warm and watchdog resets with the exact boot chain
+and bitstream before qualifying live-window reboot.

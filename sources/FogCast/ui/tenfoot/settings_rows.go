@@ -124,7 +124,11 @@ func (a *App) settingsSectionSummaryLocked(id string) string {
 	case settingsSectionControllers:
 		ids := a.padIDsLocked()
 		if len(ids) == 1 {
-			return a.pads[ids[0]].Name
+			pad := a.pads[ids[0]]
+			if pad.Tested {
+				return pad.Name + "  ·  Tested"
+			}
+			return pad.Name
 		}
 		return fmt.Sprintf("%d pads", len(ids))
 	case settingsSectionBluetooth:
