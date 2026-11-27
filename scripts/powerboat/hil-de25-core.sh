@@ -89,24 +89,14 @@ N_PKGS=${#PKGS[@]}
 NEEDS_CORE_SMOKE=0
 for CORE_ID in "${CORE_IDS[@]}"; do [ "$CORE_ID" = fes.menu ] || NEEDS_CORE_SMOKE=1; done
 if [ "$NEEDS_CORE_SMOKE" = 1 ]; then
-  cp "$Q/hilcore.py" "$Q/hil-de25-core.py"
-  python3 - "$Q/hil-de25-core.py" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
+  SMOKE_DRIVER=$TMPDIR_PATH/hil-de25-core.py
+  cp "$Q/hilcore.py" "$SMOKE_DRIVER"
+  python3 - "$SMOKE_DRIVER" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); s=p.read_text(); old='ORIGIN = "http://127.0.0.1:8787"'; new='ORIGIN = os.environ.get("C_API", "http://127.0.0.1:8787")'
 if old not in s: raise SystemExit('HIL smoke API declaration changed')
 s=s.replace(old,new,1)
-old_rom = '    plan = hil_rom.rom_plan(R["descriptor"], entry.get("core_id"), req(f"/api/v1/library/core-entries/{game}/rom", "rom-before"))'
-new_rom = """    rom = (R[\"descriptor\"] or {}).get(\"rom\") or {}
-    if rom.get(\"id\"):
-        current = req(f\"/api/v1/library/core-entries/{game}/rom?rom_id={rom['id']}\", \"rom-before\")
-        plan = hil_rom.rom_plan(R[\"descriptor\"], entry.get(\"core_id\"), current)
-    else:
-        plan = None"""
-# The HILQ engine now carries this ROM selection itself; patch only older copies.
-if new_rom not in s:
-    if old_rom not in s: raise SystemExit('HIL smoke ROM selection declaration changed')
-    s=s.replace(old_rom,new_rom,1)
 old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-control.sock http://local-control/v1/local/status")
     check("idle_after_stop", '"phase":"idle"' in lc, lc[:160])"""
 new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
@@ -342,8 +332,8 @@ for i in "${!PKGS[@]}"; do
       timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   else
-    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
-      timeout 1800 python3 "$Q/hil-de25-core.py" >"$SMOKE_LOG" 2>&1
+    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_TARGET_ID="$TARGET_ID" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+      timeout 1800 python3 "$SMOKE_DRIVER" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   fi
   set -e
