@@ -257,6 +257,7 @@ func (r *Instance) roomPads(L *lua.LState) int {
 		row.RawSetString("family", lua.LString(p.Family))
 		row.RawSetString("recognised", lua.LBool(p.Recognised))
 		row.RawSetString("bluetooth", lua.LBool(p.Bluetooth))
+		row.RawSetString("tested", lua.LBool(p.Tested))
 		row.RawSetString("swap_ab", lua.LBool(p.SwapAB))
 		row.RawSetString("mapped", lua.LBool(p.Mapped))
 		glyphs := L.NewTable()

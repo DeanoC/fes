@@ -19,3 +19,7 @@ Go wakeup channels compatible with TamaGo's WFI idle governor.
   - `YieldFunc(maxWait)` — returns a bounded `func()` directly pluggable into
     `scanout.ReaderLimits.Yield`, `scanout.MenuLimits.Yield`, and
     `computer.Limits.Yield`.
+- **Telemetry (`Doorbell.Stats`, `Dispatcher.Stats`):** lock-free per-doorbell
+  counters (`DoorbellStats`: interrupts, coalesced signals, `WaitWakeups`
+  consumed via `Wait`/`WaitTimeout`/`YieldFunc`/`YieldOrFallback`, timeouts,
+  cancellations, trigger mode, active status) and sorted dispatcher snapshots.

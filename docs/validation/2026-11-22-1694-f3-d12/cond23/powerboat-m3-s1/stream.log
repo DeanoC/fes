@@ -1,0 +1,14 @@
+[11-25 09:46:58] ########## c64 (full)
+[11-25 10:15:01] c64.base rc=0 (afac39328)
+[11-25 10:15:01] c64.base rbf 694a61762bcba5c6281cb66b5efb943ae485992da88ad5b740b98f470f745357 from sources/misteross/build/fes-c64-oss/core.rbf
+[11-25 10:43:44] c64.forced rc=0 (6abf23a73)
+[11-25 10:43:44] c64.forced rbf 694a61762bcba5c6281cb66b5efb943ae485992da88ad5b740b98f470f745357 from sources/misteross/build/fes-c64-oss/core.rbf
+[11-25 10:43:44] RESULT c64 condition 2: RBF reproduced byte for byte
+[11-25 11:12:33] c64.c3 rc=0 (6abf23a73)
+[11-25 11:12:33] c64.c3 rbf 9549469131810cd8368b2ff31459bdaca9a348b4d91f2b4a2fb17cd55aa4a555 from sources/misteross/build/fes-c64-oss/core.rbf
+[11-25 11:12:33] RESULT c64 condition 3: gates passed, BUILD_ID f433ee8dff5ca5d1cda5f67462b79467
+[11-25 11:12:33]        package 5ddaef54dbad6d81b73ef0109e48295041f041c5e3f046226772de40c3ec6c8a.fcore
+[11-25 11:12:33]        package 5ddaef54dbad6d81b73ef0109e48295041f041c5e3f046226772de40c3ec6c8a
+[11-25 11:12:33]        package 5ddaef54dbad6d81b73ef0109e48295041f041c5e3f046226772de40c3ec6c8a.build-inputs.json
+[11-25 11:12:33]        package 5ddaef54dbad6d81b73ef0109e48295041f041c5e3f046226772de40c3ec6c8a.024f113c09d0c0fdb0478aa39a71f83a0106c1550b46bed8917d9314747feb1f.build-inputs.json
+[11-25 11:12:33] stream done

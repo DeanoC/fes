@@ -8,6 +8,10 @@
 
 namespace mister { namespace native {
 class Clock;
+class De25WindowKernel;
+// The kernel owner's window ABI 1 calls on /dev/fes-de25-scanout. Construction
+// performs no device access. Off Linux the owner offers no window.
+std::unique_ptr<De25WindowKernel> LinuxDe25WindowKernel();
 // Portable observations of the kernel grant, without CPU/DMA addresses. The
 // Linux operations translate the canonical kernel UAPI; tests inject operations.
 struct De25MenuGrant {

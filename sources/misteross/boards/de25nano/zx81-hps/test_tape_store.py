@@ -45,7 +45,7 @@ def project(output):
         'set_global_assignment -name VERILOG_FILE tape_store.v\n'
         'set_global_assignment -name VERILOG_MACRO QUARTUS=1\n'
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files\n'
-        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
+        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 8\n'
         'set_global_assignment -name SDC_FILE tape_store.sdc\n')
     (output / "tape_store.sdc").write_text('create_clock -name tape -period 10 [get_ports clk]\n')
     (output / "README.txt").write_text(

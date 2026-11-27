@@ -154,26 +154,62 @@ var dualSensePlayerRGB = [4][3]byte{
 	{0x70, 0x10, 0x70}, // Player 4: magenta
 }
 
-// BuildDualSenseBTOutput writes a valid 78-byte DualSense Bluetooth output
-// report 0x31 (setting rolling 4-bit seq tag, player 1..4 LEDs, lightbar color,
-// and rumble motors) with the required IEEE CRC-32 seeded with 0xA2.
-func BuildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft uint8) int {
+func buildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft uint8, setLEDs bool) int {
 	if len(dst) < DualSenseBTOutputLen {
 		return 0
 	}
 	clear(dst[:DualSenseBTOutputLen])
-	slot := playerSlot & 3
 	dst[0] = DualSenseBTReportFull
 	dst[1] = (seq & 0x0f) << 4 // seq_tag: rolling 4-bit sequence in high nibble, tag 0x0 in low nibble
 	dst[2] = 0x10              // DS_OUTPUT_TAG
 	dst[3] = 0x03              // valid_flag0: compatible vibration + haptics select
-	dst[4] = 0x14              // valid_flag1: lightbar (0x04) + player LEDs (0x10)
 	dst[5] = rumbleRight
 	dst[6] = rumbleLeft
-	dst[46] = dualSensePlayerLEDs[slot]
-	dst[47] = dualSensePlayerRGB[slot][0]
-	dst[48] = dualSensePlayerRGB[slot][1]
-	dst[49] = dualSensePlayerRGB[slot][2]
+	if setLEDs {
+		slot := playerSlot & 3
+		dst[4] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
+		dst[46] = dualSensePlayerLEDs[slot]
+		dst[47] = dualSensePlayerRGB[slot][0]
+		dst[48] = dualSensePlayerRGB[slot][1]
+		dst[49] = dualSensePlayerRGB[slot][2]
+	}
+
+	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
+	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
+	return DualSenseBTOutputLen
+}
+
+// BuildDualSenseBTOutput writes a valid 78-byte DualSense Bluetooth output
+// report 0x31 (setting rolling 4-bit seq tag, player 1..4 LEDs, lightbar color,
+// and rumble motors) with the required IEEE CRC-32 seeded with 0xA2.
+func BuildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft uint8) int {
+	return buildDualSenseBTOutput(dst, seq, playerSlot, rumbleRight, rumbleLeft, true)
+}
+
+// BuildDualSenseBTRumble writes a valid 78-byte DualSense Bluetooth output
+// report 0x31 updating only rumble motors without modifying player LEDs or lightbar.
+func BuildDualSenseBTRumble(dst []byte, seq, rumbleRight, rumbleLeft uint8) int {
+	return buildDualSenseBTOutput(dst, seq, 0, rumbleRight, rumbleLeft, false)
+}
+
+func buildDualShock4BTOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8, setLEDs bool) int {
+	if len(dst) < DualSenseBTOutputLen {
+		return 0
+	}
+	clear(dst[:DualSenseBTOutputLen])
+	dst[0] = DualShock4BTReportFull
+	dst[1] = 0xc0 // HID | CRC32 flags required on Bluetooth 0x11 output reports
+	dst[2] = 0x00
+	dst[3] = 0x01 // enable rumble (0x01)
+	dst[6] = rumbleRight
+	dst[7] = rumbleLeft
+	if setLEDs {
+		slot := playerSlot & 3
+		dst[3] |= 0x02 // enable lightbar RGB (0x02)
+		dst[8] = dualSensePlayerRGB[slot][0]
+		dst[9] = dualSensePlayerRGB[slot][1]
+		dst[10] = dualSensePlayerRGB[slot][2]
+	}
 
 	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
 	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
@@ -184,24 +220,13 @@ func BuildDualSenseBTOutput(dst []byte, seq, playerSlot, rumbleRight, rumbleLeft
 // report 0x11 (setting HID+CRC flags 0xc0, valid flags 0x03, rumble, and
 // player lightbar RGB) with the required IEEE CRC-32 seeded with 0xA2.
 func BuildDualShock4BTOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
-	if len(dst) < DualSenseBTOutputLen {
-		return 0
-	}
-	clear(dst[:DualSenseBTOutputLen])
-	slot := playerSlot & 3
-	dst[0] = DualShock4BTReportFull
-	dst[1] = 0xc0 // HID | CRC32 flags required on Bluetooth 0x11 output reports
-	dst[2] = 0x00
-	dst[3] = 0x03 // enable rumble (0x01) + lightbar RGB (0x02)
-	dst[6] = rumbleRight
-	dst[7] = rumbleLeft
-	dst[8] = dualSensePlayerRGB[slot][0]
-	dst[9] = dualSensePlayerRGB[slot][1]
-	dst[10] = dualSensePlayerRGB[slot][2]
+	return buildDualShock4BTOutput(dst, playerSlot, rumbleRight, rumbleLeft, true)
+}
 
-	// CRC-32 over [0xA2] || dst[0:74] stored little-endian in dst[74:78].
-	binary.LittleEndian.PutUint32(dst[74:78], sonyBTCRC32(dualSenseOutputCRCSeed[:], dst[:74]))
-	return DualSenseBTOutputLen
+// BuildDualShock4BTRumble writes a valid 78-byte DualShock 4 Bluetooth output
+// report 0x11 updating only rumble motors without modifying lightbar RGB.
+func BuildDualShock4BTRumble(dst []byte, rumbleRight, rumbleLeft uint8) int {
+	return buildDualShock4BTOutput(dst, 0, rumbleRight, rumbleLeft, false)
 }
 
 func decodeSonyButtons(hatFace, shoulders, psMisc uint8, hasMute bool) Button {
@@ -315,40 +340,65 @@ func ParseDualShock4USB(report []byte, out *State) bool {
 	return true
 }
 
-// BuildDualSenseUSBOutput writes a 48-byte wired USB DualSense output report 0x02
-// setting rumble, lightbar RGB, and player LEDs.
-func BuildDualSenseUSBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
+func buildDualSenseUSBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8, setLEDs bool) int {
 	if len(dst) < DualSenseUSBOutputLen {
 		return 0
 	}
 	clear(dst[:DualSenseUSBOutputLen])
-	slot := playerSlot & 3
 	dst[0] = 0x02
 	dst[1] = 0x03 // valid_flag0: compatible vibration + haptics select
-	dst[2] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
 	dst[3] = rumbleRight
 	dst[4] = rumbleLeft
-	dst[44] = dualSensePlayerLEDs[slot]
-	dst[45] = dualSensePlayerRGB[slot][0]
-	dst[46] = dualSensePlayerRGB[slot][1]
-	dst[47] = dualSensePlayerRGB[slot][2]
+	if setLEDs {
+		slot := playerSlot & 3
+		dst[2] = 0x14 // valid_flag1: lightbar (0x04) + player LEDs (0x10)
+		dst[44] = dualSensePlayerLEDs[slot]
+		dst[45] = dualSensePlayerRGB[slot][0]
+		dst[46] = dualSensePlayerRGB[slot][1]
+		dst[47] = dualSensePlayerRGB[slot][2]
+	}
 	return DualSenseUSBOutputLen
+}
+
+// BuildDualSenseUSBOutput writes a 48-byte wired USB DualSense output report 0x02
+// setting rumble, lightbar RGB, and player LEDs.
+func BuildDualSenseUSBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
+	return buildDualSenseUSBOutput(dst, playerSlot, rumbleRight, rumbleLeft, true)
+}
+
+// BuildDualSenseUSBRumble writes a 48-byte wired USB DualSense output report 0x02
+// updating only rumble motors without modifying player LEDs or lightbar.
+func BuildDualSenseUSBRumble(dst []byte, rumbleRight, rumbleLeft uint8) int {
+	return buildDualSenseUSBOutput(dst, 0, rumbleRight, rumbleLeft, false)
+}
+
+func buildDualShock4USBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8, setLEDs bool) int {
+	if len(dst) < DualShock4USBOutputLen {
+		return 0
+	}
+	clear(dst[:DualShock4USBOutputLen])
+	dst[0] = 0x05
+	dst[1] = 0x01 // valid_flags: rumble
+	dst[4] = rumbleRight
+	dst[5] = rumbleLeft
+	if setLEDs {
+		slot := playerSlot & 3
+		dst[1] = 0x07 // valid_flags: rumble + lightbar RGB + blink off
+		dst[6] = dualSensePlayerRGB[slot][0]
+		dst[7] = dualSensePlayerRGB[slot][1]
+		dst[8] = dualSensePlayerRGB[slot][2]
+	}
+	return DualShock4USBOutputLen
 }
 
 // BuildDualShock4USBOutput writes a 32-byte wired USB DualShock 4 output report 0x05
 // setting rumble and lightbar RGB.
 func BuildDualShock4USBOutput(dst []byte, playerSlot, rumbleRight, rumbleLeft uint8) int {
-	if len(dst) < DualShock4USBOutputLen {
-		return 0
-	}
-	clear(dst[:DualShock4USBOutputLen])
-	slot := playerSlot & 3
-	dst[0] = 0x05
-	dst[1] = 0x07 // valid_flags: rumble + lightbar RGB + blink off
-	dst[4] = rumbleRight
-	dst[5] = rumbleLeft
-	dst[6] = dualSensePlayerRGB[slot][0]
-	dst[7] = dualSensePlayerRGB[slot][1]
-	dst[8] = dualSensePlayerRGB[slot][2]
-	return DualShock4USBOutputLen
+	return buildDualShock4USBOutput(dst, playerSlot, rumbleRight, rumbleLeft, true)
+}
+
+// BuildDualShock4USBRumble writes a 32-byte wired USB DualShock 4 output report 0x05
+// updating only rumble motors without modifying lightbar RGB.
+func BuildDualShock4USBRumble(dst []byte, rumbleRight, rumbleLeft uint8) int {
+	return buildDualShock4USBOutput(dst, 0, rumbleRight, rumbleLeft, false)
 }

@@ -189,6 +189,32 @@ kernel API, not a new userspace recovery override.
 No timeout, frame completion or client-close path declares outstanding traffic gone. Actual reset
 recovery and device detach qualification remain future work.
 
+## HPS window storage
+
+The computer window (`fes.fabric.de25-hps-window`, window ABI 1) takes its 256
+MiB from the owner's `memory-region`: a `fes,de25-window-pool` reservation of
+exactly one window, placed inside the F2SDRAM firewall's region 0 above the
+vendor service buffer. It is neither `reusable` nor `no-map`.
+- **Not reusable.** On Kit D25 a reusable 272 MiB `shared-dma-pool` failed
+  every 256 MiB allocation on page migration (`cma_alloc_fail`, up to 2,570
+  `pgmigrate_fail`, #2214).
+- **Not no-map.** A `no-map` `shared-dma-pool` would be bound as the device's
+  coherent pool, which `dma_alloc_attrs` hands out by physical address before
+  the IOMMU path, and `dma_map_resource` would give the fabric an MMIO
+  (Device-memory) SMMU mapping.
+- **Not bound to the device.** The owner looks the reservation up; the
+  scanout allocates from the global CMA, as before #2126.
+
+Each window maps the pool as the DMA API maps a contiguous allocation for
+this non-coherent device (`iommu_dma_alloc_pages`, `iommu_dma_mmap`):
+1. an uncached kernel alias;
+2. the linear alias cleaned and invalidated;
+3. the device address through `dma_map_page` with the non-coherent protection;
+4. user maps with the same `pgprot_dmacoherent` protection.
+
+The pool is zeroed for every window. Release ends the mappings; the
+reservation stays.
+
 ## Off-board kernel tests
 
 The focused KUnit configuration includes `MMU`, `OF`, `KUNIT`, `CMA`, `DMA_CMA`,

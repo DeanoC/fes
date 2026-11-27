@@ -35,6 +35,67 @@ func TestFrameCacheMatchesImmediateAndSkipsStaticFrames(t *testing.T) {
 	}
 }
 
+func TestFrameCacheTracesOnlyActualSceneComparisons(t *testing.T) {
+	cache := NewFrameCache(NewRecorder())
+	var traces []FrameListCompareTrace
+	cache.SetListCompareTraceSink(func(trace FrameListCompareTrace) { traces = append(traces, trace) })
+	paint := func(color Color, clear bool) {
+		cache.BeginFrame()
+		if clear {
+			cache.Clear(RGB(0, 0, 0))
+		}
+		cache.FillRect(Rect{W: 4, H: 4}, color)
+		cache.Present()
+	}
+	paint(RGB(1, 2, 3), true) // invalid cache, no comparison
+	paint(RGB(1, 2, 3), true)
+	paint(RGB(4, 5, 6), true)
+	paint(RGB(4, 5, 6), false) // incremental frame, no comparison
+	if len(traces) != 2 || !traces[0].Equal || traces[1].Equal {
+		t.Fatalf("actual comparisons = %+v", traces)
+	}
+	for _, trace := range traces {
+		if trace.Started.IsZero() || trace.Duration < 0 || trace.Commands == 0 {
+			t.Fatalf("invalid comparison = %+v", trace)
+		}
+	}
+	cache.SetListCompareTraceSink(nil)
+	paint(RGB(4, 5, 6), true)
+	if len(traces) != 2 {
+		t.Fatal("disabled sink received a comparison")
+	}
+}
+
+// Host-only diagnostic overhead; the kit must measure its own comparison.
+func BenchmarkFrameCacheListComparisonTrace(b *testing.B) {
+	for _, enabled := range []bool{false, true} {
+		name := "disabled"
+		if enabled {
+			name = "enabled"
+		}
+		b.Run(name, func(b *testing.B) {
+			cache := NewFrameCache(NewRecorder())
+			if enabled {
+				cache.SetListCompareTraceSink(func(FrameListCompareTrace) {})
+			}
+			paint := func() {
+				cache.BeginFrame()
+				cache.Clear(RGB(0, 0, 0))
+				for i := 0; i < 24; i++ {
+					cache.FillRect(Rect{X: float32(i), W: 4, H: 4}, RGB(1, 2, 3))
+				}
+				cache.Present()
+			}
+			paint()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				paint()
+			}
+		})
+	}
+}
+
 func TestFrameCacheInvalidatesTextureUpdatesAndRemovedDraws(t *testing.T) {
 	recorder := NewRecorder()
 	cache := NewFrameCache(recorder)

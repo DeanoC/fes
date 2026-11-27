@@ -43,11 +43,11 @@ def lint(name, driver, qualifier):
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
     'cores/fes-common/rtl/i386/fes_i386_cpu.sv': '377ff229ed66ff72bdcef778397635a22c07a3378e9d98afcaec16a0e5048127',
-    'cores/fes-pc386/rtl/pc386_at_core.sv': 'ae210404c4c06d724bbfe0f166743988f495e3301edecbaf1c50e23c41ba6d4c',
+    'cores/fes-pc386/rtl/pc386_at_core.sv': '8b1ea8f50caedb8bae9916659b02e929b43657e2f62b16392d311e2f014241db',
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
-    'cores/fes-pc386/rtl/pc386_machine.sv': 'c1aa79dbefc5c1632601b6097765249c68ed01f0d172ef7d6087e1f71893dabc',
+    'cores/fes-pc386/rtl/pc386_machine.sv': '44fcf64b5bfbc6e86cf76bf20fc578722de91474eea1e4cf84f043e29d775650',
     'cores/fes-pc386/rtl/pc386_io.sv': '4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece',
     'cores/fes-pc386/rtl/pc386_audio.sv': '3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a',
     'boards/de25nano/pc386/fes_de25_hps_window_control.v':
@@ -181,11 +181,9 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
            'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
            'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
-CPU_CONTROL_TENSION = advisory(
-    'TMC-20602', 'cpu-control-tension', 0,
-    S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY,
-    TENSION,
-)
+CPU_CONTROL_STEM = (r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)'
+                    r'(?:\[\d+\])?')
+CPU_CONTROL_TENSION = advisory('TMC-20602', 'cpu-control-tension', 0, S + CPU_CONTROL_STEM + COPY, TENSION)
 
 # A fitted location identifies a TimeQuest register to prove, even when the
 # fitter changes the generated stem across seeds. The row/column classes are
@@ -198,16 +196,17 @@ RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12
 RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
                 r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
-# The 111.90 MHz DX fits reported this mixed duplicate spelling for cpu_halted
-# and cpu_int_wait. Both require the same live proof as the retimed sites.
+# The C28 DX fits reported indexed and unindexed mixed duplicate spellings
+# for CPU controls and decoder state. Both forms require live fitted proof.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
-                             + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate)')
+                             + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate(?:_[0-9]+)?)')
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '
                    'in both directions. All four fitted corners must have nonnegative worst incoming '
                    'and outgoing setup and hold slack, no inter-clock or cut setup or hold paths, '
-                   'and no asynchronous connectivity apart from each register\'s own Q arc. '
+                   'and asynchronous structure limited to each register\'s own Q arc. '
+                   'Normal and false-path queries must find zero outgoing recovery and removal paths. '
                    'The detailed unconstrained-path report must exclude every subject. '
                    'The ordinary timing and CDC analyses still apply.')
 RETIMED_CONTROL_TENSION = advisory('TMC-20602', 'retimed-machine-control-tension', 0,

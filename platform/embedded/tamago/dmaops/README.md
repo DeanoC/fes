@@ -15,15 +15,18 @@ DE25-Nano (Agilex 5).
 - **Explicit arenas (`Pool`, `Buffer`):** Manages aligned, coalesced spans over
   caller-supplied memory outside Go's heap (`qemuvirt.DMAPool()` on QEMU `virt`
   or `de25nano.NewUncachedPool(base, size)` over an `arm64map`-verified window
-  on DE25-Nano). In `Cached` mode, every allocation is aligned and padded to
-  `CacheLineSize()` so distinct buffers never share a cache line.
+  on DE25-Nano), including `AllocBelow` for address-limited DMA engines and
+  high-water / span / call counters in `Stats()`. In `Cached` mode, every allocation
+  is aligned and padded to `CacheLineSize()` so distinct buffers never share a
+  cache line.
 - **Fail-closed poisoning:** Calling `Buffer.Poison(err)`, `Ring.Poison(err)`,
   or `Pool.Poison(err)` permanently pins the affected physical spans until
   reboot. Poisoned resources reject `Free`, `Close`, `Sync*`, and descriptor
   reads/writes rather than recycling memory with uncertain hardware ownership.
 - **Descriptor rings (`Ring`):** FIFO `Acquire` → `Publish` →
   `SyncDescriptorForCPU` → `Retire` over a contiguous descriptor table and
-  optional per-slot data buffers (or descriptor-only tables such as SDHCI ADMA2).
+  optional per-slot data buffers (or descriptor-only tables such as SDHCI ADMA2),
+  with `Available()` and cumulative/high-water telemetry via `Stats()` (`RingStats`).
   `NewRing` requires `DescSize` to be a multiple of `CacheLineSize()` on `Cached`
   pools so adjacent descriptors never share a cache line; concurrent hardware
   rings with smaller descriptors (such as 16-byte XGMAC/VirtIO descriptors) must

@@ -153,7 +153,7 @@ func (c *Client) ExportMediaRecord(ctx context.Context, d protocol.MediaRecordDi
 	if response.StatusCode != http.StatusOK {
 		return nil, decodeResponse(&http.Response{StatusCode: response.StatusCode, Body: io.NopCloser(bytes.NewReader(data)), Header: response.Header}, &struct{}{})
 	}
-	if !protocol.AdmitLibraryFloppySize(int64(len(data))) {
+	if !protocol.AdmitLibraryFloppySize(int64(len(data))) && !protocol.AdmitPcFloppySize(int64(len(data))) {
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "saved media image is the wrong size", Phase: "recovery"}
 	}
 	return data, nil

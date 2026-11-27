@@ -49,16 +49,16 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 	var rep [78]byte
 	rep[0] = DualSenseBTReportFull
 	rep[1] = 0x02
-	rep[2] = 0x00 // LeftX = -32768
-	rep[3] = 0xff // LeftY = +32512
-	rep[4] = 0x80 // RightX = 0
-	rep[5] = 0x80 // RightY = 0
-	rep[6] = 200  // L2 analog
-	rep[7] = 150  // R2 analog
-	rep[9] = 0x01 | 0x20 | 0x40 // Hat Up+Right + Cross(South) + Circle(East)
-	rep[10] = 0x01 | 0x20       // L1 + Options(Start)
+	rep[2] = 0x00                // LeftX = -32768
+	rep[3] = 0xff                // LeftY = +32512
+	rep[4] = 0x80                // RightX = 0
+	rep[5] = 0x80                // RightY = 0
+	rep[6] = 200                 // L2 analog
+	rep[7] = 150                 // R2 analog
+	rep[9] = 0x01 | 0x20 | 0x40  // Hat Up+Right + Cross(South) + Circle(East)
+	rep[10] = 0x01 | 0x20        // L1 + Options(Start)
 	rep[11] = 0x01 | 0x02 | 0x04 // PS(Home) + Touchpad + Mute(Capture)
-	rep[54] = 0x18              // 80% + charging
+	rep[54] = 0x18               // 80% + charging
 	sealSonyBTInput(rep[:])
 
 	var st State
@@ -85,8 +85,8 @@ func TestDualSenseBTFullAndBasicAndOutputCRC32(t *testing.T) {
 		t.Fatalf("unexpected usb.GamepadState: %+v", usbSt)
 	}
 	mask := st.ToComputerMask()
-	// Up(bit3), Right(bit0), Left(bit1 from LeftX=-32768), Down(bit2 from LeftY=+32512), South(bit4), East(bit5), Start(bit6)
-	if mask != (1<<0|1<<1|1<<2|1<<3|1<<4|1<<5|1<<6) {
+	// Up(bit0), Down(bit1 from LeftY=+32512), Left(bit2 from LeftX=-32768), Right(bit3), South/A(bit4), East/B(bit5), Start(bit7)
+	if mask != (1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<4 | 1<<5 | 1<<7) {
 		t.Fatalf("unexpected computer mask=%#02x", mask)
 	}
 
@@ -280,6 +280,33 @@ func TestStateNeutralChecksAllSticksAndTriggers(t *testing.T) {
 	for _, tc := range activeCases {
 		if tc.st.Neutral() {
 			t.Fatalf("%s state %+v reported Neutral", tc.name, tc.st)
+		}
+	}
+}
+
+func TestToComputerMaskMatchesFesComputerABI(t *testing.T) {
+	cases := []struct {
+		name string
+		st   State
+		want uint8
+	}{
+		{"up", State{Buttons: ButtonDPadUp}, 1 << 0},
+		{"down", State{Buttons: ButtonDPadDown}, 1 << 1},
+		{"left", State{Buttons: ButtonDPadLeft}, 1 << 2},
+		{"right", State{Buttons: ButtonDPadRight}, 1 << 3},
+		{"south_a", State{Buttons: ButtonSouth}, 1 << 4},
+		{"east_b", State{Buttons: ButtonEast}, 1 << 5},
+		{"select", State{Buttons: ButtonSelect}, 1 << 6},
+		{"start", State{Buttons: ButtonStart}, 1 << 7},
+		{"stick_up", State{LeftY: -16385}, 1 << 0},
+		{"stick_down", State{LeftY: 16385}, 1 << 1},
+		{"stick_left", State{LeftX: -16385}, 1 << 2},
+		{"stick_right", State{LeftX: 16385}, 1 << 3},
+		{"deadzone", State{LeftX: 16384, LeftY: -16384}, 0},
+	}
+	for _, tc := range cases {
+		if got := tc.st.ToComputerMask(); got != tc.want {
+			t.Fatalf("%s: ToComputerMask()=%#02x, want %#02x", tc.name, got, tc.want)
 		}
 	}
 }

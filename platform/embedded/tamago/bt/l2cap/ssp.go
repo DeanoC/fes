@@ -28,6 +28,7 @@ type Manager struct {
 	connecting           bool
 	connectAddr          BDAddr
 	connectGeneration    uint64
+	connectKind          controllers.Kind
 	inquiryActive        bool
 	inquiryRetryPending  bool
 	inquiryRetryAt       time.Time
@@ -37,6 +38,7 @@ type Manager struct {
 	cancelRetryAt        time.Time
 	pairingAccepted      [maxConnections]BDAddr
 	pairingAcceptedGen   [maxConnections]uint64
+	pairingAcceptedKind  [maxConnections]controllers.Kind
 	pairingAcceptedUsed  [maxConnections]bool
 
 	OnChannelOpen  func(handle uint16, addr BDAddr, name string, kind controllers.Kind, psm uint16)
@@ -113,6 +115,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 				m.connecting = false
 				m.connectAddr = BDAddr{}
 				m.connectGeneration = 0
+				m.connectKind = controllers.KindUnknown
 				m.inquiryRetryPending = false
 				m.inquiryRetryAt = time.Time{}
 				m.cancelConnPending = true
@@ -126,6 +129,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 		m.connecting = false
 		m.connectAddr = BDAddr{}
 		m.connectGeneration = 0
+		m.connectKind = controllers.KindUnknown
 		if err := m.tr.WriteScanEnable(hci.ScanInquiryAndPage); err != nil {
 			return err
 		}
@@ -145,6 +149,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 			m.pairingAcceptedUsed[i] = false
 			m.pairingAccepted[i] = BDAddr{}
 			m.pairingAcceptedGen[i] = 0
+			m.pairingAcceptedKind[i] = controllers.KindUnknown
 		}
 		m.pairingActive = true
 		m.pairingUntil = m.now().Add(duration)
@@ -158,6 +163,7 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	m.connecting = false
 	m.connectAddr = BDAddr{}
 	m.connectGeneration = 0
+	m.connectKind = controllers.KindUnknown
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
 
@@ -199,10 +205,11 @@ func (m *Manager) SetPairingMode(enabled bool, duration time.Duration) error {
 	return firstErr
 }
 
-func (m *Manager) recordPairingAccepted(addr BDAddr) {
+func (m *Manager) recordPairingAccepted(addr BDAddr, kind controllers.Kind) {
 	for i := range m.pairingAcceptedUsed {
 		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
 			m.pairingAcceptedGen[i] = m.pairingGeneration
+			m.pairingAcceptedKind[i] = kind
 			return
 		}
 	}
@@ -211,22 +218,25 @@ func (m *Manager) recordPairingAccepted(addr BDAddr) {
 			m.pairingAcceptedUsed[i] = true
 			m.pairingAccepted[i] = addr
 			m.pairingAcceptedGen[i] = m.pairingGeneration
+			m.pairingAcceptedKind[i] = kind
 			return
 		}
 	}
 }
 
-func (m *Manager) consumePairingAccepted(addr BDAddr) (uint64, bool) {
+func (m *Manager) consumePairingAccepted(addr BDAddr) (uint64, controllers.Kind, bool) {
 	for i := range m.pairingAcceptedUsed {
 		if m.pairingAcceptedUsed[i] && m.pairingAccepted[i] == addr {
 			generation := m.pairingAcceptedGen[i]
+			kind := m.pairingAcceptedKind[i]
 			m.pairingAcceptedUsed[i] = false
 			m.pairingAccepted[i] = BDAddr{}
 			m.pairingAcceptedGen[i] = 0
-			return generation, true
+			m.pairingAcceptedKind[i] = controllers.KindUnknown
+			return generation, kind, true
 		}
 	}
-	return 0, false
+	return 0, controllers.KindUnknown, false
 }
 
 const (
@@ -366,6 +376,7 @@ func (m *Manager) DisconnectAddr(addr BDAddr) (bool, error) {
 		m.connecting = false
 		m.connectAddr = BDAddr{}
 		m.connectGeneration = 0
+		m.connectKind = controllers.KindUnknown
 		if err := m.tr.CreateConnectionCancel(addr); err != nil {
 			m.cancelConnPending = true
 			m.cancelConnAddr = addr
@@ -547,6 +558,25 @@ func isControllerPeripheralCoD(cod uint32) bool {
 	}
 }
 
+func isMousePeripheralCoD(cod uint32) bool {
+	major := (cod >> 8) & 0x1f
+	minor := (cod >> 2) & 0x3f
+	// Accept dedicated Peripheral/Pointing mice (bit 7 = pointing, bit 6 = keyboard clear,
+	// uncategorized minor subtype 0x00), leaving keyboards and combo peripherals rejected.
+	return major == 0x05 && minor&0x30 == 0x20 && minor&0x0f == 0x00
+}
+
+func isSupportedPeripheralCoD(cod uint32) bool {
+	return isControllerPeripheralCoD(cod) || isMousePeripheralCoD(cod)
+}
+
+func kindForPeripheralCoD(cod uint32) controllers.Kind {
+	if isMousePeripheralCoD(cod) {
+		return controllers.KindMouse
+	}
+	return controllers.KindUnknown
+}
+
 func (m *Manager) resumeInquiryIfPairing() {
 	if !m.pairingActive || m.connecting || !m.now().Before(m.pairingUntil) {
 		m.inquiryRetryPending = false
@@ -583,7 +613,7 @@ func (m *Manager) handleInquiryRecords(params []byte, codOff, clkOff int) {
 }
 
 func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, clockOff uint16) {
-	if !m.pairingActive || m.connecting || !isControllerPeripheralCoD(cod) {
+	if !m.pairingActive || m.connecting || !isSupportedPeripheralCoD(cod) {
 		return
 	}
 	if m.findConnByAddr(addr) != nil {
@@ -592,6 +622,7 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 	m.connecting = true
 	m.connectAddr = addr
 	m.connectGeneration = m.pairingGeneration
+	m.connectKind = kindForPeripheralCoD(cod)
 	m.inquiryRetryPending = false
 	m.inquiryRetryAt = time.Time{}
 	if m.tr.CancelInquiry() == nil {
@@ -602,6 +633,7 @@ func (m *Manager) maybeInitiatePair(addr BDAddr, cod uint32, pageScanRep byte, c
 		m.connecting = false
 		m.connectAddr = BDAddr{}
 		m.connectGeneration = 0
+		m.connectKind = controllers.KindUnknown
 		m.resumeInquiryIfPairing()
 	}
 }
@@ -622,15 +654,15 @@ func (m *Manager) handleEvent(ev []byte) {
 		copy(addr[:], params[0:6])
 		cod := uint32(params[6]) | uint32(params[7])<<8 | uint32(params[8])<<16
 		_, bonded := m.bonds.Lookup(addr)
-		controllerCandidate := m.pairingActive && isControllerPeripheralCoD(cod)
-		if bonded || controllerCandidate {
+		supportedCandidate := m.pairingActive && isSupportedPeripheralCoD(cod)
+		if bonded || supportedCandidate {
 			// Role 0x00: request Master/Central role for deterministic polling slots!
-			if controllerCandidate {
-				m.recordPairingAccepted(addr)
+			if supportedCandidate {
+				m.recordPairingAccepted(addr, kindForPeripheralCoD(cod))
 			}
 			_ = m.tr.AcceptConnectionRequest(addr, 0x00)
 		} else {
-			// Fail-closed: reject unknown or non-controller devices during pairing.
+			// Fail-closed: reject unknown or unsupported devices during pairing.
 			_ = m.tr.RejectConnectionRequest(addr, 0x0f)
 		}
 
@@ -643,24 +675,31 @@ func (m *Manager) handleEvent(ev []byte) {
 		copy(addr[:], params[3:9])
 		outgoing := m.connecting && m.connectAddr == addr
 		outgoingGeneration := m.connectGeneration
+		outgoingKind := m.connectKind
 		if outgoing {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
 			m.connectGeneration = 0
+			m.connectKind = controllers.KindUnknown
 		}
 		canceled := m.cancelConnPending && m.cancelConnAddr == addr
 		if canceled {
 			m.cancelConnPending = false
 			m.cancelConnAddr = BDAddr{}
 		}
-		acceptedGeneration, accepted := m.consumePairingAccepted(addr)
+		acceptedGeneration, acceptedKind, accepted := m.consumePairingAccepted(addr)
 		fromPairing := accepted || outgoing || canceled
 		pairingGeneration := uint64(0)
+		pairingKind := controllers.KindUnknown
 		if m.pairingActive && outgoing && outgoingGeneration == m.pairingGeneration {
 			pairingGeneration = m.pairingGeneration
+			pairingKind = outgoingKind
 		}
 		if m.pairingActive && accepted && acceptedGeneration == m.pairingGeneration {
 			pairingGeneration = m.pairingGeneration
+			if acceptedKind != controllers.KindUnknown {
+				pairingKind = acceptedKind
+			}
 		}
 		if params[0] != 0 {
 			m.resumeInquiryIfPairing()
@@ -687,6 +726,9 @@ func (m *Manager) handleEvent(ev []byte) {
 			if conn.kind == controllers.KindUnknown && (rec.VendorID != 0 || rec.ProductID != 0) {
 				conn.kind = controllers.IdentifyByVIDPID(rec.VendorID, rec.ProductID)
 			}
+		}
+		if conn.kind == controllers.KindUnknown && pairingKind != controllers.KindUnknown {
+			conn.kind = pairingKind
 		}
 		if outgoing {
 			conn.hostInitiated = true
@@ -747,7 +789,7 @@ func (m *Manager) handleEvent(ev []byte) {
 		kind := controllers.IdentifyByName(name)
 		if rec, ok := m.bonds.Lookup(addr); ok {
 			rec.Name = name
-			if kind != controllers.KindUnknown {
+			if rec.Kind == controllers.KindUnknown && kind != controllers.KindUnknown {
 				rec.Kind = kind
 			}
 			_ = m.bonds.Upsert(rec)
@@ -757,7 +799,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			conn.nameRetries = 0
 			conn.nameRetryAt = time.Time{}
 			conn.name = name
-			if kind != controllers.KindUnknown {
+			if conn.kind == controllers.KindUnknown && kind != controllers.KindUnknown {
 				conn.kind = kind
 			}
 			if m.OnNameResolved != nil {
@@ -873,6 +915,7 @@ func (m *Manager) handleEvent(ev []byte) {
 			m.connecting = false
 			m.connectAddr = BDAddr{}
 			m.connectGeneration = 0
+			m.connectKind = controllers.KindUnknown
 		}
 		m.resumeInquiryIfPairing()
 
@@ -889,6 +932,7 @@ func (m *Manager) handleEvent(ev []byte) {
 					m.connecting = false
 					m.connectAddr = BDAddr{}
 					m.connectGeneration = 0
+					m.connectKind = controllers.KindUnknown
 				}
 				m.failConnSecurity(conn)
 			}

@@ -20,8 +20,8 @@ from boards.de25nano.producers.build_menu_package import execution_environment, 
 from scripts.pc386_quartus import INTERFACES
 
 RECIPE = 'boards/de25nano/producers/build_pc386_package.py'
-# The DE10 package's ABI (fes.computer 1.1) and interfaces, all 1.0; the board
-# adds the window and the scanout fabric.
+# The board uses fes.computer 1.1 and exposes only the ATA disk. It adds the
+# window and scanout interfaces to the shared pc386 interface set.
 MACHINE = Machine(
     recipe=RECIPE, directory='pc386', core_id='fes.pc386', rom_id=None,
     name='FES pc386', version='0.1.0',
@@ -30,7 +30,8 @@ MACHINE = Machine(
                   '486dx': 'Standard DE25 pc386: the i486DX (fes_i486dx_cpu: the 486 identity, the 387 on, '
                            '8 KiB 2-way L1s, no load forwarding), the Bochs BIOS and LGPL VGABios, all memory '
                            'in a window in HPS DDR. Development only.'},
-    interfaces=tuple((name, 1, 0) for name in INTERFACES), shell=(), abi_minor=1)
+    interfaces=tuple((name, 1, 0) for name in INTERFACES if name != 'fes.media.pc-floppy'),
+    shell=(), abi_minor=1)
 
 
 def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):

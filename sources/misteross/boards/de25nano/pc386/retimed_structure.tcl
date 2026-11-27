@@ -113,6 +113,7 @@ proc structure_columns {} {
         keepers machine foreign unclocked port non_register unresolved foreign_examples unclocked_examples port_examples
         non_register_examples unresolved_examples setup_inter_clock setup_inter_clock_example setup_false_path
         setup_false_path_example hold_inter_clock hold_inter_clock_example hold_false_path hold_false_path_example
+        recovery_from recovery_from_false_path removal_from removal_from_false_path
         async_output_ids async_output_details async_output_own_q async_output_other async_output_unknown status}
 }
 
@@ -174,6 +175,20 @@ proc trace_structure_corner {output label targets matched expected_clock} {
                         incr excluded_paths $count
                     }
                 }
+                set reset_paths [lrepeat 4 {}]
+                if {$direction eq "from"} {
+                    set reset_paths {}
+                    # Query visible paths on the launching register as well as
+                    # checking its structural async fanout above.
+                    foreach analysis {recovery removal} {
+                        foreach filter {{} {-false_path}} {
+                            set paths [get_timing_paths -$analysis -from $selected {*}$filter -npaths 1 -nworst 1]
+                            set count [get_collection_size $paths]
+                            lappend reset_paths $count
+                            incr excluded_paths $count
+                        }
+                    }
+                }
                 set quantities [list $label $target $direction $exact [join $clocks ,] $sync_stage \
                                      $is_latch $async_in $async_out $clock_out $total]
                 foreach category {machine foreign unclocked port non_register unresolved} {
@@ -186,7 +201,7 @@ proc trace_structure_corner {output label targets matched expected_clock} {
                     && $async_in == 0 && $async_own_q <= 1 && $async_other == 0 && $async_unknown == 0 && $clock_out == 0 \
                     && $total > 0 && [dict get $counts machine] == $total \
                     && $excluded_paths == 0}]
-                put_row $output [concat $quantities $exclusion \
+                put_row $output [concat $quantities $exclusion $reset_paths \
                     [list $async_ids $async_details $async_own_q $async_other $async_unknown [expr {$clean ? "clear" : "hazard"}]]]
             } failure]} {
                 put_row $output [concat [list $label $target $direction $exact] $blank_query_fields [list "query-error: $failure"]]

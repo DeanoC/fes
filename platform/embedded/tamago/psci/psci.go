@@ -11,12 +11,14 @@ import (
 	"fmt"
 )
 
-// ARM PSCI function IDs (DEN0022D/E).
+// ARM PSCI and SMCCC function IDs (DEN0022D/E, DEN0028).
 const (
+	FuncSMCCCVersion uint32 = 0x80000000 // SMCCC_VERSION (SMC32/HVC32)
 	FuncVersion      uint32 = 0x84000000 // PSCI_VERSION (SMC32/HVC32)
 	FuncSystemOff    uint32 = 0x84000008 // PSCI_SYSTEM_OFF (SMC32/HVC32)
 	FuncSystemReset  uint32 = 0x84000009 // PSCI_SYSTEM_RESET (SMC32/HVC32)
 	FuncFeatures     uint32 = 0x8400000a // PSCI_FEATURES (SMC32/HVC32)
+	FuncAffinityInfo uint32 = 0xc4000004 // PSCI_AFFINITY_INFO (SMC64/HVC64)
 	FuncSystemReset2 uint32 = 0xc4000012 // PSCI_SYSTEM_RESET2 (SMC64/HVC64)
 )
 
@@ -105,6 +107,47 @@ func trngError(code int64) error {
 	}
 }
 
+// AffinityState reports the power state returned by PSCI_AFFINITY_INFO.
+type AffinityState uint8
+
+const (
+	AffinityOn        AffinityState = 0
+	AffinityOff       AffinityState = 1
+	AffinityOnPending AffinityState = 2
+)
+
+// String returns the human-readable PSCI affinity state name.
+func (s AffinityState) String() string {
+	switch s {
+	case AffinityOn:
+		return "on"
+	case AffinityOff:
+		return "off"
+	case AffinityOnPending:
+		return "on-pending"
+	default:
+		return fmt.Sprintf("AffinityState(%d)", uint8(s))
+	}
+}
+
+// Capabilities summarizes the PSCI, SMCCC, and SMCCC TRNG features advertised
+// by firmware on a Client's conduit.
+type Capabilities struct {
+	PSCIMajor    uint16
+	PSCIMinor    uint16
+	SMCCCMajor   uint16
+	SMCCCMinor   uint16
+	HasSMCCC     bool
+	SystemOff    bool
+	SystemReset  bool
+	SystemReset2 bool
+	AffinityInfo bool
+	TRNGMajor    uint16
+	TRNGMinor    uint16
+	TRNG64       bool
+	TRNG32       bool
+}
+
 // Version queries PSCI_VERSION and returns (major, minor).
 func (c *Client) Version() (major, minor uint16, err error) {
 	r0, _, _, _, err := c.call(FuncVersion, 0, 0, 0)
@@ -116,6 +159,99 @@ func (c *Client) Version() (major, minor uint16, err error) {
 		return 0, 0, psciError(v)
 	}
 	return uint16((uint32(v) >> 16) & 0x7fff), uint16(uint32(v) & 0xffff), nil
+}
+
+// SMCCCVersion queries SMCCC_VERSION (0x80000000) and returns (major, minor).
+// Per ARM SMCCC §7.2, a conduit returning NOT_SUPPORTED (-1) indicates
+// SMCCC v1.0, so (1, 0, nil) is returned. Callers on pre-1.1 SMCCC platforms
+// should discover availability via PSCI_FEATURES(FuncSMCCCVersion) before
+// invoking SMCCCVersion directly.
+func (c *Client) SMCCCVersion() (major, minor uint16, err error) {
+	r0, _, _, _, err := c.call(FuncSMCCCVersion, 0, 0, 0)
+	if err != nil {
+		return 0, 0, err
+	}
+	v := int32(r0)
+	if v == statusNotSupported {
+		return 1, 0, nil
+	}
+	if v < 0 {
+		return 0, 0, psciError(v)
+	}
+	return uint16((uint32(v) >> 16) & 0x7fff), uint16(uint32(v) & 0xffff), nil
+}
+
+// SupportsWarmReset reports whether firmware advertises PSCI >= 1.1 and
+// PSCI_SYSTEM_RESET2 support via PSCI_FEATURES.
+func (c *Client) SupportsWarmReset() bool {
+	maj, min, err := c.Version()
+	if err != nil || maj < 1 || (maj == 1 && min < 1) {
+		return false
+	}
+	return c.Supports(FuncSystemReset2)
+}
+
+// AffinityInfo queries PSCI_AFFINITY_INFO for targetAffinity at lowestAffinityLevel.
+func (c *Client) AffinityInfo(targetAffinity uint64, lowestAffinityLevel uint32) (AffinityState, error) {
+	r0, _, _, _, err := c.call(FuncAffinityInfo, targetAffinity, uint64(lowestAffinityLevel), 0)
+	if err != nil {
+		return 0, err
+	}
+	v := int32(r0)
+	if v < 0 {
+		return 0, psciError(v)
+	}
+	if v > int32(AffinityOnPending) {
+		return 0, fmt.Errorf("psci: unknown affinity state %d", v)
+	}
+	return AffinityState(v), nil
+}
+
+// Probe discovers the firmware PSCI, SMCCC, and TRNG versions and supported
+// functions on c's conduit without triggering any state transitions.
+// Per ARM SMCCC §7.2.2, SMCCC_VERSION is queried only on PSCI >= 1.0 when
+// PSCI_FEATURES(FuncSMCCCVersion) succeeds.
+func (c *Client) Probe() (Capabilities, error) {
+	psciMaj, psciMin, err := c.Version()
+	if err != nil {
+		return Capabilities{}, err
+	}
+	caps := Capabilities{
+		PSCIMajor: psciMaj,
+		PSCIMinor: psciMin,
+	}
+	if psciMaj >= 1 {
+		if c.Supports(FuncSMCCCVersion) {
+			if smcccMaj, smcccMin, err := c.SMCCCVersion(); err == nil {
+				caps.HasSMCCC = true
+				caps.SMCCCMajor = smcccMaj
+				caps.SMCCCMinor = smcccMin
+			}
+		}
+		caps.SystemOff = c.Supports(FuncSystemOff)
+		caps.SystemReset = c.Supports(FuncSystemReset)
+		if psciMaj > 1 || (psciMaj == 1 && psciMin >= 1) {
+			caps.SystemReset2 = c.Supports(FuncSystemReset2)
+		}
+		caps.AffinityInfo = c.Supports(FuncAffinityInfo)
+	} else if psciMaj == 0 && psciMin >= 2 {
+		// PSCI 0.2 requires SYSTEM_OFF, SYSTEM_RESET, and AFFINITY_INFO without PSCI_FEATURES.
+		caps.SystemOff = true
+		caps.SystemReset = true
+		caps.AffinityInfo = true
+	}
+	hasSMCCC11 := caps.HasSMCCC && (caps.SMCCCMajor > 1 || (caps.SMCCCMajor == 1 && caps.SMCCCMinor >= 1))
+	if hasSMCCC11 {
+		if trngMaj, trngMin, err := c.TRNGVersion(); err == nil && trngMaj >= 1 {
+			caps.TRNGMajor = trngMaj
+			caps.TRNGMinor = trngMin
+			_, err64 := c.TRNGFeatures(FuncTRNGRnd64)
+			caps.TRNG64 = err64 == nil
+			_, err32 := c.TRNGFeatures(FuncTRNGRnd32)
+			caps.TRNG32 = err32 == nil
+		}
+	}
+	return caps, nil
 }
 
 // Features queries PSCI_FEATURES for a given PSCI function ID.

@@ -13,6 +13,7 @@ directories. Narrative cells stay in the JSON. Run from the repository root:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 from pathlib import Path
 import re
@@ -37,7 +38,7 @@ POLICY_CITE = 'policy: Deano 2026-10-29'
 # wherever nextpnr closure is hard (DeanoC/fes#1873).
 ZX81_POLICY_CITE = 'policy: Deano 2026-11-15'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
-DE25_CELL = 'Quartus-only (policy); shell pending'
+DE25_CELL = 'Quartus-only (policy)'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
@@ -62,6 +63,8 @@ HIGHLIGHTS = {
     'fes.spectrum-plus3': 'tape, disk, keys, HDMI',
     'fes.pentagon': 'tape, disk, keys, HDMI',
     'fes.c64-ntsc': 'disk, keys, HDMI',
+    'fes.c64-pal-n': 'disk, keys, HDMI',
+    'fes.c64-early-ntsc': 'disk, keys, HDMI',
     'fes.c64c': 'disk, keys, HDMI',
     'fes.c64c-ntsc': 'disk, keys, HDMI',
     'fes.atari-st': 'disk, keys, mouse, HDMI',
@@ -92,6 +95,8 @@ DETAILS = {
     'fes.apple2': ('sources/misteross/cores/fes-apple2/README.md', 'README'),
     'fes.c64': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64-pal-n': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64-early-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64c': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64c-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.spectrum': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
@@ -447,10 +452,48 @@ def de10_cell(row: dict) -> str:
     return '—'
 
 
-def de25_cell(row: dict) -> str:
-    if row['board'] == 'de10':
+def de25_core_ids(root: Path) -> set[str]:
+    """Registered DE25 recipes and the model IDs exposed by DE25 producers.
+
+    Some development producers (notably pc386) are not yet in the parent
+    registry. Machine producer declarations are parsed, not imported, so a
+    documentation check never runs build-tool code.
+    """
+    recipes = tomllib.loads((root / ROOT_FILES['recipes']).read_text())['recipes']
+    ids = {r['core_id'] for r in recipes if r.get('board') == 'de25-nano'}
+    for path in (root / DE25 / 'producers').glob('build_*_package.py'):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign) or not any(
+                isinstance(target, ast.Name) and target.id == 'MACHINE' for target in node.targets
+            ):
+                continue
+            call = node.value
+            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name) or call.func.id != 'Machine':
+                raise ValueError(f'{path}: cannot read MACHINE producer declaration')
+            args = {arg.arg: arg.value for arg in call.keywords}
+            try:
+                core_id = ast.literal_eval(args['core_id'])
+                models = ast.literal_eval(args['model_core_ids']) if 'model_core_ids' in args else {}
+                descriptions = ast.literal_eval(args['descriptions'])
+            except (KeyError, ValueError, TypeError) as error:
+                raise ValueError(f'{path}: producer core IDs must be literal') from error
+            if not isinstance(core_id, str) or not isinstance(descriptions, dict) or not isinstance(models, dict) or not all(
+                isinstance(name, str) and isinstance(core, str) for name, core in models.items()
+            ) or not models.keys() <= descriptions.keys():
+                raise ValueError(f'{path}: malformed producer core IDs')
+            ids.add(core_id)
+            ids.update(models.values())
+    return ids
+
+
+def de25_cell(rows: list[dict], core_ids: set[str]) -> str:
+    available = [row['id'] for row in rows if row['id'] in core_ids]
+    if not available:
+        return '—'
+    if len(available) == len(rows):
         return 'Quartus'
-    return '—'
+    return 'Quartus (' + ', '.join(available) + ' only)'
 
 
 def detail_cell(row: dict) -> str:
@@ -458,7 +501,7 @@ def detail_cell(row: dict) -> str:
     return f'[{title}]({repo_href(path)})'
 
 
-def render(data: dict) -> str:
+def render(data: dict, de25_ids: set[str]) -> str:
     lines = [
         '<!-- Generated from docs/support-matrix.json by docs/support-matrix.py. Edit the JSON, then run python3 docs/support-matrix.py --write -->',
         '',
@@ -483,7 +526,7 @@ def render(data: dict) -> str:
         '',
         f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}), and so is the ZX81 family ({ZX81_POLICY_CITE}, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.',
         '',
-        f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
+        f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Quartus marks a registered DE25 recipe or a development producer profile; a dash means neither is present. A group with only some profiles names those core IDs. A producer is not hardware acceptance. Agilex 5 has no OSS reverse-engineering.',
         '',
         '`oss` and `quartus` are the Debian-style labels in [Quartus-built cores](design/quartus-cores.md). Both labelled builds ship only when results differ by the 15% rule. No registered recipe ships both today. Bluetooth and mesh are host services, so they are not columns.',
         '',
@@ -510,7 +553,7 @@ def render(data: dict) -> str:
                 cell(group['label']),
                 labels[members[0]['tier']],
                 de10_cell(members[0]),
-                de25_cell(members[0]),
+                de25_cell(members, de25_ids),
                 feature_union(group['ids']),
                 detail_cell(members[0]),
             )) + ' |')
@@ -519,7 +562,7 @@ def render(data: dict) -> str:
             cell(row.get('display') or row['label']),
             labels[row['tier']],
             de10_cell(row),
-            de25_cell(row),
+            de25_cell([row], de25_ids),
             HIGHLIGHTS[row['id']],
             detail_cell(row),
         )) + ' |')
@@ -628,11 +671,6 @@ def validate(root: Path, data: dict) -> list[str]:
     de10 = (root / ROOT_FILES['de10_readme']).read_text()
     if DE10_DEVICE not in de10:
         errors.append(f'{ROOT_FILES["de10_readme"]} no longer names {DE10_DEVICE}')
-    # DE25-Nano landing is expected (policy: Deano 2026-10-29). The directory
-    # may be absent (shell pending) or present. Either state is valid.
-    # Per-core DE25 cells are re-verified by hand only after the shell is on
-    # this branch; this check does not inspect them.
-    (root / DE25).is_dir()
     if not (root / 'sources/misteross/boards/de10nano').is_dir():
         errors.append('sources/misteross/boards/de10nano is missing')
 
@@ -899,8 +937,8 @@ def validate(root: Path, data: dict) -> list[str]:
                     f"{recorded or '<missing>'} ({recorded_subject or '<missing>'})"
                 )
     try:
-        rendered = render(data)
-    except (IndexError, KeyError, TypeError) as error:
+        rendered = render(data, de25_core_ids(root))
+    except (IndexError, KeyError, TypeError, ValueError, SyntaxError) as error:
         rendered = None
         errors.append(f'human page cannot be rendered: {error}')
     if rendered is not None:
@@ -911,7 +949,6 @@ def validate(root: Path, data: dict) -> list[str]:
         for phrase in (
             POLICY_CITE,
             'empty-library status',
-            'shell pending',
             'Bring-up (queued)',
             'Spectrum (48K, 128K, +2, +2A/+3, Pentagon)',
             'C64 (NTSC)',
@@ -1132,7 +1169,7 @@ def main() -> None:
     errors = validate(root, data)
     if errors:
         parser.exit(1, 'support matrix:\n' + '\n'.join(errors) + '\n')
-    rendered = render(data)
+    rendered = render(data, de25_core_ids(root))
     target = root / MARKDOWN
     if args.write:
         target.write_text(rendered)

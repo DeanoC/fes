@@ -144,7 +144,10 @@ module pc386_fdc #(
     input wire aux_waitrequest, aux_readdatavalid,
     input wire [63:0] aux_readdata,
     input wire frozen,
-    output wire busy, fenced
+    output wire busy, fenced,
+    // A sector store, or a format's, has reached drive k's image: its
+    // endpoint marks the disk dirty.
+    output reg [1:0] written
 );
     localparam [31:0] IMAGE0 = `FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h01800000;
     localparam [28:0] IMAGE0_WORD = IMAGE0[31:3];
@@ -532,7 +535,7 @@ module pc386_fdc #(
             index <= 0; dack_rdata <= 8'hff;
             target_lba <= 0; target_drive <= 0;
             fetching <= 0; storing <= 0; store_due <= 0; store_loaded <= 0; store_fill <= 0;
-            fetch_beats <= 0; owed <= 0; store_word <= 0; store_bytes <= 0; fill_byte <= 0;
+            fetch_beats <= 0; owed <= 0; store_word <= 0; store_bytes <= 0; fill_byte <= 0; written <= 0;
             buffer_waddress <= 0; buffer_wdata <= 0; gathered <= 0;
         end else begin
             // A disk leaving or arriving sets its drive's change latch.
@@ -540,11 +543,15 @@ module pc386_fdc #(
             for (k = 0; k < 2; k = k + 1) if (present[k] != present_q[k]) changed[k] <= 1;
 
             // ---- The store engine and the fetch burst
+            written <= 2'b00;
             if (storing) begin
                 if (!store_loaded) store_loaded <= 1;
                 else if (!aux_waitrequest) begin
                     store_word <= store_word + 6'd1;
-                    if (store_word == 6'd63) storing <= 0;
+                    if (store_word == 6'd63) begin
+                        storing <= 0;
+                        written[target_drive] <= 1;
+                    end
                 end
             end else if (store_due) begin
                 storing <= 1; store_due <= 0; store_loaded <= 0; store_word <= 0;

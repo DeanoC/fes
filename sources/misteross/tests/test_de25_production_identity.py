@@ -66,6 +66,15 @@ class ProductionIdentityTests(unittest.TestCase):
             {name: 'explicit identity fixture ' + name for name in ('quartus', 'qsys', 'ipgenerate', 'pfg')},
             {'toolchain': 'quartus', 'identity_fixture': True}, captured)
 
+    def test_registered_producer_records_eight_quartus_threads(self):
+        for producer in (menu, zx81):
+            with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                root, captured = self.repository(producer, directory)
+                record = self.record(producer, root, captured)
+                fields = verify_record_source_at_revision(root, record)
+                self.assertEqual(fields['parameters']['threads'], 8)
+
     def test_diagnostics_simulations_and_documentation_do_not_mint_core_identities(self):
         for producer in (menu, zx81):
             with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:

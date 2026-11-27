@@ -45,20 +45,23 @@ func (*testSDCoherency) CleanInvalidateRange(uint64, uint64) {}
 // multi-block PIO, and ADMA2 descriptor execution against a backing DMA window.
 type fastCard struct {
 	*card
-	mu        sync.Mutex
-	dmaBase   uint64
-	dmaRAM    []byte
-	scr       [8]byte
-	acmd      bool
-	busWidth  int
-	pioBuf    []byte
-	pioPos    int
-	pioWrLBA  uint32
-	pioWrLeft int
-	admaFault bool
-	sawCMD18  bool
-	sawCMD25  bool
-	sawADMA2  bool
+	mu            sync.Mutex
+	dmaBase       uint64
+	dmaRAM        []byte
+	scr           [8]byte
+	acmd          bool
+	busWidth      int
+	pioBuf        []byte
+	pioPos        int
+	pioWrLBA      uint32
+	pioWrLeft     int
+	admaFault     bool
+	sawCMD18      bool
+	sawCMD23      bool
+	lastCMD23Blks uint32
+	sawCMD25      bool
+	sawADMA2      bool
+	sawAutoCMD12  bool
 }
 
 func wrapFastCard(base *card, sectors int, dmaBase uint64, dmaRAM []byte, caps uint32) *fastCard {
@@ -202,10 +205,18 @@ func (c *fastCard) Write32(reg, val uint32) {
 		c.pioPos = 0
 		c.regs[response] = uint32(c.state)<<9 | 1<<8
 		c.regs[status] |= 1 << 5
+	case 23:
+		c.acmd = false
+		c.sawCMD23 = true
+		c.lastCMD23Blks = c.regs[argument]
+		c.regs[response] = uint32(c.state)<<9 | 1<<8
 	case 17, 18:
 		c.acmd = false
 		if index == 18 {
 			c.sawCMD18 = true
+			if val&(1<<2) != 0 {
+				c.sawAutoCMD12 = true
+			}
 		}
 		lba := c.regs[argument]
 		blocks := c.regs[blockSize] >> 16
@@ -222,6 +233,9 @@ func (c *fastCard) Write32(reg, val uint32) {
 		c.acmd = false
 		if index == 25 {
 			c.sawCMD25 = true
+			if val&(1<<2) != 0 {
+				c.sawAutoCMD12 = true
+			}
 		}
 		lba := c.regs[argument]
 		blocks := c.regs[blockSize] >> 16
@@ -507,5 +521,102 @@ func TestOwnedFastModesHighSpeed50MHzContainResume(t *testing.T) {
 	}
 	if err := s.Quiesce(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSessionCardInfoAndCMD23Lifecycle(t *testing.T) {
+	var nilSess *Session
+	if nilSess.CMD23Active() || nilSess.CardInfo().Sectors != 0 {
+		t.Fatal("nil session reported non-zero CardInfo/CMD23Active")
+	}
+
+	// UseCMD23 without MultiBlock fails before any firmware or MMIO access.
+	fw, base := newRPC(t, "")
+	if s, err := Open(fw, base, Config{InputClockHz: 200_000_000, UseCMD23: true}); err == nil || s != nil || base.accesses != 0 {
+		t.Fatalf("UseCMD23 without MultiBlock mutated state: err=%v sess=%v accesses=%d", err, s, base.accesses)
+	}
+
+	// Default 1-bit open populates CID/CSD CardInfo with HasSCR=false and CMD23Active=false.
+	sDefault, err := Open(fw, base, Config{InputClockHz: 200_000_000})
+	if err != nil {
+		t.Fatalf("default Open: %v", err)
+	}
+	defInfo := sDefault.CardInfo()
+	if defInfo.HasSCR || defInfo.Sectors != 8192 || defInfo.CapacityBytes != 8192*512 || sDefault.CMD23Active() {
+		t.Fatalf("unexpected default CardInfo/CMD23: %+v active=%t", defInfo, sDefault.CMD23Active())
+	}
+	if err := sDefault.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Card lacking SCR[33] refuses UseCMD23 cleanly and retires the session.
+	fwNo23, baseNo23 := newRPC(t, "")
+	no23Card := wrapFastCard(baseNo23, 8192, 0, nil, 0)
+	if s, err := Open(fwNo23, no23Card, Config{InputClockHz: 200_000_000, MultiBlock: true, UseCMD23: true}); err == nil || s == nil || !s.Retired() {
+		t.Fatalf("card without SCR[33] accepted UseCMD23: err=%v sess=%v", err, s)
+	}
+
+	// Full 4-bit + MultiBlock + UseCMD23 + UseADMA2 lifecycle with Resume continuity.
+	const dmaBase = uint64(0x95000000)
+	dmaRAM := make([]byte, 128<<10)
+	pool, err := dmaops.NewPool(dmaBase, dmaRAM, dmaops.Cached, &testSDCoherency{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw23, base23 := newRPC(t, "")
+	c := wrapFastCard(base23, 8192, dmaBase, dmaRAM, fastCapADMA2|fastCapHighSpeed)
+	c.scr = [8]byte{0x02, 0x35, 0x84, 0x02} // SD 4.xx, 1+4 bit, CMD23 supported
+
+	s, err := Open(fw23, c, Config{
+		InputClockHz:         200_000_000,
+		TransferClockHz:      50_000_000,
+		BusWidth4Bit:         true,
+		MultiBlock:           true,
+		UseCMD23:             true,
+		UseADMA2:             true,
+		DMAPool:              pool,
+		WriteCard:            expectedWriteCard(8192),
+		NoSocketWriteProtect: true,
+	})
+	if err != nil {
+		t.Fatalf("Open UseCMD23+ADMA2: %v", err)
+	}
+	info := s.CardInfo()
+	if !info.HasSCR || info.SDSpec != "4.xx" || !info.SupportsCMD23 || !s.CMD23Active() {
+		t.Fatalf("unexpected CardInfo/CMD23: %+v active=%t", info, s.CMD23Active())
+	}
+
+	payload := bytes.Repeat([]byte{0x5c}, 8*512)
+	if err := s.WriteSectors(16, payload); err != nil {
+		t.Fatalf("WriteSectors: %v", err)
+	}
+	got := make([]byte, len(payload))
+	if err := s.ReadSectors(16, got); err != nil || !bytes.Equal(got, payload) {
+		t.Fatalf("ReadSectors mismatch: err=%v", err)
+	}
+	if !c.sawCMD23 || c.lastCMD23Blks != 8 || !c.sawCMD18 || !c.sawCMD25 || c.sawAutoCMD12 || !c.sawADMA2 {
+		t.Fatalf("expected CMD23+ADMA2 without Auto-CMD12: cmd23=%t blks=%d cmd18=%t cmd25=%t auto12=%t adma2=%t",
+			c.sawCMD23, c.lastCMD23Blks, c.sawCMD18, c.sawCMD25, c.sawAutoCMD12, c.sawADMA2)
+	}
+
+	if err := s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Resume(); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if !s.CMD23Active() {
+		t.Fatal("Resume cleared CMD23Active")
+	}
+
+	// Dropping SCR CMD23 across Resume fails closed and retires the session.
+	if err := s.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	c.mu.Lock()
+	c.scr[3] &^= 0x02
+	c.mu.Unlock()
+	if err := s.Resume(); !errors.Is(err, ErrRetired) || !s.Retired() {
+		t.Fatalf("Resume without SCR[33] = %v retired=%t, want ErrRetired", err, s.Retired())
 	}
 }

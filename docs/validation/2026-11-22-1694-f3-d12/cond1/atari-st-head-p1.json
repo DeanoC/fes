@@ -1,0 +1,17 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "core": "fes.atari-st",
+  "dirty_pinned_inputs": [],
+  "netlist_sha256": "5b2c7bd4ea56a46e85416dfa15935fd2040e48f168c1bbfb79357c4b242b02e3",
+  "netlist_sha256_src_exempt": "5b2c7bd4ea56a46e85416dfa15935fd2040e48f168c1bbfb79357c4b242b02e3",
+  "pinned_input_count": 61,
+  "pinned_inputs_sha256": "f3cc8ee2d7f863fe59f7376fddb676e8055bd73a7ce0afdcaf16fc21d0c77c93",
+  "revision": "fbb3b13d13fccd0559814e03d74aac3a47cd4926",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=fc797a9fb614b5048478991999cf339faa7d19dc4b497c7a86c537a5252d1ffa",
+    "nextpnr-mistral": "commit=5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe; sha256=e37bc6325f8400a1f9d3a1cff555adde959e692d138048cb585776c998ec53b3; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=dc232ba5ae1a40319ce89fe591f31739cbd3a849cc7d35dc15d3fdf2b2138619"
+  },
+  "tree": "/data/fes-f3-d12/head/sources/misteross",
+  "tree_clean": true
+}

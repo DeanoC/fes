@@ -24,7 +24,7 @@ func codeRange(from, to int) []int {
 }
 
 func superFamicomPad(version uint16) Device {
-	return Device{Name: "USB Gamepad ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: version,
+	return Device{Name: "USB gamepad           ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: version,
 		Keys: bits(96, codeRange(288, 297)...), Abs: bits(8, 0, 1),
 		Axes: map[uint16]Range{0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255}}}
 }

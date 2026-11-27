@@ -90,6 +90,9 @@ type ProgramSerialPlatform struct {
 	installerViews  bool
 	previousView    []byte
 	wakePending     bool
+	lifecycleTrace  bool
+	keyboardTrace   lifecycleKeyboardTrace
+	traceReports    int
 }
 
 func NewProgramSerialPlatform(service *ProgramService, read func() (byte, bool), emit func(context.Context, []byte) error) (*ProgramSerialPlatform, error) {

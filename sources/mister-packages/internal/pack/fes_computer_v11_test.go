@@ -38,6 +38,126 @@ type v11Model struct {
 
 	clockWords []uint32
 	clock      []int
+
+	floppies map[uint32]*v11Floppy
+}
+
+// v11Floppy is one fes.media.pc-floppy drive: the ATA disk's states, valid
+// while running, with one dirty flag and write-protect in DiskCommit word 7.
+type v11Floppy struct {
+	window                       []byte
+	state, pending               uint16
+	frozen, saved, failed, dirty bool
+	writeProtect                 bool
+	epoch                        uint16
+	commitWords, geometry        []uint32
+	verifyRemaining              int
+}
+
+func (f *v11Floppy) flags() uint16 {
+	var v uint16
+	if f.dirty {
+		v |= 1
+	}
+	if f.frozen {
+		v |= 2
+	}
+	if f.failed {
+		v |= 8
+	}
+	return v
+}
+
+func (f *v11Floppy) reset(state uint16) {
+	f.state, f.frozen, f.saved, f.failed, f.dirty = state, false, false, false, false
+	f.commitWords, f.geometry, f.verifyRemaining = nil, nil, 0
+}
+
+var pcFloppyFormats = map[[3]uint32]bool{
+	{40, 1, 8}: true, {40, 1, 9}: true, {40, 2, 8}: true, {40, 2, 9}: true, {80, 2, 9}: true,
+	{80, 2, 15}: true, {80, 2, 18}: true, {80, 2, 21}: true, {80, 2, 36}: true,
+}
+
+func (m *v11Model) floppyStep(f *v11Floppy, op, index, arg uint32) (uint16, uint16) {
+	switch op {
+	case 16:
+		if arg != 0 {
+			return 3, 0
+		}
+		state := f.state
+		if index&7 == 5 && f.state == stateVerifying {
+			if f.verifyRemaining--; f.verifyRemaining == 0 {
+				f.state = f.pending
+				f.failed = f.pending != stateReady
+			}
+		}
+		return 0, [8]uint16{0x8000, 2, 0, 45, 0, state, f.flags(), f.epoch}[index&7]
+	case 17:
+		if arg > 5 {
+			return 3, 0
+		}
+		switch arg {
+		case 0, 2:
+			if f.frozen && !f.saved {
+				return 4, 0
+			}
+			if arg == 0 {
+				f.reset(stateLoading)
+			} else {
+				f.reset(stateEmpty)
+			}
+		case 1:
+			if f.state != stateLoading || len(f.commitWords) != 8 {
+				return 4, 0
+			}
+			w := f.commitWords
+			sectors := w[0] | w[1]<<16
+			ok := crc32.ChecksumIEEE(f.window[:sectors*512]) == w[5]|w[6]<<16
+			f.writeProtect = w[7]&1 != 0
+			f.commitWords, f.state, f.verifyRemaining, f.failed = nil, stateVerifying, m.verifyReads, false
+			if ok {
+				f.pending, f.geometry = stateReady, append([]uint32(nil), w[:5]...)
+			} else {
+				f.pending, f.geometry = stateLoading, nil
+			}
+		case 3:
+			if f.state != stateReady {
+				return 4, 0
+			}
+			f.frozen, f.saved = true, false
+		case 4:
+			f.frozen, f.saved = false, false
+		case 5:
+			if !f.frozen {
+				return 4, 0
+			}
+			f.dirty, f.saved = false, true
+		}
+		return 0, 0
+	}
+	// 22: index = unit*8 + word
+	word := index & 7
+	if f.state != stateLoading {
+		return 4, 0
+	} else if word != uint32(len(f.commitWords)) {
+		return 2, 0
+	}
+	w := f.commitWords
+	bad := false
+	switch word {
+	case 1:
+		bytes := (w[0] | arg<<16) * 512
+		bad = bytes < 163840 || bytes > 2949120
+	case 4:
+		bad = !pcFloppyFormats[[3]uint32{w[2], w[3], arg}] || w[2]*w[3]*arg != w[0]|w[1]<<16
+	case 7:
+		bad = arg&^1 != 0
+	}
+	if bad {
+		return 3, 0
+	}
+	f.commitWords = append(f.commitWords, arg)
+	return 0, 0
 }
 
 const (
@@ -140,6 +260,13 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 		}
 	default:
 		return m.legacy.step(op, index, arg, identity)
+	}
+	unit := index >> 3
+	if op == 17 {
+		unit = index
+	}
+	if f, ok := m.floppies[unit]; ok && (op == 16 || op == 17 || op == 22) {
+		return m.floppyStep(f, op, index, arg)
 	}
 	switch op {
 	case 16:
@@ -381,6 +508,13 @@ func (m *v11Model) event(kind string, sector, byteIndex, value uint32) error {
 		return m.beginSectorWrite(sector)
 	case "sector-write-complete":
 		return m.finishSectorWrite()
+	case "floppy-write":
+		f, ok := m.floppies[sector]
+		if !ok || f.state != stateReady || f.frozen || f.writeProtect {
+			return fmt.Errorf("floppy write is not accepted in the current drive state")
+		}
+		f.dirty = true
+		f.epoch++
 	case "cmos-write":
 		if m.legacy.held || byteIndex >= 128 || value > 0xff {
 			return fmt.Errorf("CMOS write is not accepted in the current machine state")
@@ -412,10 +546,11 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 			VerifyReads   int    `json:"verify_reads"`
 			BuildID       string `json:"build_id"`
 			Window        struct{ Bytes int }
+			FloppyWindows map[string]struct{ Bytes int } `json:"floppy_windows"`
 			Events        []struct {
-				Before              int
-				Kind                string
-				Sector, Byte, Value uint32
+				Before                    int
+				Kind                      string
+				Sector, Byte, Value, Unit uint32
 			} `json:"machine_events"`
 			Initial   bool `json:"initial_request_toggle"`
 			Exchanges []struct {
@@ -434,6 +569,11 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 				DiskGeom   []uint32 `json:"disk_geometry"`
 				Persistent []uint16 `json:"persistent_words"`
 				WallClock  []int    `json:"wall_clock"`
+				Floppies   map[string]struct {
+					State, Flags, Epoch uint16
+					Geometry            []uint32
+					WriteProtect        bool `json:"write_protect"`
+				}
 			}
 		}
 	}
@@ -441,7 +581,7 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || fixture.ABI.Major != 1 || fixture.ABI.Minor != 1 ||
-		len(fixture.Scenarios) != 5 {
+		len(fixture.Scenarios) != 6 {
 		t.Fatalf("fixture identity %+v", fixture.ABI)
 	}
 	for _, s := range fixture.Scenarios {
@@ -467,11 +607,25 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 				window[offset] = byte(offset*7 + offset>>11)
 			}
 			m := newV11Model(s.Capabilities, s.AbiMinor, window, s.VerifyReads)
+			if s.Capabilities&(1<<22) != 0 {
+				m.floppies = map[uint32]*v11Floppy{}
+				for unit := uint32(1); unit <= 2; unit++ {
+					fw := make([]byte, s.FloppyWindows[fmt.Sprint(unit)].Bytes)
+					for offset := range fw {
+						fw[offset] = byte(offset*7 + offset>>11)
+					}
+					m.floppies[unit] = &v11Floppy{window: fw, state: stateEmpty}
+				}
+			}
 			toggle, next := s.Initial, 0
 			for n, x := range s.Exchanges {
 				for ; next < len(s.Events) && s.Events[next].Before == n; next++ {
 					e := s.Events[next]
-					if err := m.event(e.Kind, e.Sector, e.Byte, e.Value); err != nil {
+					sector := e.Sector
+					if e.Kind == "floppy-write" {
+						sector = e.Unit
+					}
+					if err := m.event(e.Kind, sector, e.Byte, e.Value); err != nil {
 						t.Fatalf("machine event %s: %v", e.Kind, err)
 					}
 				}
@@ -527,6 +681,20 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 				!reflect.DeepEqual(m.words[:], f.Persistent) || !reflect.DeepEqual(clock, f.WallClock) {
 				t.Fatalf("final state differs: model disk %d flags %d epoch %d dirty %v geometry %v clock %v",
 					m.disk, m.flags(), m.epoch, dirty, geometry, clock)
+			}
+			if len(f.Floppies) != len(m.floppies) {
+				t.Fatalf("final floppies %d, model %d", len(f.Floppies), len(m.floppies))
+			}
+			for unit, d := range m.floppies {
+				want := f.Floppies[fmt.Sprint(unit)]
+				g := d.geometry
+				if g == nil {
+					g = []uint32{}
+				}
+				if want.State != d.state || want.Flags != d.flags() || want.Epoch != d.epoch ||
+					!reflect.DeepEqual(want.Geometry, g) || want.WriteProtect != d.writeProtect {
+					t.Fatalf("floppy %d final %+v, model %+v", unit, want, d)
+				}
 			}
 		})
 	}

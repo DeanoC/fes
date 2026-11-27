@@ -19,6 +19,7 @@ const (
 	KindXInput
 	KindXboxGIP
 	KindGenericHID
+	KindMouse
 )
 
 func (k Kind) String() string {
@@ -35,8 +36,21 @@ func (k Kind) String() string {
 		return "xboxgip"
 	case KindGenericHID:
 		return "hid"
+	case KindMouse:
+		return "mouse"
 	default:
 		return "unknown"
+	}
+}
+
+// IsGamepad reports whether k is a gamepad/joystick controller that occupies a
+// P1..P4 player port when connected.
+func (k Kind) IsGamepad() bool {
+	switch k {
+	case KindDualSense, KindDualShock4, KindSwitchPro, KindXInput, KindXboxGIP, KindGenericHID:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -140,21 +154,21 @@ func (s State) ToUSBGamepadState() usb.GamepadState {
 }
 
 // ToComputerMask packs directional + 4 primary action bits into the 8-bit
-// fes.computer ControllerButtons opcode mask:
-// bit0=Right, bit1=Left, bit2=Down, bit3=Up, bit4=South, bit5=East, bit6=Start, bit7=Select.
+// fes.computer / fes.application ControllerButtons opcode mask:
+// bit0=Up, bit1=Down, bit2=Left, bit3=Right, bit4=South/A, bit5=East/B, bit6=Select, bit7=Start.
 func (s State) ToComputerMask() uint8 {
 	const threshold = 16384
 	var mask uint8
-	if s.Buttons&ButtonDPadRight != 0 || s.LeftX > threshold {
+	if s.Buttons&ButtonDPadUp != 0 || s.LeftY < -threshold {
 		mask |= 1 << 0
 	}
-	if s.Buttons&ButtonDPadLeft != 0 || s.LeftX < -threshold {
+	if s.Buttons&ButtonDPadDown != 0 || s.LeftY > threshold {
 		mask |= 1 << 1
 	}
-	if s.Buttons&ButtonDPadDown != 0 || s.LeftY > threshold {
+	if s.Buttons&ButtonDPadLeft != 0 || s.LeftX < -threshold {
 		mask |= 1 << 2
 	}
-	if s.Buttons&ButtonDPadUp != 0 || s.LeftY < -threshold {
+	if s.Buttons&ButtonDPadRight != 0 || s.LeftX > threshold {
 		mask |= 1 << 3
 	}
 	if s.Buttons&ButtonSouth != 0 {
@@ -163,10 +177,10 @@ func (s State) ToComputerMask() uint8 {
 	if s.Buttons&ButtonEast != 0 {
 		mask |= 1 << 5
 	}
-	if s.Buttons&ButtonStart != 0 {
+	if s.Buttons&ButtonSelect != 0 {
 		mask |= 1 << 6
 	}
-	if s.Buttons&ButtonSelect != 0 {
+	if s.Buttons&ButtonStart != 0 {
 		mask |= 1 << 7
 	}
 	return mask

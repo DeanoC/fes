@@ -4,6 +4,9 @@ package gic
 
 import (
 	"errors"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -341,5 +344,323 @@ func TestInitErrorsAndClamping(t *testing.T) {
 	}
 	if g.Redistributor() != 0x080e0000 || g.Lines() != MaxINTID {
 		t.Fatalf("got redist=%#x lines=%d, want 0x080e0000 and %d", g.Redistributor(), g.Lines(), MaxINTID)
+	}
+}
+
+func TestDispatchTelemetryAndResetStats(t *testing.T) {
+	hw := newFakeAccess(0x08000000, 0x080a0000, 0, 8, []uint32{0})
+	g := NewWithAccess(0x08000000, 0x080a0000, hw)
+	if err := g.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	g.Register(0, func() {})
+	g.Register(128, func() {})
+	hw.ackQueue = []uint32{0, 128, 128, 50, SpuriousID}
+	if n := g.Dispatch(); n != 4 {
+		t.Fatalf("Dispatch = %d, want 4", n)
+	}
+	// Empty Dispatch yields a spurious increment.
+	if n := g.Dispatch(); n != 0 {
+		t.Fatalf("empty Dispatch = %d, want 0", n)
+	}
+
+	st := g.Stats()
+	if st.Dispatched != 4 || st.Handled != 3 || st.Unhandled != 1 || st.Spurious != 1 || st.StormMasked != 0 {
+		t.Fatalf("unexpected Stats: %+v", st)
+	}
+	if g.Count(0) != 1 || g.Count(128) != 2 || g.Count(50) != 1 || g.Count(MaxINTID) != 0 {
+		t.Fatalf("unexpected per-INTID counts: 0=%d 128=%d 50=%d OOB=%d", g.Count(0), g.Count(128), g.Count(50), g.Count(MaxINTID))
+	}
+
+	g.ResetStats()
+	st = g.Stats()
+	if st != (Stats{}) || g.Count(0) != 0 || g.Count(128) != 0 || g.Count(50) != 0 {
+		t.Fatalf("ResetStats left non-zero telemetry: %+v", st)
+	}
+}
+
+func TestUnhandledStormProtectionAndConcurrentStats(t *testing.T) {
+	const (
+		gicd = 0x08000000
+		gicr = 0x080a0000
+	)
+	hw := newFakeAccess(gicd, gicr, 0, 8, []uint32{0})
+	g := NewWithAccess(gicd, gicr, hw)
+	g.SetUnhandledStormLimit(3) // set before Init to verify Init preserves limit
+	if err := g.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// Enable SPI 141 without a handler and verify GICD_ICENABLER masks SPI 141 on storm limit.
+	g.Enable(141)
+	hw.r32[gicd+GICD_ICENABLER+4*4] = 0
+	hw.ackQueue = []uint32{141, 141, 141, SpuriousID}
+	if n := g.Dispatch(); n != 3 {
+		t.Fatalf("SPI storm Dispatch = %d, want 3", n)
+	}
+	if got := hw.r32[gicd+GICD_ICENABLER+4*4]; got != 1<<13 {
+		t.Fatalf("GICD_ICENABLER[4] = %#x, want %#x (SPI 141 masked)", got, uint32(1<<13))
+	}
+	if st := g.Stats(); st.Unhandled != 3 || st.StormMasked != 1 {
+		t.Fatalf("storm Stats = %+v", st)
+	}
+
+	// Registering a handler / re-enabling resets the unhandled streak cleanly.
+	var fired int
+	g.Register(141, func() { fired++ })
+	g.Enable(141)
+	hw.ackQueue = []uint32{141, SpuriousID}
+	if n := g.Dispatch(); n != 1 || fired != 1 {
+		t.Fatalf("post-recovery Dispatch = %d fired=%d", n, fired)
+	}
+
+	// Limit 0 disables auto-masking even after DefaultUnhandledStormLimit deliveries.
+	g.SetUnhandledStormLimit(0)
+	hw.r32[gicd+GICD_ICENABLER+4*4] = 0
+	hw.ackQueue = nil
+	for i := 0; i < int(DefaultUnhandledStormLimit)+4; i++ {
+		hw.ackQueue = append(hw.ackQueue, 142)
+	}
+	hw.ackQueue = append(hw.ackQueue, SpuriousID)
+	if n := g.Dispatch(); n != int(DefaultUnhandledStormLimit)+4 {
+		t.Fatalf("unlimited Dispatch = %d", n)
+	}
+	if hw.r32[gicd+GICD_ICENABLER+4*4] != 0 || g.Stats().StormMasked != 1 {
+		t.Fatalf("unexpected masking when limit=0: icenabler=%#x stats=%+v", hw.r32[gicd+GICD_ICENABLER+4*4], g.Stats())
+	}
+
+	// Unmaskable SGI storm exits cleanly at limit without infinite loop.
+	g.SetUnhandledStormLimit(3)
+	hw.ackQueue = []uint32{4, 4, 4, 4, 4, SpuriousID}
+	if n := g.Dispatch(); n != 3 {
+		t.Fatalf("unmaskable SGI storm Dispatch = %d, want 3 (break on limit)", n)
+	}
+
+	// Concurrent Stats/Count reads during Dispatch under -race.
+	g.Register(48, func() {})
+	hw.ackQueue = make([]uint32, 0, 200)
+	for i := 0; i < 199; i++ {
+		hw.ackQueue = append(hw.ackQueue, 48)
+	}
+	hw.ackQueue = append(hw.ackQueue, SpuriousID)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			_ = g.Stats()
+			_ = g.Count(48)
+		}
+	}()
+	g.Dispatch()
+	wg.Wait()
+}
+
+func TestConcurrentStormLimitDisableDoesNotUseDefault(t *testing.T) {
+	const configuredLimit = uint32(3)
+	var g Controller
+	if got := g.effectiveStormLimit(); got != DefaultUnhandledStormLimit {
+		t.Fatalf("zero-value limit = %d, want default %d", got, DefaultUnhandledStormLimit)
+	}
+	g.SetUnhandledStormLimit(configuredLimit)
+
+	oldProcs := runtime.GOMAXPROCS(4)
+	defer runtime.GOMAXPROCS(oldProcs)
+
+	const (
+		readers    = 8
+		writers    = 2
+		iterations = 250_000
+	)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var unexpected atomic.Uint32
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iterations; j++ {
+				got := g.effectiveStormLimit()
+				if got != 0 && got != configuredLimit {
+					unexpected.CompareAndSwap(0, got)
+				}
+			}
+		}()
+	}
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < iterations; j++ {
+				g.SetUnhandledStormLimit(configuredLimit)
+				g.SetUnhandledStormLimit(0)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if got := unexpected.Load(); got != 0 {
+		t.Fatalf("concurrent storm limit update exposed unexpected limit %d; want only 0 or %d", got, configuredLimit)
+	}
+}
+
+func TestConcurrentRegisterAndDispatch(t *testing.T) {
+	var g Controller
+	hw := &fakeAccess{}
+	g.hw = hw
+	g.SetUnhandledStormLimit(0)
+
+	var handledA, handledB atomic.Uint64
+	fnA := func() { handledA.Add(1) }
+	fnB := func() { handledB.Add(1) }
+	dispatchOne := func() {
+		hw.ackQueue = []uint32{0, SpuriousID}
+		if n := g.Dispatch(); n != 1 {
+			t.Fatalf("Dispatch handled %d, want 1", n)
+		}
+	}
+
+	g.Register(0, fnA)
+	dispatchOne()
+	g.Register(0, nil)
+	dispatchOne()
+	g.Register(0, fnB)
+	dispatchOne()
+	if handledA.Load() != 1 || handledB.Load() != 1 {
+		t.Fatalf("Register/clear behavior: handler A=%d handler B=%d, want 1 each", handledA.Load(), handledB.Load())
+	}
+
+	const dispatches = 50_000
+	hw.ackQueue = make([]uint32, 0, dispatches*2)
+	for i := 0; i < dispatches; i++ {
+		hw.ackQueue = append(hw.ackQueue, 0, SpuriousID)
+	}
+
+	oldProcs := runtime.GOMAXPROCS(2)
+	defer runtime.GOMAXPROCS(oldProcs)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < dispatches; i++ {
+			g.Dispatch()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < dispatches*2; i++ {
+			switch i % 3 {
+			case 0:
+				g.Register(0, fnA)
+			case 1:
+				g.Register(0, nil)
+			case 2:
+				g.Register(0, fnB)
+			}
+		}
+	}()
+	close(start)
+	wg.Wait()
+	if len(hw.ackQueue) != 0 {
+		t.Fatalf("Dispatch left %d queued acknowledgements", len(hw.ackQueue))
+	}
+}
+
+type w1scAccess struct {
+	*fakeAccess
+}
+
+func (a *w1scAccess) Write32(addr uint64, val uint32) {
+	switch {
+	case addr == 0x080a0000+GICR_ISENABLER0:
+		a.r32[addr] |= val
+		return
+	case addr == 0x080a0000+GICR_ICENABLER0:
+		a.r32[0x080a0000+GICR_ISENABLER0] &^= val
+		return
+	case addr == 0x080a0000+GICR_ISPENDR0:
+		a.r32[addr] |= val
+		return
+	case addr == 0x080a0000+GICR_ICPENDR0:
+		a.r32[0x080a0000+GICR_ISPENDR0] &^= val
+		return
+	case addr >= 0x08000000+GICD_ISENABLER && addr < 0x08000000+GICD_ICENABLER:
+		a.r32[addr] |= val
+		return
+	case addr >= 0x08000000+GICD_ICENABLER && addr < 0x08000000+GICD_ISPENDR:
+		enAddr := addr - (GICD_ICENABLER - GICD_ISENABLER)
+		a.r32[enAddr] &^= val
+		return
+	case addr >= 0x08000000+GICD_ISPENDR && addr < 0x08000000+GICD_ICPENDR:
+		a.r32[addr] |= val
+		return
+	case addr >= 0x08000000+GICD_ICPENDR && addr < 0x08000000+GICD_ICPENDR+0x80:
+		pendAddr := addr - (GICD_ICPENDR - GICD_ISPENDR)
+		a.r32[pendAddr] &^= val
+		return
+	}
+	a.fakeAccess.Write32(addr, val)
+}
+
+func TestLineReadbackInspection(t *testing.T) {
+	var nilCtrl *Controller
+	if nilCtrl.Enabled(32) || nilCtrl.Pending(32) || nilCtrl.Priority(32) != 0 || nilCtrl.Edge(0) || nilCtrl.HasHandler(0) {
+		t.Fatal("nil Controller inspection returned non-zero state")
+	}
+
+	hw := &w1scAccess{fakeAccess: newFakeAccess(0x08000000, 0x080a0000, 0, 8, []uint32{0})}
+	uninit := NewWithAccess(0x08000000, 0x080a0000, hw)
+	if uninit.Enabled(32) || uninit.Pending(32) || uninit.Priority(32) != 0 || uninit.Edge(32) {
+		t.Fatal("uninitialized Controller inspection returned non-zero state")
+	}
+
+	g := NewWithAccess(0x08000000, 0x080a0000, hw)
+	if err := g.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// SGIs are always edge-triggered in GICv3.
+	if !g.Edge(0) || !g.Edge(15) {
+		t.Fatal("SGI expected Edge == true")
+	}
+
+	// Out-of-bounds line checks return zero values safely.
+	oob := g.Lines()
+	if g.Enabled(oob) || g.Pending(oob) || g.Priority(oob) != 0 || g.Edge(oob) || g.HasHandler(MaxINTID) {
+		t.Fatalf("out-of-bounds INTID %d inspection returned non-zero state", oob)
+	}
+
+	// Check PPI (INTID 30) and SPI (INTID 128) enable, pending, priority, edge, and handler state.
+	for _, id := range []uint32{30, 128} {
+		if g.Enabled(id) || g.Pending(id) || g.Edge(id) || g.HasHandler(id) {
+			t.Fatalf("initial state for id=%d not clean", id)
+		}
+		if got := g.Priority(id); got != DefaultPriority {
+			t.Fatalf("initial Priority(%d)=%#x want %#x", id, got, DefaultPriority)
+		}
+		g.Enable(id)
+		g.SetPending(id)
+		g.SetPriority(id, 0x40)
+		g.SetEdge(id, true)
+		g.Register(id, func() {})
+		if !g.Enabled(id) || !g.Pending(id) || g.Priority(id) != 0x40 || !g.Edge(id) || !g.HasHandler(id) {
+			t.Fatalf("enabled state mismatch for id=%d: en=%t pend=%t prio=%#x edge=%t handler=%t",
+				id, g.Enabled(id), g.Pending(id), g.Priority(id), g.Edge(id), g.HasHandler(id))
+		}
+
+		g.ClearPending(id)
+		g.SetEdge(id, false)
+		g.Disable(id)
+		g.Register(id, nil)
+		if g.Enabled(id) || g.Pending(id) || g.Edge(id) || g.HasHandler(id) {
+			t.Fatalf("cleared state mismatch for id=%d: en=%t pend=%t edge=%t handler=%t",
+				id, g.Enabled(id), g.Pending(id), g.Edge(id), g.HasHandler(id))
+		}
 	}
 }

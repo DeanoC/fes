@@ -25,6 +25,21 @@ checks the same ordering and is absent from production archives.
 
 One production wrapper owns the selected board's adapters and one NativeHardware.
 DE25 constructs no Cyclone V manager, fixed DDR window, GP client or Linux I2C.
+A window machine's guest memory is instead a kernel-owner window
+(`De25HpsWindow` over `De25KernelWindowOwner`): the owner allocates and
+publishes the grant, ranges are shared maps of the window fd at an offset that
+end with a barrier and their unmap, and the window ends with `WINDOW_REVOKE`.
+The machine's configuration carries the owner's window profile child, and a
+fault refuses its disk save.
+A running window machine keeps its session display until it stops: the owner's
+REAP retires a scanout allocation and retires the live window first, so closing
+the plane is refused as busy, a session-display presentation failure marks the
+plane unavailable without revoking or quiescing the scanout, and Stop quiesces
+the machine and releases the window before the menu's revoke.
+Restart recovery adopts only the plain allocated profile: a window machine lost
+with its daemon is refused in place with its own error, before the guard, the
+owner or any removal, because its window may still be mastering memory and its
+disk is unsaved (#2245). A power cycle retires it.
 Its two selected drivers are the BRAM computer and allocated MENU. The FPGA
 owns its transmitter, and the video backend observes the selected driver's
 readiness. Missing/failed preparation uses the existing unavailable adapter and
@@ -613,7 +628,7 @@ See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never
 falls back to SPI. Splash has no core probe or HPS framebuffer; splash and
-fixed-video bring-up use ADV7513 only.
+fixed-video bring-up use ADV7513 only (power-up `0xD6`/`0x41` before fixed/packet writes, with required `0xF9 = 0x00`).
 
 Explicit `load_development_rbf` accepts the contained diagnostic profile while
 idle. Package loads and raw diagnostics publish `running_development`; package
@@ -929,6 +944,12 @@ that omit a data root.
 An empty ATA unit does not remove the pc386 package's persistent core-data
 mode. Rejected insert/eject operations for that fixed unit leave the package's
 persistence mode unchanged.
+
+`fes.media.pc-floppy` 1.0 uses units 1 and 2 on pc386. Live replacement checks
+the incoming image and saved record before saving and ejecting the old disk.
+After eject, the runtime reads the incoming record again to pick up a save
+from a same-image replacement. An error in this second read reports a
+`media_data` failure so FogCast can reconcile the now-empty drive.
 
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,

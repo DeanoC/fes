@@ -8,7 +8,7 @@
 module fes_menu_ddr #(
     parameter bit BLITTER = 0
 ) (
-    input wire clk, reset_hold, enable, quiesce,
+    input wire clk, raster_reset, reset_hold, enable, quiesce,
     input wire submit_valid, submit_slot,
     input wire [31:0] submit_sequence,
     input wire blit_valid, blit_slot,
@@ -46,8 +46,26 @@ module fes_menu_ddr #(
         drained_q <= all_drained;
     end
     assign quiesced = drained_q && quiesce && !faulted;
-    fes_menu_video #(.WINDOW_BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE)) video (
-        .raster_h(11'd0), .raster_v(10'd0),
+    // Run the standalone 720p60 raster once PLL lock stabilizes rather than
+    // gating it on exec_reset/reset_hold so HDMI syncs exist before BringUp.
+    reg [10:0] raster_h = 11'd0;
+    reg [9:0] raster_v = 10'd720;
+    always @(posedge clk) begin
+        if (raster_reset) begin
+            raster_h <= 11'd0;
+            raster_v <= 10'd720;
+        end else if (raster_h == 11'd1649) begin
+            raster_h <= 11'd0;
+            raster_v <= raster_v == 10'd749 ? 10'd0 : raster_v + 10'd1;
+        end else begin
+            raster_h <= raster_h + 11'd1;
+        end
+    end
+    fes_menu_video #(
+        .WINDOW_BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE),
+        .EXTERNAL_RASTER(1'b1)
+    ) video (
+        .raster_h(raster_h), .raster_v(raster_v),
         .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),

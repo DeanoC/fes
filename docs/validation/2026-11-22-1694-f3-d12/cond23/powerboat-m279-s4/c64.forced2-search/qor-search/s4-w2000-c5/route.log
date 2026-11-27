@@ -1,0 +1,807 @@
+Info: Initialising bels...
+Info: Initialising routing graph...
+Info:     imported 2740019 wires and 25465239 pips
+Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz
+Info: FES reserved rect 'slot1' 24 1 28 18 (4338 bels)
+Info: FES reserved rect 'slot2' 24 21 28 38 (4338 bels)
+Info: Constraining IO 'system_clock.refclk_MISTRAL_IB_O' to pin PIN_V11 (bel MISTRAL_IO.32.0.0)
+Info: Constraining IO 'hdmi_sda_pad' to pin PIN_AA4 (bel MISTRAL_IO.4.0.2)
+Info: Constraining IO 'hdmi_scl_pad' to pin PIN_U10 (bel MISTRAL_IO.6.0.0)
+Info: Constraining IO 'HDMI_TX_VS_MISTRAL_OB_PAD' to pin PIN_V13 (bel MISTRAL_IO.60.0.1)
+Info: Constraining IO 'HDMI_TX_HS_MISTRAL_OB_PAD' to pin PIN_T8 (bel MISTRAL_IO.4.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_9' to pin PIN_AF8 (bel MISTRAL_IO.28.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_8' to pin PIN_AH5 (bel MISTRAL_IO.40.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_7' to pin PIN_AE7 (bel MISTRAL_IO.28.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_6' to pin PIN_AF5 (bel MISTRAL_IO.32.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_5' to pin PIN_AD10 (bel MISTRAL_IO.26.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_4' to pin PIN_AF9 (bel MISTRAL_IO.30.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_3' to pin PIN_W8 (bel MISTRAL_IO.2.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_23' to pin PIN_Y8 (bel MISTRAL_IO.2.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_22' to pin PIN_AF10 (bel MISTRAL_IO.34.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_21' to pin PIN_AG6 (bel MISTRAL_IO.34.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_20' to pin PIN_AH4 (bel MISTRAL_IO.38.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_2' to pin PIN_AE11 (bel MISTRAL_IO.30.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_19' to pin PIN_AD11 (bel MISTRAL_IO.30.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_18' to pin PIN_AE8 (bel MISTRAL_IO.30.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_17' to pin PIN_AE12 (bel MISTRAL_IO.38.0.0)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_16' to pin PIN_AE4 (bel MISTRAL_IO.26.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_15' to pin PIN_AH2 (bel MISTRAL_IO.36.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_14' to pin PIN_AD12 (bel MISTRAL_IO.38.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_13' to pin PIN_AE9 (bel MISTRAL_IO.26.0.1)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_12' to pin PIN_Y4 (bel MISTRAL_IO.2.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_11' to pin PIN_AF6 (bel MISTRAL_IO.32.0.3)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_10' to pin PIN_AH6 (bel MISTRAL_IO.40.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD_1' to pin PIN_Y5 (bel MISTRAL_IO.2.0.2)
+Info: Constraining IO 'HDMI_TX_D_MISTRAL_OB_PAD' to pin PIN_AB4 (bel MISTRAL_IO.4.0.3)
+Info: Constraining IO 'HDMI_TX_DE_MISTRAL_OB_PAD' to pin PIN_AD19 (bel MISTRAL_IO.66.0.1)
+Info: Constraining IO 'HDMI_TX_CLK_MISTRAL_OB_PAD' to pin PIN_AG5 (bel MISTRAL_IO.38.0.2)
+Info: Constraining IO 'HDMI_SCLK_MISTRAL_OB_PAD' to pin PIN_T12 (bel MISTRAL_IO.36.0.1)
+Info: Constraining IO 'HDMI_MCLK_MISTRAL_OB_PAD' to pin PIN_U11 (bel MISTRAL_IO.28.0.1)
+Info: Constraining IO 'HDMI_LRCLK_MISTRAL_OB_PAD' to pin PIN_T11 (bel MISTRAL_IO.28.0.0)
+Info: Constraining IO 'HDMI_I2S_MISTRAL_OB_PAD' to pin PIN_T13 (bel MISTRAL_IO.36.0.0)
+Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz (output 0), achieved 74249999.832439542 Hz, error -0.00225670649 ppm.
+Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0
+Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.
+Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.
+Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.7.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.6.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.5.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.4.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.3.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.2.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.1.0.0.
+Info: Setting up 13-bit address, 1-bit data M10K for machine.disk_medium.cache.0.0.0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[2].banks[0].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[1].banks[0].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[9].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[8].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[7].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[6].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[5].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[50].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[4].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[49].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[48].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[47].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[46].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[45].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[44].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[43].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[42].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[41].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[40].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[3].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[39].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[38].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[37].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[36].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[35].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[34].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[33].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[32].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[31].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[30].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[2].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[29].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[28].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[27].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[26].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[25].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[24].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[23].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[22].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[21].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[20].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[1].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[19].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[18].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[17].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[16].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[15].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[14].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[13].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[12].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[11].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[10].ram.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.vic.frame_store.pages[0].banks[0].ram.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane9.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane8.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane7.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane6.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane5.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane4.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane35.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane34.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane33.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane32.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane31.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane30.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane3.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane29.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane28.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane27.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane26.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane25.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane24.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane23.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane22.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane21.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane20.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane2.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane15.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane14.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane13.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane12.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane11.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane10.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane1.
+Info: Setting up 10-bit address, 10-bit data M10K for machine.rom.lane0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.drive.ram.1.0.0.
+Info: Setting up 11-bit address, 5-bit data M10K for machine.drive.ram.0.0.0.
+
+Info: Device utilisation:
+Info: 	        MISTRAL_COMB:   19429/  83820    23%
+Info: 	          MISTRAL_FF:    7671/ 167640     4%
+Info: 	      MISTRAL_MUL9X9:       3/    336     0%
+Info: 	    MISTRAL_MUL18X18:       0/    112     0%
+Info: 	    MISTRAL_MUL27X27:       0/    112     0%
+Info: 	    MISTRAL_MUL18X19:       0/    112     0%
+Info: 	MISTRAL_MUL18X19_COMBINED:       0/    112     0%
+Info: 	          MISTRAL_IO:      35/    472     7%
+Info: 	          altera_pll:       2/      6    33%
+Info: 	      MISTRAL_CLKENA:       3/      8    37%
+Info: 	  MISTRAL_CLKENA_PLL:       0/      8     0%
+Info: 	 cyclonev_oscillator:       0/      1     0%
+Info: 	cyclonev_hps_interface_mpu_general_purpose:       1/      1   100%
+Info: 	cyclonev_hps_interface_peripheral_i2c:       1/      4    25%
+Info: 	cyclonev_hps_interface_fpga2sdram:       1/      1   100%
+Info: 	        MISTRAL_M10K:     439/    553    79%
+Info: 	cyclonev_chipidblock:       0/      1     0%
+Info: 	   cyclonev_crcblock:       0/      1     0%
+Info: 	 cyclonev_opregblock:       0/      1     0%
+Info: 	       cyclonev_jtag:       0/      1     0%
+
+Info: Placed 223 cells based on constraints.
+Info: Creating initial analytic placement for 25029 cells, random placement wirelen = 3109429.
+Info:     at initial placer iter 0, wirelen = 21157
+Info:     at initial placer iter 1, wirelen = 19135
+Info:     at initial placer iter 2, wirelen = 18661
+Info:     at initial placer iter 3, wirelen = 18937
+Info: Running main analytical placer, max placement attempts per cell = 95116528.
+Info:     at iteration #1, type ALL: wirelen solved = 19190, spread = 613879, legal = 742887; time = 3.85s
+Info:         congestion: 2808 locations over target 100.0, peak demand 382.2
+Info:     at iteration #2, type ALL: wirelen solved = 23167, spread = 616830, legal = 701121; time = 2.42s
+Info:         congestion: 3088 locations over target 100.0, peak demand 300.1
+Info:     at iteration #3, type ALL: wirelen solved = 31518, spread = 563789, legal = 633013; time = 2.13s
+Info:         congestion: 2901 locations over target 100.0, peak demand 299.0
+Info:     at iteration #4, type ALL: wirelen solved = 33645, spread = 606282, legal = 668065; time = 1.81s
+Info:         congestion: 3096 locations over target 100.0, peak demand 292.3
+Info:     at iteration #5, type ALL: wirelen solved = 38482, spread = 584568, legal = 638186; time = 1.71s
+Info:         congestion: 2922 locations over target 100.0, peak demand 298.9
+Info:     at iteration #6, type ALL: wirelen solved = 52630, spread = 502032, legal = 552827; time = 1.93s
+Info:         congestion: 2595 locations over target 100.0, peak demand 292.1
+Info:     at iteration #7, type ALL: wirelen solved = 45225, spread = 473493, legal = 524908; time = 1.87s
+Info:         congestion: 2522 locations over target 100.0, peak demand 237.3
+Info:     at iteration #8, type ALL: wirelen solved = 42834, spread = 492517, legal = 544081; time = 2.07s
+Info:         congestion: 2647 locations over target 100.0, peak demand 235.1
+Info:     at iteration #9, type ALL: wirelen solved = 50133, spread = 456606, legal = 523238; time = 2.18s
+Info:         congestion: 2635 locations over target 100.0, peak demand 256.6
+Info:     at iteration #10, type ALL: wirelen solved = 48203, spread = 471035, legal = 527055; time = 2.03s
+Info:         congestion: 2561 locations over target 100.0, peak demand 260.2
+Info:     at iteration #11, type ALL: wirelen solved = 59946, spread = 431432, legal = 490689; time = 1.79s
+Info:         congestion: 2521 locations over target 100.0, peak demand 260.1
+Info:     at iteration #12, type ALL: wirelen solved = 52518, spread = 460660, legal = 520849; time = 1.98s
+Info:         congestion: 2658 locations over target 100.0, peak demand 242.9
+Info:     at iteration #13, type ALL: wirelen solved = 65051, spread = 439073, legal = 500422; time = 1.87s
+Info:         congestion: 2622 locations over target 100.0, peak demand 229.7
+Info:     at iteration #14, type ALL: wirelen solved = 66869, spread = 435758, legal = 498871; time = 1.82s
+Info:         congestion: 2565 locations over target 100.0, peak demand 244.6
+Info:     at iteration #15, type ALL: wirelen solved = 72113, spread = 423829, legal = 486036; time = 1.78s
+Info:         congestion: 2492 locations over target 100.0, peak demand 214.4
+Info:     at iteration #16, type ALL: wirelen solved = 73780, spread = 423785, legal = 485995; time = 1.69s
+Info:         congestion: 2370 locations over target 100.0, peak demand 231.9
+Info:     at iteration #17, type ALL: wirelen solved = 75393, spread = 422927, legal = 490003; time = 1.75s
+Info:         congestion: 2463 locations over target 100.0, peak demand 252.9
+Info:     at iteration #18, type ALL: wirelen solved = 66720, spread = 452530, legal = 504731; time = 1.63s
+Info:         congestion: 2437 locations over target 100.0, peak demand 240.5
+Info:     at iteration #19, type ALL: wirelen solved = 73768, spread = 438609, legal = 500644; time = 1.61s
+Info:         congestion: 2490 locations over target 100.0, peak demand 239.4
+Info:     at iteration #20, type ALL: wirelen solved = 71697, spread = 435747, legal = 491243; time = 1.73s
+Info:         congestion: 2430 locations over target 100.0, peak demand 227.2
+Info:     at iteration #21, type ALL: wirelen solved = 84817, spread = 418645, legal = 480447; time = 1.64s
+Info:         congestion: 2374 locations over target 100.0, peak demand 228.4
+Info:     at iteration #22, type ALL: wirelen solved = 92651, spread = 421701, legal = 481723; time = 1.64s
+Info:         congestion: 2388 locations over target 100.0, peak demand 240.2
+Info:     at iteration #23, type ALL: wirelen solved = 73113, spread = 437587, legal = 495084; time = 1.80s
+Info:         congestion: 2479 locations over target 100.0, peak demand 215.1
+Info:     at iteration #24, type ALL: wirelen solved = 82011, spread = 425217, legal = 484738; time = 1.65s
+Info:         congestion: 2416 locations over target 100.0, peak demand 245.7
+Info:     at iteration #25, type ALL: wirelen solved = 77209, spread = 440267, legal = 496028; time = 1.58s
+Info:         congestion: 2413 locations over target 100.0, peak demand 239.4
+Info:     at iteration #26, type ALL: wirelen solved = 77090, spread = 428840, legal = 486989; time = 1.76s
+Info:         congestion: 2383 locations over target 100.0, peak demand 237.7
+Info: HeAP Placer Time: 60.58s
+Info:   of which solving equations: 29.03s
+Info:   of which spreading cells: 1.92s
+Info:   of which strict legalisation: 24.07s
+
+Info: Running simulated annealing placer for refinement.
+Info:   at iteration #1: temp = 0.000000, timing cost = 962, wirelen = 480447
+Info:   at iteration #5: temp = 0.000000, timing cost = 2566, wirelen = 335374
+Info:   at iteration #10: temp = 0.000000, timing cost = 2732, wirelen = 296954
+Info:   at iteration #15: temp = 0.000000, timing cost = 3348, wirelen = 286408
+Info:   at iteration #20: temp = 0.000000, timing cost = 3275, wirelen = 280663
+Info:   at iteration #25: temp = 0.000000, timing cost = 3095, wirelen = 276916
+Info:   at iteration #30: temp = 0.000000, timing cost = 2818, wirelen = 275462
+Info:   at iteration #35: temp = 0.000000, timing cost = 3224, wirelen = 274830
+Info:   at iteration #39: temp = 0.000000, timing cost = 3088, wirelen = 274507 
+Info: SA placement time 51.70s
+
+Info: Max frequency for clock    'display.control.clk': 63.54 MHz (FAIL at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 43.48 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 168.15 MHz (PASS at 12.29 MHz)
+
+Info: Max delay <async>                        -> posedge display.control.clk   : 6.02 ns
+Info: Max delay <async>                        -> posedge system_clock.clocks[1]: 4.86 ns
+Info: Max delay posedge display.control.clk    -> posedge system_clock.clocks[0]: 9.58 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge display.control.clk   : 6.11 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge system_clock.clocks[1]: 1.93 ns
+Info: Max delay posedge system_clock.clocks[1] -> posedge system_clock.clocks[0]: 1.29 ns
+
+Info: Slack histogram:
+Info:  legend: * represents 137 endpoint(s)
+Info:          + represents [1,137) endpoint(s)
+Info: [ -3850,    370) |**+
+Info: [   370,   4590) |**************+
+Info: [  4590,   8810) |************************************************************ 
+Info: [  8810,  13030) |*****************************************************+
+Info: [ 13030,  17250) |***********************************************************+
+Info: [ 17250,  21470) |**********+
+Info: [ 21470,  25690) | 
+Info: [ 25690,  29910) | 
+Info: [ 29910,  34130) | 
+Info: [ 34130,  38350) | 
+Info: [ 38350,  42570) | 
+Info: [ 42570,  46790) | 
+Info: [ 46790,  51010) | 
+Info: [ 51010,  55230) | 
+Info: [ 55230,  59450) | 
+Info: [ 59450,  63670) | 
+Info: [ 63670,  67890) | 
+Info: [ 67890,  72110) | 
+Info: [ 72110,  76330) |+
+Info: [ 76330,  80550) |*+
+Info: Checksum: 0xb14e3107
+Info: Preparing LABs for routing...
+Info: Routing globals...
+Info:     routed net 'system_clock.clocks[0]' using global resources
+Info:     routed net 'display.control.clk' using global resources
+Info:     routed net 'system_clock.clocks[1]' using global resources
+Info: Running the GPU router...
+Info: GPU lease: waited 0.01s, granted physical id 0
+FES-GPU-GRANT 0
+Info: Setting up routing resources...
+Info:     flattened 2740019 wires and 27175333 pips in 0.33s
+Info:     GPU router using device 0: AMD Radeon RX 7900 XTX
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.13s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: Running main router loop...
+Info:     iter=1 wires=402924 overused=24485 overuse=28081 tmgfail=0 nets=33273 batches=268 archfail=NA
+Info:     shared 7 sinks already reached by an earlier arc of the same net
+Info:     iter=2 wires=417406 overused=8273 overuse=9293 tmgfail=0 nets=16558 batches=138 archfail=NA
+Info:     shared 7 sinks already reached by an earlier arc of the same net
+Info:     iter=3 wires=421574 overused=5270 overuse=6435 tmgfail=0 nets=7351 batches=66 archfail=NA
+Info:     shared 2 sinks already reached by an earlier arc of the same net
+Info:     iter=4 wires=423479 overused=4217 overuse=5630 tmgfail=0 nets=3902 batches=40 archfail=NA
+Info:     iter=5 wires=424654 overused=3251 overuse=3939 tmgfail=0 nets=2504 batches=30 archfail=NA
+Info:     iter=6 wires=424973 overused=3183 overuse=4217 tmgfail=0 nets=1896 batches=25 archfail=NA
+Info:     iter=7 wires=425791 overused=2536 overuse=3239 tmgfail=0 nets=1520 batches=23 archfail=NA
+Info:     iter=8 wires=426204 overused=2297 overuse=3111 tmgfail=0 nets=1314 batches=21 archfail=NA
+Info:     iter=9 wires=426806 overused=2128 overuse=2753 tmgfail=0 nets=1121 batches=20 archfail=NA
+Info:     iter=10 wires=426859 overused=1873 overuse=2439 tmgfail=0 nets=951 batches=18 archfail=NA
+Info:     iter=11 wires=427018 overused=1734 overuse=2310 tmgfail=0 nets=836 batches=18 archfail=NA
+Info:     iter=12 wires=427291 overused=1325 overuse=1817 tmgfail=0 nets=723 batches=17 archfail=NA
+Info:     iter=13 wires=427640 overused=1268 overuse=1692 tmgfail=0 nets=649 batches=16 archfail=NA
+Info:     iter=14 wires=427702 overused=1161 overuse=1551 tmgfail=0 nets=577 batches=16 archfail=NA
+Info:     iter=15 wires=427767 overused=1015 overuse=1459 tmgfail=0 nets=552 batches=15 archfail=NA
+Info:     iter=16 wires=427902 overused=931 overuse=1317 tmgfail=0 nets=491 batches=15 archfail=NA
+Info:     iter=17 wires=427887 overused=673 overuse=1345 tmgfail=0 nets=453 batches=15 archfail=NA
+Info:     iter=18 wires=428088 overused=661 overuse=1147 tmgfail=0 nets=414 batches=15 archfail=NA
+Info:     iter=19 wires=428256 overused=687 overuse=1046 tmgfail=0 nets=382 batches=14 archfail=NA
+Info:     iter=20 wires=428091 overused=528 overuse=862 tmgfail=0 nets=355 batches=14 archfail=NA
+Info:     iter=21 wires=428190 overused=612 overuse=989 tmgfail=0 nets=359 batches=14 archfail=NA
+Info:     iter=22 wires=428150 overused=540 overuse=1053 tmgfail=0 nets=338 batches=14 archfail=NA
+Info:     iter=23 wires=428203 overused=459 overuse=1006 tmgfail=0 nets=313 batches=14 archfail=NA
+Info:     iter=24 wires=428346 overused=537 overuse=818 tmgfail=0 nets=299 batches=14 archfail=NA
+Info:     iter=25 wires=428371 overused=428 overuse=875 tmgfail=0 nets=293 batches=14 archfail=NA
+Info:     iter=26 wires=428296 overused=394 overuse=784 tmgfail=0 nets=285 batches=14 archfail=NA
+Info:     iter=27 wires=428516 overused=541 overuse=878 tmgfail=0 nets=276 batches=13 archfail=NA
+Info:     iter=28 wires=428451 overused=548 overuse=870 tmgfail=0 nets=257 batches=13 archfail=NA
+Info:     iter=29 wires=428508 overused=453 overuse=834 tmgfail=0 nets=257 batches=13 archfail=NA
+Info:     iter=30 wires=428667 overused=441 overuse=701 tmgfail=0 nets=247 batches=13 archfail=NA
+Info:     iter=31 wires=428610 overused=367 overuse=523 tmgfail=0 nets=225 batches=13 archfail=NA
+Info:     iter=32 wires=428658 overused=336 overuse=726 tmgfail=0 nets=216 batches=13 archfail=NA
+Info:     iter=33 wires=428719 overused=321 overuse=599 tmgfail=0 nets=203 batches=13 archfail=NA
+Info:     iter=34 wires=428758 overused=353 overuse=550 tmgfail=0 nets=189 batches=13 archfail=NA
+Info:     iter=35 wires=428818 overused=317 overuse=507 tmgfail=0 nets=196 batches=13 archfail=NA
+Info:     iter=36 wires=428756 overused=275 overuse=415 tmgfail=0 nets=178 batches=13 archfail=NA
+Info:     iter=37 wires=428864 overused=293 overuse=616 tmgfail=0 nets=176 batches=13 archfail=NA
+Info:     iter=38 wires=428775 overused=292 overuse=500 tmgfail=0 nets=175 batches=13 archfail=NA
+Info:     iter=39 wires=428948 overused=327 overuse=550 tmgfail=0 nets=170 batches=13 archfail=NA
+Info:     iter=40 wires=428766 overused=245 overuse=527 tmgfail=0 nets=168 batches=13 archfail=NA
+Info:     iter=41 wires=428990 overused=279 overuse=538 tmgfail=0 nets=163 batches=13 archfail=NA
+Info:     iter=42 wires=428947 overused=297 overuse=533 tmgfail=0 nets=156 batches=13 archfail=NA
+Info:     iter=43 wires=428947 overused=238 overuse=337 tmgfail=0 nets=146 batches=13 archfail=NA
+Info:     iter=44 wires=429010 overused=216 overuse=391 tmgfail=0 nets=145 batches=12 archfail=NA
+Info:     iter=45 wires=428884 overused=223 overuse=547 tmgfail=0 nets=135 batches=12 archfail=NA
+Info:     iter=46 wires=429009 overused=164 overuse=596 tmgfail=0 nets=117 batches=12 archfail=NA
+Info:     iter=47 wires=429210 overused=207 overuse=619 tmgfail=0 nets=110 batches=12 archfail=NA
+Info:     iter=48 wires=429090 overused=189 overuse=297 tmgfail=0 nets=103 batches=12 archfail=NA
+Info:     iter=49 wires=429189 overused=223 overuse=344 tmgfail=0 nets=100 batches=12 archfail=NA
+Info:     iter=50 wires=429140 overused=185 overuse=336 tmgfail=0 nets=98 batches=12 archfail=NA
+Info:     iter=51 wires=429208 overused=156 overuse=518 tmgfail=0 nets=104 batches=12 archfail=NA
+Info:     iter=52 wires=429181 overused=177 overuse=307 tmgfail=0 nets=88 batches=12 archfail=NA
+Info:     iter=53 wires=429138 overused=176 overuse=502 tmgfail=0 nets=82 batches=12 archfail=NA
+Info:     iter=54 wires=429250 overused=163 overuse=544 tmgfail=0 nets=72 batches=12 archfail=NA
+Info:     iter=55 wires=429315 overused=171 overuse=473 tmgfail=0 nets=70 batches=12 archfail=NA
+Info:     iter=56 wires=429341 overused=153 overuse=266 tmgfail=0 nets=64 batches=12 archfail=NA
+Info:     iter=57 wires=429279 overused=154 overuse=330 tmgfail=0 nets=61 batches=12 archfail=NA
+Info:     iter=58 wires=429420 overused=190 overuse=452 tmgfail=0 nets=59 batches=12 archfail=NA
+Info:     iter=59 wires=429305 overused=134 overuse=271 tmgfail=0 nets=55 batches=12 archfail=NA
+Info:     iter=60 wires=429376 overused=143 overuse=185 tmgfail=0 nets=51 batches=12 archfail=NA
+Info:     iter=61 wires=429260 overused=95 overuse=230 tmgfail=0 nets=54 batches=12 archfail=NA
+Info:     iter=62 wires=429452 overused=125 overuse=322 tmgfail=0 nets=46 batches=12 archfail=NA
+Info:     iter=63 wires=429339 overused=48 overuse=57 tmgfail=0 nets=38 batches=12 archfail=NA
+Info:     iter=64 wires=429364 overused=86 overuse=219 tmgfail=0 nets=40 batches=12 archfail=NA
+Info:     iter=65 wires=429395 overused=102 overuse=211 tmgfail=0 nets=39 batches=12 archfail=NA
+Info:     iter=66 wires=429405 overused=75 overuse=104 tmgfail=0 nets=39 batches=12 archfail=NA
+Info:     iter=67 wires=429378 overused=54 overuse=87 tmgfail=0 nets=32 batches=12 archfail=NA
+Info:     iter=68 wires=429425 overused=63 overuse=88 tmgfail=0 nets=36 batches=12 archfail=NA
+Info:     iter=69 wires=429416 overused=42 overuse=51 tmgfail=0 nets=28 batches=12 archfail=NA
+Info:     iter=70 wires=429436 overused=22 overuse=23 tmgfail=0 nets=25 batches=12 archfail=NA
+Info:     iter=71 wires=429440 overused=20 overuse=29 tmgfail=0 nets=27 batches=12 archfail=NA
+Info:     iter=72 wires=429441 overused=16 overuse=17 tmgfail=0 nets=20 batches=12 archfail=NA
+Info:     iter=73 wires=429435 overused=14 overuse=14 tmgfail=0 nets=16 batches=12 archfail=NA
+Info:     iter=74 wires=429454 overused=14 overuse=14 tmgfail=0 nets=20 batches=12 archfail=NA
+Info:     iter=75 wires=429462 overused=8 overuse=8 tmgfail=0 nets=20 batches=12 archfail=NA
+Info:     iter=76 wires=429455 overused=11 overuse=11 tmgfail=0 nets=14 batches=12 archfail=NA
+Info:     iter=77 wires=429458 overused=7 overuse=7 tmgfail=0 nets=16 batches=12 archfail=NA
+Info:     iter=78 wires=429466 overused=6 overuse=6 tmgfail=0 nets=13 batches=11 archfail=NA
+Info:     iter=79 wires=429466 overused=3 overuse=3 tmgfail=0 nets=7 batches=6 archfail=NA
+Info:     iter=80 wires=429469 overused=2 overuse=2 tmgfail=0 nets=6 batches=5 archfail=NA
+Info:     iter=81 wires=429470 overused=1 overuse=1 tmgfail=0 nets=4 batches=3 archfail=NA
+Info:     iter=82 wires=429470 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=83 wires=429475 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=84 wires=429475 overused=0 overuse=0 tmgfail=0 nets=2 batches=2 archfail=0
+Info:     timing repair round 1: worst slack -0.050 ns, 82 arcs below 0.300 ns, 82 re-routed at pure delay, 0 not routable, 0 ps from reserved wires
+Info:     iter=85 wires=429526 overused=0 overuse=0 tmgfail=0 nets=28 batches=12 archfail=0
+Info:     timing repair round 2: worst slack -0.365 ns did not improve on -0.050 ns
+Info:     restoring the routing of the best round
+Info:     retrying with reversed repair order because worst slack still fails
+Info:     timing repair round 2: worst slack -0.050 ns, 82 arcs below 0.300 ns, 82 re-routed at pure delay, 0 not routable, 0 ps from reserved wires
+Info:     iter=86 wires=429525 overused=0 overuse=0 tmgfail=0 nets=27 batches=12 archfail=0
+Info:     timing repair round 3: worst slack -0.365 ns did not improve on -0.050 ns
+Info:     restoring the routing of the best round
+Info:     stopping after a reversed-order retry
+Info:     timing repair froze 164 arcs (design WNS -0.050 ns)
+Info: GPU router time 458.71s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 2271 launches, 358200 arcs, 2959918995 wires expanded, 438.21s routing, 2.38s transfers)
+Info: Running router1 to check that route is legal...
+
+Info: Routing..
+Info: Setting up routing queue.
+Info: Routing 0 arcs.
+Info:            |   (re-)routed arcs  |   delta    | remaining|       time spent     |
+Info:    IterCnt |  w/ripup   wo/ripup |  w/r  wo/r |      arcs| batch(sec) total(sec)|
+Info:          0 |        0          0 |    0     0 |         0|       1.52       1.52|
+Info: Routing complete.
+Info: Router1 time 1.52s
+Info: Checksum: 0x8dae25c2
+
+Info: Critical path report for clock 'display.control.clk' (posedge -> posedge):
+Info:       type curr  total name
+Info:   clk-skew -0.06 -0.06 Net display.control.clk (26,45) -> (31,6)
+Info:                          Sink display.stage1_MISTRAL_FF_Q_3.CLK
+Info:                          Defined in:
+Info:                               cores/fes-menu/rtl/fes_menu_control.v:17.16-17.19
+Info:   clk-to-q  2.62  2.56 Source machine.vic.frame_store.pages[2].banks[36].ram.B1DATA[2]
+Info:    routing  3.73  6.28 Net machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q_D[1] (26,45) -> (23,10)
+Info:                          Sink machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q.B
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_frame_store.sv:39.20-39.29
+Info:      logic  0.76  7.04 Source machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_Q.Q
+Info:    routing  0.33  7.37 Net machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q_D[1] (23,10) -> (23,10)
+Info:                          Sink machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  8.06 Source machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q.Q
+Info:    routing  0.85  8.91 Net machine.vic.frame_store.pages[0].bank_data[1]_MISTRAL_ALUT6_B_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT5_E_Q[3] (23,10) -> (23,7)
+Info:                          Sink machine.vic.frame_store.pages[0].bank_data[2]_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT6_F_D_MISTRAL_ALUT6_Q_1.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  9.59 Source machine.vic.frame_store.pages[0].bank_data[2]_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT6_F_D_MISTRAL_ALUT6_Q_1.Q
+Info:    routing  1.06  10.65 Net machine.vic.frame_store.pages[0].bank_data[2]_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_D_Q[3] (23,7) -> (33,6)
+Info:                          Sink machine.vic.frame_store.pages[0].bank_data[2]_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT6_F.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  11.34 Source machine.vic.frame_store.pages[0].bank_data[2]_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT6_F_Q_MISTRAL_ALUT6_D_Q_MISTRAL_ALUT6_F.Q
+Info:    routing  0.55  11.89 Net machine.vic.frame_store.pages[0].bank_data[0]_MISTRAL_ALUT2_A_1_Q_MISTRAL_ALUT5_E_Q[2] (33,6) -> (34,6)
+Info:                          Sink machine.vic.frame_store.pages[0].bank_data[0]_MISTRAL_ALUT2_A_1_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_Q_11.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  12.58 Source machine.vic.frame_store.pages[0].bank_data[0]_MISTRAL_ALUT2_A_1_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_Q_11.Q
+Info:    routing  0.60  13.18 Net machine.vic.frame_store.pages[0].bank_data[0]_MISTRAL_ALUT2_A_1_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_E_Q[21] (34,6) -> (31,6)
+Info:                          Sink display.stage1_MISTRAL_FF_Q_3$ROUTETHRU.A
+Info:      logic  0.27  13.46 Source display.stage1_MISTRAL_FF_Q_3$ROUTETHRU.Q
+Info:    routing  0.02  13.48 Net display.stage1_MISTRAL_FF_Q_3$ROUTETHRU$conn$Q (31,6) -> (31,6)
+Info:                          Sink display.stage1_MISTRAL_FF_Q_3.DATAIN
+Info:      setup -0.20  13.28 Source display.stage1_MISTRAL_FF_Q_3.DATAIN
+Info: 6.20 ns logic, 7.08 ns routing
+
+Info: Critical path report for clock 'system_clock.clocks[0]' (posedge -> posedge):
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_6.Q
+Info:    routing  1.29  2.02 Net machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_6_D_MISTRAL_ALUT3_C_1_Q[0] (36,34) -> (36,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI.A
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_sid_oscillator.sv:57.13-57.14
+Info:      logic  1.08  3.10 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI.CO
+Info:    routing  0.00  3.10 Net machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_CO (36,34) -> (36,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT_ARITH_SO_2.CI
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_sid_oscillator.sv:105.35-105.53
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.04  3.14 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT_ARITH_SO_2.CO
+Info:    routing  0.00  3.14 Net machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT_ARITH_SO_2_CO (36,34) -> (36,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT_ARITH_SO_1.CI
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_sid_oscillator.sv:105.35-105.53
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.37  3.51 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT_ARITH_SO_1.SO
+Info:    routing  0.55  4.06 Net machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_19_DATAIN_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO[1] (36,34) -> (36,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  4.57 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_Q.Q
+Info:    routing  0.55  5.12 Net machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO[2] (36,34) -> (37,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT3_C.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  5.40 Source machine.sid.envelopes[1].oscillator.q_MISTRAL_FF_Q_12_DATAIN_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT_ARITH_SO_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT3_C.Q
+Info:    routing  0.79  6.18 Net machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_6_D_MISTRAL_ALUT3_C_1_Q_MISTRAL_ALUT3_Q_A[1] (37,34) -> (36,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_E_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT3_Q.A
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  6.87 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_E_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT3_Q.Q
+Info:    routing  0.55  7.42 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_E_Q_MISTRAL_FF_DATAIN_Q[4] (36,36) -> (34,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT3_B_Q_MISTRAL_ALUT3_Q_1_B_MISTRAL_ALUT5_A.E
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  7.70 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT3_B_Q_MISTRAL_ALUT3_Q_1_B_MISTRAL_ALUT5_A.Q
+Info:    routing  0.55  8.25 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT3_B_Q_MISTRAL_ALUT3_Q_1_B_MISTRAL_ALUT5_A_Q[5] (34,36) -> (34,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_9_F_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT6_Q.F
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  8.52 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_9_F_MISTRAL_ALUT4_Q_B_MISTRAL_ALUT6_Q.Q
+Info:    routing  0.55  9.07 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_9_F_MISTRAL_ALUT4_Q_B[1] (34,36) -> (33,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.A
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  1.08  10.16 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.CO
+Info:    routing  0.00  10.16 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO (33,36) -> (33,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.CI
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_sid_oscillator.sv:172.35-172.56
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.04  10.19 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.CO
+Info:    routing  0.00  10.19 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO (33,36) -> (33,36)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.CI
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/c64_sid_oscillator.sv:172.35-172.56
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.37  10.56 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI.SO
+Info:    routing  0.79  11.35 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_3_E_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO[2] (33,36) -> (33,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.next_phase_MISTRAL_FF_Q_4_DATAIN_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT3_C_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT3_Q.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  11.62 Source machine.sid.envelopes[1].oscillator.next_phase_MISTRAL_FF_Q_4_DATAIN_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT3_C_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT3_Q.Q
+Info:    routing  0.60  12.22 Net machine.sid.envelopes[1].oscillator.next_phase_MISTRAL_FF_Q_4_DATAIN_MISTRAL_ALUT3_Q_C_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT3_C_Q_MISTRAL_FF_DATAIN_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT5_E_Q[5] (33,34) -> (33,34)
+Info:                          Sink machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A_MISTRAL_ALUT6_Q.F
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  12.49 Source machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A_MISTRAL_ALUT6_Q.Q
+Info:    routing  0.85  13.34 Net machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A[2] (33,34) -> (33,38)
+Info:                          Sink machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A_MISTRAL_ALUT3_C.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  13.61 Source machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A_MISTRAL_ALUT3_C.Q
+Info:    routing  0.83  14.45 Net machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_1_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_A_MISTRAL_ALUT3_C_Q[3] (33,38) -> (33,40)
+Info:                          Sink machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT_ARITH_SO.A
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  1.34  15.79 Source machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT_ARITH_SO.SO
+Info:    routing  1.07  16.86 Net machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q_F[5] (33,40) -> (33,37)
+Info:                          Sink machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q.F
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  17.13 Source machine.sid.envelopes[1].oscillator.n_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT_ARITH_A_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_CO_MISTRAL_ALUT_ARITH_CI_SO_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT6_Q.Q
+Info:    routing  0.55  17.69 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_10_F_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT5_Q_B_MISTRAL_ALUT3_B_Q_MISTRAL_ALUT3_Q_1_B_MISTRAL_ALUT5_A_Q_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_Q_A[1] (33,37) -> (33,37)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.78  18.47 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT3_Q.Q
+Info:    routing  0.55  19.02 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q_DATAIN (33,37) -> (35,37)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q$ROUTETHRU.A
+Info:      logic  0.27  19.29 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q$ROUTETHRU.Q
+Info:    routing  0.02  19.31 Net machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q$ROUTETHRU$conn$Q (35,37) -> (35,37)
+Info:                          Sink machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q.DATAIN
+Info:      setup -0.20  19.12 Source machine.sid.clocked_wave[1]_MISTRAL_ALUT6_Q_2_E_MISTRAL_ALUT5_Q_E_MISTRAL_FF_Q.DATAIN
+Info: 9.00 ns logic, 10.12 ns routing
+
+Info: Critical path report for clock 'system_clock.clocks[1]' (posedge -> posedge):
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_Q_D_MISTRAL_FF_Q_1.Q
+Info:    routing  1.24  1.97 Net audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_Q_D[1] (35,7) -> (35,7)
+Info:                          Sink audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.76  2.73 Source audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT6_Q.Q
+Info:    routing  0.83  3.56 Net audio.lrclk_MISTRAL_ALUT6_E_Q[3] (35,7) -> (33,7)
+Info:                          Sink audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  4.07 Source audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E.Q
+Info:    routing  1.14  5.21 Net audio.lrclk_MISTRAL_ALUT6_E_Q_MISTRAL_ALUT5_E_Q[4] (33,7) -> (33,1)
+Info:                          Sink audio.sdata_MISTRAL_ALUT2_Q_B_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q.E
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  5.72 Source audio.sdata_MISTRAL_ALUT2_Q_B_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT6_Q.Q
+Info:    routing  0.02  5.74 Net audio.sdata_MISTRAL_ALUT2_Q_B_MISTRAL_FF_Q_DATAIN (33,1) -> (33,1)
+Info:                          Sink audio.sdata_MISTRAL_ALUT2_Q_B_MISTRAL_FF_Q.DATAIN
+Info:      setup -0.20  5.55 Source audio.sdata_MISTRAL_ALUT2_Q_B_MISTRAL_FF_Q.DATAIN
+Info: 2.31 ns logic, 3.23 ns routing
+
+Info: Critical path report for cross-domain path '<async>' -> 'posedge display.control.clk':
+Info:       type curr  total name
+Info:     source  0.00  0.00 Source video_clock.pll.locked
+Info:    routing  3.23  3.23 Net pixel_locked (0,14) -> (39,13)
+Info:                          Sink display.locked_MISTRAL_ALUT4_C.A
+Info:                          Defined in:
+Info:                               cores/fes-c64/rtl/top.v:30.21-30.33
+Info:      logic  0.76  3.99 Source display.locked_MISTRAL_ALUT4_C.Q
+Info:    routing  1.43  5.42 Net display.locked_MISTRAL_ALUT4_C_Q[0] (39,13) -> (40,5)
+Info:                          Sink display.locked_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT2_B.A
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  5.93 Source display.locked_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT2_B.Q
+Info:    routing  0.83  6.77 Net display.locked_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT2_B_Q (40,5) -> (40,3)
+Info:                          Sink display.plane_rgb_MISTRAL_FF_Q_9.SCLR
+Info:      setup -0.20  6.57 Source display.plane_rgb_MISTRAL_FF_Q_9.SCLR
+Info: 1.07 ns logic, 5.50 ns routing
+
+Info: Critical path report for cross-domain path '<async>' -> 'posedge system_clock.clocks[1]':
+Info:       type curr  total name
+Info:     source  0.00  0.00 Source system_clock.pll.locked
+Info:    routing  3.34  3.34 Net audio.locked (0,31) -> (36,2)
+Info:                          Sink audio.lock_sync_MISTRAL_FF_Q.ACLR
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      setup -0.20  3.15 Source audio.lock_sync_MISTRAL_FF_Q.ACLR
+Info: -0.20 ns logic, 3.34 ns routing
+
+Info: Critical path report for cross-domain path 'posedge display.control.clk' -> 'posedge system_clock.clocks[0]':
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source memory.port0.returned_MISTRAL_FF_Q.Q
+Info:    routing  1.53  2.26 Net memory.port0.reads_after_MISTRAL_ALUT2_Q_3_B[0] (42,13) -> (43,11)
+Info:                          Sink memory.port0.m_readdatavalid_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT5_Q.A
+Info:                          Defined in:
+Info:                               cores/fes-common/rtl/fes_hps_ddr_guard.v:82.22-82.30
+Info:      logic  0.78  3.04 Source memory.port0.m_readdatavalid_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT5_Q.Q
+Info:    routing  1.30  4.35 Net memory.port0.m_readdatavalid_MISTRAL_ALUT4_B_Q[3] (43,11) -> (42,17)
+Info:                          Sink memory.port0.command_write[0]_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  4.86 Source memory.port0.command_write[0]_MISTRAL_ALUT5_D_Q_MISTRAL_ALUT5_Q.Q
+Info:    routing  0.60  5.46 Net memory.port0.command_write[0]_MISTRAL_ALUT5_D_Q[4] (42,17) -> (42,17)
+Info:                          Sink display.scanout.reader.active_MISTRAL_ALUT3_A_Q_MISTRAL_ALUT5_Q.E
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  5.73 Source display.scanout.reader.active_MISTRAL_ALUT3_A_Q_MISTRAL_ALUT5_Q.Q
+Info:    routing  0.83  6.57 Net display.scanout.reader.active_MISTRAL_ALUT3_A_Q[3] (42,17) -> (43,18)
+Info:                          Sink display.hard_fault_MISTRAL_ALUT5_A.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.51  7.08 Source display.hard_fault_MISTRAL_ALUT5_A.Q
+Info:    routing  0.02  7.10 Net display.hard_fault_MISTRAL_ALUT5_A_Q[2] (43,18) -> (43,18)
+Info:                          Sink display.hard_fault_MISTRAL_ALUT5_A_Q_MISTRAL_FF_DATAIN.DATAIN
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      setup -0.20  6.90 Source display.hard_fault_MISTRAL_ALUT5_A_Q_MISTRAL_FF_DATAIN.DATAIN
+Info: 2.61 ns logic, 4.29 ns routing
+
+Info: Critical path report for cross-domain path 'posedge system_clock.clocks[0]' -> 'posedge display.control.clk':
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source display.crossing.response_error_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT3_C_Q_MISTRAL_FF_ENA_Q_MISTRAL_ALUT5_A_C_MISTRAL_FF_Q_DATAIN_MISTRAL_NOT_Q_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_NOT_A_Q_MISTRAL_FF_DATAIN.Q
+Info:    routing  1.24  1.97 Net display.crossing.response_error_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT3_C_Q_MISTRAL_FF_ENA_Q_MISTRAL_ALUT5_A_C_MISTRAL_FF_Q_DATAIN_MISTRAL_NOT_Q_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_NOT_A_Q_MISTRAL_FF_DATAIN_Q (17,23) -> (17,23)
+Info:                          Sink display.crossing.response_error_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT3_C_Q_MISTRAL_FF_ENA_Q_MISTRAL_ALUT5_A.D
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.27  2.24 Source display.crossing.response_error_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT3_C_Q_MISTRAL_FF_ENA_Q_MISTRAL_ALUT5_A.Q
+Info:    routing  2.10  4.34 Net machine.bus_we_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_D[2] (17,23) -> (34,4)
+Info:                          Sink machine.vic.frame_store.acknowledge_MISTRAL_ALUT5_B.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/tools/yosys/b51f1db3142b23203c85972704beb0b30916bdf47d06a5caabcb67c3c025a8bb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.69  5.03 Source machine.vic.frame_store.acknowledge_MISTRAL_ALUT5_B.Q
+Info:    routing  0.73  5.76 Net machine.vic.frame_store.acknowledge_MISTRAL_ALUT5_B_Q (34,4) -> (34,4)
+Info:                          Sink machine.vic.frame_store.read_page_MISTRAL_NOT_Q_A_MISTRAL_FF_Q.ENA
+Info:      setup -0.20  5.56 Source machine.vic.frame_store.read_page_MISTRAL_NOT_Q_A_MISTRAL_FF_Q.ENA
+Info: 1.49 ns logic, 4.07 ns routing
+
+Info: Critical path report for cross-domain path 'posedge system_clock.clocks[0]' -> 'posedge system_clock.clocks[1]':
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source audio.held_sample_MISTRAL_FF_Q_22.Q
+Info:    routing  1.66  2.39 Net audio.held_sample[23] (37,5) -> (31,5)
+Info:                          Sink audio.pcm_MISTRAL_FF_Q_16.DATAIN
+Info:                          Defined in:
+Info:                               cores/fes-common/rtl/fes_audio_output.v:13.16-13.27
+Info:      setup -0.20  2.20 Source audio.pcm_MISTRAL_FF_Q_16.DATAIN
+Info: 0.54 ns logic, 1.66 ns routing
+
+Info: Critical path report for cross-domain path 'posedge system_clock.clocks[1]' -> 'posedge system_clock.clocks[0]':
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source audio.request_MISTRAL_FF_Q.Q
+Info:    routing  0.75  1.48 Net audio.request (31,1) -> (34,1)
+Info:                          Sink audio.request_meta_MISTRAL_FF_Q.DATAIN
+Info:                          Defined in:
+Info:                               cores/fes-common/rtl/fes_audio_output.v:10.9-10.16
+Info:      setup -0.20  1.28 Source audio.request_meta_MISTRAL_FF_Q.DATAIN
+Info: 0.54 ns logic, 0.75 ns routing
+
+Info: Max frequency for clock    'display.control.clk': 75.30 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 52.31 MHz (PASS at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 180.31 MHz (PASS at 12.29 MHz)
+
+Info: Max delay <async>                        -> posedge display.control.clk   : 6.57 ns
+Info: Max delay <async>                        -> posedge system_clock.clocks[1]: 3.15 ns
+Info: Max delay posedge display.control.clk    -> posedge system_clock.clocks[0]: 6.90 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge display.control.clk   : 5.56 ns
+Info: Max delay posedge system_clock.clocks[0] -> posedge system_clock.clocks[1]: 2.20 ns
+Info: Max delay posedge system_clock.clocks[1] -> posedge system_clock.clocks[0]: 1.28 ns
+
+Info: Slack histogram:
+Info:  legend: * represents 167 endpoint(s)
+Info:          + represents [1,167) endpoint(s)
+Info: [    30,   4040) |**+
+Info: [  4040,   8050) |*****************************+
+Info: [  8050,  12060) |**********************************************************+
+Info: [ 12060,  16070) |************************************************************ 
+Info: [ 16070,  20080) |**************+
+Info: [ 20080,  24090) | 
+Info: [ 24090,  28100) | 
+Info: [ 28100,  32110) | 
+Info: [ 32110,  36120) | 
+Info: [ 36120,  40130) | 
+Info: [ 40130,  44140) | 
+Info: [ 44140,  48150) | 
+Info: [ 48150,  52160) | 
+Info: [ 52160,  56170) | 
+Info: [ 56170,  60180) | 
+Info: [ 60180,  64190) | 
+Info: [ 64190,  68200) | 
+Info: [ 68200,  72210) | 
+Info: [ 72210,  76220) |+
+Info: [ 76220,  80230) |+
+Info: Analogue signoff check: worst clock slack 0.478 ns (display.control.clk 76.98 MHz, system_clock.clocks[0] 55.01 MHz, system_clock.clocks[1] 184.40 MHz) in 5.47s
+Info: Setting up the GPU router for candidate routes...
+FES-GPU-GRANT 0
+Info: GPU lease: waited 0.01s, granted physical id 0
+Info: Setting up routing resources...
+Info:     flattened 2740019 wires and 27175333 pips in 0.43s
+Info:     GPU router using device 0: AMD Radeon RX 7900 XTX
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)
+Info:     analogue candidate selection: 16 of 34 near-critical sinks tried with 25 candidates, 3 nets re-routed (1 candidates refused by the Arch), worst-sink margin gained 0.147 ns in total, 3.39s (2.07s searching, 0.05s simulating)
+nextpnr route timed out after 600 seconds of its own run time (0.0 s of GPU lease wait excluded)
+search_placer_qor: tool failed with exit 124
