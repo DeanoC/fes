@@ -1,4 +1,22 @@
 {
+  "cold_c64_return": {
+    "boot_id": "af4407e48b21634e",
+    "c64_result_sha256": "cd0324142cc3fa52f75ce276fa6636ffded007824d786e385b38e7d02536ce58",
+    "c64_uart_sha256": "e52a66877bef1e40db2dfb607866930b68335ed9fe88e4221a375657af990937",
+    "checked_utc": "2026-11-27T13:46:14.152974+00:00",
+    "cycle_sha256": "8690856fdfffc0f8c9580f10d604138056e76bfb536d6547a9c6c2a91439efaf",
+    "failed_target_result_sha256": "f2d85f1827cd39226027ae5b9189801694a072822407c0562204b1fd79743db7",
+    "finished_utc": "2026-11-27T13:46:13.359904+00:00",
+    "generation": 1,
+    "lease_released": true,
+    "parked": true,
+    "phase_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+    "preferences": "ram",
+    "ready": true,
+    "release_evidence_sha256": "b217ddf520bfec5c3c1f8e22536dea6e2955070b1360bb783820b75ae26bf836",
+    "started_utc": "2026-11-27T13:44:28.585719+00:00",
+    "status": "passed"
+  },
   "diagnostic_id": "93604db663af4e1a",
   "format": 1,
   "host_cleanup": {
