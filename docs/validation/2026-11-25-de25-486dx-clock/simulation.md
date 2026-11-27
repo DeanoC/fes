@@ -315,7 +315,17 @@ windows and measured 2,180.252 normalized DX-33 realtics. The 3DBench pair
 completed equal 391,666,688-clock windows at guest time 11.500 seconds,
 with a DX/reference CPI ratio of 1.0150483. The complete analysis and
 all 48 paired raw 3DBench frames match the earlier C28 replay byte for
-byte. G5 is running on the merged source.
+byte.
+
+G5 rendered the Necropolis demo and completed the full 20-second RTL
+window on the merged source. The replay exited 0 at 24.500 guest seconds
+and cycle 2,741,666,815. It retired 640,601,632 RTL instructions, including
+429,494,574 in protected mode. The run recorded zero oracle fallback,
+CPU stops, reset delta, video underflows and capture drops. All 25 raw
+frames and the full CPU profile matched the earlier C28 replay byte for
+byte. The combined G2/G4/G5 receipt SHA-256 is
+`0eca91e617bea01566bce868b19935664b66a7d22fb6d279a7398c7b8f8f241a`.
+[Full Quake window](quake-c28-f3-full.json) · [Verified 118 replay artifacts](sim-c28-f3-games.complete.json)
 
 Revision `2bc8a55e333bfc124c5dca3901ef813e083ee543` reproduced the 78
 tracked and generated game inputs, ordered dependency lists, guest
