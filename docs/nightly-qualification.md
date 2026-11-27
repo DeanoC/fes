@@ -143,9 +143,11 @@ their configured peer. Powerboat also needs read access to the repository's
 Actions runs through `gh`.
 
 Install the two client-side executables from `scripts/powerboat/` on chip.
-Install `nightly-kit-worker.py`, `nightly-de10-smoke.py` and
-`nightly-menu-smoke.py` together in Powerboat's
-`~/.local/share/fes-qualification/bin/`. HILQ owns the kit claims and restore.
+On Powerboat install `nightly-kit-launch.py` at the client's SSH entry point,
+`~/.local/share/fes-qualification/bin/nightly-kit-worker.py`. For each request
+the launcher checks the binding and main ancestry, then loads the worker,
+receipt validator and smoke adapters from a private checkout of that SHA.
+HILQ owns the kit claims and restore.
 DE10 tries B then A. DE25 uses the serial-bound D25 watcher. A digest-specific
 run directory retains the raw kit evidence and verified sealed package for
 retries. Two failed attempts hold the candidate for investigation.
