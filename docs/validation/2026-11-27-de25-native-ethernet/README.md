@@ -82,3 +82,13 @@ to report ready and the idle-error count reached `0xff`. The trial stopped
 at that sample, revoked the mapping and reset the MAC. The original C64
 launcher reached Ready and Park before release.
 [PHY transition](tx09-uart.gz) · [C64 return receipt](tx09-release.json)
+
+The next trial let negotiation continue after the transient errors.
+At 8.378 and 8.478 seconds after boot, both samples matched the earlier
+factory gigabit observations: basic status `0x796d`, 1000BASE-T status
+`0x3c00` (both receivers ready and zero idle errors), and resolved status
+`0x0348`. The PHY also set both PCS indicators in register 19 (`0x0806`).
+The diagnostic had required the 100BASE-TX indicator to clear and stopped
+before dispatch. The gigabit indicator and resolved speed identify the
+operating link. C64 returned to Ready and Park.
+[PHY samples](tx10-uart.gz) · [C64 return receipt](tx10-release.json)
