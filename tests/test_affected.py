@@ -195,7 +195,7 @@ class AffectedTests(unittest.TestCase):
                             ('producers/build_pcxt_package.py', ['pcxt']),
                             ('pc386/derive.py', ['pc386']), ('pc386/pc386-clocks.sdc', ['pc386']),
                             ('producers/build_pc386_package.py', ['pc386']),
-                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'de25-ramtest', 'pc386', 'pcxt', 'spectrum']),
                             ('machine/board.py', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
@@ -581,14 +581,15 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
 
     def test_de25_local_producers_select_only_their_package_consumers(self):
+        standard = {'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'}
         cases = {
-            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/build_menu_package.py': {'menu', 'zx81', *standard},
             'boards/de25nano/producers/build_zx81_package.py': {'zx81'},
             'boards/de25nano/producers/build_zx81_static_package.py': {'zx81'},
             'boards/de25nano/producers/export_static_persona.py': {'zx81'},
-            'boards/de25nano/producers/review_audio_clocks.py': {'zx81'},
-            'boards/de25nano/package/core_package.py': {'menu', 'zx81'},
-            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81'},
+            'boards/de25nano/producers/review_audio_clocks.py': {'zx81', *standard},
+            'boards/de25nano/package/core_package.py': {'menu', 'zx81', *standard},
+            'boards/de25nano/package/export_core_package.py': {'menu', 'zx81', *standard},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

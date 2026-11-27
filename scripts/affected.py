@@ -334,12 +334,13 @@ def fpga_cores(path):
         if len(parts) >= 4 and parts[2] == 'producers':
             name = parts[3]
             if name in ('build_menu_package.py', 'core_package.py', 'export_core_package.py'):
-                return ('menu', 'zx81'), 'DE25 package producer and format implementation'
-            if name in ('build_zx81_package.py', 'build_zx81_static_package.py',
-                        'export_static_persona.py', 'review_audio_clocks.py'):
-                return ('zx81',), 'DE25 ZX81 package producer and qualified review'
+                return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 package producer and format implementation'
+            if name in ('build_zx81_package.py', 'build_zx81_static_package.py', 'export_static_persona.py'):
+                return ('zx81',), 'DE25 ZX81 package producer'
+            if name == 'review_audio_clocks.py':
+                return ('zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 qualified audio clock review'
             if name == 'build_machine_package.py':
-                return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 standard machine package producer'
+                return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 standard machine package producer'
             if name == 'build_pcxt_package.py':
                 return ('pcxt',), 'DE25 PC/XT package producer'
             if name == 'build_spectrum_package.py':
@@ -351,7 +352,7 @@ def fpga_cores(path):
             if name == 'build_pc386_package.py':
                 return ('pc386',), 'DE25 pc386 package producer'
         if len(parts) >= 4 and parts[2] == 'package':
-            return ('menu', 'zx81'), 'DE25 package format implementation'
+            return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386', 'de25-ramtest'), 'DE25 package format implementation'
         if parts[2] == 'spectrum':
             # C64 native and pc386 reuse the Spectrum transport derivation.
             if parts[3:] == ('derive.py',):
