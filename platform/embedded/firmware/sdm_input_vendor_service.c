@@ -2382,6 +2382,13 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     if (fid==FES_EMBEDDED_MAC_CALL) {
         r[0]=FES_EMBEDDED_MAC_REJECTED;r[1]=(uint64_t)FES_EMBEDDED_MAC_TAG<<32;
         if (x3!=FES_EMBEDDED_MAC_COOKIE) goto out;
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+        if (x1==FES_EMBEDDED_MAC_QUERY && !x2 && !x4 && request_type==NO_REQUEST &&
+            !fes_nano_configuration_busy(configuration) && fes_nano_mac_window_progress()<0) {
+            r[0]=FES_EMBEDDED_MAC_ERROR;
+            goto out;
+        }
+#endif
         if (fes_nano_owned_mac.attempted &&
             (!fes_nano_owned_bridges.initialized || fes_nano_owned_bridges.failed ||
              fes_nano_owned_mac.binding.owner!=fes_nano_owned_bridges.state.owner ||

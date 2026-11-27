@@ -65,6 +65,9 @@ static int sdm_source_rearm_begin(void)
     !fes_nano_sdm_control_mailbox_idle() || !sdm_rearm_previous(old) ||
     fes_nano_sdm_vendor_source_idle(&r->binding)!=1)return 0;
 #if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+ if(mac_window.active || (mac_window.generation==r->binding.generation && mac_window.completed!=16))return 0;
+#endif
  if(mac_handoff_before_rearm(r,configuration.generation))return 0;
 #endif
  /* The preceding engine remains at its real address. Reuse only the older

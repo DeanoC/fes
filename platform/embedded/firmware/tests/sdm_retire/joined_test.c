@@ -293,6 +293,10 @@ static jmp_buf terminal;
 int fes_nano_mmu_platform_scope(void){return 1;}
 static uint64_t address_of(const char *name){
 #ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(!strcmp(name,"__FES_MAC_QUEUES_START__"))return 0x94018000;
+ if(!strcmp(name,"__FES_MAC_QUEUES_END__"))return 0x9401a000;
+#endif
  if(!strcmp(name,"__FES_MAC_TABLE_START__"))return mac_table_start;
  if(!strcmp(name,"__FES_MAC_TABLE_END__"))return 0x94017000;
 #endif
@@ -316,6 +320,9 @@ static unsigned smmu_index(uint64_t address){
  if(offset==0x100a8)return 44;if(offset==0x100ac)return 45;assert(offset<=0xb4 && !(offset&3));return offset/4;
 }
 static uint32_t probe_read(uint64_t address){
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_CONTROL_BASE+256)return test_mac_frame(address);
+#endif
 #if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
  if(address==0x10d11024)return mac_reset;
  if(address==0x10d1219c)return mac_route;
@@ -370,11 +377,17 @@ static void probe_write(uint64_t address,uint32_t value){
 }
 static uint64_t load_word(uint64_t address){
 #ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=0x94018000 && address<0x94018100)return test_mac_cmd_load(address);
+#endif
  if(address>=0x94010000 && address<0x94017000)return test_mac_load(address);
 #endif
  cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
 static void store_word(uint64_t address,uint64_t value){
 #ifdef FES_TEST_MAC_TABLE_IO
+#ifdef FES_TEST_MAC_COEXIST
+ if(address>=0x94018000 && address<0x94018100){test_mac_cmd_store(address,value);return;}
+#endif
  if(address>=0x94010000 && address<0x94017000){test_mac_store(address,value);return;}
 #endif
  if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}

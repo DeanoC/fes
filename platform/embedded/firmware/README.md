@@ -139,3 +139,18 @@ Omitting `--reference` fetches and hashes the pinned public TF-A blob; omitting
 + Verilator RTL suite. Additional focused verifiers in this directory include
 `verify_fabric_stop.py`, `verify_nano_bridges.py`, `verify_owned_sip.py`,
 `verify_probe_stop.py` and the C unit tests under `tests/`.
+
+The optional `--nano-mac-coexistence-trial` extends the contained table trial
+on the matched PIO C64/MENU chain. EL3 opens a private Non-secure SID 1
+table at the existing MENU DDR release boundary and keeps MAC0 in reset.
+Secure SID 1 continues to use its separately checked Secure bypass.
+An ordinary MAC query can record a completed FMS1 frame while the reader
+is running. It still returns the existing MAC service's readiness.
+Before MENU closes, EL3 verifies the latched accepted/displayed sequence,
+slot and zero underflows, checks both complete translation trees and returns
+to the original SDM table. Sixteen real queue commands wrap the private
+queue back to the retained hardware cursor. The firmware never writes the
+consumer pointer. Any loss of ownership, incomplete command, fault or
+missing frame retains the reservation. This mode qualifies reader coexistence
+only after a matched hardware run. The subsequent MAC reset, PHY and independent
+DMA drain require their own production supplier.

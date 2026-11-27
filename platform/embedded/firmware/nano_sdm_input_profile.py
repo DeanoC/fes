@@ -53,7 +53,7 @@ RECOVERY_CONTRACT.update(format=24,scope='nano-source-rearm-terminal-cold-recove
   request='fixed-vendor-cold-job15-command0x47-zero-args',
   source='retained-on-all-outcomes',resume=False,replay=False,reset_completion=False,
   post_reset_admission='fresh-boot-loader-devices-epoch-required',physical_qualification=False))
-FILES=('nano_mac_table_trial.inc','nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
+FILES=('nano_mac_coexist.inc','nano_mac_table_trial.inc','nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
@@ -115,12 +115,24 @@ def checked_mac_table_trial(profile):
  expected=mac_table_trial_contract(profile,0x96080000)
  if not rearm.same(profile['mac_table_trial'],expected):raise ValueError('incomplete inactive MAC table trial contract')
  return True
-def trial_linker(text):
+def mac_coexistence_contract(profile):
+ if not checked_mac_table_trial(profile):raise ValueError('coexistence trial requires the contained MAC table trial')
+ return dict(format=1,scope='secure-menu-with-reset-held-translated-mac',command_queue=0x94018000,event_queue=0x94019000,
+             secure_stream=1,nonsecure_stream=1,sdm_stream=10,vmid=2,commands=16,
+             source_cursor_restored=True,require_displayed_frame=True,mac_reset_held=True,mac_grant=False)
+def checked_mac_coexistence(profile):
+ if not isinstance(profile,dict) or 'mac_coexistence_trial' not in profile:return False
+ if not rearm.same(profile['mac_coexistence_trial'],mac_coexistence_contract(profile)):raise ValueError('incomplete MAC coexistence trial contract')
+ return True
+def trial_linker(text,coexistence=False):
  anchor='    /DISCARD/ : {'
  if text.count(anchor)!=1 or '__FES_MAC_TABLE_' in text:raise ValueError('fresh MAC table reservation required')
  memory='    SMMU_PROBE (rw!a): ORIGIN = 0x94000000, LENGTH = 0x10000'
  if text.count(memory)!=1:raise ValueError('fixed SDM table reservation required')
  text=text.replace(memory,memory+'\n    MAC_TABLE (rw!a): ORIGIN = 0x94010000, LENGTH = 0x7000')
+ if coexistence:
+  text=text.replace(memory,memory+'\n    MAC_QUEUES (rw!a): ORIGIN = 0x94018000, LENGTH = 0x2000')
+  text=text.replace(anchor,"    .fes_mac_queues 0x94018000 (NOLOAD) : { __FES_MAC_QUEUES_START__ = .; . += 0x2000; __FES_MAC_QUEUES_END__ = .; } >MAC_QUEUES :NONE\n"+anchor)
  return text.replace(anchor,'''    .fes_mac_table 0x94010000 (NOLOAD) : {
         __FES_MAC_TABLE_START__ = .; . += 0x7000; __FES_MAC_TABLE_END__ = .;
     } >MAC_TABLE :NONE
@@ -128,16 +140,17 @@ def trial_linker(text):
     ASSERT(__FES_MAC_TABLE_END__ <= 0x94200000, "MAC tables leave the verified EL3 mapping")
 '''+anchor)
 def installed_headers(profile):
- return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())+(('nano_mac_table_trial.inc',) if checked_mac_table_trial(profile) else ())
+ return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())+(('nano_mac_table_trial.inc',) if checked_mac_table_trial(profile) else ())+(('nano_mac_coexist.inc',) if checked_mac_coexistence(profile) else ())
 def installed_names(profile):
  return NAMES+tuple('plat/intel/soc/common/include/'+name for name in installed_headers(profile)[len(H_FILES):])
 def verify_handoff_header(source,profile):
  content=(Path(source)/HEADER).read_text().splitlines()
- for name,active in [('FES_NANO_MAC_HANDOFF',checked_mac_handoff(profile)),('FES_NANO_MAC_TABLE_TRIAL',checked_mac_table_trial(profile))]:
+ for name,active in [('FES_NANO_MAC_HANDOFF',checked_mac_handoff(profile)),('FES_NANO_MAC_TABLE_TRIAL',checked_mac_table_trial(profile)),('FES_NANO_MAC_COEXISTENCE_TRIAL',checked_mac_coexistence(profile))]:
   if [line for line in content if name in line]!=(['#define '+name+' 1'] if active else []):
    raise ValueError('unexpected MAC handoff build selection')
 def header(profile):
  handoff='#define FES_NANO_MAC_HANDOFF 1\n' if checked_mac_handoff(profile) else ''
+ if checked_mac_coexistence(profile):handoff+='#define FES_NANO_MAC_COEXISTENCE_TRIAL 1\n'
  if checked_mac_table_trial(profile):handoff+='#define FES_NANO_MAC_TABLE_TRIAL 1\n'
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_COLD_RECOVERY 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
@@ -167,7 +180,7 @@ def install(source,profile,start,mmu,ram,mailbox):
  for p,n in ((SERVICE,'sdm_input_vendor_service.c'),(MAILBOX,'sdm_input_vendor_mailbox.c'),(MAILBOX_HEADER,'sdm_input_mailbox.h')):(source/p).write_bytes((HERE/({'probe_setup.c':'sdm_input_probe_setup.c','probe_setup.h':'sdm_input_probe_setup.h'}.get(n,n))).read_bytes())
  (source/PLATFORM).write_text((source/PLATFORM).read_text()+'\n#if defined(FES_NANO_SDM_SOURCE_LEASE) && FES_NANO_SDM_SOURCE_LEASE\n#include "nano_sdm_source_platform.inc"\n#endif\n')
  layout=arena.memory_source((source/LD).read_text())
- (source/LD).write_text(trial_linker(layout) if checked_mac_table_trial(profile) else layout)
+ (source/LD).write_text(trial_linker(layout,checked_mac_coexistence(profile)) if checked_mac_table_trial(profile) else layout)
  (source/MK).write_text((source/MK).read_text()+'\nBL31_SOURCES += '+' '.join('plat/intel/soc/common/'+n for n in C_FILES)+'\n')
  (source/MK).write_text((source/MK).read_text()+''.join('$(BUILD_PLAT)/bl31/'+n+'.o: override CFLAGS += -fstack-usage\n' for n in ('nano_cold_platform','socfpga_sip_svc','socfpga_mailbox',*[Path(n).stem for n in C_FILES])))
  mmu['sources'][str(LD)]=sha(source/LD);mmu['sources'][str(MK)]=sha(source/MK)
@@ -250,4 +263,10 @@ def verify_image(image,profile):
   handoff['mac_table_trial']=dict(contract=profile['mac_table_trial'],switch=private_function(image,'mac_table_switch_trial'))
  elif _function(image,'mac_table_switch_trial',2,optional=True):
   raise ValueError('unselected table switch in firmware')
+ if checked_mac_coexistence(profile):
+  for name,address in [('__FES_MAC_QUEUES_START__',0x94018000),('__FES_MAC_QUEUES_END__',0x9401a000)]:
+   if symbols.get(name,(0,))[0]!=address:raise ValueError('unbound private MAC queue reservation')
+  handoff['mac_coexistence_trial']=dict(contract=mac_coexistence_contract(profile),open=private_function(image,'mac_window_open'),close=private_function(image,'mac_window_close'),progress=strong_function(image,'fes_nano_mac_window_progress'))
+ elif any(_function(image,n,2,optional=True) for n in ('mac_window_open','mac_window_close')):
+  raise ValueError('unselected translated MENU trial in firmware')
  return dict(**handoff,contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)

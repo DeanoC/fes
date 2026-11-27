@@ -81,6 +81,26 @@ class MacHandoffProfileTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 mode.header(changed)
 
+    def test_secure_menu_coexistence_is_separate_and_cannot_offer_mac(self):
+        profile=warm_profile()
+        profile['mac_handoff']=mode.mac_handoff_contract(profile)
+        with self.assertRaises(ValueError):
+            mode.mac_coexistence_contract(profile)
+        profile['mac_table_trial']=mode.mac_table_trial_contract(profile,0x96080000)
+        self.assertNotIn('FES_NANO_MAC_COEXISTENCE_TRIAL',mode.header(profile))
+        contract=mode.mac_coexistence_contract(profile)
+        profile['mac_coexistence_trial']=contract
+        self.assertTrue(contract['mac_reset_held'])
+        self.assertFalse(contract['mac_grant'])
+        self.assertEqual(contract['commands'],16)
+        self.assertIn('#define FES_NANO_MAC_COEXISTENCE_TRIAL 1',mode.header(profile))
+        self.assertIn('nano_mac_coexist.inc',mode.installed_headers(profile))
+        for field in contract:
+            broken=copy.deepcopy(profile)
+            broken['mac_coexistence_trial'][field]=None
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                mode.header(broken)
+
     def test_both_builders_require_explicit_source_rearm(self):
         for builder in ('build_terasic.py','build_terasic_uboot.py'):
             with tempfile.TemporaryDirectory() as directory:

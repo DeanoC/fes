@@ -136,7 +136,7 @@ class SourceRetirementTests(unittest.TestCase):
                                  '#include "probe_setup.c"\n')
             sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name in ('lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
+        if name in ('mac_coexist_test', 'lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
@@ -167,6 +167,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["status"], expected)
         self.assertFalse(report["hardware_actions"])
         return report
+
+    def test_actual_menu_release_and_close_wrap_private_mac_queue(self):
+        report = self.run_model("mac_coexist_test", joined=True)
+        self.assertEqual(report["commands"], 16)
+        self.assertGreaterEqual(report["faults"], 8)
 
     def test_inactive_mac_table_switch_restores_original_sdm_domain(self):
         report = self.run_model("mac_table_trial_test", joined=True)

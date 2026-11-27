@@ -395,6 +395,10 @@ static int master_failure(struct fes_nano_cold *s,int error)
     s->failed=1;s->valid=0;
     return error<0 ? error : -1;
 }
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+static int mac_window_open(void);
+static int mac_window_close(void);
+#endif
 static int cold_master_quiesce(void *context,uint32_t producers)
 {
     struct fes_nano_cold *s=context;
@@ -402,6 +406,10 @@ static int cold_master_quiesce(void *context,uint32_t producers)
         cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 || !s->control_expected)
         return master_failure(s,-1);
     if (!fabric_stop.attempted) fabric_generation=fes_nano_owned_bridges.state.generation;
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+    if(!fabric_stop.attempted && s->ddr_expected && identity_probe.reader==FES_NANO_READER_WINDOW &&
+       mac_window_close())return master_failure(s,-1);
+#endif
     int error=fes_nano_fabric_stop(&fabric_stop);
     if (fabric_reported_generation!=fabric_generation) {
         fabric_reported_generation=fabric_generation;
@@ -614,6 +622,9 @@ int fes_nano_platform_ddr_target(unsigned open)
         if(!window_prepared || window_issued || identity_probe.stage!=FES_ID_DDR_RELEASE)return -1;
         window_prepared=0;window_issued=1;
         if(window_gate())return -1;
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+        if(mac_window_open())return -1;
+#endif
         return fes_nano_cold_ddr_target(&provider,provider.record.boot.owner,provider.record.boot.epoch);
     }
     if(!window_issued || identity_probe.stage!=FES_ID_CLOSE || !fabric_stop.done || fabric_stop.failed)return -1;

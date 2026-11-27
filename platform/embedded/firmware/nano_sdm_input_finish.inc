@@ -13,6 +13,9 @@
 #include "nano_mac_handoff.inc"
 #if defined(FES_NANO_MAC_TABLE_TRIAL) && FES_NANO_MAC_TABLE_TRIAL
 #include "nano_mac_table_trial.inc"
+#if defined(FES_NANO_MAC_COEXISTENCE_TRIAL) && FES_NANO_MAC_COEXISTENCE_TRIAL
+#include "nano_mac_coexist.inc"
+#endif
 #endif
 #endif
 #if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
