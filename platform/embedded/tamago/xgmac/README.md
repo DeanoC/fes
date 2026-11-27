@@ -86,6 +86,12 @@ buffer byte count shifted by one. CBL factory Linux reported `0x7631`.
 [BSP revision matching](https://github.com/terasic/linux-socfpga/blob/d7d192a9ddd955fe206aa350afed8f82e368a74c/drivers/net/ethernet/stmicro/stmmac/hwif.c)
 and [DMA programming](https://github.com/terasic/linux-socfpga/blob/d7d192a9ddd955fe206aa350afed8f82e368a74c/drivers/net/ethernet/stmicro/stmmac/dwxgmac2_dma.c).
 
+CBL's KSZ9031 reported carrier and completed autonegotiation while the
+partner receiver was still training. At gigabit, the driver waits for both
+receiver-status bits and an unsaturated idle-error count before reporting
+the link up. With link recovery enabled, later polls can resume traffic
+when both receivers are ready. [KSZ9031 register A](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ9031RNX-Data-Sheet-DS00002117.pdf)
+
 Altera specifies ring length at least equal to descriptor cache size and up
 to 32 descriptors per channel. The CS/R1 map supplies the MAC version, feature
 words and implemented receive-buffer field used by the regression.

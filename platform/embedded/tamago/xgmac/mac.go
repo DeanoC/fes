@@ -325,6 +325,13 @@ func (d *Device) probeLink() (LinkSpeed, bool, error) {
 		}
 		// IEEE 802.3 Annex 28B.3 priority: 1000BASE-T FD > 1000BASE-T HD > 100BASE-TX FD.
 		if local1000&(1<<9) != 0 && partner1000&(1<<11) != 0 {
+			// On CBL the KSZ9031 can finish autonegotiation while the
+			// remote receiver is still training. Its low byte counts idle
+			// errors and can saturate during that transition.
+			if d.config.PHYID&0xfffffff0 == 0x00221620 &&
+				(partner1000&(3<<12) != 3<<12 || partner1000&0xff == 0xff) {
+				return LinkSpeedDown, true, fmt.Errorf("xgmac: KSZ9031 gigabit receivers are not ready")
+			}
 			return LinkSpeed1000Full, false, nil
 		}
 		if local1000&(1<<8) != 0 && partner1000&(1<<10) != 0 {
