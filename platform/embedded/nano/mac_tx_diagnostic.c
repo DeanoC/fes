@@ -18,11 +18,11 @@
 #define S2_LEAF (FES_TX_TABLES + 0x6000U)
 #define PAGE 4096U
 #define NS_ABORT (1U << 20)
-#define MAX_US 18000000U
-#define PHY_WAIT_US 8000000U
+#define MAX_US 40000000U
+#define PHY_WAIT_US 25000000U
 #define PHY_SAMPLE_US 100000U
 #define TX_COMPLETION_US 2000000U
-#define CLEANUP_RESERVE_US 5000000U
+#define CLEANUP_RESERVE_US 8000000U
 #define OWN (1U << 31)
 #define FIRST_LAST (3U << 28)
 #define CONTEXT (1U << 30)
@@ -232,16 +232,20 @@ static int arm(struct trial *t)
         return -1;
     return 0;
 }
-static int mdio(struct trial *t, uint32_t reg, uint16_t *v)
+static int mdio_transfer(struct trial *t, uint32_t reg, unsigned opcode, uint16_t data, uint16_t *v)
 {
     /* MDIO Clause 22, PHY 1, 100 MHz L4_SP CSR clock, divider 62. */
     if (poll(t, MAC + 0x204, 1U << 22, 0) || set_reg(t, MAC + 0x220, 2) ||
         set_reg(t, MAC + 0x200, 1U << 16 | reg) ||
-        write_reg(t, MAC + 0x204, 1U << 22 | 1U << 18 | 3U << 16) ||
+        write_reg(t, MAC + 0x204, 1U << 22 | 1U << 18 | opcode << 16 | data) ||
         poll(t, MAC + 0x204, 1U << 22, 0))
         return -1;
-    *v = (uint16_t)read_reg(t, MAC + 0x204);
+    if (v) *v = (uint16_t)read_reg(t, MAC + 0x204);
     return 0;
+}
+static int mdio(struct trial *t, uint32_t reg, uint16_t *v)
+{
+    return mdio_transfer(t, reg, 3, 0, v);
 }
 static int sample_phy(struct trial *t, struct fes_tx_phy_sample *p)
 {
@@ -252,6 +256,7 @@ static int sample_phy(struct trial *t, struct fes_tx_phy_sample *p)
            mdio(t,9,&p->gig_adv) || mdio(t,10,&p->gig_partner) ||
            mdio(t,19,&p->pcs) || mdio(t,31,&p->resolved);
 }
+#include "mac_phy_flp.inc"
 static int link_ready(const struct fes_tx_phy_sample *p)
 {
     /* Standard current link, AN, IEEE 802.3 selectors and both gigabit
@@ -271,6 +276,7 @@ static int verify_link(struct trial *t)
     const uint64_t start=t->io->time_us(t->io->ctx);
     for (unsigned attempt=0; attempt<=PHY_WAIT_US/PHY_SAMPLE_US; attempt++) {
         if (guard(t) || sample_phy(t,&current)) return -1;
+        if (!(attempt % 50)) t->io->report_phy(t->io->ctx, 3 + attempt / 50, &current);
         t->out->phy_status=current.resolved;
         int ready=link_ready(&current);
         /* The first BMSR read can be latched low; a transition since the
@@ -535,7 +541,7 @@ granted:
     if (start_mac(&t))
         goto failed;
     out->stage = FES_TX_PHY;
-    if (verify_link(&t))
+    if (prepare_flp(&t) || verify_link(&t))
         goto failed;
     out->stage = FES_TX_DISPATCH;
     if (setup_tx(&t)) goto failed;
@@ -548,8 +554,8 @@ granted:
     if (!out->process_stopped && stop_mac(&t,0xff03))
         goto failed;
     out->stage = FES_TX_REVOKE;
-    if (revoke(&t))
-        return -1;
+    int restored = restore_flp(&t);
+    if (revoke(&t) || restored) return -1;
     out->stage = FES_TX_PARKED;
     return 0;
 failed:
@@ -565,6 +571,7 @@ failed:
         if (out->stage == FES_TX_DISPATCH && out->dma_possible && out->dispatched)
             (void)stop_mac(&t,0xff03);
 #endif
+        if (!out->dma_possible || out->process_stopped) (void)restore_flp(&t);
         (void)revoke(&t);
     }
     return -1;
@@ -587,7 +594,7 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
             !r->process_stopped || retained_after_reset(&t)) return FES_TX_COLD_RECOVERY;
     }
 #endif
-    if (r->scope_lost)
+    if (r->scope_lost || (r->phy.portal && !r->phy.restored))
         return FES_TX_COLD_RECOVERY;
     if (rc && r->stage <= FES_TX_TABLE_BUILD && !r->write_attempted && !r->arm_attempted &&
         !r->mapped && !r->mac_release_attempted && !r->dma_possible && !r->dispatched &&

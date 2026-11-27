@@ -72,6 +72,7 @@ static void run(unsigned mode)
     struct endpoint e={0};
     e.mode=mode;
     struct fixture *f=&e.f;
+    initial_phy(f);
     f->reset=0xff7fbfff; f->ctrl=0x30;
     *reg(f,S)=0x080f7e3f; *reg(f,S+4)=0x0e739d18; *reg(f,S+0x14)=0x400075;
     *reg(f,S+0x2c)=4;

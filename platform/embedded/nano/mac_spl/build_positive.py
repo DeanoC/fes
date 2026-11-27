@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compose a separate pre-storage CBL TX-only SPL on the pinned trace producer."""
+"""Compose a pre-storage CBL TX or two-grant Ethernet SPL on the pinned trace producer."""
 import argparse
 import hashlib
 import importlib.util
@@ -81,6 +81,7 @@ void fes_nano_positive_clock_rates(unsigned *l4sp, unsigned *emac)
 ''')
     copied = []
     sources = [(HERE / "positive.inc", "fes_positive.inc"),
+                       (HERE.parent / "mac_phy_flp.inc", "mac_phy_flp.inc"),
                        (HERE.parent / "mac_tx_diagnostic.c", "mac_tx_diagnostic.c"),
                        (HERE.parent / "mac_tx_diagnostic.h", "mac_tx_diagnostic.h")]
     if len(frames) == 2:
@@ -174,12 +175,12 @@ def main():
                       (output/"build/spl/u-boot-spl-dtb.hex").read_bytes(),
                       Path(rest[rest.index("--vendor-sof")+1]).read_bytes())
     result = dict(scope="de25-cbl-positive-mac-spl-v1",status="prepared",historical_trace=TRACE,
-                  startup_predicate_report=True, capability_snapshot=True, phy_samples=True, parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
+                  startup_predicate_report=True, capability_snapshot=True, phy_samples=True, phy_flp_16ms=True, parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
                   diagnostic_id=receipt["diagnostic_id"],sof_sha256=receipt["sof_sha256"],
                   spl_sha256=receipt["spl_sha256"],frame_sha256=args.frame_sha256,
                   build_receipt_sha256=digest(original_receipt),embedded_spl=covered,
                   source_sha256={p.name:digest(p) for p in (Path(__file__),HERE/"positive.inc",
-                  HERE.parent/"mac_tx_diagnostic.c",HERE.parent/"mac_tx_diagnostic.h",HERE.parent/"sof_hps.py")})
+                  HERE.parent/"mac_tx_diagnostic.c",HERE.parent/"mac_tx_diagnostic.h",HERE.parent/"mac_phy_flp.inc",HERE.parent/"sof_hps.py")})
     if bidi:
         result["scope"]="de25-cbl-bidirectional-mac-spl-v1"
         result["frames"]=[]

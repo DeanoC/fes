@@ -93,7 +93,8 @@ static void positive_report_caps(void *ctx, const struct fes_tx_caps *c)
 static void positive_report_phy(void *ctx, unsigned sample, const struct fes_tx_phy_sample *p)
 {
     (void)ctx;
-    printf("FES_CBL_TX_PHY id=%s sample=%u us=%llu id1=%04x id2=%04x bmcr=%04x bmsr_latch=%04x bmsr=%04x adv=%04x partner=%04x gig_adv=%04x gig_partner=%04x pcs=%04x resolved=%04x\n",
+    printf("%s id=%s sample=%u us=%llu id1=%04x id2=%04x bmcr=%04x bmsr_latch=%04x bmsr=%04x adv=%04x partner=%04x gig_adv=%04x gig_partner=%04x pcs=%04x resolved=%04x\n",
+           sample < 2 ? "FES_CBL_TX_PHY" : "FES_CBL_TX_TRAIN",
            FES_CPU_DIAG_ID,sample,(unsigned long long)p->time_us,p->id1,p->id2,p->bmcr,p->bmsr_latch,
            p->bmsr,p->adv,p->partner,p->gig_adv,p->gig_partner,p->pcs,p->resolved);
 }
@@ -159,6 +160,11 @@ static int positive_startup(void)
 static void positive_end(const struct fes_tx_result *result,int rc,enum fes_tx_disposition closed)
 {
     static const char *const names[]={"cold-recovery","closed","unchanged","revoked-undispatched","failed-drained"};
+    const struct fes_phy_profile *p = &result->phy;
+    printf("FES_CBL_TX_FLP id=%s portal=%u pointers=%u snapshot=%u attempted=%u applied=%u restart=%u restored=%u selector=%04x pointer=%04x dev0_pointer=%04x bmcr=%04x old_hi=%04x old_lo=%04x set_hi=%04x set_lo=%04x final_hi=%04x final_lo=%04x final_selector=%04x final_bmcr=%04x\n",
+           FES_CPU_DIAG_ID,p->portal,p->pointers,p->snapshot,p->attempted,p->applied,p->restart,p->restored,
+           p->selector,p->pointer,p->dev0_pointer,p->bmcr,p->old_hi,p->old_lo,p->set_hi,p->set_lo,
+           p->final_hi,p->final_lo,p->final_selector,p->final_bmcr);
     printf("FES_CBL_MAC_TX END id=%s rc=%d stage=%u arm=%u mapped=%u mac=%u possible=%u dispatch=%u tps=%u revoked=%u reset=%u disposition=%s writes=%u terminal_per0=%08x terminal_route=%08x terminal_sid=%08x terminal_cr0=%08x terminal_ack=%08x terminal_ste=%08x reg=%08x value=%08x desc=%08x dma=%08x fault_reg=%08x fault_value=%08x phy=%04x drain_dma=%08x drain_mtl=%08x drain_status=%08x\n",
            FES_CPU_DIAG_ID,rc,result->stage,result->arm_attempted,result->mapped,result->mac_release_attempted,
            result->dma_possible,result->dispatched,result->process_stopped,

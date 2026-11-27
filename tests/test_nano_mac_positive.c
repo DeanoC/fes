@@ -21,7 +21,12 @@ enum fault {
     WRONG_PHY,
     SLOW_PHY,
     VENDOR_PHY_FLAG,
-    FIVE_SECOND_NEGOTIATION,
+    FIFTEEN_SECOND_NEGOTIATION,
+    FLP_ALREADY_CENTERED,
+    FLP_UNDOCUMENTED,
+    FLP_LO_WRITE_LOST,
+    FLP_RESTORE_LOST,
+    FLP_RESTORE_FOREIGN_PHY,
     TRAINING_IDLE_ERRORS,
     NO_CLEANUP_BUDGET,
     PCS_DOWN,
@@ -58,6 +63,8 @@ enum fault {
 struct fixture {
     uint32_t smmu[0x10100 / 4], mac[0x3800 / 4], reset, sys, ctrl, sid;
     uint64_t table[0xa000 / 8], packet[0x6000 / 8], ticks;
+    uint16_t selector, offsets[32], timing[5];
+    unsigned timing_writes, external_writes, restarts, training_samples;
     unsigned writes, transmits, queued, acknowledged, revocations, observations;
     enum fault fault;
     uint8_t wire[60];
@@ -133,6 +140,40 @@ static uint32_t translate(struct fixture *f, uint32_t va, unsigned write)
         assert((page >> 6) & 1);
     return ((uint32_t)page & ~0xfffu) | (va & 0xfff);
 }
+static void initial_phy(struct fixture *f)
+{
+    f->selector=0x8002; /* pre-existing post-increment mode, foreign device */
+    f->offsets[2]=17;
+    f->offsets[0]=23;
+    f->timing[3]=0x4000;
+    f->timing[4]=3;
+    if (f->fault==FLP_ALREADY_CENTERED) { f->timing[3]=0x1a80; f->timing[4]=6; }
+    if (f->fault==FLP_UNDOCUMENTED) f->timing[3]=0xbeef;
+}
+static void phy_write(struct fixture *f,unsigned number,uint16_t value)
+{
+    f->external_writes++;
+    assert(!(*reg(f,M+4)&1) && !(*reg(f,M+0x3104)&1));
+    if (number==0) {
+        assert(value==0x1200);
+        f->restarts++;
+    } else if (number==13) {
+        f->selector=value;
+    } else {
+        assert(number==14);
+        unsigned dev=f->selector&31;
+        if (!(f->selector>>14)) {
+            f->offsets[dev]=value;
+        } else {
+            unsigned offset=f->offsets[dev];
+            assert(f->selector==0x4000 && (offset==3 || offset==4));
+            f->timing_writes++;
+            if ((f->fault==FLP_LO_WRITE_LOST && value==0x1a80) ||
+                (f->fault==FLP_RESTORE_LOST && value==0x4000)) return;
+            f->timing[offset]=value;
+        }
+    }
+}
 static void write32(void *ctx, uint32_t a, uint32_t v)
 {
     struct fixture *f = ctx;
@@ -169,8 +210,22 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         const uint16_t phy[32] = {[0]=0x1000, [1]=0x24, [2]=0x22, [3]=0x1622,
                                   [4]=0x1e1, [5]=0xcde1, [9]=1U<<9, [10]=0x3c00, [19]=0x0806, [31]=0x0348};
         assert((addr & 31) < sizeof(phy) / sizeof(*phy));
-        *p = phy[addr & 31];
-        if ((addr & 31) == 1 && f->fault == FIVE_SECOND_NEGOTIATION && f->ticks<5000000) *p=0;
+        unsigned number=addr&31;
+        if (((v>>16)&3)==1) {
+            phy_write(f,number,(uint16_t)v);
+            *p=0;
+            return;
+        }
+        assert(((v>>16)&3)==3);
+        *p = phy[number];
+        if (number==13) *p=f->selector;
+        if (number==14) {
+            unsigned dev=f->selector&31, off=f->offsets[dev];
+            if (f->selector>>14) { assert(f->selector==0x4000 && (off==3 || off==4)); *p=f->timing[off]; }
+            else *p=(uint16_t)off;
+        }
+        if (number==3 && f->fault==FLP_RESTORE_FOREIGN_PHY && f->transmits) ++*p;
+        if ((addr & 31) == 1 && f->fault == FIFTEEN_SECOND_NEGOTIATION && f->ticks<15000000) *p=0;
         if ((addr & 31) == 31 && f->fault == SLOW_PHY) *p=0x28;
         if ((addr & 31) == 31 && f->fault == VENDOR_PHY_FLAG) *p=0x49;
         if ((addr & 31) == 19 && f->fault == PCS_DOWN) *p=0x0802;
@@ -199,7 +254,7 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
     if (a == M + 0x3124) {
         f->transmits++;
         if (f->fault==TRAINING_IDLE_ERRORS) assert(f->partner_reads>=4);
-        if (f->fault==FIVE_SECOND_NEGOTIATION) assert(f->ticks>=5100000);
+        if (f->fault==FIFTEEN_SECOND_NEGOTIATION) assert(f->ticks>=15100000);
         if (f->fault == MTL_PENDING)
             *reg(f, M + 0x1108) = 1U << 5;
         assert(*reg(f, M + 0x3104) & 1);
@@ -248,9 +303,10 @@ static void report_caps(void *ctx, const struct fes_tx_caps *caps)
 static void report_phy(void *ctx,unsigned sample,const struct fes_tx_phy_sample *p)
 {
     struct fixture *f=ctx;
+    if (sample>=2) { assert(sample == 2+f->training_samples++ && !f->transmits); return; }
     assert(sample==f->phy_reports++ && sample<2 && !f->transmits && !(*reg(f,M+0x3104)&1));
     assert(p->time_us);
-    if (sample==1 && f->fault==NO_CLEANUP_BUDGET) f->ticks+=11000000;
+    if (sample==1 && f->fault==NO_CLEANUP_BUDGET) f->ticks+=31000000;
 }
 static int observe(void *ctx)
 {
@@ -288,6 +344,7 @@ static void test(enum fault fault)
 {
     struct fixture f = {0};
     f.fault = fault;
+    initial_phy(&f);
     f.reset = 0xff7fbfff;
     f.ctrl = 0x30;
     *reg(&f, S) = 0x080f7e3f;
@@ -325,11 +382,15 @@ static void test(enum fault fault)
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
     memset(frame + 28, 0x7e, 16);
     int rc = fes_tx_once(&io, frame, &out);
-    int success = fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG ||
-                  fault == FIVE_SECOND_NEGOTIATION || fault == TRAINING_IDLE_ERRORS;
+    int success = fault == OK || fault == FLP_ALREADY_CENTERED || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG ||
+                  fault == FIFTEEN_SECOND_NEGOTIATION || fault == TRAINING_IDLE_ERRORS;
     assert((rc == 0) == success);
     assert(f.transmits <= 1);
     if (success) {
+        assert(out.phy.snapshot && out.phy.applied && out.phy.restart && out.phy.restored);
+        assert(f.selector==0x8002 && f.offsets[0]==23 && f.offsets[2]==17);
+        assert(f.timing_writes == (fault==FLP_ALREADY_CENTERED ? 0 : 4));
+        assert(f.restarts == (fault==FLP_ALREADY_CENTERED ? 1 : 2));
         assert(!memcmp(frame, f.wire, 60) && out.mapped && out.dma_possible && out.dispatched &&
                out.process_stopped);
         assert(out.stage == FES_TX_PARKED && out.translation_revoked && out.mac_in_reset &&
@@ -377,6 +438,16 @@ static void test(enum fault fault)
         expected = FES_TX_UNCHANGED;
     if (fault == WRONG_PHY || fault == SLOW_PHY || fault == PCS_DOWN || fault == BAD_LOCAL_RECEIVER || fault == IDLE_ERRORS_SATURATED)
         expected = FES_TX_REVOKED_UNDISPATCHED;
+    if (fault == FLP_UNDOCUMENTED || fault == FLP_LO_WRITE_LOST) {
+        assert(!f.transmits && out.phy.restored && !out.phy.applied);
+        assert(f.selector==0x8002 && f.offsets[0]==23 && f.offsets[2]==17);
+        assert(f.timing[4]==3 && f.timing[3]==(fault==FLP_UNDOCUMENTED ? 0xbeef : 0x4000));
+        if (fault==FLP_UNDOCUMENTED) assert(!f.timing_writes && !f.restarts);
+        expected=FES_TX_REVOKED_UNDISPATCHED;
+    }
+    if (fault == FLP_RESTORE_FOREIGN_PHY || fault == FLP_RESTORE_LOST)
+        assert(f.transmits && out.phy.applied && !out.phy.restored && out.translation_revoked && out.mac_in_reset);
+    if (fault == WRONG_PHY) assert(!out.phy.portal && !f.external_writes);
     unsigned writes = f.writes;
     assert(fes_tx_terminal(&io, &out, rc) == expected);
     assert(f.writes == writes);

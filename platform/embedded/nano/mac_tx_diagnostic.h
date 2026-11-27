@@ -31,6 +31,11 @@ struct fes_tx_phy_sample {
     uint64_t time_us;
     uint16_t id1, id2, bmcr, bmsr_latch, bmsr, adv, partner, gig_adv, gig_partner, pcs, resolved;
 };
+struct fes_phy_profile {
+    unsigned portal, pointers, snapshot, attempted, applied, restart, restored;
+    uint16_t selector, pointer, dev0_pointer, bmcr, adv, gig_adv;
+    uint16_t old_hi, old_lo, set_hi, set_lo, final_hi, final_lo, final_selector, final_bmcr;
+};
 struct fes_tx_result;
 struct fes_tx_io {
     void *ctx;
@@ -71,6 +76,7 @@ struct fes_tx_result {
     uint32_t terminal_per0, terminal_route, terminal_sid, terminal_cr0, terminal_ack, terminal_ste;
     uint32_t fault_address, fault_value;
     uint16_t phy_status;
+    struct fes_phy_profile phy;
     uint32_t drain_dma, drain_mtl, drain_status;
     unsigned process_stopped, revoke_started, translation_revoked, mac_in_reset;
     uint64_t started_us, last_us;
