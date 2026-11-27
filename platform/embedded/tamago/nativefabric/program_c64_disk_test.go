@@ -9,8 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/targetclient"
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"maps"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,20 +25,26 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	cg "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
 )
 
 func TestTenfootNativeC64DiskSetSwap(t *testing.T) {
-	testTenfootNativeC64DiskSwap(t, false)
+	testTenfootNativeC64DiskSwap(t, false, false)
 }
 
 func TestTenfootNativeC64DiskSwapFailureRetainsOwnership(t *testing.T) {
-	testTenfootNativeC64DiskSwap(t, true)
+	testTenfootNativeC64DiskSwap(t, true, false)
 }
 
-func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
+func TestTenfootNativeC64DiskSwapWithScopedMAC(t *testing.T) {
+	testTenfootNativeC64DiskSwap(t, false, true)
+}
+
+func testTenfootNativeC64DiskSwap(t *testing.T, failSwap, scoped bool) {
 	ctx := t.Context()
 	image := filepath.Join(t.TempDir(), "disk-swap.img")
 	file, err := os.Create(image)
@@ -57,6 +67,7 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	var startup *ProgramStartup
 	var diskSet *ProgramC64DiskSet
 	var port *spectrumFirmwareCPU
+	var scopeCPU *c64CoexistingCPU
 	var c64ROM []byte
 	clock := time.Unix(1, 0)
 	d64 := bytes.Repeat([]byte{0x42}, int(cg.FesComputerC64DiskBytes))
@@ -99,7 +110,18 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 		f.cpu.configuration.sharedShell = true
 		port = &spectrumFirmwareCPU{CPUTransport: f.cpu, base: f.r.f.cpu.computerCPU,
 			romClock: &clock, diskBatchCost: 5500 * time.Microsecond, wantTape: true}
-		l.boot.cpu = c64PickerFixtureCPU{batchedSpectrumCPU{port}, pickerPort}
+		picker := c64PickerFixtureCPU{batchedSpectrumCPU{port}, pickerPort}
+		l.boot.cpu = picker
+		if scoped {
+			scopeCPU = &c64CoexistingCPU{c64PickerFixtureCPU: picker, system: f.cpu, owner: f.cpu.state.Owner, mac: 2, active: true}
+			l.boot.cpu = scopeCPU
+			f.configureC64 = func(options *ProgramMenuOptions) {
+				options.C64NetworkPackageID = c64.PackageID
+				options.C64MACReceipt = func() (maccontrol.Receipt, bool) {
+					return maccontrol.Receipt{Owner: scopeCPU.owner, Generation: scopeCPU.mac, Active: scopeCPU.active, Confirmed: scopeCPU.active}, true
+				}
+			}
+		}
 		activate := f.cpu.activate
 		f.cpu.activate = func(role programRole) {
 			activate(role)
@@ -145,7 +167,28 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	if err := f.s.AttachNetwork(control); err != nil {
 		t.Fatal(err)
 	}
+	var authenticated, anonymous *targetclient.Client
+	if scoped {
+		ep := &c64ScopeEndpoint{Endpoint: agentapi.NewLinkEndpoint(lan.link, "02:00:00:00:00:02")}
+		const bearer = "test-c64-scoped-observation-only"
+		cfg := agentapi.Provisioning{TargetID: "ae31209a-c49c-4add-a5b1-287b7ea4caf0", Token: bearer, Port: 8181}
+		if _, err := f.s.NewTargetService(ep, cfg, f.s.Status().Owner, testProgramBootID, nil); err != nil {
+			t.Fatal(err)
+		}
+		base := &url.URL{Scheme: "http", Host: "native-fixture.invalid:8181"}
+		wire := &http.Client{Transport: ep}
+		authenticated = targetclient.NewClient(base, bearer, wire).WithKitLease(targetclient.NewKitLease(base, bearer, wire, "host", "test"))
+		anonymous = targetclient.NewClient(base, "", wire)
+		lan.stop = func() { scopeCPU.active = false; scopeCPU.mac++ }
+	}
 	lan.start = func() {
+		if scoped {
+			scopeCPU.mac += 2
+			scopeCPU.active = true
+			if f.s.Status().State == ProgramRunning {
+				return
+			}
+		}
 		if f.s.Status().State != ProgramReady || f.cpu.kind != programRoleMenu || f.menu.cpu.displayed == 0 {
 			t.Error("regranted MAC before presenting the returned MENU frame")
 		}
@@ -205,7 +248,23 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	pressKey(tenfoot.CmdSelect, []byte{0, 0, 0x28, 0, 0, 0, 0, 0})
 	wait("C64 launch", func(snapshot tenfoot.Snapshot) bool { return snapshot.Session.State == "active" })
 	status := f.s.Status()
-	if err := lan.link.SendRawFrame(make([]byte, 60)); !errors.Is(err, network.ErrPaused) {
+	if scoped {
+		before := scopeCPU.checks
+		got, err := authenticated.KitLeaseStatus(ctx)
+		if err != nil || got.State != "held" || !got.TargetReady || got.Owner != "native-tenfoot" || scopeCPU.checks != before+1 {
+			t.Fatal("authenticated lease did not require a fresh C64 proof", got, err, scopeCPU.checks, before)
+		}
+		if _, err := anonymous.KitLeaseStatus(ctx); err == nil || scopeCPU.checks != before+1 {
+			t.Fatal("unauthenticated lease queried C64 scope", err)
+		}
+		info, err := authenticated.Status(ctx)
+		if err != nil || info.ObservedCore == nil || *info.ObservedCore != "fes.c64" || info.CorePackage == nil || info.CorePackage.PackageID != status.Identity.PackageID {
+			t.Fatal("ordinary target status lost running C64", info, err)
+		}
+		if err := lan.link.SendRawFrame(make([]byte, 60)); err != nil {
+			t.Fatal(err)
+		}
+	} else if err := lan.link.SendRawFrame(make([]byte, 60)); !errors.Is(err, network.ErrPaused) {
 		t.Fatal("network accepted traffic while C64 held the control-only snapshot", err)
 	}
 	if status.State != ProgramRunning || status.Owner != owner ||
@@ -295,7 +354,11 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 		return snapshot.Session.State == "idle" && !snapshot.GPUParked && f.s.Status().State == ProgramReady
 	})
 	generation++
-	if err := lan.link.SendRawFrame(make([]byte, 60)); err != nil || lan.stops != 1 || lan.starts != 1 {
+	grants := 1
+	if scoped {
+		grants = 2
+	}
+	if err := lan.link.SendRawFrame(make([]byte, 60)); err != nil || lan.stops != grants || lan.starts != grants {
 		t.Fatal("return failed to restore a single fresh MAC grant", err, lan.stops, lan.starts)
 	}
 	if status := f.s.Status(); status.Owner != owner || status.Generation != generation ||
@@ -306,7 +369,52 @@ func testTenfootNativeC64DiskSwap(t *testing.T, failSwap bool) {
 	if err := b.ParkMenu(ctx); err != nil || f.s.Status().State != ProgramParked || f.s.Status().Generation != generation+1 {
 		t.Fatal("C64 catalogue did not Park", err, f.s.Status())
 	}
-	if err := lan.link.Available(); !errors.Is(err, network.ErrPaused) || lan.stops != 2 || lan.starts != 1 {
+	if err := lan.link.Available(); !errors.Is(err, network.ErrPaused) || lan.stops != grants+1 || lan.starts != grants {
 		t.Fatal("Park left networking active", err, lan.stops, lan.starts)
 	}
+}
+
+// The ordinary fixture publishes and runs the synthetic C64. This extra model
+// separates the active MAC observation from legacy bridge snapshots so a
+// fallback to whole-system containment fails immediately.
+type c64CoexistingCPU struct {
+	c64PickerFixtureCPU
+	system     *programMenuCPU
+	owner, mac uint64
+	active     bool
+	checks     int
+}
+
+func (c *c64CoexistingCPU) Invoke(a [7]uint64) ([4]uint64, error) {
+	if a[0] == uint64(g.FesEmbeddedC64ScopeCall) {
+		if !c.active && c.system.kind == programRoleUploadShell && c.system.state.ResetMask == 13 &&
+			a == [7]uint64{uint64(g.FesEmbeddedC64ScopeCall), 0, c.owner, uint64(g.FesEmbeddedC64ScopeCookie), c.system.state.Generation} {
+			return [4]uint64{0, uint64(g.FesEmbeddedC64ScopeTag) << 32, c.system.state.Generation, c.mac}, nil
+		}
+		if !c.active || c.system.kind != programRoleUploadShell || c.system.state.ResetMask != 13 ||
+			a != [7]uint64{uint64(g.FesEmbeddedC64ScopeCall), c.mac, c.owner, uint64(g.FesEmbeddedC64ScopeCookie), c.system.state.Generation} {
+			return [4]uint64{uint64(g.FesEmbeddedC64ScopeRejected), uint64(g.FesEmbeddedC64ScopeTag) << 32}, nil
+		}
+		c.checks++
+		return [4]uint64{0, uint64(g.FesEmbeddedC64ScopeTag) << 32, c.system.state.Generation, c.mac}, nil
+	}
+	if c.active && c.system.kind == programRoleUploadShell && a[0] == uint64(g.FesEmbeddedBridgeCall) {
+		return [4]uint64{}, errors.New("C64 queried all-master bridge service while MAC active")
+	}
+	return c.c64PickerFixtureCPU.Invoke(a)
+}
+
+type c64ScopeEndpoint struct {
+	agentapi.Endpoint
+	handler http.Handler
+}
+
+func (e *c64ScopeEndpoint) NewHTTPServer(cfg network.ServerConfig) (*network.HTTPServer, error) {
+	e.handler = cfg.Handler
+	return e.Endpoint.NewHTTPServer(cfg)
+}
+func (e *c64ScopeEndpoint) RoundTrip(r *http.Request) (*http.Response, error) {
+	recorder := httptest.NewRecorder()
+	e.handler.ServeHTTP(recorder, r)
+	return recorder.Result(), nil
 }

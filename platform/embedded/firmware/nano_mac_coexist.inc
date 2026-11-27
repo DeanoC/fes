@@ -36,6 +36,24 @@ static int mac_controller_expected(void)
 }
 #endif
 
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+#include "nano_mac_c64.inc"
+#endif
+static int mac_window_role(unsigned phase,uint64_t gen,const struct fes_nano_bridges *b)
+{
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+    if(configuration_program.role==FES_NANO_PROGRAM_ROLE_SPECTRUM48)
+        return phase==WINDOW_RUNNING && gen==configuration.generation && c64_platform();
+#endif
+    return configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU &&
+        configuration_program.control_abi==FES_NANO_PROGRAM_MENU_ABI && identity_probe.abi==FES_NANO_PROGRAM_MENU_ABI &&
+        identity_probe.bridges==b && identity_probe.active && !identity_probe.failed && !identity_probe.first_error &&
+        !identity_probe.cleanup_error && identity_probe.reader==FES_NANO_READER_WINDOW &&
+        identity_probe.stage==(phase==WINDOW_CLOSE ? FES_ID_CLOSE:phase==WINDOW_RUNNING ? FES_ID_DDR_READ:FES_ID_DDR_RELEASE) && provider.control_expected==1 &&
+        provider.ddr_expected==(phase!=WINDOW_OPEN) && !window_prepared && window_issued==1 && !fabric_stop.attempted && !fabric_stop.failed &&
+        gen<=UINT64_MAX-2 && b->state.generation==gen+(phase!=WINDOW_OPEN ? 2U:1U) && b->state.reset==(phase!=WINDOW_OPEN ? 5U:13U);
+}
+
 static int mac_window_owner(unsigned phase)
 {
     const struct nano_retire *r=&source_retirement;
@@ -53,14 +71,8 @@ static int mac_window_owner(unsigned phase)
         sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)==1 && !sdm_source_failed && !sdm_source_released &&
         !configuration.failed && configuration.finished && !configuration.pending && !configuration.issued &&
         configuration.completed==configuration.bytes && configuration.bridges==b &&
-        configuration.owner==r->binding.owner && configuration.generation==gen && configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU &&
-        configuration_program.control_abi==FES_NANO_PROGRAM_MENU_ABI && identity_probe.abi==FES_NANO_PROGRAM_MENU_ABI &&
-        identity_probe.bridges==b && identity_probe.active && !identity_probe.failed && !identity_probe.first_error &&
-        !identity_probe.cleanup_error && identity_probe.reader==FES_NANO_READER_WINDOW &&
-        identity_probe.stage==(phase==WINDOW_CLOSE ? FES_ID_CLOSE:phase==WINDOW_RUNNING ? FES_ID_DDR_READ:FES_ID_DDR_RELEASE) && provider.control_expected==1 &&
-        provider.ddr_expected==(phase!=WINDOW_OPEN) && !window_prepared && window_issued==1 && !fabric_stop.attempted && !fabric_stop.failed &&
+        configuration.owner==r->binding.owner && configuration.generation==gen && mac_window_role(phase,gen,b) &&
         !b->failed && !b->device_lease && b->state.owner==r->binding.owner && b->epoch==r->binding.epoch &&
-        gen<=UINT64_MAX-2 && b->state.generation==gen+(phase!=WINDOW_OPEN ? 2U:1U) && b->state.reset==(phase!=WINDOW_OPEN ? 5U:13U) &&
         !sd_platform.active && !sd_platform.prepared && !sd_platform.failed &&
         mac_controller_expected() &&
         fes_nano_cold_owns(&provider,r->binding.owner,r->binding.epoch)==1;

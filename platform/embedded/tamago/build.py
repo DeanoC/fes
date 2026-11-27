@@ -18,7 +18,7 @@ ROOT = APP.parents[2]
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from experiment import require_experiment
-from nano import launcher_ethernet
+from nano import c64_scope, launcher_ethernet
 
 
 def validate_native_elf(data, start, size, link_address):
@@ -783,6 +783,14 @@ def build(args):
         companion_entries.append(stage_c64(hps.spectrum48, c64_proof, c64_archive, c64_rom, c64_disk,
                                            rom_host_go, output / 'c64', context, program_platform,
                                            configuration_map))
+    scope_marker=''
+    if getattr(args,'c64_network_scope',False):
+        if not paired_mac or not c64_proof:
+            raise ValueError('--c64-network-scope requires a fitted C64 in the paired launcher')
+        c64_record=json.loads((output/'c64/export/FES/C64.JSN').read_bytes())
+        identity=c64_scope.identity_from_proof(c64_proof,c64_record)
+        scope_marker=launcher_ethernet.c64_marker(identity)
+        paired_mac.update(c64_scope=identity,network_scope='published-menu-and-matched-c64')
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
@@ -835,7 +843,8 @@ def build(args):
         stream.write('const (\nprofileSDDMABase = '+str(sd_dma_base)+'\nprofileSDDMABytes = '+str(sd_dma_bytes)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkAdapter": paired_mac["adapter"] if paired_mac else "",
-                         "profileNetworkInMenuOnly": bool(paired_mac and paired_mac["network_scope"] == "published-menu-only"),
+                         "profileNetworkInMenuOnly": bool(paired_mac),
+                         "profileC64NetworkScope": scope_marker,
                          "profileNetworkMACVersion": paired_mac["mac_version"] if paired_mac else 0,
                          "profileNetworkPoolBytes": paired_mac["dma_bytes"] if paired_mac else (net["dma_size"] if net else 0),
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
@@ -894,6 +903,7 @@ def build(args):
         raise ValueError("Nano selected a QEMU controller implementation")
     files = {APP.parent / "experiment.py", APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml", APP.parent/'nano/smmu-profile.json'}
     files.add(Path(launcher_ethernet.__file__))
+    if scope_marker:files.add(Path(c64_scope.__file__))
     if paired_mac:
         files.add(generated)
     if arm64_features:

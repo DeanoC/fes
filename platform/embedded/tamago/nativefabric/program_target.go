@@ -39,7 +39,41 @@ func (s *ProgramService) NewTargetService(endpoint agentapi.Endpoint, config age
 	})
 }
 
+// A running C64 with an explicitly selected onboard supplier needs a fresh
+// protected observation for each remote read. In-flight local work wins.
+func (t programTarget) observe() (ProgramServiceStatus, bool) {
+	view := t.service.Status()
+	p := t.service.state
+	if p.menu == nil || p.menu.c64MACReceipt == nil || view.State != ProgramRunning {
+		return view, true
+	}
+	if !p.operation.TryLock() {
+		return view, false
+	}
+	defer p.operation.Unlock()
+	view = t.service.Status()
+	if view.State != ProgramRunning {
+		return view, true
+	}
+	if view.Owner != t.owner || view.Identity.PackageID != p.menu.c64NetworkPackageID ||
+		view.Identity.CoreID != "fes.c64" || view.Identity.ProgrammingProfile != c64Profile ||
+		p.computer == nil || p.closed {
+		return view, false
+	}
+	active, retired := p.computer.port.scopedState()
+	if !active || retired {
+		return view, false
+	}
+	if err := p.computer.port.observeRunningC64(); err != nil {
+		p.networkFailure(err)
+		return t.service.Status(), false
+	}
+	return view, true
+}
+
 func (t programTarget) Health(version string) protocol.Health {
+	// Anonymous health is a local readiness read. Protected status and lease
+	// observations perform the full fresh, role-bound hardware check.
 	v := t.service.Status()
 	return protocol.Health{APIVersion: "v1", AgentVersion: version,
 		BootID: t.bootID,
@@ -47,7 +81,10 @@ func (t programTarget) Health(version string) protocol.Health {
 }
 
 func (t programTarget) Status() protocol.Status {
-	v := t.service.Status()
+	v, observed := t.observe()
+	if !observed {
+		return protocol.Status{State: protocol.StateFailed, LastError: &protocol.APIError{Code: protocol.CodeUnavailable, Message: "native C64 observation unavailable"}}
+	}
 	if v.Owner != t.owner {
 		return protocol.Status{State: protocol.StateFailed, LastError: &protocol.APIError{Code: protocol.CodeUnavailable, Message: "native boot ownership changed"}}
 	}
@@ -77,8 +114,12 @@ func (t programTarget) Stop(context.Context) (protocol.Status, *protocol.APIErro
 type programKitLease struct{ target programTarget }
 
 func (l programKitLease) Status() kitlease.Status {
-	v := l.target.service.Status()
+	v, observed := l.target.observe()
 	result := kitlease.Status{State: "blocked", TargetReachable: true}
+	if !observed {
+		result.Reason = "native C64 observation unavailable"
+		return result
+	}
 	if v.Owner != l.target.owner {
 		result.Reason = "native boot ownership changed"
 		return result

@@ -160,15 +160,19 @@ def valid_hex(value, width):
     return isinstance(value, str) and re.fullmatch('[a-f0-9]{%d}' % width, value) and value != '0' * width
 
 
-def header(record):
+def upload_initializer(record):
     def array(value):
         return '{' + ','.join('0x' + value[i:i+2] for i in range(0, len(value), 2)) + '}'
     fields = [str(record['core_size']) + 'U']
     fields.extend(array(record[k]) for k in ('package_id', 'build_id', 'core_sha256', 'core_sha384'))
     fields.append('{' + ','.join(map(array, record['chunk_sha384'])) + '}')
+    return '{' + ','.join(fields) + '}'
+
+
+def header(record):
     return ('#define FES_NANO_SPECTRUM48 1\n'
             '#define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200UL\n'
-            '#define FES_NANO_SPECTRUM48_PROGRAM {' + ','.join(fields) + '}\n')
+            '#define FES_NANO_SPECTRUM48_PROGRAM ' + upload_initializer(record) + '\n')
 
 
 if __name__ == '__main__':

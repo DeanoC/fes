@@ -56,7 +56,8 @@ RECOVERY_CONTRACT.update(format=24,scope='nano-source-rearm-terminal-cold-recove
   post_reset_admission='fresh-boot-loader-devices-epoch-required',physical_qualification=False))
 MENU_C=('nano_mac_phy.c','nano_mac_channel.c')
 MENU_H=('nano_mac_menu.inc','nano_mac_phy.h','nano_mac_phy_platform.inc','nano_mac_channel.h')
-FILES=MENU_C+MENU_H+('nano_mac_coexist.inc','nano_mac_table_trial.inc','nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
+C64_H=('nano_mac_c64.inc','nano_mac_c64_source.h','generated/fes_embedded_c64_scope.h')
+FILES=C64_H+MENU_C+MENU_H+('nano_mac_coexist.inc','nano_mac_table_trial.inc','nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
@@ -127,14 +128,31 @@ def checked_mac_coexistence(profile):
  if not isinstance(profile,dict) or 'mac_coexistence_trial' not in profile:return False
  if not rearm.same(profile['mac_coexistence_trial'],mac_coexistence_contract(profile)):raise ValueError('incomplete MAC coexistence trial contract')
  return True
+def mac_c64_scope_contract(profile):
+ if not checked_mac_coexistence(profile):raise ValueError('C64 MAC scope requires translated reader qualification')
+ launcher=profile.get('launcher_ethernet')
+ record=launcher.get('c64_scope') if isinstance(launcher,dict) else None
+ marker=ethernet.c64_marker(record)
+ expected=dict(ethernet.contract(),c64_scope=record,network_scope='published-menu-and-matched-c64')
+ if not rearm.same(launcher,expected):
+  raise ValueError('C64 MAC scope requires the matched paired launcher')
+ return dict(scope='source-bound-live-c64-gp',mac_sid=1,bridge_reset=13,
+             mandatory='secure-owner-epoch-bridge-and-confirmed-mac-generation',
+             identity_marker=marker,hardware_accepted=False)
+def checked_mac_c64_scope(profile):
+ if not isinstance(profile,dict) or 'mac_c64_scope_supplier' not in profile:return False
+ if not rearm.same(profile['mac_c64_scope_supplier'],mac_c64_scope_contract(profile)):
+  raise ValueError('incomplete C64 MAC scope supplier')
+ return True
 def mac_menu_contract(profile):
  if not checked_mac_coexistence(profile):raise ValueError('published-MENU MAC supplier requires the translated reader qualification')
- if not rearm.same(profile.get('launcher_ethernet'),ethernet.contract()):
+ scoped=checked_mac_c64_scope(profile)
+ if not scoped and not rearm.same(profile.get('launcher_ethernet'),ethernet.contract()):
   raise ValueError('published-MENU MAC requires the actual paired native launcher')
  return dict(format=1,scope='published-secure-menu-only',admission='displayed-fms1-zero-underflow',
              mac_sid=1,sdm_sid=10,fresh_vmid=True,grant_reset='tsn0-and-ecc-only',
              phy='ksz9031-1000-full-restored',drain='rx-tx-axi-mtl-and-private-arena',retained_us=10000,
-             c64='network-paused-until-next-menu',hardware_accepted=False)
+             c64='matched-c64-scope' if scoped else 'network-paused-until-next-menu',hardware_accepted=False)
 def checked_mac_menu(profile):
  if not isinstance(profile,dict) or 'mac_menu_supplier' not in profile:return False
  if not rearm.same(profile['mac_menu_supplier'],mac_menu_contract(profile)):raise ValueError('incomplete published MENU supplier')
@@ -155,16 +173,19 @@ def trial_linker(text,coexistence=False):
     ASSERT(__FES_MAC_TABLE_END__ <= 0x94200000, "MAC tables leave the verified EL3 mapping")
 '''+anchor)
 def installed_headers(profile):
- return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())+(('nano_mac_table_trial.inc',) if checked_mac_table_trial(profile) else ())+(('nano_mac_coexist.inc',) if checked_mac_coexistence(profile) else ())+(MENU_H if checked_mac_menu(profile) else ())
+ return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())+(('nano_mac_table_trial.inc',) if checked_mac_table_trial(profile) else ())+(('nano_mac_coexist.inc',) if checked_mac_coexistence(profile) else ())+(MENU_H if checked_mac_menu(profile) else ())+(C64_H if checked_mac_c64_scope(profile) else ())
 def installed_names(profile):
  return NAMES+tuple('plat/intel/soc/common/'+name for name in (MENU_C if checked_mac_menu(profile) else ()))+tuple('plat/intel/soc/common/include/'+name for name in installed_headers(profile)[len(H_FILES):])
 def verify_handoff_header(source,profile):
  content=(Path(source)/HEADER).read_text().splitlines()
- for name,active in [('FES_NANO_MAC_HANDOFF',checked_mac_handoff(profile)),('FES_NANO_MAC_TABLE_TRIAL',checked_mac_table_trial(profile)),('FES_NANO_MAC_COEXISTENCE_TRIAL',checked_mac_coexistence(profile)),('FES_NANO_MAC_MENU_SUPPLIER',checked_mac_menu(profile))]:
+ for name,active in [('FES_NANO_MAC_HANDOFF',checked_mac_handoff(profile)),('FES_NANO_MAC_TABLE_TRIAL',checked_mac_table_trial(profile)),('FES_NANO_MAC_COEXISTENCE_TRIAL',checked_mac_coexistence(profile)),('FES_NANO_MAC_MENU_SUPPLIER',checked_mac_menu(profile)),('FES_NANO_MAC_C64_SCOPE_SUPPLIER',checked_mac_c64_scope(profile))]:
   if [line for line in content if name in line]!=(['#define '+name+' 1'] if active else []):
    raise ValueError('unexpected MAC handoff build selection')
 def header(profile):
  handoff='#define FES_NANO_MAC_HANDOFF 1\n' if checked_mac_handoff(profile) else ''
+ if checked_mac_c64_scope(profile):
+  if not checked_mac_menu(profile):raise ValueError('C64 scope lacks confirmed MENU supplier selection')
+  handoff+='#define FES_NANO_MAC_C64_SCOPE_SUPPLIER 1\n'
  if checked_mac_menu(profile):handoff+='#define FES_NANO_MAC_MENU_SUPPLIER 1\n'
  if checked_mac_coexistence(profile):handoff+='#define FES_NANO_MAC_COEXISTENCE_TRIAL 1\n'
  if checked_mac_table_trial(profile):handoff+='#define FES_NANO_MAC_TABLE_TRIAL 1\n'
@@ -199,6 +220,9 @@ def install(source,profile,start,mmu,ram,mailbox):
  layout=arena.memory_source((source/LD).read_text())
  (source/LD).write_text(trial_linker(layout,checked_mac_coexistence(profile)) if checked_mac_table_trial(profile) else layout)
  (source/MK).write_text((source/MK).read_text()+'\nBL31_SOURCES += '+' '.join('plat/intel/soc/common/'+n for n in selected_c)+'\n')
+ if checked_mac_c64_scope(profile):
+  with (source/MK).open('a') as opts:
+   opts.write('$(BUILD_PLAT)/bl31/nano_boot.o: override CFLAGS += -DFES_NANO_MAC_C64_SCOPE_SUPPLIER=1\n')
  if checked_mac_menu(profile):
   with (source/MK).open('a') as opts:
    for name in ('nano_cold','nano_usb_composition'):opts.write('$(BUILD_PLAT)/bl31/'+name+'.o: override CFLAGS += -DFES_NANO_MAC_MENU_SUPPLIER=1\n')
@@ -310,4 +334,14 @@ def verify_image(image,profile):
   handoff['mac_menu_supplier']=dict(contract=mac_menu_contract(profile),hooks={k:strong_function(image,k) for k in hooks},private_state=state)
  elif _symbol(image,'fes_nano_menu_mac_admit',0x12,optional=True):
   raise ValueError('unselected MAC supplier in firmware')
+ if checked_mac_c64_scope(profile):
+  state=_symbol(image,'c64_mac',1)
+  start,length=state['address'],state['bytes']
+  if length!=24 or not symbols['__DATA_START__'][0]<=start<start+length<=symbols['__DATA_END__'][0]:
+   raise ValueError('private C64 MAC binding state required')
+  hooks=('fes_nano_c64_mac_scope','fes_nano_c64_mac_reserved','fes_nano_boot_c64_mac_view')
+  handoff['mac_c64_scope_supplier']=dict(contract=mac_c64_scope_contract(profile),private_state=state,
+      hooks={name:strong_function(image,name) for name in hooks})
+ elif _symbol(image,'fes_nano_c64_mac_scope',0x12,optional=True):
+  raise ValueError('unselected C64 MAC scope in firmware')
  return dict(**handoff,contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)

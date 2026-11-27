@@ -128,6 +128,8 @@ def main():
                         help="opt-in DesignWare APB watchdog timeout in seconds [1, 60] (Nano fpgaload --tenfoot-serial only; requires --watchdog-clock-hz)")
     parser.add_argument("--watchdog-clock-hz", type=int, default=0,
                         help="explicit Agilex 5 L4 watchdog clock frequency in Hz [1000000, 400000000] (requires --watchdog-timeout)")
+    parser.add_argument("--c64-network-scope", action="store_true",
+                        help="pair the MAC client with one source-verified C64 control endpoint")
     parser.add_argument("--paired-ethernet", action="store_true",
                         help="build the matched C64 PIO launcher MAC0 client; requires --network-dhcp")
     parser.add_argument("--network-dhcp", action="store_true",

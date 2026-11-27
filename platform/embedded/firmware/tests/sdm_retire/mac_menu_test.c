@@ -2,6 +2,28 @@
 /* Real secure MENU, SMMU, channel/PHY and release suppliers. The physical
  * registers/clock, application frame and NS driver's ring writes are modeled. */
 #include "nano_mac_joined_fixture.h"
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+#include <assert.h>
+#ifndef FES_NANO_C64_SCOPE_IDENTITY
+/* Unit fixture identity. Private matched-component tests can supply the real fitted package. */
+#define FES_NANO_C64_SCOPE_IDENTITY {2002944U,{1},{2},{3},{4},{{5}}}
+#endif
+#include "generated/fes_de25_computer.h"
+static void test_c64_window(void);
+static unsigned test_problem,fetch_reads,gp_error;
+static uint32_t gp_read(uint64_t address)
+{
+ switch(address-0x20010300U){
+ case FES_DE25_COMPUTER_ID_OFFSET:return FES_DE25_COMPUTER_IDENTITY;
+ case FES_DE25_COMPUTER_VERSION_OFFSET:return FES_DE25_COMPUTER_VERSION;
+ case FES_DE25_COMPUTER_FAULT_OFFSET:return gp_error;
+ case FES_DE25_COMPUTER_STATUS_OFFSET:return 1;
+ case FES_DE25_COMPUTER_FETCH_COUNT_OFFSET:fetch_reads++;return test_problem==6 ? 1:fetch_reads;
+ case FES_DE25_COMPUTER_FETCH_ADDRESS_OFFSET:return 0xfce0;
+ default:assert(0);return 0;
+ }
+}
+#endif
 #define FES_NANO_SPECTRUM48 1
 #define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200U
 static uint32_t scanout_status=8, scanout_serial;
@@ -28,6 +50,9 @@ static uint64_t invoke(unsigned op,uint64_t generation)
                   generation,0,r);
  return r[0];
 }
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+#include "mac_c64_checks.inc"
+#endif
 static void reconfigure(unsigned role,uint64_t generation)
 {
  terminal_log[0]=0;terminal_used=0;
@@ -37,6 +62,9 @@ static void reconfigure(unsigned role,uint64_t generation)
  next_role=role;selected_bytes=role==FES_NANO_PROGRAM_ROLE_MENU ? 1708032:2101248;
  selected_chunk=configuration.chunk;selected_rom=0;
  for(unsigned i=0;i<48;i++) selected_digest[i]=(uint8_t)(generation+i);
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(role==FES_NANO_PROGRAM_ROLE_SPECTRUM48){selected_bytes=c64_mac_identity.bytes;memcpy(selected_digest,c64_mac_identity.sha384,48);}
+#endif
  configuration.io.bind=selected_bind;
  if(!lifecycle_control(FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,17,generation,r))
   fes_nano_configuration_rearm(&configuration,17,generation,0,r);
@@ -49,6 +77,9 @@ static void reconfigure(unsigned role,uint64_t generation)
 }
 static void window(unsigned problem)
 {
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ test_problem=problem;
+#endif
  fes_mac_fixture_boot();
  joined_setup();expected_sd_io=sd_platform.io;configuration.attempted=1;
  memcpy(configuration_program.header+FES_NANO_PROGRAM_BUILD,expected.digest384,16);
@@ -111,20 +142,26 @@ static void window(unsigned problem)
  assert(lifecycle_control(FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT),17,r[3],r) && !r[0]);
  assert(!fes_nano_menu_mac_admit() && mac_window.generation==15 && registers[0x98/4]==10);
  displayed=1;
- assert(fes_nano_menu_mac_admit()==1 && !invoke(FES_EMBEDDED_MAC_ACQUIRE,6));
+ uint64_t returned=fes_nano_owned_mac.generation;
+ assert(fes_nano_menu_mac_admit()==1 && !invoke(FES_EMBEDDED_MAC_ACQUIRE,returned));
  fes_mac_fixture_driver_start();
- assert(!invoke(FES_EMBEDDED_MAC_CONFIRM,7) && menu_mac.vmid==5 && menu_mac.menu_generation==15);
+ assert(!invoke(FES_EMBEDDED_MAC_CONFIRM,returned+1) && menu_mac.vmid==3+returned/3 && menu_mac.menu_generation==15);
  fes_mac_fixture_driver_stop();
- assert(!invoke(FES_EMBEDDED_MAC_STOP,8) && registers[0x98/4]==4 && registers[0x9c/4]==4);
+ assert(!invoke(FES_EMBEDDED_MAC_STOP,returned+2) && registers[0x98/4]==4 && registers[0x9c/4]==4);
  assert(fes_nano_menu_mac_source_safe() && fes_mac_fixture_restored());
 }
 int main(void)
 {
- for(unsigned n=0;n<=4;n++){
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ const unsigned grants=4,faults=8;
+#else
+ const unsigned grants=3,faults=4;
+#endif
+ for(unsigned n=0;n<=faults;n++){
   pid_t pid=fork();assert(pid>=0);if(!pid){window(n);_exit(0);}
   int status;assert(waitpid(pid,&status,0)==pid);
   if(!WIFEXITED(status)||WEXITSTATUS(status)){fprintf(stderr,"MENU MAC case %u failed\n",n);return 1;}
  }
- puts("{\"status\":\"passed\",\"grants\":3,\"faults\":4,\"hardware_actions\":false}");
+ printf("{\"status\":\"passed\",\"grants\":%u,\"faults\":%u,\"hardware_actions\":false}\n",grants,faults);
  return 0;
 }

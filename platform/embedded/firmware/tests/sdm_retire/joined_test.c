@@ -320,6 +320,9 @@ static unsigned smmu_index(uint64_t address){
  if(offset==0x100a8)return 44;if(offset==0x100ac)return 45;assert(offset<=0xb4 && !(offset&3));return offset/4;
 }
 static uint32_t probe_read(uint64_t address){
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(address>=0x20010300U && address<0x20010320U)return gp_read(address);
+#endif
 #ifdef FES_TEST_MAC_COEXIST
  if(address>=FES_NANO_CONTROL_BASE && address<FES_NANO_CONTROL_BASE+256)return test_mac_frame(address);
 #endif

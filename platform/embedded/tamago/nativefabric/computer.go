@@ -80,19 +80,21 @@ func checkedComputerMapFor(source HPSBootContext, control, raw []byte) (computer
 // access is bracketed by fresh secure snapshots. Closing retires it before the
 // bridge mutation and waits for an in-flight ordered access to finish.
 type computerIO struct {
-	mu             sync.Mutex
-	cpu            CPUTransport
-	bridges        *FirmwareBridges
-	want           BridgeSnapshot
-	base           uint64
-	retired        bool
-	closing        bool
-	clock          func() time.Time
-	lastTiming     computer.AccessTiming
-	romBatch       spectrumROMBatchPlatform
-	mediaBatch     heldMediaBatchPlatform
-	liveMediaBatch liveMediaBatchPlatform
-	inputBatch     inputBatchPlatform
+	mu               sync.Mutex
+	cpu              CPUTransport
+	bridges          *FirmwareBridges
+	want             BridgeSnapshot
+	base             uint64
+	retired          bool
+	c64MACGeneration uint64
+	c64GrantPending  bool
+	closing          bool
+	clock            func() time.Time
+	lastTiming       computer.AccessTiming
+	romBatch         spectrumROMBatchPlatform
+	mediaBatch       heldMediaBatchPlatform
+	liveMediaBatch   liveMediaBatchPlatform
+	inputBatch       inputBatchPlatform
 }
 
 // The board can batch the fixed, already-held held mailbox aperture.
@@ -123,7 +125,7 @@ func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
 	if c.mediaBatch == nil {
 		return send(c)
 	}
-	return c.withDataBatch(send, c.mediaBatch.WithHeldMediaBatch)
+	return c.withBatch(false, send, c.mediaBatch.WithHeldMediaBatch)
 }
 
 func (c *computerIO) WithLiveMediaChunkBatch(send func(computer.IO) error) error {
@@ -137,25 +139,25 @@ func (c *computerIO) WithFirmwareDataBatch(send func(computer.IO) error) error {
 	if c.romBatch == nil {
 		return send(c)
 	}
-	return c.withDataBatch(send, c.romBatch.WithSpectrumROMBatch)
+	return c.withBatch(false, send, c.romBatch.WithSpectrumROMBatch)
 }
 
 func (c *computerIO) withDataBatch(send func(computer.IO) error, run func(uint64, func(computer.IO) error) error) error {
+	return c.withBatch(true, send, run)
+}
+
+func (c *computerIO) withBatch(allowLive bool, send func(computer.IO) error, run func(uint64, func(computer.IO) error) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.retired || c.closing {
+	if c.retired || c.closing || c.c64MACGeneration != 0 && !allowLive {
 		return errors.New("native fabric: held mailbox aperture closing or retired")
 	}
-	before, err := c.bridges.ObserveBridges()
-	if err != nil || before != c.want {
+	if err := c.observeAperture(); err != nil {
 		c.retired = true
-		return errors.Join(errors.New("native fabric: held mailbox batch lost control-only ownership"), err)
+		return err
 	}
 	sendErr := run(c.base, send)
-	after, err := c.bridges.ObserveBridges()
-	if err != nil || after != c.want {
-		err = errors.Join(errors.New("native fabric: held mailbox batch changed ownership"), err)
-	}
+	err := c.observeAperture()
 	if sendErr != nil || err != nil {
 		c.retired = true
 	}
@@ -228,12 +230,15 @@ func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, er
 	}
 	c.lastTiming = computer.AccessTiming{Offset: offset, Write: write}
 	start := now()
-	before, err := c.bridges.ObserveBridges()
+	if c.c64MACGeneration != 0 && (c.closing || write && !c64LiveMailboxWord(value)) {
+		return 0, errors.New("native C64: operation requires the contained computer aperture")
+	}
+	err := c.observeAperture()
 	beforeEnd := now()
 	c.lastTiming.Before = beforeEnd.Sub(start)
-	if err != nil || before != c.want {
+	if err != nil {
 		c.retired = true
-		return 0, errors.Join(errors.New("native fabric: computer lost control-only ownership"), err)
+		return 0, err
 	}
 	var result uint32
 	if write {
@@ -247,11 +252,11 @@ func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, er
 		c.retired = true
 		return 0, err
 	}
-	after, err := c.bridges.ObserveBridges()
+	err = c.observeAperture()
 	c.lastTiming.After = now().Sub(registerEnd)
-	if err != nil || after != c.want {
+	if err != nil {
 		c.retired = true
-		return 0, errors.Join(errors.New("native fabric: computer ownership changed during access"), err)
+		return 0, err
 	}
 	c.lastTiming.Completed = true
 	return result, nil
@@ -261,8 +266,16 @@ func (c *computerIO) Write32(offset, value uint32) error {
 	_, err := c.access(offset, true, value)
 	return err
 }
-func (c *computerIO) retire()     { c.mu.Lock(); c.retired = true; c.mu.Unlock() }
-func (c *computerIO) beginClose() { c.mu.Lock(); c.closing = true; c.mu.Unlock() }
+func (c *computerIO) retire() { c.mu.Lock(); c.retired = true; c.mu.Unlock() }
+func (c *computerIO) beginClose() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.c64GrantPending || c.c64MACGeneration != 0 {
+		return false
+	}
+	c.closing = true
+	return true
+}
 
 type ComputerObservation struct {
 	Source    HPSBootObservation
@@ -403,7 +416,9 @@ func (s *ComputerSession) Close(ctx context.Context) (out ComputerObservation, e
 		return out, errors.New("native fabric: computer session already closed")
 	}
 	s.closed = true
-	s.port.beginClose() // Prevent another caller from running after the final Hold.
+	if !s.port.beginClose() {
+		return out, errors.New("native C64: refusing Hold or bridge closure with an outstanding MAC grant")
+	}
 	if s.control != nil {
 		err = s.control.Hold(ctx)
 		out.HoldAcknowledged = err == nil

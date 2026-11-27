@@ -6,7 +6,9 @@ package de25nano
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/maccontrol"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +49,23 @@ func NetworkAdapter() string { return profileNetworkAdapter }
 
 // NetworkInMenuOnly keeps this adapter contained while a core owns the GP port.
 func NetworkInMenuOnly() bool { return profileNetworkInMenuOnly }
+
+// C64NetworkScope is populated exclusively by the matched package build.
+func C64NetworkScope() (string, func() (maccontrol.Receipt, bool)) {
+	if profileC64NetworkScope == "" {
+		return "", nil
+	}
+	// Build and entry validate both full digests and the complete ELF marker.
+	parts := strings.Split(profileC64NetworkScope, "/")
+	if len(parts) != 3 || parts[0] != "fes-c64-gp-v1" || len(parts[1]) != 64 || len(parts[2]) != 64 {
+		panic("invalid compiled C64 network scope")
+	}
+	return parts[1], func() (maccontrol.Receipt, bool) {
+		networkLock.Lock()
+		defer networkLock.Unlock()
+		return ownedNetworkDevice.MACReceipt()
+	}
+}
 
 // NetworkStartupTimeout includes the selected physical device open and, when
 // requested, the subsequent DHCP acquisition. It does not bound stack lifetime.

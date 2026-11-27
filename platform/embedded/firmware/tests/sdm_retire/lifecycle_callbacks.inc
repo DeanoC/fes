@@ -150,6 +150,9 @@ static void lifecycle_return(void)
 {
  uint64_t r[4];unsigned menu=configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU;
  assert(lifecycle_control(FES_EMBEDDED_BRIDGE_CONTROL,17,configuration.generation,r)==1 && !r[0]);
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(!menu)test_c64_window();
+#endif
  if(menu){
   assert(lifecycle_control(FES_EMBEDDED_BRIDGE_RELEASE | (8ULL<<FES_EMBEDDED_BRIDGE_RELEASE_SHIFT),17,r[3],r)==1 && !r[0]);
  }

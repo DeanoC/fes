@@ -140,12 +140,14 @@ def sources():
                             'build_terasic.py','build_terasic_uboot.py','verify.py')] + capability.inputs() + sdm_probe.inputs() + sdm_fault.inputs() + sdm_input.inputs()
 
 
-def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False):
+def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False,mac_c64_scope_supplier=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
     if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
     if type(mac_table_trial) is not bool or mac_table_trial and not mac_handoff:raise ValueError('table trial requires explicit MAC handoff')
     if type(mac_coexistence_trial) is not bool or mac_coexistence_trial and not mac_table_trial:raise ValueError('coexistence trial requires explicit MAC table trial')
     if type(mac_menu_supplier) is not bool or mac_menu_supplier and not mac_coexistence_trial:raise ValueError('MENU MAC supplier requires explicit coexistence trial')
+    if type(mac_c64_scope_supplier) is not bool or mac_c64_scope_supplier and not mac_menu_supplier:
+        raise ValueError('C64 MAC read scope requires the matched MENU supplier')
     if type(mac_handoff) is not bool or mac_handoff and not sdm_source_rearm:raise ValueError('MAC handoff requires explicit source rearm')
     if type(sdm_source_recovery) is not bool or sdm_source_recovery and not sdm_source_rearm:raise ValueError('terminal cold recovery requires explicit source rearm')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
@@ -165,6 +167,7 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
     if mac_table_trial:mmu_args['mac_table_trial']=True
     if mac_coexistence_trial:mmu_args['mac_coexistence_trial']=True
     if mac_menu_supplier:mmu_args['mac_menu_supplier']=True
+    if mac_c64_scope_supplier:mmu_args['mac_c64_scope_supplier']=True
     if mac_handoff:mmu_args['mac_handoff']=True
     if sdm_source_recovery:mmu_args['sdm_source_recovery']=True
     record=json.loads((entry_build/'result.json').read_text())
@@ -200,12 +203,14 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
         return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
 
 
-def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False):
+def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False,sdm_source_recovery=False,mac_handoff=False,mac_table_trial=False,mac_coexistence_trial=False,mac_menu_supplier=False,mac_c64_scope_supplier=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
     if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
     if type(mac_table_trial) is not bool or mac_table_trial and not mac_handoff:raise ValueError('table trial requires explicit MAC handoff')
     if type(mac_coexistence_trial) is not bool or mac_coexistence_trial and not mac_table_trial:raise ValueError('coexistence trial requires explicit MAC table trial')
     if type(mac_menu_supplier) is not bool or mac_menu_supplier and not mac_coexistence_trial:raise ValueError('MENU MAC supplier requires explicit coexistence trial')
+    if type(mac_c64_scope_supplier) is not bool or mac_c64_scope_supplier and not mac_menu_supplier:
+        raise ValueError('C64 MAC read scope requires the matched MENU supplier')
     if type(mac_handoff) is not bool or mac_handoff and not sdm_source_rearm:raise ValueError('MAC handoff requires explicit source rearm')
     if type(sdm_source_recovery) is not bool or sdm_source_recovery and not sdm_source_rearm:raise ValueError('terminal cold recovery requires explicit source rearm')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
@@ -294,6 +299,8 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     if mac_table_trial:
         identity['mac_table_trial']=sdm_input.mac_table_trial_contract(identity,build['entry_image_address'])
     if mac_coexistence_trial:identity['mac_coexistence_trial']=sdm_input.mac_coexistence_contract(identity)
+    if mac_c64_scope_supplier:
+        identity['mac_c64_scope_supplier']=sdm_input.mac_c64_scope_contract(identity)
     if mac_menu_supplier:identity['mac_menu_supplier']=sdm_input.mac_menu_contract(identity)
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
@@ -462,6 +469,9 @@ def header(profile):
                   '#define FES_NANO_SPECTRUM48_SCANOUT_BASE 0x20010200UL\n')
     elif spectrum is not None:
         extra += hps_context.spectrum48.header(spectrum)
+    if sdm_input.checked_mac_c64_scope(profile):
+        identity=profile['launcher_ethernet']['c64_scope']
+        extra+='#define FES_NANO_C64_SCOPE_IDENTITY '+hps_context.spectrum48.upload_initializer(identity)+'\n'
     extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(menu or companion is not None))+'\n'
     extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(companion is not None))+'\n'
     extra+='#define FES_NANO_WINDOW_STORAGE_RETURN '+str(int(companion is not None))+'\n'

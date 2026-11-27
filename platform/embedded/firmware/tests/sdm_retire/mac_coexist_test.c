@@ -26,6 +26,9 @@ static void test_mac_base(uint32_t value)
 static uint32_t test_mac_frame(uint64_t a)
 {
  unsigned off=a-FES_NANO_CONTROL_BASE;
+#ifdef FES_NANO_MAC_C64_SCOPE_SUPPLIER
+ if(off<=FES_EMBEDDED_REG_BUILD3)return lifecycle_registers[off/4];
+#endif
  switch(off){
  case 0xc4:return 0x31534d46;
  case 0xc8:return 1;

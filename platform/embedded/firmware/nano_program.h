@@ -109,6 +109,8 @@ int fes_nano_program_enable_roles(struct fes_nano_program *);
 int fes_nano_program_enable_shared_core_shell(struct fes_nano_program *);
 int fes_nano_program_enable_spectrum48(struct fes_nano_program *,
     const struct fes_nano_spectrum48_program *);
+int fes_nano_program_matches_upload(const struct fes_nano_program *, uint32_t bytes,
+                                    const struct fes_nano_spectrum48_program *);
 int fes_nano_program_role(const struct fes_nano_program *, uint32_t *role, uint32_t *control_abi);
 #ifdef __cplusplus
 }

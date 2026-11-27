@@ -105,6 +105,21 @@ static int retained_state(void *p,uint64_t owner,uint64_t epoch,
         (data_held || bits==FES_NANO_PRODUCERS_ALL);
     return 0;
 }
+#if defined(FES_NANO_MAC_C64_SCOPE_SUPPLIER) && FES_NANO_MAC_C64_SCOPE_SUPPLIER
+int fes_nano_boot_c64_mac_view(struct fes_nano_bridges *b,uint64_t owner,uint64_t epoch,uint64_t generation)
+{
+    if(!b || !b->initialized || b->failed || !b->observe_state || b->observe_state!=retained_state ||
+       b->ops.owns!=owns || b->state.owner!=owner || b->epoch!=epoch || b->state.generation!=generation ||
+       b->device_lease || !b->state.masters_contained || b->state.reset!=FES_NANO_BRIDGES_DATA)return 0;
+    struct fes_nano_boot *s=b->ops.context;
+    if(!s || !s->attempted || s->failed || s->owner!=owner || s->epoch!=epoch || !retained_policy(s))return 0;
+    uint32_t keep=0,bits=0,reset=0,per0=0;
+    if(s->retained.snapshot(s->retained.context,owner,epoch,&keep,&bits,&reset,&per0))return 0;
+    return !s->failed && retained_policy(s) && (reset&FES_NANO_BRIDGES_ALL)==FES_NANO_BRIDGES_DATA &&
+        (!keep || keep==FES_NANO_MASTER_USB0_PIO_RESET) && bits==(FES_NANO_PRODUCERS_HPS & ~1U) &&
+        (per0 & FES_NANO_MASTER_RESET)==(FES_NANO_MASTER_RESET & ~(keep|0x101U));
+}
+#endif
 static int hold_reset(struct fes_nano_boot *s, uint32_t mask,uint32_t keep)
 {
     uint32_t value,now;

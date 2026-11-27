@@ -53,3 +53,12 @@ func OpenControlled(ctx context.Context, cpu maccontrol.Caller, bootOwner uint64
 	}
 	return d, control, nil
 }
+
+// MACReceipt returns the last owned driver generation. A consumer must use
+// the independent firmware observation for current aperture/ownership proof.
+func (d *Device) MACReceipt() (maccontrol.Receipt, bool) {
+	if d == nil || d.lease == nil || d.Err() != nil {
+		return maccontrol.Receipt{}, false
+	}
+	return d.lease.LastReceipt()
+}

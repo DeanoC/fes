@@ -141,21 +141,23 @@ class SourceRetirementTests(unittest.TestCase):
                                  '#include "probe_setup.c"\n')
             sources += [setup, FW / "input_transfer.c", FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
             sources += [FW / (n + ".c") for n in ("nano_cold", "nano_hps_io", "nano_bridges", "nano_boot", "nano_sd", "nano_sd_platform", "nano_usb_platform", "nano_usb_board", "nano_mac", "nano_usb_service", "nano_usb_composition", "nano_configuration")]
-        if name in ('mac_menu_test', 'mac_coexist_test', 'lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
+        if name in ('mac_menu_test', 'mac_c64_test', 'mac_coexist_test', 'lifecycle_rpc', 'lifecycle_prepare_cost_test', 'final_proof_cost_test', 'final_usb_cost_test'):
             sources += [FW/(n+'.c') for n in ('nano_program','nano_identity','nano_bridge_sip','nano_fabric_stop','nano_probe_stop')]
         command = [shutil.which("cc") or "cc", "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
                    "-Wno-misleading-indentation", "-Wno-unused-function", "-Wno-unused-variable", "-Wno-sign-compare",
                    "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1"]
         if joined:
             command += ["-DFES_NANO_RETIRE_TIMING=1", "-DFES_NANO_RETIRE_QUEUE_OBSERVE=1", "-DFES_NANO_SDM_RETIRE_SOURCE=1"]
-        if name == 'mac_menu_test':
+        if name == 'mac_c64_test':
+            command += ['-DFES_NANO_MAC_C64_SCOPE_SUPPLIER=1']
+        if name in ('mac_menu_test', 'mac_c64_test'):
             command += ["-DFES_NANO_MAC_MENU_SUPPLIER=1", "-DFES_NANO_MAC_PHY_TEST",
                         "-DFES_NANO_MAC_CHANNEL_TEST", "-DFES_NANO_MAC_JOINED_TEST"]
             sources += [FW/n for n in ("nano_mac_phy.c", "nano_mac_channel.c")]
             sources += [FW/"tests"/n for n in ("nano_mac_phy_test.c", "nano_mac_channel_test.c")]
         command += ["-I" + str(p) for p in (self.output, FW, FW / "tests")]
         if not binary.exists():
-            compiled = subprocess.run(command + [str(p) for p in sources] + (["-lcrypto"] if name == "mac_menu_test" else []) + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
+            compiled = subprocess.run(command + [str(p) for p in sources] + (["-lcrypto"] if name in ("mac_menu_test", "mac_c64_test") else []) + ["-o", str(binary)], timeout=90, capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
         return binary
 
@@ -182,6 +184,10 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("mac_menu_test", joined=True)
         self.assertEqual(report["grants"], 3)
         self.assertGreaterEqual(report["faults"], 3)
+
+    def test_scoped_c64_uses_distinct_fetch_and_physical_retirement(self):
+        report = self.run_model("mac_c64_test", joined=True)
+        self.assertEqual((report["grants"], report["faults"]), (4, 8))
 
     def test_actual_menu_release_and_close_wrap_private_mac_queue(self):
         report = self.run_model("mac_coexist_test", joined=True)

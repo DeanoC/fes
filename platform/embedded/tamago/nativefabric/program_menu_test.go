@@ -37,6 +37,7 @@ func (c *programMenuCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 
 type programMenuFixture struct {
 	networkInMenuOnly bool
+	configureC64      func(*ProgramMenuOptions)
 	r                 *romProgramFixture
 	menu              *menuFixture
 	cpu               *programMenuCPU
@@ -128,6 +129,9 @@ func newProgramMenuFixtureContext(t *testing.T, ctx context.Context, startupFaul
 	}
 	opts.Request = fixture.request
 	opts.NetworkInMenuOnly = fixture.networkInMenuOnly
+	if fixture.configureC64 != nil {
+		fixture.configureC64(&opts)
+	}
 	fixture.s, err = NewProgramServiceWithMenu(ctx, fixture.r.f.loader, r.f.store, reserve, computerLimits(), opts)
 	if startupFault == "" && err != nil {
 		t.Fatal(err)

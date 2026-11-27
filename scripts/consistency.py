@@ -40,6 +40,8 @@ GENERATED = (
     ('emit-cpp', 'packages/fabric/fes_fabric_embedded_computer.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_de25_computer.hpp'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_computer.go'),
     ('emit-c', 'packages/abi/fes_computer.yaml', 'FES', 'platform/embedded/firmware/generated/fes_computer.h'),
+    ('emit-c', 'packages/fabric/fes_fabric_embedded_c64_scope.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_c64_scope.h'),
+    ('emit-go', 'packages/fabric/fes_fabric_embedded_c64_scope.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_c64_scope.go'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_mac.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_mac.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_mac.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_mac.go'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_usb.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_usb.h'),
