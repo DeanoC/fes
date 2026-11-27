@@ -1,0 +1,35 @@
+boot_id=2c4855a1-cbe1-4235-a03b-8ed7e9a400b4 uptime=34551.54
+--- smmu lines: 4  bad_streamid: 0
+[    1.410243] arm-smmu-v3 16000000.iommu: ias 48-bit, oas 48-bit (features 0x001c1fef)
+[    1.419501] arm-smmu-v3 16000000.iommu: allocated 65536 entries for cmdq
+[    1.426779] arm-smmu-v3 16000000.iommu: allocated 32768 entries for evtq
+[    1.434139] arm-smmu-v3 16000000.iommu: msi_domain absent - falling back to wired irqs
+--- reserved/pool
+[    0.000000] OF: reserved mem: 0x0000000085800000..0x00000000957fffff (262144 KiB) map non-reusable fes-window-pool
+[    0.000000] Reserved memory: created DMA memory pool at 0x0000000080000000, size 32 MiB
+[    0.000000] OF: reserved mem: initialized node svcbuffer@0, compatible id shared-dma-pool
+[    0.000000] OF: reserved mem: 0x0000000080000000..0x0000000081ffffff (32768 KiB) nomap non-reusable svcbuffer@0
+[    1.457132] fes-de25-dma 20010200.dma-owner: Adding to iommu group 0
+--- iomem
+80000000-81ffffff : reserved
+  841e0000-84e2ffff : reserved
+  85800000-957fffff : reserved
+  bc900000-be9fffff : reserved
+  bea52000-bead9fff : reserved
+  beb00000-bfbfffff : reserved
+  bfc60000-bfc62fff : reserved
+  bfc63000-bfc63fff : reserved
+  bfc64000-bfcebfff : reserved
+  bfced000-bfcf0fff : reserved
+--- meminfo
+MemTotal:         688996 kB
+MemFree:           45996 kB
+CmaTotal:          32768 kB
+CmaFree:             940 kB
+--- owner
+lrwxrwxrwx    1 root     root             0 Nov 27 12:13 20010200.dma-owner -> ../../../../devices/platform/20010200.dma-owner
+driver -> ../../../bus/platform/drivers/fes-de25-dma
+iommu_group -> ../../../kernel/iommu_groups/0
+--- runtime
+30768
+fes-de25-scanout
