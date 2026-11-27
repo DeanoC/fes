@@ -8,7 +8,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 | 1. HDMI picture: lit, live and changing | **PASS** (launch A and fresh-session launch B) |
 | 1b. Relaunch in the same session (recorded only, not a gate) | **FAIL**, reproduced for the third time today: [#2353](https://github.com/DeanoC/fes/issues/2353) |
 | 2. Warm reset with a window machine loaded (#2246) | **PASS for an orderly `reboot`**: recovered in about 31 s, no SMMU events, owner probed, network and agent up, MENU on HDMI. **Not measured** for the #2245 case: an abrupt reset while the fabric is still mastering. The orderly shutdown stopped the machine first, so #2246's fabric reset was never exercised under mastering. |
-| 3. HPS-window path (#2214, #2215, #2226) | **PASS**: reserved-pool window, ABI 1.1 admission, FreeDOS from ATA, Stop releases the window |
+| 3. HPS-window path (#2214, #2215, #2226) | **PARTIAL: not a full pass.** Rules 3a, 3b, 3c and 3e pass: reserved-pool window, ABI 1.1 admission, FreeDOS from ATA, and after Stop no window fd, a free lease and no SMMU faults. Rule 3d (a hold/drain/release sequence in the runtime events) is **not measurable**: the runtime does not log those steps. It is carried forward as an open check. |
 | Restore | **Pass.** The baseline bundle and image are back. The baseline `boot_id` was rebased with Deano's OK, `de25_restore.py` passes, and `KIT D25 FREE (baseline verified)` was logged at 14:33:07+02:00. |
 
 ## Exactly what ran
@@ -24,7 +24,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 - **Image:** the J8G baseline `a1c51ac3…` (kernel `6.12.11-fes-de25-owner`, reserved `fes-window-pool`). Nothing was flashed. Everything #2246 and #2344 changed since that image is on the fabric side (`hps/build.py`, `scanout/linux_dma.py`, `bridge_reset.py`, RTL), so it is in the package.
 - **Disk:** the FreeDOS `pmode` image `b4be6e29…` (128 MiB, 260/16/63).
 
-## Item 3: the HPS-window path
+## Item 3: the HPS-window path (partial: 3d not measurable)
 
 Launch A (session 1) — [kit/driver-a.log](kit/driver-a.log), [kit/kitstate-a-running.txt](kit/kitstate-a-running.txt), [kit/status-a-running.txt](kit/status-a-running.txt) (status with ABI and `build_id`, plus the runtime's open window fd):
 
