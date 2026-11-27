@@ -181,11 +181,9 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
            'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
            'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
-CPU_CONTROL_TENSION = advisory(
-    'TMC-20602', 'cpu-control-tension', 0,
-    S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY,
-    TENSION,
-)
+CPU_CONTROL_STEM = (r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)'
+                    r'(?:\[\d+\])?')
+CPU_CONTROL_TENSION = advisory('TMC-20602', 'cpu-control-tension', 0, S + CPU_CONTROL_STEM + COPY, TENSION)
 
 # A fitted location identifies a TimeQuest register to prove, even when the
 # fitter changes the generated stem across seeds. The row/column classes are
@@ -200,10 +198,11 @@ RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
 # The 111.90 MHz DX fits reported this mixed duplicate spelling for cpu_halted
 # and cpu_int_wait. Both require the same live proof as the retimed sites.
-# The merged C28 seed 1 fit also reported the proved decoder state bit below.
+# Merged C28 fits also reported indexed mixed copies of the decoder state and
+# halted controls. Their exact fitted names select the same live proof.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
                              + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate'
-                             + r'|machine_at_decoder_state\[1\]~DUPLICATE_Duplicate_12)')
+                             + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate_[0-9]+)')
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '
