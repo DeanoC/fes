@@ -656,6 +656,7 @@ func TestControllersHidesLearnWhenPadSetsNoLearn(t *testing.T) {
 		Vendor: 0x054c, Product: 0x0ce6, Family: gfx.PromptPlayStation, Recognised: true, NoLearn: true, Player: 2,
 	})
 	app.AttachInput(InputGamepad, 9)
+	app.NoteInput(InputGamepad, 7)
 
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
