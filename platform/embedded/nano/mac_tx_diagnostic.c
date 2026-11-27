@@ -256,13 +256,14 @@ static int link_ready(const struct fes_tx_phy_sample *p)
 {
     /* Standard current link, AN, IEEE 802.3 selectors and both gigabit
      * receiver statuses. Linux micrel rejects a saturated idle-error count.
-     * Microchip 13.2 is the current digital 1000BASE-T PMA/PCS link status.
+     * Microchip 13.2 reports the current 1000BASE-T PMA/PCS link. The independent
+     * 100BASE-TX bit 13.1 can also be high; 1F[6:3] reports the selected speed/duplex.
      * 1F.0 is a separate vendor diagnostic, reported verbatim on both reads. */
     return p->id1 == 0x22 && p->id2 == 0x1622 && (p->bmcr & 0xde00) == 0x1000 &&
            (p->bmsr & 0x34) == 0x24 && (p->adv & 31) == 1 &&
            (p->partner & 0x201f) == 1 && (p->gig_adv & 0xe200) == 0x200 &&
            (p->gig_partner & 0xb800) == 0x3800 && (p->gig_partner & 0xff) != 0xff &&
-           (p->pcs & 6) == 4 && (p->resolved & 0x78) == 0x48;
+           (p->pcs & (1U << 2)) && (p->resolved & 0x78) == 0x48;
 }
 static int verify_link(struct trial *t)
 {

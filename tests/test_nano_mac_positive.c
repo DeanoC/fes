@@ -167,13 +167,13 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         unsigned addr = *reg(f, M + 0x200);
         assert((addr >> 16) == 1);
         const uint16_t phy[32] = {[0]=0x1000, [1]=0x24, [2]=0x22, [3]=0x1622,
-                                  [4]=0x1e1, [5]=0xcde1, [9]=1U<<9, [10]=0x3c00, [19]=4, [31]=0x48};
+                                  [4]=0x1e1, [5]=0xcde1, [9]=1U<<9, [10]=0x3c00, [19]=0x0806, [31]=0x0348};
         assert((addr & 31) < sizeof(phy) / sizeof(*phy));
         *p = phy[addr & 31];
         if ((addr & 31) == 1 && f->fault == FIVE_SECOND_NEGOTIATION && f->ticks<5000000) *p=0;
         if ((addr & 31) == 31 && f->fault == SLOW_PHY) *p=0x28;
         if ((addr & 31) == 31 && f->fault == VENDOR_PHY_FLAG) *p=0x49;
-        if ((addr & 31) == 19 && f->fault == PCS_DOWN) *p=0;
+        if ((addr & 31) == 19 && f->fault == PCS_DOWN) *p=0x0802;
         if ((addr & 31) == 10 && f->fault == BAD_LOCAL_RECEIVER) *p=0x1c00;
         if ((addr & 31) == 10 && f->fault == TRAINING_IDLE_ERRORS) {
             ++f->partner_reads;

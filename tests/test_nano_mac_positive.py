@@ -50,10 +50,11 @@ class PositiveTX(unittest.TestCase):
                  f"FES_CBL_TX_SETUP id={identity} daif_before=2c0 daif_after=3c0 serror=000 l4sp_hz=100000000 emaca_hz=250000000",
                  f"FES_CBL_TX_GATE id={identity} predicate=accepted observed=0000000000000001 required=0000000000000001",
                  f"FES_CBL_TX_CAPS id={identity} version=00107631 feature0=cafd5b3f feature1=49ef7a27 feature2=221c71c7 interface=00000001",
-                 *(f"FES_CBL_TX_PHY id={identity} sample={i} us={1000000+i*100000} id1=0022 id2=1622 bmcr=1140 bmsr_latch=796d bmsr=796d adv=01e1 partner=cde1 gig_adv=0300 gig_partner=3c00 pcs=0004 resolved=004c" for i in range(2)),
+                 *(f"FES_CBL_TX_PHY id={identity} sample={i} us={1000000+i*100000} id1=0022 id2=1622 bmcr=1140 bmsr_latch=796d bmsr=796d adv=01e1 partner=cde1 gig_adv=0300 gig_partner=3c00 pcs=0806 resolved=004c" for i in range(2)),
                  end, *(trace(0x30+i,v) for i,v in enumerate(power_words)), trace(18), replay.PARK]
         raw = ("\r\n".join(lines)+"\r\n").encode()
         self.assertTrue(replay.decode_positive(raw,receipt)["target_closed"])
+        self.assertTrue(replay.decode_positive(raw.replace(b"pcs=0806", b"pcs=0804"), receipt)["target_closed"])
         caps_line = next(line.encode()+b"\r\n" for line in lines if line.startswith("FES_CBL_TX_CAPS"))
         for optional in ((b"cafd5b3f",b"8afd5b3f"),(b"49ef7a27",b"49eb7a27"),(b"221c71c7",b"231c71c7")):
             self.assertTrue(replay.decode_positive(raw.replace(*optional), receipt)["target_closed"])
@@ -67,7 +68,7 @@ class PositiveTX(unittest.TestCase):
                                  (b"serror=000",b"serror=100"),(b"250000000",b"125000000"),
                                  (b"dma=00000001",b"dma=00002001"), (b"phy=004c",b"phy=002c"),
                                  (b"phy=004c",b"phy=004d"), (b"phy=004c",b"phy=0044"),
-                                 (b"gig_adv=0300",b"gig_adv=2300"),(b"pcs=0004",b"pcs=0000"), (b"gig_partner=3c00",b"gig_partner=1c00"),
+                                 (b"gig_adv=0300",b"gig_adv=2300"),(b"pcs=0806",b"pcs=0802"), (b"gig_partner=3c00",b"gig_partner=1c00"),
                                  (b"gig_partner=3c00",b"gig_partner=3cff"),(b"us=1100000",b"us=1000001"),
                                  (b"drain_dma=00000000",b"drain_dma=00001000"),
                                  (b"drain_status=00000003",b"drain_status=00002003"),

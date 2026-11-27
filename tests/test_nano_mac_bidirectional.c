@@ -23,7 +23,7 @@ static void caps(void *ctx,const struct fes_tx_caps *c)
 }
 static void phy(void *ctx,unsigned sample,const struct fes_tx_phy_sample *s)
 {
-    (void)ctx;(void)sample;assert(s->resolved==0x48);
+    (void)ctx;(void)sample;assert(s->resolved==0x0348 && s->pcs==0x0806);
 }
 static void channel(void *ctx,uint32_t address,uint32_t value)
 {

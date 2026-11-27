@@ -68,7 +68,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
         return (p["id1"]==0x22 and p["id2"]==0x1622 and p["bmcr"] & 0xde00 == 0x1000 and
                 p["bmsr"] & 0x34 == 0x24 and p["adv"] & 31 == 1 and p["partner"] & 0x201f == 1 and
                 p["gig_adv"] & 0xe200 == 0x200 and p["gig_partner"] & 0xb800 == 0x3800 and
-                p["gig_partner"] & 0xff != 0xff and p["pcs"] & 6 == 4 and p["resolved"] & 0x78 == 0x48)
+                p["gig_partner"] & 0xff != 0xff and p["pcs"] & (1 << 2) != 0 and p["resolved"] & 0x78 == 0x48)
     caps = None
     capability_rows = [i for i,line in enumerate(trace) if line.startswith("FES_CBL_TX_CAPS")]
     if capability_rows:
