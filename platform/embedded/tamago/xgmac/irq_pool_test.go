@@ -224,7 +224,7 @@ func (h *irqHardware) deliverRX(t *testing.T, frame []byte) bool {
 	hadIOC := state&rxIOC != 0
 	copy(h.dmaRAM[rxBuffers+h.rxIndex*bufferSize:], frame)
 	binary.LittleEndian.PutUint32(h.dmaRAM[desc:desc+4], 0xfeedface)
-	binary.LittleEndian.PutUint32(h.dmaRAM[desc+12:desc+16], last|uint32(len(frame)))
+	binary.LittleEndian.PutUint32(h.dmaRAM[desc+12:desc+16], first|last|uint32(len(frame)))
 	h.rxIndex = (h.rxIndex + 1) % ringSize
 	var shouldFire bool
 	if hadIOC {

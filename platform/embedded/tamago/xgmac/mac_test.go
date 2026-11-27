@@ -204,7 +204,7 @@ func (h *hardware) receive() {
 	}
 	copy(h.mem.data[offset:], frame)
 	h.mem.deviceWrite32(desc, 0xfeedface) // RX writeback may replace buffer-address words
-	h.mem.deviceWrite32(desc+12, last|uint32(len(frame)))
+	h.mem.deviceWrite32(desc+12, first|last|uint32(len(frame)))
 	h.rxIndex = (h.rxIndex + 1) % (h.regs[0x3134] + 1)
 }
 func configuration() Config {
@@ -295,21 +295,23 @@ func TestAgilexRejectsUnknownDeviceRevisionAndRXBufferLayoutBeforeWrites(t *test
 	}
 }
 func TestRXDropsAndOwnershipFaults(t *testing.T) {
-	for _, mode := range []string{"crc", "oversize", "short", "destination", "context", "fragment"} {
+	for _, mode := range []string{"crc", "oversize", "short", "destination", "context", "missing-first", "missing-last"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newHardware()
 			d := open(t, h)
-			state := last | 100
+			state := first | last | 100
 			switch mode {
 			case "crc":
 				state |= 1 << 15
 			case "oversize":
-				state = last | 1515
+				state = first | last | 1515
 			case "short":
-				state = last | 4
+				state = first | last | 4
 			case "context":
 				state |= contextDesc
-			case "fragment":
+			case "missing-first":
+				state &^= first
+			case "missing-last":
 				state &^= last
 			}
 			h.mem.deviceWrite32(rxRing+12, state)
@@ -318,7 +320,7 @@ func TestRXDropsAndOwnershipFaults(t *testing.T) {
 				dst = dst[:50]
 			}
 			count, err := d.Receive(dst)
-			fatal := mode == "context" || mode == "fragment"
+			fatal := mode == "context" || mode == "missing-first" || mode == "missing-last"
 			if count != 0 || (err != nil) != fatal {
 				t.Fatal(count, err)
 			}

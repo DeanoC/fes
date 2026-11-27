@@ -608,7 +608,7 @@ func (d *Device) Receive(dst []byte) (int, error) {
 		}
 	}
 	d.memory.Barrier()
-	if state&contextDesc != 0 || state&last == 0 {
+	if state&(contextDesc|first|last) != first|last {
 		return 0, d.fail(errors.New("xgmac: unexpected RX descriptor/context/fragment"))
 	}
 	length := int(state & 0x3fff)
