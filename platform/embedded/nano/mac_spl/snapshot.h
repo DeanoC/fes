@@ -33,11 +33,13 @@ static const struct mac_spl_register mac_spl_registers[] = {
 static const char *mac_spl_skip_reason(const unsigned v[MAC_OBSERVATION_WORDS])
 {
 	const unsigned locked = (1U << 16) | (1U << 8);
-	const unsigned changing = (1U << 24) | (1U << 17) | (1U << 9) | 1U;
+	const unsigned transitions_complete = (1U << 17) | (1U << 9);
+	const unsigned boot_or_busy = (1U << 24) | 1U;
 	const unsigned emac_clock = 1U << ((v[MAC_EMAC_SEL] >> 26) & 1U);
 	if (v[MAC_PER_RESET] & 0x101U)
 		return "tsn0-reset";
-	if ((v[MAC_CLK_STAT] & (locked | changing)) != locked)
+	if ((v[MAC_CLK_STAT] & (locked | transitions_complete | boot_or_busy)) !=
+	    (locked | transitions_complete))
 		return "clock-state";
 	if ((v[MAC_MAIN_EN] & 0xeU) != 0xeU || !(v[MAC_PER_EN] & 1U))
 		return "clock-gate";

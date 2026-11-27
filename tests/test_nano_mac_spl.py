@@ -28,7 +28,11 @@ static unsigned readl(void *ptr)
 	}
 	register_reads++;
 	switch (addr) {
-	case 0x10d10004: return !strcmp(mode, "clock") ? 1 : 0x10100;
+	case 0x10d10004:
+		if (!strcmp(mode, "busy")) return 0x02030301;
+		if (!strcmp(mode, "main-transition")) return 0x02030100;
+		if (!strcmp(mode, "per-transition")) return 0x02010300;
+		return 0x02030300; /* Actual settled CBL clock status. */
 	case 0x10d10024: return !strcmp(mode, "gate") ? 6 : 14;
 	case 0x10d1007c: return 1;
 	case 0x10d10030: return !strcmp(mode, "source") ? 2 : 0;
@@ -66,7 +70,8 @@ class MACObservationTest(unittest.TestCase):
             binary = directory / "fixture"
             subprocess.run(["cc", "-std=c11", "-Wall", "-Werror", "-I", HERE, "-I", directory,
                             directory / "fixture.c", "-o", binary], check=True)
-            for mode, reason in (("ready", None), ("reset", "tsn0-reset"), ("clock", "clock-state"),
+            for mode, reason in (("ready", None), ("reset", "tsn0-reset"), ("busy", "clock-state"),
+                                 ("main-transition", "clock-state"), ("per-transition", "clock-state"),
                                  ("gate", "clock-gate"), ("source", "clock-source")):
                 raw = subprocess.check_output([binary, mode])
                 with self.subTest(mode=mode):

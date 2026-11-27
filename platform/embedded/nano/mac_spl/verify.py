@@ -11,7 +11,7 @@ PARK = "FES_NANO_CPU_DIAG PARK no-ddr no-storage no-bl31"
 def skip(words):
     if words["per0_reset"] & 0x101:
         return "tsn0-reset"
-    if words["clock_stat"] & 0x01030301 != 0x00010100:
+    if words["clock_stat"] & 0x01030301 != 0x00030300:
         return "clock-state"
     if words["main_en"] & 14 != 14 or not words["per_en"] & 1:
         return "clock-gate"
