@@ -23,3 +23,22 @@ accepted the single Quit command. The launcher parked at generation 1, and
 the operator verified its board handles were closed. Both operations left SD
 and QSPI untouched. This measurement covers startup before DMA. On-board
 packet transfer and discovery have separate acceptance criteria. [CBL Ethernet issue](https://github.com/DeanoC/fes/issues/2357)
+
+## MAC startup after DDR calibration
+
+A second observer on CBL reported two identical snapshots after DDR calibration.
+MAC0 remained in reset, both SMMUs were disabled, their queues were empty,
+and the six-word SDM response indicated completed FPGA initialization.
+Two transmit prerequisites failed on this boot. The SPL read DAIF as
+`0x2c0`, which leaves the asynchronous-error mask clear. The vendor clock
+driver returned 250 MHz for EMAC0, while the original diagnostic expected
+125 MHz. The peripheral register clock was 100 MHz. The observer parked
+and the original C64 launcher returned to Ready and Park. The release check
+found all board handles closed. [UART capture](admission05-uart.gz) ·
+[C64 return and board release](admission05-release.json)
+
+For gigabit RGMII the controller takes a 250 MHz reference and divides it by
+two for the 125 MHz transmit pin clock. The fitted carrier routes EMAC0
+directly to the dedicated HPS pins. A corrected transmit test can check the
+reference, RGMII selector and negotiated gigabit speed while keeping the
+existing PLL configuration. [Agilex 5 XGMAC clock table](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/xgmac-clocks?contentId=ZVIw1NaUa2BuEkJDgdUxAA)
