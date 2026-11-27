@@ -40,7 +40,7 @@ reach the component on its SDRAM conduit.
 
 | DE10 | DE25 |
 | --- | --- |
-| GLaBIOS's 64 KiB window and the CGA font in the bitstream; `pcxt_boot` copies the window into SDRAM at F0000 once after a cold start | Both uploaded at launch through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) as one 69,632-byte image: the window, then the font. `fes_pcxt_firmware` drives the same `pcxt_system` firmware port `pcxt_boot` drives, byte by byte, and fills a writable copy of the font with the DE10 font's two combinational read ports |
+| GLaBIOS's 64 KiB window and the CGA font in the bitstream; `pcxt_boot` copies the window into SDRAM at F0000 once after a cold start | Both uploaded at launch through [`fes.fabric.firmware-upload`](../../../../mister-packages/docs/firmware-upload.md) as one 73,728-byte image: the 64 KiB system ROM window, the 4 KiB CGA font, and the 4 KiB MDA font. `fes_pcxt_firmware` drives the same `pcxt_system` firmware port `pcxt_boot` drives, byte by byte, and fills writable copies of both fonts |
 | MiSTer addon SDRAM, masks shared with A11/A12, Cyclone V DDR clock cell, `altiobuf` pads | Board SDRAM rank 0 with its own mask pins; the second chip stays deselected. `../atari-st/derive.py` swaps the forwarded-clock cell for the inverted clock; the board top owns the DQ tri-state |
 | `coleco_video_dpram` as a Cyclone V `altsyncram` under the `QUARTUS` macro | `derive.py` keeps its inferred memory, in M20K: the same ports and one-clock reads |
 | HPS GP registers, `fes_computer_mailbox_pcxt` | The atomic computer transport, `fes_gp_crossing`, and the same mailbox profile with the session display and the shell's gamepad ports (the XT reads none) |

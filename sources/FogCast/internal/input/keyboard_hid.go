@@ -639,6 +639,51 @@ func (s *keyboardHIDSink) neutralDelegatedSource(ctx context.Context, expected *
 	return nil
 }
 
+// retireLocalV2Observed clears a latched delegated HID uncertainty only once a
+// fresh runtime observation proves the core has retired to idle or another
+// generation, keeping the lifecycle fence valid across the probe.
+func (s *keyboardHIDSink) retireLocalV2Observed(ctx context.Context, observe func(context.Context) (CoreObservation, error), validate func(context.Context) error) (bool, error) {
+	if err := s.lockTap(ctx); err != nil {
+		return false, err
+	}
+	defer s.mu.Unlock()
+	if s.localV2Uncertain == nil {
+		return false, nil
+	}
+	if observe == nil || validate == nil {
+		return false, errLocalV2Uncertain
+	}
+	if err := validate(ctx); err != nil {
+		return false, err
+	}
+	probe, cancel := context.WithTimeout(ctx, localCoreObserveTimeout)
+	obs, err := observe(probe)
+	if err == nil {
+		err = probe.Err()
+	}
+	cancel()
+	if err != nil {
+		return false, err
+	}
+	if err := validate(ctx); err != nil {
+		return false, err
+	}
+	old := *s.localV2Uncertain
+	if !matrixObservationRetires(obs, old.RuntimeInstance, old.PackageID, old.Generation) {
+		return false, errLocalV2Uncertain
+	}
+	s.localV2Uncertain = nil
+	if s.binding != nil && *s.binding == old {
+		s.binding = nil
+		s.pressed = [sourceCount]map[uint8]bool{}
+		s.tapHeld = nil
+		s.tapInFlight = nil
+		s.dirty = false
+		s.unconfirmed = false
+	}
+	return true, nil
+}
+
 // releaseAll neutralizes every key and forgets the binding. Neutralization is
 // best-effort: after Stop the runtime rejects the retired generation, and the
 // runtime already treats its input state as neutral after Stop.

@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
-module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0, SDRAM_CAPTURE_PIPELINE = 0, DIAGNOSTIC_PROBE = 1, FLOPPY = 0, FLOPPY_WRITE = 0,
+module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0, SDRAM_CAPTURE_PIPELINE = 0, DIAGNOSTIC_PROBE = 1, FLOPPY = 0, FLOPPY_WRITE = 0, HERCULES = 0,
     parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, clk_handoff, cold_reset, reset_pixel, warm_reset, hold,
+    input wire [1:0] video_card,
+    output wire hercules_graphics_mode,
+    output wire [1:0] display_pixel_ce, display_de, display_sof, display_eol,
+    output wire [7:0] display_rgbi,
     input wire media_present, media_frozen,
     output wire media_write_busy, media_changed,
     input wire snapshot_read_valid,
@@ -127,9 +131,9 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         end
     end
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE),
+    pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD), .FLOPPY(FLOPPY), .FLOPPY_WRITE(FLOPPY_WRITE), .HERCULES(HERCULES),
                    .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000), .SWITCHES(SWITCHES)) machine (
-        .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .memory_valid(memory_valid),
+        .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .video_card(video_card), .hercules_graphics_mode(hercules_graphics_mode), .memory_valid(memory_valid),
         .media_present(media_present && disk_loaded), .cold_reset(cold_reset), .media_frozen(media_frozen),
         .media_write_busy(fdc_write_busy), .media_write_valid(fdc_write_valid),
         .media_write_lba(fdc_write_lba), .media_write_index(fdc_write_index),
@@ -165,9 +169,14 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_rise), .dq_fall(dq_fall)
     );
+    assign display_pixel_ce = pixel_ce;
+    assign display_de = de;
+    assign display_sof = sof;
+    assign display_eol = eol;
+    assign display_rgbi = rgbi;
     pcxt_video_output #(.MDA(MDA), .SCANLINES(SCANLINES)) video (
         .clk_sys(clk), .clk_pixel(clk_pixel), .reset_sys(cold_reset), .reset_pixel(reset_pixel),
-        .hold(machine_reset), .pixel_ce(pixel_ce[MDA]), .source_de(de[MDA]),
+        .hold(machine_reset || HERCULES), .pixel_ce(pixel_ce[MDA]), .source_de(de[MDA]),
         .source_sof(sof[MDA]), .source_eol(eol[MDA]), .rgbi(MDA ? rgbi[7:4] : rgbi[3:0]),
         .video_request(video_request), .video_response(video_response)
     );

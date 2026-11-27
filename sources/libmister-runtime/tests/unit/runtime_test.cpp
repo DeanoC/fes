@@ -674,6 +674,30 @@ void TestLibraryMenuRejectedBeforeDataPreparation()
 	assert(fixture.runtime.status().state == State::idle);
 }
 
+void TestInitialMediaGameIDMismatchRejectedBeforeHardwareMutation()
+{
+	Fixture fixture;
+	Start(fixture);
+	const std::string digest(64, 'a');
+	mister::InitialComputerMedia initial;
+	initial.path = "/tmp/floppy.img";
+	initial.data_root = "/tmp/media-data";
+	initial.size = 368640;
+	initial.binding = {"game-b", std::string(64, 'b'), 0};
+	const mister::CoreROMLink link{"machine-rom", digest, digest, digest, 73728, 40408};
+
+	for (const auto& error : {
+		fixture.runtime.LoadLibraryCore("/package", digest, "/tmp/fes-data", "game-a", nullptr, &initial),
+		fixture.runtime.LoadLibraryCore("/package", digest, "/tmp/fes-data", "", nullptr, &initial),
+		fixture.runtime.LoadFirmwareCore("/package", digest, "/tmp/fes-data", "/roms/pcxt.bin", link, &initial, "game-a"),
+		fixture.runtime.LoadFirmwareCore("/package", digest, "", "/roms/pcxt.bin", link, &initial, "game-a"),
+	}) {
+		assert(error.code == ErrorCode::invalid_request);
+		assert(fixture.hardware.core_calls == 0);
+		assert(fixture.runtime.status().state == State::idle);
+	}
+}
+
 void TestStopFromIdleIsIdempotent()
 {
 	Fixture fixture;
@@ -2283,6 +2307,7 @@ int main()
 	TestDevelopmentCleanupFailureRequiresReboot();
 	TestStopFromBothRunningStatesLoadsIdleOnce();
  TestLibraryMenuRejectedBeforeDataPreparation();
+	TestInitialMediaGameIDMismatchRejectedBeforeHardwareMutation();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
 	TestRecoverIdleRetriesProgramFromRebootRequired();

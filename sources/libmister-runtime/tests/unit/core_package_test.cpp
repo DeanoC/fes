@@ -1183,7 +1183,7 @@ void TestDe25StandardProfileAdmitsSpectrumModelsAtariStC64AndPcxt()
   const bool st=d.core.id=="fes.atari-st", pcxt=d.core.id=="fes.pcxt-dos";
   const bool disk=d.core.id=="fes.spectrum-plus3"||d.core.id=="fes.pentagon";
   const bool c64=d.core.id=="fes.c64";
-  assert(d.interfaces.size()==(st?12u:disk?11u:pcxt?10u:9u));
+  assert(d.interfaces.size()==(st||pcxt?12u:disk?11u:9u));
   assert(CheckDe25StandardComputerContract(d).ok());
   assert(CheckCoreCompatibility(d,NativePlatform::de25_nano).ok());
   // Neither machine exists for the Cyclone V runtime under this target.

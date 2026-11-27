@@ -314,6 +314,12 @@ struct Pc386MachineSettings {
 	std::uint16_t sb_dma = 1;
 };
 
+// fes.pcxt.machine 1.0 settings, words 0..1 of its record.
+struct PcxtMachineSettings {
+	std::uint16_t video_card = 0;
+	std::uint16_t mono_tint = 0;
+};
+
 struct CoreData {
 	std::string package_id;
 	std::string core_id;
@@ -363,11 +369,13 @@ struct AtaDiskImage {
 	std::uint16_t sectors_per_track = 0;
 };
 
-// A next-launch settings change: Pong's paddle speed, or the pc386 settings.
+// A next-launch settings change: Pong's paddle speed, the pc386 settings, or the PC/XT settings.
 struct CoreSettingsUpdate {
 	std::uint16_t paddle_speed = 1;
 	bool pc386 = false;
 	Pc386MachineSettings machine;
+	bool pcxt = false;
+	PcxtMachineSettings pcxt_machine;
 };
 
 struct CorePackageInspection {
@@ -815,6 +823,7 @@ public:
 	// The game ID keys a fes.computer package's per-game record.
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr,
+		const InitialComputerMedia* initial_media = nullptr,
 		const std::vector<InitialComputerMedia>* floppies = nullptr);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
@@ -831,7 +840,7 @@ public:
 	// identifies, not a linked bitstream. An empty data root is a plain load.
 	Error LoadFirmwareCore(const std::string& directory, const std::string& package_id,
 		const std::string& data_root, const std::string& firmware_path, const CoreROMLink&,
-		const InitialComputerMedia* = nullptr);
+		const InitialComputerMedia* = nullptr, const std::string& game_id = "");
 	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);

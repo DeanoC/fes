@@ -173,7 +173,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 		staged, err = corepackage.StagePartsBytes(admission, r.corePackageRoot, body)
-	} else if pcxtInitial && !composed && libraryID != "" && machine == nil {
+	} else if pcxtInitial && !composed && libraryID != "" {
 		staged, err = corepackage.StagePcxtInitialInputSpooled(admission, r.corePackageRoot, spool)
 	} else if romLinked {
 		if romLinkedV2 {
@@ -299,14 +299,20 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	}
 	// Only a fes.computer package with a per-game record takes a game.
 	pc386 := protocol.DeclaresPc386Machine(staged.Descriptor)
-	if machine != nil && (libraryID == "" || composed || parts || romInit != nil || staged.ROMLink != nil || staged.ROMLinks != nil || !pc386) {
-		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "a library game and disk bind only a pc386 library package", Phase: "admission"}
+	pcxt := protocol.DeclaresPcxtMachine(staged.Descriptor)
+	perGame := pc386 || pcxt
+	if machine != nil && (libraryID == "" || composed || parts || romInit != nil || staged.ROMLinks != nil || !perGame ||
+		(staged.ROMLink != nil && (!pcxt || staged.FirmwarePath == ""))) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "a library game binds only a machine library package", Phase: "admission"}
 	}
-	if machine == nil && libraryID != "" && pc386 {
-		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a pc386 library launch requires its library game", Phase: "admission"}
+	if machine == nil && libraryID != "" && perGame {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a machine library launch requires its library game", Phase: "admission"}
 	}
 	if machine != nil && machine.Disk != nil && !protocol.DeclaresAtaDisk(staged.Descriptor) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no hard disk", Phase: "admission"}
+	}
+	if machine != nil && staged.InitialMedia != nil && (machine.Disk != nil || len(machine.Floppies) != 0 || staged.InitialMedia.GameID != machine.GameID) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "initial media does not match the library game binding", Phase: "admission"}
 	}
 	if machine != nil && len(machine.Floppies) != 0 && !protocol.DeclaresPcFloppy(staged.Descriptor) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no floppy drives", Phase: "admission"}
@@ -424,10 +430,19 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.control.(protocol2StaticCompositionControl).LoadStaticComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, *staged.StaticComposition)
 		r.noteDispatch("load_composed_core", callErr == nil)
 	} else if staged.InitialMedia != nil {
-		if pcxtInitial {
+		if pcxtInitial && machine != nil {
+			m := staged.InitialMedia
+			initial := &InitialMediaRequest{Path: m.Path, Size: uint32(m.Size), Unit: m.Unit, DataRoot: MediaDataRoot, GameID: m.GameID, BaseMediaID: m.BaseMediaID}
+			response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, nil, initial, nil)
+			r.noteDispatch("load_library_core", callErr == nil)
+		} else if pcxtInitial {
 			response, callErr = r.loadInitialCore(operationOwner, staged)
 		} else {
-			response, callErr = r.loadInitialROMCore(operationOwner, staged)
+			gameID := ""
+			if machine != nil {
+				gameID = machine.GameID
+			}
+			response, callErr = r.loadInitialROMCore(operationOwner, staged, gameID)
 		}
 	} else if staged.PartsComposition != nil && staged.ROMLink != nil {
 		response, callErr = r.control.(protocol2ROMPartsCompositionControl).LoadROMPartsComposedCore(operationOwner, staged.Directory, staged.PackageID, partPaths(staged), staged.PayloadPath, *staged.PartsComposition, staged.ProgrammedPath, *staged.ROMLink)
@@ -454,11 +469,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.control.(protocol2ROMSlotControl).LoadROMSlotComposedCore(operationOwner, staged.Directory, staged.PackageID, slotExpansionPaths(staged), staged.PayloadPath, *staged.SlotComposition, staged.ProgrammedPath, *staged.ROMLink)
 		r.noteDispatch("load_rom_composed_core", callErr == nil)
 	} else if staged.FirmwarePath != "" {
-		dataRoot := ""
+		dataRoot, gameID := "", ""
 		if libraryID != "" {
 			dataRoot = CoreDataRoot
 		}
-		response, callErr = r.control.(protocol2FirmwareControl).LoadFirmwareCore(operationOwner, staged.Directory, staged.PackageID, dataRoot, staged.FirmwarePath, *staged.ROMLink, nil)
+		if machine != nil {
+			gameID = machine.GameID
+		}
+		response, callErr = r.control.(protocol2FirmwareControl).LoadFirmwareCore(operationOwner, staged.Directory, staged.PackageID, dataRoot, staged.FirmwarePath, *staged.ROMLink, nil, gameID)
 		r.noteDispatch("load_rom_core", callErr == nil)
 	} else if staged.ROMLink != nil {
 		dataRoot := ""
@@ -491,7 +509,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
 		r.noteDispatch("load_composed_core", callErr == nil)
 	} else if machine != nil {
-		response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, disk, floppies)
+		response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, disk, nil, floppies)
 		r.noteDispatch("load_library_core", callErr == nil)
 	} else if libraryID != "" {
 		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)

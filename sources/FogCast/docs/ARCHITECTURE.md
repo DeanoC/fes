@@ -3983,9 +3983,12 @@ reconnect, a new launcher input POST or event POST returns 503
 `INPUT_UNAVAILABLE` (`no live input stream`). A host whose configuration does
 not enable `[remote_input]` has no input bridge for the session: attach,
 detach, tap and event return 503 `INPUT_UNAVAILABLE` (`remote input is not
-enabled in this host's configuration`). That check comes before the kit-lease
-and connection checks, so a disconnected or foreign-leased target gives the
-same answer. An already-open launcher stream
+enabled in this host's configuration`). When `[remote_input]` is enabled but
+the per-target bridge for that target could not be built, the same routes
+instead return 503 `INPUT_BRIDGE_FAILED`, naming the target and the build
+error, so a bridge failure never reads as a configuration problem. Both checks
+come before the kit-lease and connection checks, so a disconnected or
+foreign-leased target gives the same answer. An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
 its initial ready response does not acknowledge individual events. Launcher
 clients can request sequenced event receipts; the original stream has no
@@ -4408,6 +4411,26 @@ and `ata_disk`; the runtime writes the image into the DDR window before release.
 Machine settings are a per-game record on the kit, read and written with the
 library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
 The fixed disk takes no live media operations; Stop saves its delta.
+
+## PC/XT per-game machine record
+
+A `fes.pcxt-dos` package declaring `fes.computer` 1.1 with required
+`fes.persistence.words` and `fes.pcxt.machine` uses a per-game machine settings
+record on the kit (`video_card`: `0` CGA, `1` MDA, `2` Hercules; `mono_tint`:
+`0` white, `1` green, `2` amber), keyed by the library entry's `game_id` under
+`core-data/games/`. `GET` and `PUT /api/v1/library/core-entries/{game_id}/settings`
+inspect and update `pcxt_machine` for those entries (the host binds the record to
+`{game_id}` and rejects invalid values or conflicting setting shapes). To the
+target agent, inspect sends `X-FogCast-Library-Game` and update sends
+`X-FogCast-Library-Game` with `X-FogCast-PCXT-Machine-Settings`
+(`video_card,mono_tint`). Launching a library entry declaring `fes.pcxt.machine`
+attaches its `LibraryMachineBinding` for format-2 DE10 packages, format-2 DE10
+wrapped initial-media envelopes (`LoadLibraryMachineCore`), and format-3 DE25
+firmware-upload ROM loads, passing `X-FogCast-Library-Game` so the agent sends
+`game_id` on `load_library_core` or `load_rom_library_core` (requiring any
+`initial_media.game_id` to match `game_id`). The runtime restores the settings
+words before CPU release and captures the record on `Stop`
+([package library](core-package-library.md)).
 
 For a pc386 package that declares `fes.media.pc-floppy`, a library entry with
 the `floppy` role selects disk 1 as its boot image. Catalog selection and Home

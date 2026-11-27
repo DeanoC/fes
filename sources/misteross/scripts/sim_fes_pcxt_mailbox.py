@@ -57,6 +57,17 @@ def main():
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_abi_top.sv'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_abi_tb.cpp')], check=True)
     subprocess.run([str(abi / 'Vcomputer_mailbox_pcxt_abi_top')], cwd=ROOT, check=True)
+    settings = output / 'machine-settings'
+    settings.mkdir(parents=True, exist_ok=True)
+    subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
+        '--top-module', 'machine_settings_top', '-Wall',
+        '-I' + str(ROOT / 'cores/fes-common/generated'), str(CHIPSET), '--Mdir', str(settings),
+        '-CFLAGS', '-std=c++17 -O2',
+        str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
+        str(ROOT / 'cores/fes-pcxt/rtl/pcxt_machine_settings.sv'),
+        str(ROOT / 'cores/fes-pcxt/sim/machine_settings_top.sv'),
+        str(ROOT / 'cores/fes-pcxt/sim/machine_settings_tb.cpp')], check=True)
+    subprocess.run([str(settings / 'Vmachine_settings_top')], cwd=ROOT, check=True)
 
 
 if __name__ == '__main__':

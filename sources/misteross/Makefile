@@ -2920,7 +2920,7 @@ sim-fes-pcxt-machine:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --suite machine --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-write sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-dos-write sim-fes-pcxt-com sim-fes-pcxt-game
+.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-write sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-dos-write sim-fes-pcxt-com sim-fes-pcxt-game sim-fes-pcxt-video
 sim-fes-pcxt-fdc:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_fdc.py --verilator "$(VERILATOR)"
@@ -2954,6 +2954,10 @@ sim-fes-pcxt-game:
 	$(require_local_sim)
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-video:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_video_dos.py --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-mem sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386
 sim-fes-pc386:

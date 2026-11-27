@@ -49,9 +49,9 @@ foreach {label source expected head second} {
 # toggles and the machine hold level, each one launch register into one first
 # stage. No live pixel data crosses; the framebuffer is a dual-clock memory.
 foreach {label source head} {
-    video_sent {core|system|video|adapter|sent} {core|system|video|adapter|sent_meta}
-    video_received {core|system|video|adapter|received} {core|system|video|adapter|ack_meta}
-    video_hold {core|system|video|adapter|hold_launch} {core|system|video|adapter|hold_meta}
+    video_sent {core|video|adapter|sent} {core|video|adapter|sent_meta}
+    video_received {core|video|adapter|received} {core|video|adapter|ack_meta}
+    video_hold {core|video|adapter|hold_launch} {core|video|adapter|hold_meta}
 } {
     set launches [get_registers "${base}|${source}"]
     set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]
@@ -68,9 +68,9 @@ foreach {label source head} {
 # machine clock, and adopts it from that stage. One machine period bounds the
 # copy, as for the held bundles below: Design Assistant counts a skew bound
 # longer than that as no skew constraint (CDC-50003).
-set published [get_registers "${base}|core|system|video|adapter|published_code\[*\]"]
-set copied [get_registers "${base}|core|system|video|adapter|pixel_code\[*\]"]
-if {[get_collection_size $published] != 2 || [get_collection_size $copied] != 2} {
+set published [get_registers "${base}|core|video|adapter|published_code\[*\]"]
+set copied [get_registers "${base}|core|video|adapter|pixel_code\[*\]"]
+if {[get_collection_size $published] != 6 || [get_collection_size $copied] != 6} {
     error "DE25 PC/XT held video bank endpoints changed"
 }
 set_net_delay -max 10.000 -from $published -to $copied

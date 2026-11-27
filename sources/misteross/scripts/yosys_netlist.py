@@ -86,12 +86,14 @@ MEMORY_POLICIES = {
     # VRAMs with their OLD_DATA collision rules; small control arrays with
     # several write processes become FFs.
     'pcxt': 'memory -nomap; memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; ',
-    # The PC/XT Yosys drops the CGA font's asynchronous read driver when
-    # memory_dff processes that two-port font ROM. Collect it without read-FF
-    # merging, keep memory_dff for every other memory, and assert the exception
-    # so naming drift fails closed.
+    # The PC/XT Yosys drops the font ROMs' asynchronous read drivers when
+    # memory_dff processes them. Collect them without read-FF merging, keep
+    # memory_dff for every other memory, and assert the exception so naming
+    # drift fails closed.
     'pcxt-dos': ('memory -nomap -nordff; select -assert-count 1 c:dos_font.glyphs; '
-                 'memory_dff t:$mem_v2 c:dos_font.glyphs %d; memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '),
+                 'select -assert-count 1 c:dos_font.mda_glyphs; '
+                 'memory_dff t:$mem_v2 c:dos_font.glyphs c:dos_font.mda_glyphs %d; '
+                 'memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '),
 }
 # pc386 keeps its attributes (ramstyle, multstyle, keep) for Quartus, without
 # source locations; PC/XT writes none.

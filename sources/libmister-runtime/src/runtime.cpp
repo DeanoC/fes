@@ -22,6 +22,7 @@
 #if defined(__linux__)
 #include <sys/random.h>
 #elif defined(__APPLE__)
+#include <sys/random.h>
 #include <unistd.h>
 #endif
 
@@ -734,7 +735,8 @@ public:
 	{
 		if (!output || !ValidAbsolutePath(directory) || !ValidAbsolutePath(data_root) ||
 			!ValidPackageId(package_id) ||
-			(update && ((!update->pc386 && update->paddle_speed > 2) ||
+			(update && ((update->pc386 && update->pcxt) ||
+				(!update->pc386 && !update->pcxt && update->paddle_speed > 2) ||
 				(revision != "absent" && !ValidPackageId(revision)))))
 			return Invalid("invalid core-data request");
 		{
@@ -1738,17 +1740,20 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 }
 Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
 	const std::string& root, const std::string& game_id, const AtaDiskImage* disk,
+	const InitialComputerMedia* initial_media,
 	const std::vector<InitialComputerMedia>* floppies)
 {
 	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
 		!ValidAbsolutePath(disk->data_root))))
 		return Invalid("invalid core-data root or ATA disk");
+	if (initial_media && (disk || floppies || game_id.empty() || initial_media->binding.game_id != game_id))
+		return Invalid("initial_media game_id must match request game_id");
 	if (floppies)
 		for (const auto& floppy : *floppies)
 			if (!ValidAbsolutePath(floppy.path) || !ValidAbsolutePath(floppy.data_root) ||
 				!native::PcFloppySizeAdmitted(floppy.size) || game_id.empty() || floppy.binding.game_id != game_id)
 				return Invalid("invalid launch floppy");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk, "", floppies);
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, initial_media, game_id, disk, "", floppies);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)
@@ -1772,11 +1777,15 @@ Error Runtime::LoadROMComposedCore(const std::string& directory, const std::stri
 
 Error Runtime::LoadFirmwareCore(const std::string& directory, const std::string& id,
 	const std::string& root, const std::string& path, const CoreROMLink& link,
-	const InitialComputerMedia* initial_media)
+	const InitialComputerMedia* initial_media, const std::string& game_id)
 {
 	if (!ValidAbsolutePath(path) || (!root.empty() && !ValidAbsolutePath(root)))
 		return Invalid("firmware upload requires a firmware source path");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, "", nullptr, path);
+	if (root.empty() && !game_id.empty())
+		return Invalid("firmware game_id requires a core-data root");
+	if (initial_media && !game_id.empty() && initial_media->binding.game_id != game_id)
+		return Invalid("initial_media game_id must match request game_id");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", &link, nullptr, initial_media, game_id, nullptr, path);
 }
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)

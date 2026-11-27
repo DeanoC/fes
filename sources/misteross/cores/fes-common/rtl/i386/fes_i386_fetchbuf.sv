@@ -67,6 +67,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              redirect,
     input  logic [31:0]       redirect_linear,
     input  logic              code32,
+    input  logic [31:0]       cs_base,
     output logic [27:0]       mem_block,
     output logic              mem_load,
     input  logic [15:0][7:0]  mem_data,
@@ -139,7 +140,9 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     logic             btb_taken;
     logic [31:0]      btb_target;  // the entry's target, or for a RET's the return stack's top
     logic             push_call;   // pred_go is for a near CALL's entry ...
+    logic             push_call16;
     logic [31:0]      push_last;   // ... whose last byte is here
+    logic [15:0]      push_offset16;
 
     // half: the half L2's block goes to, alternately from the redirect's.
     assign l2_fire = l2_valid && !half_valid[half];
@@ -157,7 +160,8 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
                        taken: pred_now, tblk: btb_target[31:4], toff: btb_target[3:0]};
     assign ras_pop = pred_now && btb_entry.ret;
     assign ras_push = pred_go && push_call;
-    assign ras_push_lin = push_last + 32'd1;
+    assign push_offset16 = push_last[15:0] + 16'd1 - cs_base[15:0];
+    assign ras_push_lin = push_call16 ? cs_base + {16'd0, push_offset16} : push_last + 32'd1;
     assign held_block = {pred_block, fetch_block, f2_block, l1_block, l2_block, half_block[1], half_block[0]};
     assign held_valid = {pred_go, active, active, l1_valid, l2_valid, half_valid[1], half_valid[0]};
     assign held_pp = {8'd0, 8'd0, mem_tag.pp, l1_tag.pp, l2_tag.pp, half_tag[1].pp, half_tag[0].pp};
@@ -280,6 +284,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
                 pred_block <= btb_target[31:4];
                 pred_enter <= btb_target[3:0];
                 push_call <= btb_entry.call;
+                push_call16 <= btb_entry.call16;
                 push_last <= {f2_block, btb_entry.last};
             end
             if (pred_go) begin

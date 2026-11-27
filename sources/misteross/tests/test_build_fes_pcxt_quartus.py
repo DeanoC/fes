@@ -95,7 +95,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.require_timing(summary, [1])
 
     def test_dos_assets_match_redistribution_provenance_locks(self):
-        metadata, font = producer.dos_assets(producer.ROOT)
+        metadata, font, mda = producer.dos_assets(producer.ROOT)
         self.assertEqual(metadata['floppy']['sha256'],
                          '140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c')
         self.assertEqual([source['license'] for source in metadata['floppy']['sources']],
@@ -103,6 +103,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(metadata['font']['license'], 'Public domain')
         self.assertIn("Joseph Gil's fntcol16", metadata['font']['source'])
         self.assertEqual(len(font), 4096)
+        self.assertEqual(len(mda), 4096)
         record = producer.create_build_record(
             producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
             {'quartus': 'pinned', 'yosys': 'pinned'},
@@ -437,6 +438,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         without_contract = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
         self.assertNotIn('SYNCHRONIZER_IDENTIFICATION', without_contract)
 
+        dos_qsf = producer.board.project_qsf(
+            producer.ROOT, 1, 2, package_profile=True, video_mailbox_contract=True, dynamic_video=True)
+        self.assertIn('-to dos_video_video_adapter_ack_meta', dos_qsf)
+
     def test_package_elaboration_embeds_the_exact_build_id(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                              producer.ROOT / 'unused-library',
@@ -472,7 +477,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertIn('image is optional', manifest['core']['description'])
         self.assertIn('empty drive', manifest['core']['description'])
         self.assertEqual([i['id'] for i in manifest['interfaces']],
-                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write', 'fes.keyboard.hid',
+                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write',
+                          'fes.persistence.words', 'fes.pcxt.machine', 'fes.keyboard.hid',
                           'fes.audio.pcm-s16-stereo-48k'])
         self.assertTrue(manifest['interfaces'][1]['required'])
         self.assertTrue(manifest['interfaces'][2]['required'])

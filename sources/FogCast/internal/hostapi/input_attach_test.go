@@ -2,6 +2,7 @@ package hostapi_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -174,6 +175,49 @@ func testInputRoutesReportRemoteInputDisabled(t *testing.T, connection fogcast.T
 		}
 		if response.Code != http.StatusServiceUnavailable || body.Error.Code != "INPUT_UNAVAILABLE" ||
 			!strings.Contains(body.Error.Message, "not enabled in this host's configuration") {
+			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body)
+		}
+	}
+}
+
+// bridgeFailService routes unscoped input requests to one named target.
+type bridgeFailService struct {
+	*fakeService
+	target string
+}
+
+func (s bridgeFailService) SessionTargetName() string { return s.target }
+
+func TestInputRoutesReportTargetBridgeBuildFailure(t *testing.T) {
+	// Remote input is enabled (a factory exists) but this target's bridge
+	// could not be built. The routes must surface that failure, not claim
+	// the host has remote input disabled.
+	cause := errors.New("bridge starter: remote input request is invalid")
+	service := bridgeFailService{&fakeService{status: tapHIDStatus(), connection: fogcast.TargetConnection{State: "active"}}, "kit-b"}
+	handler := hostapi.New(service, hostapi.WithRemoteInputFactory(func(target string) (host.RemoteInputController, error) {
+		if target != "kit-b" {
+			t.Fatalf("factory target = %q", target)
+		}
+		return nil, cause
+	}))
+	tap := `{"session_id":"any","event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
+	event := `{"event":{"Device":0,"Kind":0,"Action":1,"Code":4115,"Value":0}}`
+	for _, tc := range []struct{ path, body string }{
+		{"/api/v1/session/input/attach", ""},
+		{"/api/v1/session/input/detach", ""},
+		{"/api/v1/session/input/tap", tap},
+		{"/api/v1/session/input/event", event},
+	} {
+		response := serveBody(t, handler, http.MethodPost, tc.path, tc.body)
+		var body struct {
+			Error struct{ Code, Message string } `json:"error"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body)
+		}
+		if response.Code != http.StatusServiceUnavailable || body.Error.Code != "INPUT_BRIDGE_FAILED" ||
+			!strings.Contains(body.Error.Message, `target "kit-b"`) || !strings.Contains(body.Error.Message, cause.Error()) ||
+			strings.Contains(body.Error.Message, "not enabled") {
 			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body)
 		}
 	}

@@ -1087,6 +1087,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == kDisplayPlaneInterfaceID ||
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
+				interface.id == FesComputerInterfacePcxtMachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID ||
 				interface.id == FesComputerInterfaceMediaPcFloppyID ||
 				media;
@@ -1120,6 +1121,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 				interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID ||
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
+				interface.id == FesComputerInterfacePcxtMachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID ||
 				interface.id == FesComputerInterfaceMediaPcFloppyID) second_word = true;
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk = true;
@@ -1294,11 +1296,9 @@ Error CorePersistenceLayout(const CoreDescriptor& descriptor, VersionedContract*
 	if (!output)
 		return {ErrorCode::invalid_request, "missing persistence layout output"};
 	*output = {};
-	// One registered layout per registry: Pong's progress on fes.simple-game,
-	// the pc386 machine record on fes.computer.
+	// One registered layout per core: Pong's progress on fes.simple-game,
+	// or fes.pc386.machine / fes.pcxt.machine on fes.computer.
 	const bool computer = descriptor.abi.id == generated::FesComputerABIID;
-	const std::string layout_id = computer ? generated::FesComputerInterfacePc386MachineID :
-		generated::FesGpInterfacePongProgressID;
 	bool words = false;
 	unsigned layouts = 0;
 	for (const auto& interface : descriptor.interfaces) {
@@ -1310,7 +1310,11 @@ Error CorePersistenceLayout(const CoreDescriptor& descriptor, VersionedContract*
 					"unsupported persistence transport declaration", "compatibility"};
 			words = true;
 		}
-		if (interface.id == layout_id) {
+		const bool match = computer ?
+			(interface.id == generated::FesComputerInterfacePc386MachineID ||
+			 interface.id == generated::FesComputerInterfacePcxtMachineID) :
+			(interface.id == generated::FesGpInterfacePongProgressID);
+		if (match) {
 			++layouts;
 			if (!interface.required || interface.major != 1 || interface.minor != 0)
 				return {ErrorCode::unsupported_interface,

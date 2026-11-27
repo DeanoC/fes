@@ -302,6 +302,9 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	}
 	// The envelope streams from the package and ROM bytes in place.
 	source := coreLoadSource{size: transport.Size(), body: transport.Reader(), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: transport.SlotComposition, partsComposition: transport.PartsComposition}
+	if protocol.DeclaresPcxtMachine(descriptor) {
+		source.machine = &protocol.LibraryMachineBinding{GameID: entry.GameID}
+	}
 	source.initialMedia = initial
 	if descriptor.Format == 3 && (descriptor.Core.ID == "fes.atari-st" || initial != nil && descriptor.Core.ID == pcxtCoreID) {
 		source.activationBudget = 300 * time.Second
@@ -385,12 +388,21 @@ func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus
 		}
 	}
 	if s.machine != nil {
-		// The kit bound the disk the host sent to the entry's game, or left
-		// the drive empty when it sent none.
+		if s.initialMedia != nil && s.initialMedia.GameID != s.machine.GameID {
+			return false
+		}
+		// The kit bound the ATA disk the host sent to the entry's game, or left
+		// the drive empty when it sent none. PC/XT uses unit 0 for its floppy
+		// (validated by s.initialMedia above when sent, or left empty otherwise).
 		u, ok := protocol.MediaUnit(status, protocol.AtaDiskUnit)
 		if disk := s.machine.Disk; disk != nil {
 			if !ok || u.Interface != protocol.AtaDiskInterface() || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" ||
 				u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.machine.GameID || u.Persistence.BaseMediaID != disk.SHA256 {
+				return false
+			}
+		} else if status.CoreID == "fes.pcxt-dos" || (s.entry != nil && s.entry.CoreID == "fes.pcxt-dos") {
+			if status.CoreID != "fes.pcxt-dos" || !ok || u.Interface != protocol.PcxtFloppyInterface() || status.PersistenceMode != "persistent" ||
+				(s.initialMedia == nil && (u.State != protocol.MediaUnitEmpty || u.Persistence != nil)) {
 				return false
 			}
 		} else if ok && (u.Interface != protocol.AtaDiskInterface() || u.State != protocol.MediaUnitEmpty || u.Persistence != nil) {

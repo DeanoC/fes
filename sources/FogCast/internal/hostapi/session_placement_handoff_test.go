@@ -116,10 +116,10 @@ func TestOmittedPlacementHandoffMovesFlightAndStopOwnership(t *testing.T) {
 	media := &handoffMedia{}
 	root := newSessionCoordinator(service, nil, media)
 	inputs := map[string]*handoffInput{}
-	root.remoteInputFactory = func(target string) host.RemoteInputController {
+	root.remoteInputFactory = func(target string) (host.RemoteInputController, error) {
 		input := &handoffInput{}
 		inputs[target] = input
-		return input
+		return input, nil
 	}
 	a := root.forTarget("kit-a")
 	a.execution, a.flightID = "previous-a", "flight-a"
@@ -148,7 +148,7 @@ func TestOmittedPlacementHandoffMovesFlightAndStopOwnership(t *testing.T) {
 func TestPlacementHandoffCleanupFailureRollsBackPlacedPlayAndKeepsOldMedia(t *testing.T) {
 	service := &placementHandoffService{target: "kit-a"}
 	root := newSessionCoordinator(service, nil, &handoffMedia{})
-	root.remoteInputFactory = func(string) host.RemoteInputController { return &handoffInput{} }
+	root.remoteInputFactory = func(string) (host.RemoteInputController, error) { return &handoffInput{}, nil }
 	a, b := root.forTarget("kit-a"), root.forTarget("kit-b")
 	old := &handoffMediaHandle{err: errors.New("stop failed")}
 	b.execution, b.mediaHandle, b.mediaState = fogcast.ExecutionFPGANative, old, "active"
@@ -167,7 +167,7 @@ func TestPlacementHandoffCleanupFailureRollsBackPlacedPlayAndKeepsOldMedia(t *te
 func TestPackagePlacementBusyCoordinatorStopsPlacedPlay(t *testing.T) {
 	service := &placementHandoffService{target: "kit-a", core: true}
 	root := newSessionCoordinator(service, nil, nil)
-	root.remoteInputFactory = func(string) host.RemoteInputController { return &handoffInput{} }
+	root.remoteInputFactory = func(string) (host.RemoteInputController, error) { return &handoffInput{}, nil }
 	a, b := root.forTarget("kit-a"), root.forTarget("kit-b")
 	b.busy = true
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

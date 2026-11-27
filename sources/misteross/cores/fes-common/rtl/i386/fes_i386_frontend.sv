@@ -14,6 +14,7 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     input  logic                   redirect,
     input  logic [31:0]            redirect_linear,
     input  logic                   code32,
+    input  logic [31:0]            cs_base,
     output logic [27:0]            mem_block,
     output logic                   mem_load,
     input  logic [15:0][7:0]       mem_data,
@@ -60,7 +61,7 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     );
 
     fes_i386_fetchbuf fetch (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .cs_base, .mem_block, .mem_load, .mem_data,
         .mem_valid, .mem_tag, .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
         .bytes, .dec, .avail, .btb_enter, .btb_hit, .btb_way, .btb_entry, .pred_en, .jump_clear, .ras_top, .ras_push, .ras_push_lin, .ras_pop, .half_info, .half_seq,
         .l2_seq, .jm, .jt, .jx, .held_block, .held_valid, .half_tag, .l2_tag, .held_pp, .held_pk

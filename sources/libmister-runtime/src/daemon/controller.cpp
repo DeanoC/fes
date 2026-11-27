@@ -54,6 +54,7 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 		result =
 			runtime_.LoadLibraryCore(request.package_path, request.package_id, request.data_root,
 				request.game_id, request.has_ata_disk ? &request.ata_disk : nullptr,
+				request.has_initial_media ? &request.initial_media : nullptr,
 				request.floppies.empty() ? nullptr : &request.floppies);
 		EmitFifoConsume("load_library_core", result.ok());
 		break;
@@ -121,7 +122,8 @@ std::string Controller::Handle(const std::string& line, Deferred& deferred)
 	case Operation::load_rom_library_core:
 		result = !request.firmware_path.empty() ?
 			runtime_.LoadFirmwareCore(request.package_path, request.package_id, request.data_root,
-				request.firmware_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
+				request.firmware_path, request.rom_link,
+				request.has_initial_media ? &request.initial_media : nullptr, request.game_id) :
 			request.rom_links.sources.empty() ?
 			runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
 				request.data_root, request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :

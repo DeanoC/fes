@@ -103,7 +103,7 @@ func TestKitHostForeignOwnerSessionProjectsToBoundKeyboard(t *testing.T) {
 	}
 	service := &projectionService{manager: manager, pkg: strings.Repeat("b", 64), target: "kit-target"}
 	input := &rejectedLocalInput{}
-	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithRemoteInputFactory(func(string) host.RemoteInputController { return input }))
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithRemoteInputFactory(func(string) (host.RemoteInputController, error) { return input, nil }))
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)

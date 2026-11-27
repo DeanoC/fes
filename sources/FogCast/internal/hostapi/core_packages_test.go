@@ -267,3 +267,43 @@ func TestCreateCoreEntryWithFirmwareRequirement(t *testing.T) {
 		t.Fatalf("create = %d %s", created.Code, created.Body.String())
 	}
 }
+
+type pcxtCoreDataService struct {
+	fakeService
+	update protocol.CoreSettingsUpdate
+}
+
+func (s *pcxtCoreDataService) CoreSettings(context.Context, string) (fogcast.CoreDataResult, error) {
+	return fogcast.CoreDataResult{}, nil
+}
+func (s *pcxtCoreDataService) CoreProgress(context.Context, string) (fogcast.CoreDataResult, error) {
+	return fogcast.CoreDataResult{}, nil
+}
+func (s *pcxtCoreDataService) SetCoreSettings(_ context.Context, _ string, u protocol.CoreSettingsUpdate) (fogcast.CoreDataResult, error) {
+	s.update = u
+	return fogcast.CoreDataResult{}, nil
+}
+
+func TestPutCoreEntryPcxtSettings(t *testing.T) {
+	svc := &pcxtCoreDataService{}
+	handler := hostapi.New(svc)
+	pkgID := strings.Repeat("a", 64)
+	body := `{"expected_package_id":"` + pkgID + `","expected_revision":"absent","pcxt_machine":{"video_card":2,"mono_tint":1}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/library/core-entries/beast-1984/settings", strings.NewReader(body))
+	req.Host = "127.0.0.1"
+	req.Header.Set("Content-Type", "application/json")
+	out := httptest.NewRecorder()
+	handler.ServeHTTP(out, req)
+	if out.Code != http.StatusOK || svc.update.PcxtMachine == nil || svc.update.PcxtMachine.VideoCard != 2 || svc.update.PcxtMachine.MonoTint != 1 || svc.update.GameID != "beast-1984" {
+		t.Fatalf("put pcxt settings = %d %s update=%+v", out.Code, out.Body.String(), svc.update)
+	}
+	badBody := `{"expected_package_id":"` + pkgID + `","expected_revision":"absent","paddle_speed":1,"pcxt_machine":{"video_card":2,"mono_tint":1}}`
+	badReq := httptest.NewRequest(http.MethodPut, "/api/v1/library/core-entries/beast-1984/settings", strings.NewReader(badBody))
+	badReq.Host = "127.0.0.1"
+	badReq.Header.Set("Content-Type", "application/json")
+	badOut := httptest.NewRecorder()
+	handler.ServeHTTP(badOut, badReq)
+	if badOut.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for mixed settings, got %d %s", badOut.Code, badOut.Body.String())
+	}
+}

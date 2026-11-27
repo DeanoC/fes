@@ -256,6 +256,20 @@ constexpr std::uint32_t FesComputerPc386SbBase240 = 0x240u;
 constexpr std::uint32_t FesComputerPc386SbIrqMask = 0xacu;
 constexpr std::uint32_t FesComputerPc386SbIrqDefault = 0x7u;
 constexpr std::uint32_t FesComputerPc386SbDma = 0x1u;
+constexpr std::uint32_t FesComputerPcxtMachineTag = 0x4u;
+constexpr std::uint32_t FesComputerPcxtMachineWordCount = 0x4u;
+constexpr std::uint32_t FesComputerPcxtVideoCardIndex = 0x0u;
+constexpr std::uint32_t FesComputerPcxtMonoTintIndex = 0x1u;
+constexpr std::uint32_t FesComputerPcxtReserved0Index = 0x2u;
+constexpr std::uint32_t FesComputerPcxtReserved1Index = 0x3u;
+constexpr std::uint32_t FesComputerPcxtVideoCardCga = 0x0u;
+constexpr std::uint32_t FesComputerPcxtVideoCardMda = 0x1u;
+constexpr std::uint32_t FesComputerPcxtVideoCardHercules = 0x2u;
+constexpr std::uint32_t FesComputerPcxtVideoCardMax = 0x2u;
+constexpr std::uint32_t FesComputerPcxtMonoTintWhite = 0x0u;
+constexpr std::uint32_t FesComputerPcxtMonoTintGreen = 0x1u;
+constexpr std::uint32_t FesComputerPcxtMonoTintAmber = 0x2u;
+constexpr std::uint32_t FesComputerPcxtMonoTintMax = 0x2u;
 constexpr std::uint32_t FesComputerWallClockWordCount = 0x4u;
 constexpr std::uint32_t FesComputerWallClockYearWord = 0x0u;
 constexpr std::uint32_t FesComputerWallClockMonthDayWord = 0x1u;
@@ -355,6 +369,10 @@ constexpr const char* FesComputerInterfaceMediaPcFloppyID = "fes.media.pc-floppy
 constexpr std::uint16_t FesComputerInterfaceMediaPcFloppyMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaPcFloppyMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaPcFloppy = 0x400000u;
+constexpr const char* FesComputerInterfacePcxtMachineID = "fes.pcxt.machine";
+constexpr std::uint16_t FesComputerInterfacePcxtMachineMajor = 1u;
+constexpr std::uint16_t FesComputerInterfacePcxtMachineMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityPcxtMachine = 0x800000u;
 
 } // namespace generated
 } // namespace native
