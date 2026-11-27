@@ -195,16 +195,17 @@ class AffectedTests(unittest.TestCase):
                             ('producers/build_pcxt_package.py', ['pcxt']),
                             ('pc386/derive.py', ['pc386']), ('pc386/pc386-clocks.sdc', ['pc386']),
                             ('producers/build_pc386_package.py', ['pc386']),
-                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
-                            ('machine/board.py', ['atari-st', 'c64', 'pcxt', 'spectrum']),
+                            ('producers/build_machine_package.py', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('machine/board.py', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_spectrum_core.v', ['spectrum']),
                             ('shared-rtl/fes_atari_st_core.v', ['atari-st']),
                             ('shared-rtl/fes_c64_core.v', ['c64']),
                             ('shared-rtl/fes_c64_firmware_rom.v', ['c64']),
                             ('shared-rtl/fes_pcxt_core.v', ['pcxt']),
                             ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
-                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pcxt', 'spectrum']),
-                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pcxt', 'spectrum'])):
+                            ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_de25_machine_audio.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 

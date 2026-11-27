@@ -11,8 +11,11 @@ from scripts import de25_seal_plan as sp
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def ids(design='d', toolchain='t'):
-    return {'design': design, 'toolchain': toolchain}
+def ids(design='d', toolchain='t', firmware_generator=None):
+    result = {'design': design, 'toolchain': toolchain}
+    if firmware_generator is not None:
+        result['firmware_generator'] = firmware_generator
+    return result
 
 
 def probed(**models):
@@ -104,6 +107,18 @@ class SelectionTests(unittest.TestCase):
         recipes = {k: self.recipes[k] for k in head}
         jobs = sp.plan(recipes, head, None, head)
         self.assertEqual([j['slug'] for j in jobs], ['fes.menu'])
+
+    def test_auto_selects_firmware_generator_drift(self):
+        self.assertIn('firmware-generator', sp.PROBE)
+        base = probed(**{'fes.menu': {None: ids()}, 'fes.pc386': {'486sx': ids(firmware_generator='f1'),
+                                                                   '486dx': ids(firmware_generator='f1')}})
+        head = probed(**{'fes.menu': {None: ids()}, 'fes.pc386': {'486sx': ids(firmware_generator='f2'),
+                                                                   '486dx': ids(firmware_generator='f2')}})
+        recipes = {k: self.recipes[k] for k in head}
+        jobs = sp.plan(recipes, head, None, base)
+        self.assertEqual([(j['slug'], j['reason']) for j in jobs], [
+            ('fes.pc386-486sx', 'firmware generator changed'),
+            ('fes.pc386-486dx', 'firmware generator changed')])
 
     def test_a_broken_head_producer_fails_closed(self):
         head = probed(**{'fes.menu': {None: ids()}})
