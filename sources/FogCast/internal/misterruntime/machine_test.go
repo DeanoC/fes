@@ -145,7 +145,10 @@ func TestMachineRequestsCarryGameAndDisk(t *testing.T) {
 		DataRoot: MediaDataRoot, Cylinders: 130, Heads: 16, SectorsPerTrack: 63}
 	ctxShort, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	_, _ = client.LoadLibraryMachineCore(ctxShort, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", disk)
+	floppies := []floppyRequest{
+		{Unit: 1, Path: DiskImageRoot + "/" + strings.Repeat("d", 64) + ".img", Size: 1474560, DataRoot: MediaDataRoot, BaseMediaID: strings.Repeat("d", 64)},
+		{Unit: 2, Path: DiskImageRoot + "/" + strings.Repeat("e", 64) + ".img", Size: 1228800, DataRoot: MediaDataRoot, BaseMediaID: strings.Repeat("e", 64), WriteProtected: true}}
+	_, _ = client.LoadLibraryMachineCore(ctxShort, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", disk, floppies)
 	requests := fixture.wait(t)
 	if len(requests) < 4 {
 		t.Fatalf("requests %v", requests)
@@ -170,12 +173,27 @@ func TestMachineRequestsCarryGameAndDisk(t *testing.T) {
 		ata["heads"] != float64(16) || ata["sectors_per_track"] != float64(63) || len(ata) != 7 {
 		t.Fatalf("load %v", load)
 	}
+	sent, _ := load["floppies"].([]any)
+	a, _ := sent[0].(map[string]any)
+	b, _ := sent[1].(map[string]any)
+	if len(sent) != 2 || a["unit"] != float64(1) || a["size"] != float64(1474560) || a["base_media_id"] != floppies[0].BaseMediaID ||
+		a["write_protected"] != nil || len(a) != 5 || b["unit"] != float64(2) || b["write_protected"] != true || len(b) != 6 {
+		t.Fatalf("floppies %v", sent)
+	}
 	// A request the runtime would refuse is never sent.
 	for _, bad := range []*ataDiskRequest{
 		{Path: disk.Path, Size: 64<<20 + 1, BaseMediaID: disk.BaseMediaID, DataRoot: MediaDataRoot, Cylinders: 130, Heads: 16, SectorsPerTrack: 63},
 		{Path: disk.Path, Size: 64 << 20, BaseMediaID: disk.BaseMediaID, DataRoot: MediaDataRoot, Cylinders: 131, Heads: 16, SectorsPerTrack: 63},
 	} {
-		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", bad); err != errInvalidRuntimeRequest {
+		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", bad, nil); err != errInvalidRuntimeRequest {
+			t.Errorf("sent %+v: %v", bad, err)
+		}
+	}
+	wrongDrive := floppies[:1:1]
+	wrongDrive = append(wrongDrive, floppies[0])
+	wrongDrive[1].Unit = 2
+	for _, bad := range [][]floppyRequest{{floppies[0], floppies[0]}, wrongDrive, {floppies[0], floppies[1], floppies[1]}} {
+		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", nil, bad); err != errInvalidRuntimeRequest {
 			t.Errorf("sent %+v: %v", bad, err)
 		}
 	}
@@ -240,5 +258,60 @@ func TestDiskImageStoreVerifiesReusesAndEvicts(t *testing.T) {
 	}
 	if _, ok := r.stagedDiskImage(sha); ok {
 		t.Fatal("the least recently used image was kept")
+	}
+}
+
+func TestStagedFloppiesResolveFromTheKitStore(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "disk-images")
+	r := NewRuntime(nil, "", time.Millisecond, time.Second, WithDiskImageRoot(root))
+	ctx := context.Background()
+	stage := func(size int, fill byte) string {
+		data := bytes.Repeat([]byte{fill}, size)
+		sum := sha256.Sum256(data)
+		sha := hex.EncodeToString(sum[:])
+		if _, err := r.StageDiskImage(ctx, sha, int64(size), bytes.NewReader(data)); err != nil {
+			t.Fatal(err)
+		}
+		return sha
+	}
+	a, b := stage(1474560, 1), stage(1228800, 2)
+	machine := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{
+		{Unit: protocol.PcFloppyUnitA, SHA256: a}, {Unit: protocol.PcFloppyUnitB, SHA256: b, WriteProtected: true}}}
+	requests, err := r.resolveStagedFloppies(machine)
+	if err != nil || len(requests) != 2 || requests[0].Path != r.diskImagePath(a) || requests[0].Size != 1474560 ||
+		requests[0].DataRoot != MediaDataRoot || requests[1].Unit != 2 || !requests[1].WriteProtected || !requests[1].valid() {
+		t.Fatal(requests, err)
+	}
+	// Formats under the hard disk's 1 MiB minimum stage and resolve too.
+	small := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{
+		{Unit: protocol.PcFloppyUnitA, SHA256: stage(737280, 3)}, {Unit: protocol.PcFloppyUnitB, SHA256: stage(368640, 4)}}}
+	if requests, err := r.resolveStagedFloppies(small); err != nil || len(requests) != 2 ||
+		requests[0].Size != 737280 || requests[1].Size != 368640 {
+		t.Fatal(requests, err)
+	}
+	// A floppy-sized image is still no hard disk.
+	if _, err := r.resolveStagedDisk(&protocol.LibraryMachineBinding{GameID: "msdos-622",
+		Disk: &protocol.StagedDisk{SHA256: a}}); err == nil {
+		t.Fatal("floppy-sized hard disk resolved")
+	}
+	// A: cannot read the 1.2M disk, and an unstaged disk is refused.
+	wrong :=&protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: b}}}
+	if _, err := r.resolveStagedFloppies(wrong); err == nil || !strings.Contains(err.Message, "put it in B:") {
+		t.Fatal(err)
+	}
+	absent := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: strings.Repeat("9", 64)}}}
+	if _, err := r.resolveStagedFloppies(absent); err == nil {
+		t.Fatal("unstaged floppy resolved")
+	}
+	// A staged copy that no longer matches its digest is removed.
+	if err := os.WriteFile(r.diskImagePath(a), bytes.Repeat([]byte{9}, 1474560), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := &protocol.LibraryMachineBinding{GameID: "msdos-622", Floppies: []protocol.StagedFloppy{{Unit: protocol.PcFloppyUnitA, SHA256: a}}}
+	if _, err := r.resolveStagedFloppies(corrupt); err == nil || err.Message != protocol.StagedFloppyCorruptMessage {
+		t.Fatal(err)
+	}
+	if _, staged := r.stagedDiskImage(a); staged {
+		t.Fatal("corrupt floppy kept")
 	}
 }

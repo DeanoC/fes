@@ -1,0 +1,97 @@
+format = 3
+
+[core]
+id = "fes.atari-st"
+name = "FES Atari 520ST"
+description = "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, a writable variable-geometry floppy, relative mouse, and ST expansion/video sockets"
+version = "0.2.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 3823984
+sha256 = "d2fe393124d7dde895660ff1a981b5a6f8b2297cf52c07bb9aa8527fd1b246bb"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.atari-st-floppy"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.mouse.relative"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.atari-st-floppy-write"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.atari-st-floppy-geometry"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.expansion.atari-st-bus"
+major = 1
+minor = 0
+required = false
+
+[[interfaces]]
+id = "fes.fabric.video.raster-rgb888"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "e2c3db4c45bef1e24be68b3e9faadd01"
+repository = "https://github.com/DeanoC/fes"
+revision = "b67bddbd6f0a783539cb96af6ce415505dfeface"
+recipe_sha256 = "7d0d9111ef671f58a47107424b0fbb2f4ce049d3d1bcbfd57362670caf24473e"
+toolchain = "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=2a546f5588251c6280e0f515f203670ed9f61fb0d73cf02517e88edb906ca48e; nextpnr-mistral commit=5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe; sha256=ee50fd0b87219472167d596bab26df8e70e504d08b6a9e94f6acffb184435623; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=d273c1cb774f70d58c890745ac1b7dd106d32a26; sha256=0594dfdbeb6b74ee1c34291f99e2310d1ff160304c76c3bf1b327e334dbe964f"
+
+[rom]
+id = "atari-st-firmware"
+role = "firmware"
+source_size = 196608
+file = "rom-map.json"
+size = 17357124
+sha256 = "d7f5b1ac391de44424d74f715796a657ade3c41b0234ea81e490b7740df83191"

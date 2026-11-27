@@ -39,6 +39,16 @@ POLICY_CITE = 'policy: Deano 2026-10-29'
 ZX81_POLICY_CITE = 'policy: Deano 2026-11-15'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy)'
+# Forward-plan cell states, in order (docs/plans/forward-plan.md, "The matrix is data").
+DE25_STATES = ('none', 'builds', 'sealed', 'kit-accepted', 'released')
+# Kit D25 (de25-j8g); DE25 Linux HIL runs only on this board.
+DE25_KIT_SERIAL = 'TRWU8J8G'
+# Tier 1 cores whose baseline declares a write or save path, so their DE25
+# acceptance must show a save round-trip: ZX81-family tape-write, the ST's
+# writable floppy, PC/XT disk Save and pc386 `fes.persistence.words`. ZX80,
+# C64 and the Spectrum models declare no write interface.
+DE25_PERSISTENT = frozenset({'fes.zx81', 'fes.ts1000', 'fes.ts1500', 'fes.atari-st',
+                             'fes.pcxt-dos', 'fes.pc386'})
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt-dos',
                                  'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500'})
@@ -63,6 +73,7 @@ HIGHLIGHTS = {
     'fes.spectrum-plus3': 'tape, disk, keys, HDMI',
     'fes.pentagon': 'tape, disk, keys, HDMI',
     'fes.c64-ntsc': 'disk, keys, HDMI',
+    'fes.c64-pal-n': 'disk, keys, HDMI',
     'fes.c64-early-ntsc': 'disk, keys, HDMI',
     'fes.c64c': 'disk, keys, HDMI',
     'fes.c64c-ntsc': 'disk, keys, HDMI',
@@ -94,6 +105,7 @@ DETAILS = {
     'fes.apple2': ('sources/misteross/cores/fes-apple2/README.md', 'README'),
     'fes.c64': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64-pal-n': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64-early-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64c': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.c64c-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
@@ -138,6 +150,7 @@ QUALITY_TIER_IDS = {
     'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
 }
 CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
+HUMAN_TABLE_ROW_LIMIT = 180
 CHECK_PROPOSED = 'proposed'
 CHECK_ACCEPTED = 'accepted'
 CHECK_STATUSES = frozenset({CHECK_PROPOSED, CHECK_ACCEPTED})
@@ -457,8 +470,21 @@ def de25_core_ids(root: Path) -> set[str]:
     registry. Machine producer declarations are parsed, not imported, so a
     documentation check never runs build-tool code.
     """
+    registered, producers = de25_recipe_ids(root)
+    return registered | {core for ids in producers.values() for core in ids}
+
+
+def de25_registered_ids(root: Path) -> set[str]:
+    """DE25 core IDs a registered recipe produces, its producer's models included."""
+    registered, producers = de25_recipe_ids(root)
+    return registered | {core for base, ids in producers.items() if base in registered for core in ids}
+
+
+def de25_recipe_ids(root: Path) -> tuple[set[str], dict[str, set[str]]]:
+    """Registered DE25 recipe IDs, and each machine producer's base and model IDs."""
     recipes = tomllib.loads((root / ROOT_FILES['recipes']).read_text())['recipes']
-    ids = {r['core_id'] for r in recipes if r.get('board') == 'de25-nano'}
+    registered = {r['core_id'] for r in recipes if r.get('board') == 'de25-nano'}
+    producers: dict[str, set[str]] = {}
     for path in (root / DE25 / 'producers').glob('build_*_package.py'):
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in tree.body:
@@ -480,9 +506,8 @@ def de25_core_ids(root: Path) -> set[str]:
                 isinstance(name, str) and isinstance(core, str) for name, core in models.items()
             ) or not models.keys() <= descriptions.keys():
                 raise ValueError(f'{path}: malformed producer core IDs')
-            ids.add(core_id)
-            ids.update(models.values())
-    return ids
+            producers.setdefault(core_id, set()).update({core_id, *models.values()})
+    return registered, producers
 
 
 def de25_cell(rows: list[dict], core_ids: set[str]) -> str:
@@ -574,6 +599,7 @@ def render(data: dict, de25_ids: set[str]) -> str:
     for scope, title in RELEASE_SCOPES.items():
         names = [row['label'] for row in data['cores'] if row.get('release') == scope]
         lines.append(f"- **{title}:** {', '.join(names)}")
+    lines += render_de25_progress(data)
     lines += render_check_policy(data)
     lines += [
         '',
@@ -591,6 +617,167 @@ def render(data: dict, de25_ids: set[str]) -> str:
     return '\n'.join(lines)
 
 
+def render_de25_progress(data: dict) -> list[str]:
+    """Per-cell DE25 state for the tier 1 machines (forward-plan phase 4)."""
+    progress = data['de25_tier1']
+    labels = {row['id']: row['label'] for row in data['cores']}
+    lines = ['', '## DE25 tier 1 progress', '']
+    lines += [paragraph for note in progress['note'] for paragraph in (cell(note), '')]
+    lines += ['| DE25 state | Meaning |', '| --- | --- |']
+    for state in progress['states']:
+        lines.append(f"| {state['id']} | {cell(state['meaning'])} |")
+    lines += ['', '| Machine | DE25 state | Issues |', '| --- | --- | --- |']
+    for machine in progress['machines']:
+        by_state: dict[str, list[str]] = {}
+        for core_id, state in machine['cells'].items():
+            by_state.setdefault(state, []).append(labels[core_id])
+        states = '; '.join(
+            f"{state['id']}: {', '.join(by_state[state['id']])}"
+            for state in progress['states'] if state['id'] in by_state
+        )
+        issues = ', '.join(f'#{n}' for n in machine['issues']) or '—'
+        lines.append(f"| {cell(machine['label'])} | {states} | {issues} |")
+    lines.append('')
+    for machine in progress['machines']:
+        lines.append(
+            f"- **{machine['label']}.** Proven on Kit D25: {cell(machine['proven'])} "
+            f"Missing for tier 1: {cell(machine['missing'])}"
+        )
+    return lines
+
+
+def validate_de25_progress(root: Path, data: dict, by_id: dict) -> list[str]:
+    """Every DE25 tier 1 cell is recorded once, and its state matches the producers.
+
+    A cell with no DE25 producer must say none. builds needs a DE25 producer.
+    sealed and later need a registered DE25 recipe and the exact package that
+    passed the Kit D25 smoke, per an in-repo receipt for that core. kit-accepted
+    and released also need a per-core acceptance receipt for the same package,
+    since they claim conformance and the corpus.
+    """
+    progress = data.get('de25_tier1')
+    if not progress:
+        return ['support-matrix.json has no de25_tier1 block']
+    errors = []
+    states = [state.get('id') for state in progress.get('states') or []]
+    if states != list(DE25_STATES):
+        errors.append(f'de25_tier1 states must be {", ".join(DE25_STATES)} in that order')
+    if not progress.get('note'):
+        errors.append('de25_tier1 has no note')
+    try:
+        built = de25_core_ids(root)
+        registered = de25_registered_ids(root)
+    except (OSError, KeyError, ValueError, SyntaxError) as error:
+        return errors + [f'DE25 producers are unreadable: {error}']
+    tier1 = {row['id'] for row in data['cores'] if row.get('quality_tier') == '1'}
+    seen: set[str] = set()
+    for machine in progress.get('machines') or []:
+        label = machine.get('label') or '<unlabelled>'
+        for key in ('proven', 'missing'):
+            if not machine.get(key):
+                errors.append(f'de25_tier1 {label} has no {key} text')
+        if not isinstance(machine.get('issues'), list) or not all(
+            isinstance(n, int) for n in machine.get('issues') or []
+        ):
+            errors.append(f'de25_tier1 {label} issues must be a list of issue numbers')
+        for core_id, state in (machine.get('cells') or {}).items():
+            if core_id in seen:
+                errors.append(f'de25_tier1 records {core_id} twice')
+            seen.add(core_id)
+            if core_id not in by_id:
+                errors.append(f'de25_tier1 {core_id} has no matrix row')
+            if state not in DE25_STATES:
+                errors.append(f'de25_tier1 {core_id} state {state!r} is not a DE25 state')
+                continue
+            rank = DE25_STATES.index(state)
+            if core_id not in built and state != 'none':
+                errors.append(f'de25_tier1 {core_id} says {state} but no DE25 producer builds it')
+            if core_id in built and state == 'none':
+                errors.append(f'de25_tier1 {core_id} says none but a DE25 producer builds it')
+            if rank >= DE25_STATES.index('sealed'):
+                if core_id not in registered:
+                    errors.append(f'de25_tier1 {core_id} says {state} without a registered DE25 recipe')
+                errors += de25_package_errors(
+                    root, core_id, state, (machine.get('packages') or {}).get(core_id),
+                    acceptance=rank >= DE25_STATES.index('kit-accepted'),
+                    release=rank >= DE25_STATES.index('released'))
+    for core_id in sorted(tier1 - seen):
+        errors.append(f'de25_tier1 has no cell for tier 1 core {core_id}')
+    for core_id in sorted(seen - tier1):
+        errors.append(f'de25_tier1 records {core_id}, which is not tier 1')
+    return errors
+
+
+def de25_package_errors(root: Path, core_id: str, state: str, package, *,
+                        acceptance: bool = False, release: bool = False) -> list[str]:
+    """sealed and later name the exact package that passed on Kit D25.
+
+    The package SHA-256 comes with an in-repo JSON smoke receipt (`evidence`)
+    for that core, that package and Kit D25 with a PASS verdict, so neither a
+    rebuilt package nor another core's receipt can stand in for it. With
+    `acceptance`, an `acceptance` receipt for the same core and package must
+    also record conformance and corpus PASS, and persistence PASS for a core
+    that declares a save path. With `release`, a `release` receipt for the
+    same core and package must name the DE25 release tag and the DE10 tag it
+    was cut from, and they must be the same tag.
+    """
+    if not isinstance(package, dict):
+        return [f'de25_tier1 {core_id} says {state} without the package that ran on Kit D25']
+    sha = package.get('sha256')
+    if not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
+        return [f'de25_tier1 {core_id} package sha256 is not a lowercase SHA-256']
+    expected = {'kit_serial': DE25_KIT_SERIAL, 'core_id': core_id, 'package_sha256': sha, 'verdict': 'PASS'}
+    errors = de25_receipt_errors(root, core_id, 'smoke', package.get('evidence'), expected)
+    if acceptance:
+        accepted = {**expected, 'conformance': 'PASS', 'corpus': 'PASS'}
+        if core_id in DE25_PERSISTENT:
+            accepted['persistence'] = 'PASS'
+        errors += de25_receipt_errors(root, core_id, 'acceptance', package.get('acceptance'), accepted)
+    if release:
+        record = package.get('release')
+        released = {'core_id': core_id, 'package_sha256': sha, 'board': 'de25-nano'}
+        errors += de25_receipt_errors(root, core_id, 'release', record, released)
+        receipt = de25_receipt(root, record)
+        if isinstance(receipt, dict):
+            tag = receipt.get('tag')
+            if not isinstance(tag, str) or not tag or receipt.get('de10_tag') != tag:
+                errors.append(f'de25_tier1 {core_id} release receipt {record} does not name one tag shared with DE10')
+    return errors
+
+
+def de25_receipt(root: Path, record):
+    """The parsed in-repo receipt, or None when it is not one."""
+    try:
+        path = (root / record).resolve()
+        if Path(record).is_absolute() or not path.is_relative_to(root.resolve()):
+            return None
+        return json.loads(path.read_text())
+    except (TypeError, OSError, ValueError):
+        return None
+
+
+def de25_receipt_errors(root: Path, core_id: str, kind: str, record, expected: dict) -> list[str]:
+    """A committed JSON receipt under the repository whose fields match `expected`."""
+    if not isinstance(record, str) or not record.endswith('.json'):
+        return [f'de25_tier1 {core_id} {kind} receipt is missing or not JSON: {record}']
+    base = root.resolve()
+    path = (root / record).resolve()
+    if Path(record).is_absolute() or not path.is_relative_to(base):
+        return [f'de25_tier1 {core_id} {kind} receipt is outside the repository: {record}']
+    if not path.is_file():
+        return [f'de25_tier1 {core_id} {kind} receipt is missing or not JSON: {record}']
+    try:
+        receipt = json.loads(path.read_text())
+    except ValueError as error:
+        return [f'de25_tier1 {core_id} {kind} receipt {record} is unreadable: {error}']
+    if not isinstance(receipt, dict):
+        return [f'de25_tier1 {core_id} {kind} receipt {record} is not an object']
+    return [
+        f'de25_tier1 {core_id} {kind} receipt {record} has {key} {receipt.get(key)!r}, expected {value!r}'
+        for key, value in expected.items() if receipt.get(key) != value
+    ]
+
+
 def render_check_policy(data: dict) -> list[str]:
     """The quality ladder and the proposed per-change evidence level."""
     policy = data['check_policy']
@@ -605,7 +792,7 @@ def render_check_policy(data: dict) -> list[str]:
         lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
     lines += ['', '| Checks | Expected evidence |', '| --- | --- |']
     for item in policy['levels']:
-        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+        lines += table_entry_rows(item['label'], item['meaning'])
     lines.append('')
     for item in policy['quality_tiers']:
         names = [row['label'] for row in data['cores'] if row.get('quality_tier') == item['id']]
@@ -615,6 +802,40 @@ def render_check_policy(data: dict) -> list[str]:
         names = [row['label'] for row in data['cores'] if row.get('check_level') == item['id']]
         lines.append(f"- **{item['label']} checks:** {', '.join(names) or 'none'}")
     return lines
+
+
+def table_entry_rows(label: str, meaning: str) -> list[str]:
+    """Keep long table meanings readable without exceeding the row limit."""
+    label = cell(label)
+    meaning = cell(meaning)
+
+    def row(row_label: str, text: str) -> str:
+        return f'| {row_label} | {text} |'
+
+    if len(row(label, meaning)) <= HUMAN_TABLE_ROW_LIMIT:
+        return [row(label, meaning)]
+
+    chunks: list[str] = []
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z`])', meaning)
+    for sentence in sentences:
+        current_label = label if not chunks else ''
+        if len(row(current_label, sentence)) <= HUMAN_TABLE_ROW_LIMIT:
+            if chunks and len(row('', chunks[-1] + ' ' + sentence)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks[-1] += ' ' + sentence
+            else:
+                chunks.append(sentence)
+            continue
+
+        for word in sentence.split():
+            current_label = label if not chunks else ''
+            if chunks and len(row(current_label, chunks[-1] + ' ' + word)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks[-1] += ' ' + word
+            elif len(row(current_label, word)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks.append(word)
+            else:
+                raise ValueError(f'table entry word is too long for row: {word!r}')
+
+    return [row(label if index == 0 else '', chunk) for index, chunk in enumerate(chunks)]
 
 
 def feature_union(ids: list[str]) -> str:
@@ -986,13 +1207,14 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f"open cell {item.get('cell')!r} still pastes its long detail")
     if rendered is not None:
         for line in rendered.splitlines():
-            if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
+            if line.startswith('| ') and not line.startswith('| ---') and len(line) > HUMAN_TABLE_ROW_LIMIT:
                 errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
     policy = '\n'.join(data.get('policy') or [])
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
         if phrase not in policy:
             errors.append(f'policy section is missing {phrase!r}')
     errors += validate_check_policy(root, data, by_id, rendered)
+    errors += validate_de25_progress(root, data, by_id)
     coleco = by_id.get('fes.coleco') or {}
     coleco_notes = coleco.get('notes') or ''
     for phrase in (POLICY_CITE, 'empty-library status', 'low priority', 'Adam'):

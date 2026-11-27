@@ -42,7 +42,7 @@ func (r *Runtime) stagedDiskImage(sha string) (int64, bool) {
 		return 0, false
 	}
 	info, err := os.Lstat(r.diskImagePath(sha))
-	if err != nil || !info.Mode().IsRegular() || !protocol.AdmitAtaDiskSize(info.Size()) {
+	if err != nil || !info.Mode().IsRegular() || !protocol.AdmitStagedDiskImageSize(info.Size()) {
 		return 0, false
 	}
 	return info.Size(), true
@@ -72,7 +72,7 @@ func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, bo
 	if r.diskImageRoot == "" {
 		return result, unsupportedOperationError()
 	}
-	if !protocol2Hex64.MatchString(sha) || !protocol.AdmitAtaDiskSize(size) || body == nil {
+	if !protocol2Hex64.MatchString(sha) || !protocol.AdmitStagedDiskImageSize(size) || body == nil {
 		return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "disk image upload is invalid", Phase: "request"}
 	}
 	if err := os.MkdirAll(r.diskImageRoot, 0o700); err != nil {
@@ -187,6 +187,50 @@ func (r *Runtime) evictDiskImages(current string) {
 
 func diskImageStorageError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeInternal, Message: "disk image could not be stored on the kit", Phase: "request"}
+}
+
+func stagedImageMatches(path, sha string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return false
+	}
+	return hex.EncodeToString(hash.Sum(nil)) == sha
+}
+
+// resolveStagedFloppies fills each launch floppy's size from its staged file.
+func (r *Runtime) resolveStagedFloppies(machine *protocol.LibraryMachineBinding) ([]floppyRequest, *protocol.APIError) {
+	if machine == nil || len(machine.Floppies) == 0 {
+		return nil, nil
+	}
+	requests := make([]floppyRequest, 0, len(machine.Floppies))
+	for i := range machine.Floppies {
+		f := &machine.Floppies[i]
+		size, ok := r.stagedDiskImage(f.SHA256)
+		if !ok {
+			return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "floppy image is not staged on the kit", Phase: "admission"}
+		}
+		f.Size = size
+		if !f.Valid() {
+			return nil, protocol.PcFloppySizeError(f.Unit, size)
+		}
+		// A floppy is small enough to check on every launch: a copy that no
+		// longer matches its digest is removed, so the next launch stages it.
+		if !stagedImageMatches(r.diskImagePath(f.SHA256), f.SHA256) {
+			_ = os.Remove(r.diskImagePath(f.SHA256))
+			return nil, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: protocol.StagedFloppyCorruptMessage, Phase: "admission"}
+		}
+		requests = append(requests, floppyRequest{Unit: f.Unit, Path: r.diskImagePath(f.SHA256), Size: size,
+			DataRoot: MediaDataRoot, BaseMediaID: f.SHA256, WriteProtected: f.WriteProtected})
+	}
+	if !machine.Valid() {
+		return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "one launch floppy per drive", Phase: "admission"}
+	}
+	return requests, nil
 }
 
 // resolveStagedDisk fills a launch binding's disk size from its staged file.

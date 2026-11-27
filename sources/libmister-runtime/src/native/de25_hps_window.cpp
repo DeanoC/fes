@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/de25_hps_window.hpp"
 #include "native/generated/fes_de25_hps_window.hpp"
+#include "native/hardware.hpp"
+#include <chrono>
 #include <string>
+#include <thread>
 
 namespace mister { namespace native {
 namespace {
 using namespace generated;
 constexpr std::uint64_t kPage = 4096;
+constexpr auto kHeldAndDrained = FesDe25HpsWindowStatusHeld | FesDe25HpsWindowStatusDrained;
 static_assert(FesDe25HpsWindowGrantAlignment == kPage, "window ranges are whole pages");
 Error Refused(const std::string& message)
 {
@@ -71,8 +75,7 @@ Error De25HpsWindow::Validate(const De25WindowGrant& grant, bool held) const
  // Guest memory is cleared and the disk loaded through the window next, so
  // no port may be live: a state change after the kernel's own check is
  // caught here.
- const std::uint32_t idle = FesDe25HpsWindowStatusHeld | FesDe25HpsWindowStatusDrained;
- if (held && (grant.status & idle) != idle)
+ if (held && (grant.status & kHeldAndDrained) != kHeldAndDrained)
   return Refused("the control block does not report its ports held and drained");
  return {};
 }
@@ -145,7 +148,12 @@ Error De25HpsWindow::Release()
  if (window_ < 0) return poisoned_ ? Refused("an earlier window was not released") : Error{};
  if (poisoned_) return Refused("a faulted or unrevoked window cannot be released before reprogramming");
  if (ranges_) return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
- const Error error = operations_.Release(window_);
+ // There is no driver to hold execution on this path. Revoke only if
+ // the current grant already proves its ports held and drained.
+ De25WindowGrant grant;
+ Error error = operations_.Info(window_, &grant);
+ if (error.ok()) error = Validate(grant, true);
+ if (error.ok()) error = operations_.Release(window_);
  if (!error.ok()) return Poison(error);
  operations_.Close(window_);
  window_ = -1;
@@ -153,23 +161,37 @@ Error De25HpsWindow::Release()
  return {};
 }
 
-Error De25HpsWindow::ReleaseAfterQuiesce()
+Error De25HpsWindow::ReleaseAfterQuiesce(const Clock& clock, std::uint64_t deadline)
 {
  std::lock_guard<std::mutex> lock(mutex_);
  if (window_ < 0) return poisoned_ ? Refused("an earlier window was not released") : Error{};
  if (ranges_) return {ErrorCode::busy, "DE25 HPS window ranges are still granted", "stop"};
- // Only a failed cached check can be retired this way. A failed revoke or
+ // A failed observation can be rechecked here. A failed revoke or
  // release remains uncertain and must never be retried just because the
  // machine was later quiesced.
  if (poisoned_ && !check_poisoned_)
   return Refused("a faulted or unrevoked window cannot be released before reprogramming");
- check_poisoned_ = false;
+ // The mailbox acknowledges execution hold before all accepted HPS
+ // transactions complete. WINDOW_REVOKE zaps mappings even on EAGAIN,
+ // so poll the read-only window info and leave the owner untouched on timeout.
+ for (;;) {
+  De25WindowGrant grant;
+  Error error = operations_.Info(window_, &grant);
+  if (error.ok()) error = Validate(grant, false);
+  if (!error.ok()) return Poison(error);
+  if (clock.NowMs() >= deadline)
+   return Poison({ErrorCode::io_failed, "DE25 HPS window drain timed out; status=" +
+       std::to_string(grant.status), "quiesce"});
+  if ((grant.status & kHeldAndDrained) == kHeldAndDrained) break;
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+ }
  const Error error = operations_.Release(window_);
  if (!error.ok()) return Poison(error);
  operations_.Close(window_);
  window_ = -1;
  generation_ = 0;
  poisoned_ = false;
+ check_poisoned_ = false;
  return {};
 }
 

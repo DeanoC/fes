@@ -34,8 +34,10 @@ fault refuses its disk save.
 A running window machine keeps its session display until it stops: the owner's
 REAP retires a scanout allocation and retires the live window first, so closing
 the plane is refused as busy, a session-display presentation failure marks the
-plane unavailable without revoking or quiescing the scanout, and Stop quiesces
-the machine and releases the window before the menu's revoke.
+plane unavailable without revoking or quiescing the scanout. Stop quiesces the
+machine and waits for the same grant to report held and drained before
+releasing the window and revoking the menu. A timeout keeps the FPGA
+configuration and kernel allocation pinned for recovery.
 Restart recovery adopts only the plain allocated profile: a window machine lost
 with its daemon is refused in place with its own error, before the guard, the
 owner or any removal, because its window may still be mastering memory and its
@@ -944,6 +946,12 @@ that omit a data root.
 An empty ATA unit does not remove the pc386 package's persistent core-data
 mode. Rejected insert/eject operations for that fixed unit leave the package's
 persistence mode unchanged.
+
+`fes.media.pc-floppy` 1.0 uses units 1 and 2 on pc386. Live replacement checks
+the incoming image and saved record before saving and ejecting the old disk.
+After eject, the runtime reads the incoming record again to pick up a save
+from a same-image replacement. An error in this second read reports a
+`media_data` failure so FogCast can reconcile the now-empty drive.
 
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,

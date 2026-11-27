@@ -159,9 +159,12 @@ class DE25ModelsTest(unittest.TestCase):
         self.build.machine_netlist = lambda sources, files, model=None, cpu=None: (
             seen.append((model, files['pc386_system.sv'], cpu)) or (b'', {}))
         try:
-            self.build.board.component_files(self.build, self.sources, model=model)
+            files, derived, _ = self.build.board.component_files(self.build, self.sources, model=model)
         finally:
             self.build.machine_netlist = real
+        guard = 'fes_hps_ddr_guard.v'
+        self.assertIn(b"reads_owed <= 12'd0; finishing <= 1'b0;", files[guard])
+        self.assertEqual(derived[guard]['derived_sha256'], self.build.board.sha(files[guard]))
         return seen
 
     def test_the_board_builds_the_dx_for_486dx(self):
@@ -262,9 +265,12 @@ class De25SystemBenchClockTest(unittest.TestCase):
         seen = {}
         for model in producer.MODELS:
             with self.subTest(model):
+                args = SimpleNamespace(model=model)
                 with mock.patch.object(bench.sim, 'run_system',
-                                       side_effect=lambda args: seen.setdefault(model, pc386_quartus.SYSTEM_CLOCK_HZ)):
-                    bench.run_at_model_clock(SimpleNamespace(model=model))
+                                       side_effect=lambda args, **kwargs: seen.setdefault(
+                                           model, pc386_quartus.SYSTEM_CLOCK_HZ)) as run_system:
+                    bench.run_at_model_clock(args)
+                run_system.assert_called_once_with(args, expect_floppy=False)
                 self.assertEqual(seen[model], producer.model_clock(model)['hz'])
                 self.assertEqual(pc386_quartus.SYSTEM_CLOCK_HZ, shared)  # restored
         self.assertEqual((seen['486sx'], seen['486dx']), (92156863, 61437908))

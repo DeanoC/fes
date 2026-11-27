@@ -65,7 +65,9 @@ and grant nothing. A shell declares at most one unit-0 media interface, and
 the Spectrum disk on unit 1 only beside the Spectrum tape and HPS DDR.
 Bits 16..31 exist only in ABI 1.1: a manifest that declares one of their
 interfaces declares ABI 1.1, and a 1.0 manifest declares none. The ATA disk is
-a unit-0 medium and requires `fes.memory.hps-ddr`. `fes.persistence.words`
+a unit-0 medium and requires `fes.memory.hps-ddr`. The PC floppy
+(`fes.media.pc-floppy`) occupies units 1 and 2 and requires the ATA disk,
+whose Disk operations it shares; it is not a unit-0 medium. `fes.persistence.words`
 requires exactly one registered layout, and the only one in this registry is
 `fes.pc386.machine`; each requires the other.
 Expansion interfaces such as `fes.expansion.apple2-bus`,
@@ -446,16 +448,17 @@ fixed while the machine runs: Prepare, DiskCommit words, Commit and Eject are
 valid only while held (invalid state otherwise).
 
 **DiskInfo** (16): unit = index>>3 and field = index&7. A unit of 8 or more
-is an invalid index and a nonzero argument invalid; every field of units
-1..7 reads 0. Fields: 0/1 minimum bytes low/high, 2/3 maximum bytes
+is an invalid index and a nonzero argument invalid; every field of a unit
+with no disk interface reads 0 (units 1..7 here; units 1 and 2 are the
+[PC floppy](#pc-floppy) when it is declared). Fields: 0/1 minimum bytes low/high, 2/3 maximum bytes
 low/high, 4 chunk size in sectors (128), 5 state, 6 flags, 7 a wrapping
 change epoch that advances once for every guest sector write that reaches
 the image. Flag bits: 0 dirty (a dirty bit is set), 1 frozen, 2 writer busy (an
 accepted sector write has not yet reached the image), 3 CRC error. Other bits
 read 0. Writer busy clears only when that accepted write reaches the image.
 
-**DiskControl** (17): index = unit; a unit other than 0 is an invalid index
-and an argument above 5 is invalid.
+**DiskControl** (17): index = unit; a unit with no disk interface is an
+invalid index (any unit but 0 here) and an argument above 5 is invalid.
 
 - **Prepare** (0): held only; refused while frozen unless Saved was
   acknowledged. The unit becomes loading: the drive disappears from the
@@ -484,7 +487,8 @@ and an argument above 5 is invalid.
   writer. It clears the dirty map, keeps the fence and permits Prepare or
   Eject. The host sends it only after publishing the saved chunks.
 
-**DiskCommit** (22): index = word 0..7 (else invalid index). The unit must be
+**DiskCommit** (22): index = unit × 8 + word, so word 0..7 for this unit 0
+(any other index is invalid unless the [PC floppy](#pc-floppy) is declared). The unit must be
 held and loading (invalid state), and the word must be the next one staged
 (invalid index); a rejected word is not consumed. Words: 0/1 size in sectors
 low/high, 2 cylinders, 3 heads, 4 sectors per track, 5/6 CRC-32 low/high of
@@ -511,6 +515,50 @@ Commit; poll DiskInfo until ready; release. At Stop it is: Freeze; DiskDirty
 words; read the dirty chunks; publish the [chunk delta](media-data.md#ata-disk-delta);
 Saved. The durable delta and its namespace are the media data record
 `fes.ata-disk.delta` 1.0.
+
+## PC floppy
+
+`fes.media.pc-floppy` 1.0 (bit 22) is a PC floppy controller's drives A:
+(unit 1) and B: (unit 2). It requires `fes.media.ata-disk` and
+`fes.memory.hps-ddr`, and it uses the same Disk operations; the ABI stays
+1.1, because a manifest that declares it is refused by any runtime that does
+not know it. The mailbox moves no disk data: the runtime writes each image
+into the window at `0x01800000` (A:) and `0x01C00000` (B:)
+(`FesComputerPcFloppyWindowOffset` and `FesComputerPcFloppyWindowStride`),
+4 MiB each.
+
+An image is 163,840..2,949,120 bytes and its geometry is one the drive's
+controller formats: cylinders 40 or 80, heads 1 or 2, and 8, 9, 15, 18, 21
+or 36 sectors per track, with size = cylinders × heads × sectors per track ×
+512 (160K, 180K, 320K, 360K, 720K, 1.2M, 1.44M, 1.68M DMF and 2.88M). Which
+drive takes which format is the machine's, not the ABI's: the host refuses a
+disk the drive cannot read. A floppy has no dirty map: DiskInfo field 4 reads
+0 and DiskDirty stays unit 0's.
+
+The operations differ from the ATA disk's only in when they are valid:
+
+- **DiskInfo** fields for units 1 and 2 are the ATA disk's; flag bit 0 is
+  set when a guest sector write or Format Track has reached the image since
+  the last Saved.
+- **DiskControl** Prepare, Commit and Eject are valid while execution runs:
+  the drive is empty (door open, not ready, change line set) while it loads,
+  so the guest cannot read a half-written image. Prepare waits for an
+  accepted sector store to land. Eject keeps the ATA disk's rule: refused
+  while frozen unless Saved was acknowledged. Freeze, Resume and Saved are
+  the ATA disk's.
+- **DiskCommit** index = unit × 8 + word (8..15 for A:, 16..23 for B:), the
+  next word staged. Words 0/1 size in sectors, 2 cylinders, 3 heads, 4
+  sectors per track and 5/6 CRC-32 as for the ATA disk; word 7 carries flags,
+  of which only bit 0, write-protect, may be set. Commit checks the CRC-32 in
+  the same way, and a ready disk's change line stays set until the guest
+  steps the head.
+
+The host's swap is one sequence: Freeze; when dirty, read the image from the
+window and publish it; Saved; Eject; Prepare; write the new image; DiskCommit
+words; Commit; poll DiskInfo until ready. Saved is sent even for a clean disk,
+because Eject while frozen needs it. At Stop each floppy is saved the same
+way, before the ATA disk. The durable record is `fes.pc386-floppy.image` 1.0
+([media data](media-data.md#pc386-floppy-image)).
 
 ## Persistence words
 

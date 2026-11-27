@@ -245,6 +245,8 @@ public:
 	{
 		return hardware_->PrepareAtaDisk(package, game_id, image);
 	}
+	Error PreparePc386Floppies(AdmittedCorePackage* package, const std::vector<InitialComputerMedia>& floppies) override
+	{ return hardware_->PreparePc386Floppies(package, floppies); }
 	Error PrepareInitialComputerMedia(AdmittedCorePackage* package, const InitialComputerMedia& media) override
 	{ return hardware_->PrepareInitialComputerMedia(package, media); }
 	Error RefreshInitialComputerMedia(AdmittedCorePackage* package) override

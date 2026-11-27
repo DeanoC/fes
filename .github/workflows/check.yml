@@ -9,6 +9,10 @@ on:
   # full simulation suite (the only place full sims run); it replaces the
   # former weekly schedule.
   workflow_call:
+    outputs:
+      simulated_sha:
+        description: Frozen revision whose full core simulations and FPGA producer checks passed
+        value: ${{ jobs.integration.outputs.simulated_sha }}
 permissions:
   contents: read
 concurrency:
@@ -466,6 +470,8 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
   integration:
+    outputs:
+      simulated_sha: ${{ needs.plan.result == 'success' && needs.plan.outputs.sim_tier == 'full' && needs.fpga-simulation.result == 'success' && needs.fpga-producer.result == 'success' && github.sha || '' }}
     if: always()
     needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation, tamago]
     runs-on: ubuntu-24.04

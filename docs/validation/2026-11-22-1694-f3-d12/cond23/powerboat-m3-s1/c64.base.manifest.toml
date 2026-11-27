@@ -1,0 +1,91 @@
+format = 3
+
+[core]
+id = "fes.c64"
+name = "FES Commodore 64"
+description = "Commodore 64 pathfinder with a linked 36 KiB C64/1541 firmware image, a read-only 1541 and two cartridge sockets"
+version = "0.5.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 3775704
+sha256 = "694a61762bcba5c6281cb66b5efb943ae485992da88ad5b740b98f470f745357"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.gamepad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.c64-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.expansion.c64-bus"
+major = 1
+minor = 0
+required = false
+
+[build]
+id = "a4bfed80dcff2e057432fd62ba26d72c"
+repository = "https://github.com/DeanoC/fes"
+revision = "afac393289c5c589398ae687d6270acaa6833ece"
+recipe_sha256 = "21706bf4acf7d49e8643560a2353989362dfb2a2ac46ba6d0eb59e642ec73ba9"
+toolchain = "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=18b55a8bab8574d68a208387ffb4ff11b8daa16396c1535a6418710a50854830; nextpnr-mistral commit=5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe; sha256=755d5719011e4115441719f7c510d430cfc17d0f15b2fc3027e69c008e9b2946; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=9433384366af2949931c1994cb2467d4ff695e818fcc33db50df075679a9024f"
+
+[rom]
+id = "c64-firmware"
+role = "firmware"
+source_size = 36864
+file = "rom-map.json"
+size = 3338481
+sha256 = "98e64f4a479df1b16d7d93cb274503c2bc47d91f7e77349ef0f2916a2d8b78cf"

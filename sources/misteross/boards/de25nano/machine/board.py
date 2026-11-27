@@ -241,6 +241,27 @@ def top_after(spec, model=None):
     return top
 
 
+# The pinned GHRD already exports the active-high HPS Reset Manager output
+# through both subsystems. Use it as another asynchronous source of the common
+# reset on HPS-window machines. Keep the vendor PLL and HPS configuration
+# inputs on ninit_done alone. Reset the master and its FIFOs, the F2SDRAM
+# adapter and the grant together so a retained bitstream starts ungranted.
+WINDOW_RESET_SOURCE = (
+    "wire hps_reset;\n"
+    "// HPS reset also discards the window and queued fabric requests.\n"
+    "wire fabric_reset_requested = ninit_done | hps_reset;\n"
+)
+
+
+def connect_window_reset(top):
+    top = replace_once(top, "wire                   top_reset_n;\n",
+                       "wire                   top_reset_n;\n" + WINDOW_RESET_SOURCE)
+    top = replace_once(top, ".ninit_done (ninit_done)", ".ninit_done (fabric_reset_requested)")
+    return replace_once(top, ".reset_reset_n                             (top_reset_n),",
+                        ".reset_reset_n                             (top_reset_n),\n"
+                        ".h2f_reset_reset                           (hps_reset),")
+
+
 def window_offset(sources):
     """The window control block's peripheral offset (fes.fabric.de25-hps-window)."""
     text = sources[BOARD + "pc386/generated/fes_de25_hps_window.vh"].decode()
@@ -392,6 +413,8 @@ def prepare(spec, archive, output, revision=None, model=None, *, package_build_i
     top = top_path.read_text()
     for pin in ("HDMI_MCLK", "HDMI_SCLK", "HDMI_LRCLK", "HDMI_I2S"):
         top = replace_once(top, f".{pin}({pin})", f".{pin}()")
+    if has_window(spec):
+        top = connect_window_reset(top)
     top_path.write_text(replace_once(top, TOP_BEFORE, top_after(spec, model)))
     machine_ip = sources[pll_ip]
     machine_parameters = machine_pll(spec, display, machine_ip, model)
@@ -465,6 +488,42 @@ def window_routes(offset, machine_hz):
             ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_win_cdc.m0_clk", 100000000))
 
 
+def verify_window_reset(project, modules, connections):
+    for module in ("subsys_hps", "subsys_hps.agilex_hps"):
+        interfaces = modules[module].findall("interface[@name='h2f_reset'][@kind='reset_source']")
+        if len(interfaces) != 1 or [
+            (port.findtext("role"), port.findtext("direction"), port.findtext("width"))
+            for port in interfaces[0].findall("port")
+        ] != [("reset", "Output", "1")]:
+            raise ValueError("generated HPS reset output differs: " + module)
+    generated = (project / "qsys_top/synth/qsys_top.v").read_text()
+    if len(re.findall(r"\.h2f_reset_reset\s*\(h2f_reset_reset\)", generated)) != 1:
+        raise ValueError("generated parent does not pass the HPS reset through")
+    top = (project / "golden_top.v").read_text()
+    if any(top.count(fragment) != 1 for fragment in (
+        WINDOW_RESET_SOURCE, ".h2f_reset_reset                           (hps_reset),",
+        ".ninit_done (fabric_reset_requested)", ".reset_reset_n                             (top_reset_n),",
+        ".fes_scanout_reset_reset_n (scanout_reset_n)",
+        ".system_clk(system_clk_100_internal), .top_reset_n(top_reset_n)",
+        ".pixel_clk(scanout_pixel_clk), .scanout_reset_n(scanout_reset_n)",
+    )):
+        raise ValueError("window reset is disconnected from the generated board top")
+    scanout = (project / "fes_mailbox/fes_de25_scanout_board.v").read_text()
+    if ("always @(posedge system_clk or negedge top_reset_n)" not in scanout or
+            "assign scanout_reset_n = first_lock_seen;" not in scanout):
+        raise ValueError("window FIFO reset no longer follows the common fabric reset")
+    for start, end in (
+        ("rst_in.out_reset", "subsys_periph_periph_rst_in.in_reset"),
+        ("rst_in.out_reset", "subsys_hps_f2sdram_adapter.reset"),
+        ("rst_in.out_reset", "subsys_hps_agilex_hps.f2sdram_axi_reset"),
+        ("fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_system_reset.in_reset"),
+        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_scanout.machine_reset"),
+    ):
+        if ("reset", start, end) not in connections:
+            raise ValueError("generated window reset path differs: " + end)
+    return "HPS Reset Manager output into common fabric reset"
+
+
 def verify_window(project, modules, endpoint, connections, hps, scanout):
     """The window's master, control slave and bridge, as window_script made them."""
     master = {"address": ("Output", 32), "burstcount": ("Output", 8), "read": ("Output", 1), "write": ("Output", 1),
@@ -489,7 +548,9 @@ def verify_window(project, modules, endpoint, connections, hps, scanout):
     latency = verify_window_latency(project)
     # As generation.json keeps it, so the check before compiling compares like with like.
     return {"master_ports": {role: list(port) for role, port in master.items()},
-            "bridge": {"parameters": checked, "logical_view": source}, "interconnect_latency": latency}
+            "bridge": {"parameters": checked, "logical_view": source},
+            "interconnect_latency": latency,
+            "reset": verify_window_reset(project, modules, connections)}
 
 
 def latency_values(project):

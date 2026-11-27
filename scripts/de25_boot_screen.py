@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
-"""Manually recognise a core's boot screen in a DE25 HIL capture.
+"""Recognise a core's boot screen in a DE25 HIL capture.
 
-This standalone capture-analysis utility is not currently called by the
-Powerboat D25 smoke runner. It can check whether supplied frames show the
-screen a core should boot to. OCR cannot read the Atari ST desktop: its menu
-text is large and pixelated and the desktop is a dithered fill.
+`scripts/powerboat/hil-de25-core.sh` runs this on the two core frames of every
+D25 package smoke and adds a `boot_screen` check when the core has one. Each
+check recognises the screen a core shows after reset by its layout, not by a
+stored image or OCR, so it holds for any position or scale of the machine's
+picture:
+
+- `fes.zx81`: white paper, empty but for the inverse K cursor at the bottom left.
+- `fes.spectrum`: 48K grey paper with only the copyright line at the bottom.
+- `fes.spectrum128`: the 128K menu, a cyan highlight bar under the rainbow title.
+- `fes.c64`: the READY screen, a dark blue field in a light blue border with
+  text only in its top rows.
+- `fes.pcxt-dos`: the GLaBIOS POST, a block of grey and coloured text on a
+  black screen.
+- `fes.atari-st`: the GEM desktop.
+
+Cores without a check (Spectrum +2A/+3, Pentagon, pc386 and the ZX81 family's
+other models) exit 3 and add no check. OCR cannot read the Atari ST desktop:
+its menu text is large and pixelated and the desktop is a dithered fill.
 
 The Atari ST check recognises a GEM desktop by its layout, not by a stored
 image, so it holds for EmuTOS and TOS, any desktop colour, and any position or
@@ -125,7 +139,223 @@ def gem_desktop(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[b
                   f"rule at row {rule}, menu strip {light:.2f} light {ink:.2f} ink")
 
 
-CHECKS = {"fes.atari-st": gem_desktop}
+def _picture(px, width, height):
+    """The machine's picture: (top, bottom, left, right) of the mostly not-black area, or None."""
+    rows = _span([sum(luma(p) > 40 for p in row) / width for row in px], 0.25)
+    cols = _span([sum(luma(px[y][x]) > 40 for y in range(height)) / height for x in range(width)], 0.25)
+    if not rows or not cols:
+        return None
+    return rows[0], rows[1], cols[0], cols[1]
+
+
+def _cells(px, box):
+    top, bottom, left, right = box
+    return [(x, y, px[y][x]) for y in range(top, bottom + 1) for x in range(left, right + 1)]
+
+
+def _light_picture(px, width, height, minimum):
+    """The picture box and its cells when at least `minimum` of it is light paper."""
+    box = _picture(px, width, height)
+    if box is None:
+        return None, None, "no picture"
+    top, bottom, left, right = box
+    # The same floor as the GEM desktop check: below it the picture is too
+    # coarse for the layout tests, which are all relative to the picture.
+    if (bottom - top + 1) * (right - left + 1) < 0.08 * width * height:
+        return None, None, "picture too small"
+    # Drop the picture's outer two cells: a scaled capture blends its edge
+    # with the black around it, and that blend is not ink.
+    box = (top + 2, bottom - 2, left + 2, right - 2)
+    cells = _cells(px, box)
+    light = sum(luma(p) > 180 for _, _, p in cells) / len(cells)
+    if light < minimum:
+        return None, None, f"paper is {light:.2f} light"
+    return box, cells, ""
+
+
+def _ink_band(cells, box, threshold=120):
+    """The rows holding dark ink, and the ink's horizontal span, relative to the picture."""
+    top, bottom, left, right = box
+    ink = [(x, y) for x, y, p in cells if luma(p) < threshold]
+    if not ink:
+        return None
+    ys = [y for _, y in ink]
+    xs = [x for x, _ in ink]
+    height, width = bottom - top + 1, right - left + 1
+    return {"count": len(ink), "width": max(xs) - min(xs) + 1, "height": max(ys) - min(ys) + 1,
+            "top": (min(ys) - top) / height, "bottom": (max(ys) - top) / height,
+            "left": (min(xs) - left) / width, "right": (max(xs) - left) / width}
+
+
+def zx81_k_cursor(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """ZX81 after reset: white paper, empty but for the inverse K cursor at the bottom left."""
+    px = _pixels(raw, width, height)
+    box, cells, why = _light_picture(px, width, height, 0.97)
+    if box is None:
+        return False, why
+    ink = _ink_band(cells, box)
+    if ink is None or ink["count"] < 4:
+        return False, "no cursor"
+    if ink["width"] < 2 or ink["height"] < max(3, ((box[1] - box[0] + 1) + 99) // 100):
+        return False, "ink is smaller than one cursor cell"
+    if ink["right"] - ink["left"] > 0.05 or ink["bottom"] - ink["top"] > 0.06:
+        return False, "ink is more than one cursor cell"
+    if ink["top"] < 0.7 or ink["right"] > 0.25:
+        return False, f"cursor is not at the bottom left ({ink['left']:.2f}, {ink['top']:.2f})"
+    return True, f"ZX81 K cursor at ({ink['left']:.2f}, {ink['top']:.2f}) of the picture"
+
+
+def _copyright_line(cells, box) -> tuple[bool, str]:
+    """A Spectrum copyright line: one line of dark ink near the bottom, across much of the picture."""
+    top, bottom, left, right = box
+    height = bottom - top + 1
+    rows = sorted({y for x, y, p in cells if luma(p) < 120 and (y - top) / height >= 0.8})
+    if not rows:
+        return False, "no copyright line"
+    if (rows[-1] - rows[0] + 1) / height > 0.06:
+        return False, "bottom ink is taller than one line"
+    xs = [x for x, y, p in cells if luma(p) < 120 and rows[0] <= y <= rows[-1]]
+    picture_width = right - left + 1
+    line_width = max(xs) - min(xs) + 1
+    line_height = rows[-1] - rows[0] + 1
+    if len(xs) < max(12, (picture_width + 24) // 25):
+        return False, f"bottom line has too little ink ({len(xs)} pixels)"
+    density = len(xs) / (line_width * line_height)
+    if density < 0.04:
+        return False, f"bottom line is too sparse ({density:.3f} ink density)"
+    span = (max(xs) - min(xs)) / picture_width
+    if span < 0.4:
+        return False, f"bottom line spans {span:.2f} of the picture"
+    return True, f"copyright line spans {span:.2f}"
+
+
+def spectrum_48k(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """48K Spectrum after reset: grey paper, black ink only in the copyright line at the bottom."""
+    px = _pixels(raw, width, height)
+    box, cells, why = _light_picture(px, width, height, 0.9)
+    if box is None:
+        return False, why
+    colour = sum(max(p) - min(p) > 40 for _, _, p in cells) / len(cells)
+    if colour > 0.002:
+        return False, f"picture has colour ({colour:.3f})"
+    ink = _ink_band(cells, box)
+    if ink is None or ink["top"] < 0.8:
+        return False, "ink above the copyright line"
+    ok, detail = _copyright_line(cells, box)
+    return ok, ("48K Spectrum: " + detail) if ok else detail
+
+
+def spectrum_128k_menu(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """128K Spectrum boot menu: a cyan highlight bar under a title with the rainbow stripes."""
+    px = _pixels(raw, width, height)
+    box, cells, why = _light_picture(px, width, height, 0.6)
+    if box is None:
+        return False, why
+    top, bottom, left, right = box
+    pwidth, pheight = right - left + 1, bottom - top + 1
+
+    def cyan(p):
+        return p[1] > 150 and p[2] > 150 and p[0] < 110
+    bar = [y for y in range(top, bottom + 1)
+           if sum(cyan(px[y][x]) for x in range(left, right + 1)) >= 0.25 * pwidth]
+    if not bar:
+        return False, "no highlight bar"
+    if (bar[-1] - bar[0] + 1) / pheight > 0.08 or not 0.2 <= (bar[0] - top) / pheight <= 0.55:
+        return False, "highlight bar is the wrong size or place"
+    hues = {
+        "red": lambda p: p[0] > 150 and p[1] < 110 and p[2] < 110,
+        "yellow": lambda p: p[0] > 150 and p[1] > 150 and p[2] < 110,
+        "green": lambda p: p[1] > 150 and p[0] < 110 and p[2] < 110,
+    }
+    title = [px[y][x] for y in range(max(top, bar[0] - 8), bar[0]) for x in range(left, right + 1)]
+    missing = [name for name, test in hues.items() if sum(map(test, title)) < 4]
+    if missing:
+        return False, "title has no " + ", ".join(missing) + " stripe"
+    ok, detail = _copyright_line(cells, box)
+    return ok, ("128K menu: " + detail) if ok else detail
+
+
+def c64_basic_ready(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """C64 after reset: a dark blue field in a light blue border, text only in its top rows."""
+    px = _pixels(raw, width, height)
+    box = _picture(px, width, height)
+    if box is None:
+        return False, "no picture"
+    top, bottom, left, right = box
+    pwidth, pheight = right - left + 1, bottom - top + 1
+    cells = _cells(px, box)
+
+    def blue(p):
+        return p[2] >= 120 and p[2] - max(p[0], p[1]) >= 50
+    if sum(blue(p) for _, _, p in cells) / len(cells) < 0.85:
+        return False, "picture is not blue"
+    field = [(x, y) for x, y, p in cells if blue(p) and luma(p) < 70]
+    if not field:
+        return False, "no dark field"
+    fl, fr = min(x for x, _ in field), max(x for x, _ in field)
+    ft, fb = min(y for _, y in field), max(y for _, y in field)
+    share = (fr - fl + 1) * (fb - ft + 1) / (pwidth * pheight)
+    margins = ((fl - left) / pwidth, (right - fr) / pwidth, (ft - top) / pheight, (bottom - fb) / pheight)
+    if not 0.45 <= share <= 0.9 or min(margins) < 0.03:
+        return False, f"field covers {share:.2f} of the picture with margins {min(margins):.2f}"
+    ink = [y for y in range(ft, fb + 1) if sum(luma(px[y][x]) >= 90 for x in range(fl, fr + 1)) >= 2]
+    if not ink:
+        return False, "no text in the field"
+    depth = (ink[-1] - ft) / (fb - ft + 1)
+    lines = 1 + sum(1 for a, b in zip(ink, ink[1:]) if b - a > 1)
+    if depth > 0.3 or (ink[0] - ft) / (fb - ft + 1) > 0.1 or lines < 3:
+        return False, f"text is {lines} lines down to {depth:.2f} of the field"
+    return True, f"C64 READY screen: field {share:.2f} of the picture, {lines} text lines in the top {depth:.2f}"
+
+
+def pcxt_glabios_post(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """PC/XT GLaBIOS POST: a block of grey and coloured text on a black screen."""
+    px = _pixels(raw, width, height)
+    every = [(x, y, px[y][x]) for y in range(height) for x in range(width)]
+    black = sum(luma(p) < 30 for _, _, p in every) / len(every)
+    if black < 0.85:
+        return False, f"screen is {black:.2f} black"
+    # The picture's edge is black on black, so the layout is measured on the
+    # text block itself: a POST table wider than it is tall, not a screenful.
+    text = [(x, y, p) for x, y, p in every if luma(p) >= 50]
+    if len(text) < 150:
+        return False, "no text"
+    xs, ys = [x for x, _, _ in text], [y for _, y, _ in text]
+    block_width, block_height = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+    aspect = block_width / block_height
+    if not 1.1 <= aspect <= 3.0:
+        return False, f"text block is {block_width}x{block_height}, not a POST table"
+    density = len(text) / (block_width * block_height)
+    if not 0.03 <= density <= 0.4:
+        return False, f"text block is {density:.2f} ink"
+
+    def hue(p):
+        r, g, b = p
+        if g >= r + 40 and b >= r + 40:
+            return "cyan"
+        if r >= b + 60 and g >= b + 60:
+            return "yellow"
+        if g >= r + 40 and g >= b + 40:
+            return "green"
+        if max(p) - min(p) < 30:
+            return "grey"
+        return "other"
+    counts = Counter(hue(p) for _, _, p in text)
+    share = {name: counts[name] / len(text) for name in ("grey", "cyan", "green", "yellow")}
+    low = [name for name, value in share.items() if value < 0.03]
+    if low:
+        return False, "POST text has too little " + ", ".join(low)
+    return True, "GLaBIOS POST: " + ", ".join(f"{name} {value:.2f}" for name, value in share.items())
+
+
+CHECKS = {
+    "fes.atari-st": gem_desktop,
+    "fes.zx81": zx81_k_cursor,
+    "fes.spectrum": spectrum_48k,
+    "fes.spectrum128": spectrum_128k_menu,
+    "fes.c64": c64_basic_ready,
+    "fes.pcxt-dos": pcxt_glabios_post,
+}
 
 
 def main(argv=None) -> int:

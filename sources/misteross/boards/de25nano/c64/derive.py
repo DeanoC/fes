@@ -92,31 +92,37 @@ STORE_BEGIN = b"`ifdef FES_SIMULATION\n"
 STORE_END = b"`endif\n"
 STORE_AFTER = b"""    wire page_write = !reset && write_enable;
     reg [3:0] even_pixel;
-    reg read_odd;
+    reg read_odd, read_odd_q;
     always @(posedge clk_sys)
         if (page_write && !write_address[0]) even_pixel <= write_data;
-    always @(posedge pixel_clk) read_odd <= read_address[0];
+    always @(posedge pixel_clk) begin
+        read_odd <= read_address[0];
+        read_odd_q <= read_odd;
+    end
     (* ramstyle = "M20K" *) reg [7:0] page0 [0:52223];
-    reg [7:0] pair0;
-    wire [3:0] q0 = read_odd ? pair0[7:4] : pair0[3:0];
+    reg [7:0] pair0, pair0_q;
+    wire [3:0] q0 = read_odd_q ? pair0_q[7:4] : pair0_q[3:0];
     always @(posedge clk_sys)
         if (page_write && write_page == 2'd0 && write_address[0])
             page0[write_address[16:1]] <= {write_data, even_pixel};
     always @(posedge pixel_clk) pair0 <= page0[read_address[16:1]];
+    always @(posedge pixel_clk) pair0_q <= pair0;
     (* ramstyle = "M20K" *) reg [7:0] page1 [0:52223];
-    reg [7:0] pair1;
-    wire [3:0] q1 = read_odd ? pair1[7:4] : pair1[3:0];
+    reg [7:0] pair1, pair1_q;
+    wire [3:0] q1 = read_odd_q ? pair1_q[7:4] : pair1_q[3:0];
     always @(posedge clk_sys)
         if (page_write && write_page == 2'd1 && write_address[0])
             page1[write_address[16:1]] <= {write_data, even_pixel};
     always @(posedge pixel_clk) pair1 <= page1[read_address[16:1]];
+    always @(posedge pixel_clk) pair1_q <= pair1;
     (* ramstyle = "M20K" *) reg [7:0] page2 [0:52223];
-    reg [7:0] pair2;
-    wire [3:0] q2 = read_odd ? pair2[7:4] : pair2[3:0];
+    reg [7:0] pair2, pair2_q;
+    wire [3:0] q2 = read_odd_q ? pair2_q[7:4] : pair2_q[3:0];
     always @(posedge clk_sys)
         if (page_write && write_page == 2'd2 && write_address[0])
             page2[write_address[16:1]] <= {write_data, even_pixel};
     always @(posedge pixel_clk) pair2 <= page2[read_address[16:1]];
+    always @(posedge pixel_clk) pair2_q <= pair2;
 """
 
 # The frame store's crossings take the shape the Spectrum and Atari ST pass
@@ -140,8 +146,8 @@ STORE_AFTER = b"""    wire page_write = !reset && write_enable;
 #   reader's page is that code with its loaded flag, which is page 2 until the
 #   first load, as the DE10's reset leaves it; no frame shows before then.
 CROSSING = (
-    (b"    reg [1:0] published_page, read_page_q;\n",
-     b"    reg [1:0] published_page, read_page_q;\n"
+    (b"    reg [1:0] published_page, read_page_q, read_page_qq;\n",
+     b"    reg [1:0] published_page, read_page_q, read_page_qq;\n"
      b"    (* preserve, dont_merge *) reg [1:0] published_code = 2'd0;\n"
      b"    (* preserve, dont_merge *) reg [1:0] read_code = 2'd0;\n"
      b"    reg read_loaded = 1'b0;\n"
@@ -167,12 +173,21 @@ CROSSING = (
      b"    always @(posedge pixel_clk) begin\n        request_meta <= publish_toggle;", 1),
     (b"        if (reset) begin\n"
      b"            read_page <= 2; acknowledge <= 0; have_frame <= 0;\n"
-     b"            request_meta <= 0; request_sync <= 0; have_frame_q <= 0;\n",
+     b"            request_meta <= 0; request_sync <= 0; have_frame_q <= 0; have_frame_qq <= 0;\n",
      b"        if (reset_pixel) begin\n"
-     b"            acknowledge <= 0; have_frame <= 0; have_frame_q <= 0;\n", 1),
+     b"            acknowledge <= 0; have_frame <= 0; have_frame_q <= 0; have_frame_qq <= 0;\n", 1),
     (b"            read_page <= published_page; acknowledge <= request_sync; have_frame <= 1;\n",
      b"            read_code <= published_code; read_loaded <= 1'b1;\n"
      b"            acknowledge <= request_sync; have_frame <= 1;\n", 1),
+)
+
+# The pixel latch loads the 10 ns-bounded page alongside the synchronized
+# request and the producer holds it through acknowledgement. Identify this
+# latch as held data, as the DE25 PC/XT board does for its bank mailbox.
+NATIVE_PAGE_CAPTURE = (
+    (b"    (* preserve, dont_merge *) reg [1:0] read_code = 2'd0;\n",
+     b'    (* preserve, dont_merge, altera_attribute="-name SYNCHRONIZER_IDENTIFICATION OFF" *)\n'
+     b"    reg [1:0] read_code = 2'd0;\n", 1),
 )
 
 TRANSPORT_MARKER = b"// Atomic register transport shared by the bring-up and standard-core wrappers.\n"
@@ -236,7 +251,7 @@ def retarget_medium(source):
     ), "C64 D64 fetch")
 
 
-def retarget_frame_store(source):
+def retarget_frame_store(source, *, native=False):
     """Inferred pages in place of the placed M10K primitives; signoff-shaped crossings."""
     if source.count(STORE_BEGIN) != 1 or source.count(STORE_END) != 1:
         raise ValueError("C64 frame store adaptation contract changed")
@@ -248,6 +263,9 @@ def retarget_frame_store(source):
         raise ValueError("C64 frame store adaptation contract changed")
     stored = source[:start] + STORE_AFTER + source[stop:]
     result, record = _derive(stored, CROSSING, "C64 frame store crossing")
+    if native:
+        result, capture = _derive(result, NATIVE_PAGE_CAPTURE, "native C64 held page capture")
+        record.update(native_page_capture=capture, derived_sha256=sha(result))
     record["source_sha256"] = sha(source)
     record["removed_sha256"] = sha(removed)
     record["storage"] = STORE_AFTER.decode()

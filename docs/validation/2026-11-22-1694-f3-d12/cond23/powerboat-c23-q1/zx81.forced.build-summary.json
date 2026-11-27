@@ -1,0 +1,437 @@
+{
+  "build_id": "a33ca899fc7eb70814b3d4b73d3d0dd6",
+  "classification": "installable-quartus-package",
+  "core_id": "fes.zx81",
+  "hardware_acceptance": false,
+  "limits": [
+    "external I/O timing is unconstrained, as in the OSS lane",
+    "no expansion socket: the carts move into the shell in DeanoC/fes#1875"
+  ],
+  "model": "zx81",
+  "payload_encoding": "canonical compressed re-encoding of the seed-1 Quartus RBF (same CRAM)",
+  "payload_sha256": "f203914301a75a5326a5d0f5af1fd348fa7fb895d4ece0626a92c06066521a0a",
+  "repeat_rbf_sha256": "a7bc0f3e95b2f307de7199f4b403cbf6e05a9cfe7c25ad155df594621879e08f",
+  "revision": "0be20e5756d11da446a557dacf18c7f086a202f6",
+  "rom_map": {
+    "database_sha256": {
+      "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+      "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+      "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9"
+    },
+    "format": 1
+  },
+  "rom_selftest": {
+    "changed_cram_bits": 32701,
+    "outside_map": 0,
+    "pattern_sha256": "dc9fa9673bc9dec577de4bf292a50da837ab641ff498fc2e4e8d45e537557af4",
+    "rbf_sha256": "138b2130ccd349689c57247fe39b5dbf6ec04e7b19437f38803889169c3935ce"
+  },
+  "runs": [
+    {
+      "clocks": {
+        "audio": {
+          "analysed_period_ns": 81.364,
+          "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 12.288,
+          "requested_mhz": 12.288
+        },
+        "pixel": {
+          "analysed_period_ns": 13.464,
+          "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 74.249999,
+          "requested_mhz": 74.25
+        },
+        "system": {
+          "analysed_period_ns": 19.144,
+          "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 52.224,
+          "requested_mhz": 52.224
+        }
+      },
+      "fit": {
+        "audio_pins": {
+          "HDMI_I2S0": "T13",
+          "HDMI_LRCLK": "T11",
+          "HDMI_MCLK": "U11",
+          "HDMI_SCLK": "T12"
+        },
+        "dsp_blocks": 3,
+        "mlab_bits": 0,
+        "rom_lanes": [
+          {
+            "lane": 0,
+            "location": "M10K_X5_Y73_N0"
+          },
+          {
+            "lane": 1,
+            "location": "M10K_X5_Y74_N0"
+          },
+          {
+            "lane": 2,
+            "location": "M10K_X5_Y75_N0"
+          },
+          {
+            "lane": 3,
+            "location": "M10K_X5_Y76_N0"
+          },
+          {
+            "lane": 4,
+            "location": "M10K_X5_Y77_N0"
+          },
+          {
+            "lane": 5,
+            "location": "M10K_X5_Y78_N0"
+          },
+          {
+            "lane": 6,
+            "location": "M10K_X5_Y79_N0"
+          },
+          {
+            "lane": 7,
+            "location": "M10K_X5_Y80_N0"
+          }
+        ]
+      },
+      "rbf_sha256": "a7bc0f3e95b2f307de7199f4b403cbf6e05a9cfe7c25ad155df594621879e08f",
+      "seed": 1,
+      "stage": "signoff",
+      "timing": [
+        {
+          "slack_ns": 3.103,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.121,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.921,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.69,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    {
+      "clocks": {
+        "audio": {
+          "analysed_period_ns": 81.364,
+          "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 12.288,
+          "requested_mhz": 12.288
+        },
+        "pixel": {
+          "analysed_period_ns": 13.464,
+          "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 74.249999,
+          "requested_mhz": 74.25
+        },
+        "system": {
+          "analysed_period_ns": 19.144,
+          "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 52.224,
+          "requested_mhz": 52.224
+        }
+      },
+      "fit": {
+        "audio_pins": {
+          "HDMI_I2S0": "T13",
+          "HDMI_LRCLK": "T11",
+          "HDMI_MCLK": "U11",
+          "HDMI_SCLK": "T12"
+        },
+        "dsp_blocks": 3,
+        "mlab_bits": 0,
+        "rom_lanes": [
+          {
+            "lane": 0,
+            "location": "M10K_X5_Y73_N0"
+          },
+          {
+            "lane": 1,
+            "location": "M10K_X5_Y74_N0"
+          },
+          {
+            "lane": 2,
+            "location": "M10K_X5_Y75_N0"
+          },
+          {
+            "lane": 3,
+            "location": "M10K_X5_Y76_N0"
+          },
+          {
+            "lane": 4,
+            "location": "M10K_X5_Y77_N0"
+          },
+          {
+            "lane": 5,
+            "location": "M10K_X5_Y78_N0"
+          },
+          {
+            "lane": 6,
+            "location": "M10K_X5_Y79_N0"
+          },
+          {
+            "lane": 7,
+            "location": "M10K_X5_Y80_N0"
+          }
+        ]
+      },
+      "rbf_sha256": "f865cb40e84d4afbda78ef8eb8cf73cfbb23ba166c8f995c538ccb7b2527ceb8",
+      "seed": 2,
+      "stage": "signoff",
+      "timing": [
+        {
+          "slack_ns": 3.47,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.121,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 79.643,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.479,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    {
+      "clocks": {
+        "audio": {
+          "analysed_period_ns": 81.364,
+          "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 12.288,
+          "requested_mhz": 12.288
+        },
+        "pixel": {
+          "analysed_period_ns": 13.464,
+          "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 74.249999,
+          "requested_mhz": 74.25
+        },
+        "system": {
+          "analysed_period_ns": 19.144,
+          "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 52.224,
+          "requested_mhz": 52.224
+        }
+      },
+      "fit": {
+        "audio_pins": {
+          "HDMI_I2S0": "T13",
+          "HDMI_LRCLK": "T11",
+          "HDMI_MCLK": "U11",
+          "HDMI_SCLK": "T12"
+        },
+        "dsp_blocks": 3,
+        "mlab_bits": 0,
+        "rom_lanes": [
+          {
+            "lane": 0,
+            "location": "M10K_X5_Y73_N0"
+          },
+          {
+            "lane": 1,
+            "location": "M10K_X5_Y74_N0"
+          },
+          {
+            "lane": 2,
+            "location": "M10K_X5_Y75_N0"
+          },
+          {
+            "lane": 3,
+            "location": "M10K_X5_Y76_N0"
+          },
+          {
+            "lane": 4,
+            "location": "M10K_X5_Y77_N0"
+          },
+          {
+            "lane": 5,
+            "location": "M10K_X5_Y78_N0"
+          },
+          {
+            "lane": 6,
+            "location": "M10K_X5_Y79_N0"
+          },
+          {
+            "lane": 7,
+            "location": "M10K_X5_Y80_N0"
+          }
+        ]
+      },
+      "rbf_sha256": "5cfc6d96093dcfb14437e9a1dca0b5a3ac629bb7e145bf51d9fda72a725b5474",
+      "seed": 3,
+      "stage": "signoff",
+      "timing": [
+        {
+          "slack_ns": 3.248,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.135,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.515,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.552,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    {
+      "clocks": {
+        "audio": {
+          "analysed_period_ns": 81.364,
+          "clock": "system_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 12.288,
+          "requested_mhz": 12.288
+        },
+        "pixel": {
+          "analysed_period_ns": 13.464,
+          "clock": "video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 74.249999,
+          "requested_mhz": 74.25
+        },
+        "system": {
+          "analysed_period_ns": 19.144,
+          "clock": "system_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+          "generated_mhz": 52.224,
+          "requested_mhz": 52.224
+        }
+      },
+      "fit": {
+        "audio_pins": {
+          "HDMI_I2S0": "T13",
+          "HDMI_LRCLK": "T11",
+          "HDMI_MCLK": "U11",
+          "HDMI_SCLK": "T12"
+        },
+        "dsp_blocks": 3,
+        "mlab_bits": 0,
+        "rom_lanes": [
+          {
+            "lane": 0,
+            "location": "M10K_X5_Y73_N0"
+          },
+          {
+            "lane": 1,
+            "location": "M10K_X5_Y74_N0"
+          },
+          {
+            "lane": 2,
+            "location": "M10K_X5_Y75_N0"
+          },
+          {
+            "lane": 3,
+            "location": "M10K_X5_Y76_N0"
+          },
+          {
+            "lane": 4,
+            "location": "M10K_X5_Y77_N0"
+          },
+          {
+            "lane": 5,
+            "location": "M10K_X5_Y78_N0"
+          },
+          {
+            "lane": 6,
+            "location": "M10K_X5_Y79_N0"
+          },
+          {
+            "lane": 7,
+            "location": "M10K_X5_Y80_N0"
+          }
+        ]
+      },
+      "rbf_sha256": "a7bc0f3e95b2f307de7199f4b403cbf6e05a9cfe7c25ad155df594621879e08f",
+      "seed": 1,
+      "stage": "repeat",
+      "timing": [
+        {
+          "slack_ns": 3.103,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.121,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.921,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.69,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    }
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "session_display": {
+    "cfg": {
+      "cfg_axi_mm_select": "0x0",
+      "cfg_cport_rfifo_map": "0xd0",
+      "cfg_cport_type": "0x3f",
+      "cfg_cport_wfifo_map": "0xd0",
+      "cfg_port_width": "0x16",
+      "cfg_rfifo_cport_map": "0x2100",
+      "cfg_wfifo_cport_map": "0x2100"
+    },
+    "idle": false,
+    "interface": "fes.memory.hps-ddr",
+    "major": 1,
+    "minor": 0,
+    "read_only": true,
+    "unused_ports_disabled": true
+  }
+}

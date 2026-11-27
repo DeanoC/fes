@@ -73,7 +73,8 @@ flowchart LR
   `usb_selection.protocols(shared)`: `entry` and `cold_profile.py` (entry
   admission and the SPL/BL31 header) use it, so `prepare_uboot.py`,
   `package.py`, and `hps_boot.py` accept a `multi` build. The header does not
-  depend on the protocol. `launcher_image.py` still requires `boot-keyboard`,
+  depend on the protocol. SD assembly and verification accept each shared
+  protocol when the native SDK and entry agree. The optional
   `--initial-tape` requires `boot-keyboard` or `gamepad`, and the serial
   observers (`shared_input_trace.py` and its callers) do not parse `multi`
   runs yet.

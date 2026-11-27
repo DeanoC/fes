@@ -176,6 +176,14 @@ func (a *attempts) AllowPairAfterBondRemoval(path string) {
 	delete(a.lastConnect, path)
 }
 
+// A BlueZ restart cancels an attempt against the old owner; it must not
+// impose a reconnect delay on the newly started daemon.
+func (a *attempts) ForgetConnect(path string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.lastConnect, path)
+}
+
 func (a *attempts) Has(path string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -194,7 +202,14 @@ func (a *attempts) Finish(path string, pairSucceeded bool, now time.Time) {
 	defer a.mu.Unlock()
 	what, exists := a.inflight[path]
 	delete(a.inflight, path)
-	if !exists || what != actionPair {
+	if !exists {
+		return
+	}
+	if what == actionConnect {
+		// A failed connection can itself take longer than attemptGap. Start
+		// the gap when it finishes, so an asleep controller cannot be
+		// retried continuously as soon as each call times out.
+		a.lastConnect[path] = now
 		return
 	}
 	if pairSucceeded {

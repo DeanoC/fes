@@ -3,10 +3,40 @@
 package appliancedata
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestFindDeviceContextStopsAfterCancellationDuringProbe(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var presentCalls, labelCalls int
+	cfg := Config{
+		Devices: []string{"/dev/first", "/dev/second"},
+		Label:   DefaultLabel,
+		DevicePresent: func(string) bool {
+			presentCalls++
+			return true
+		},
+		Probe: func(string) error {
+			cancel()
+			return nil
+		},
+		ReadLabel: func(string) (string, error) {
+			labelCalls++
+			return DefaultLabel, nil
+		},
+	}
+	if _, _, err := findDeviceContext(ctx, cfg); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled device selection = %v", err)
+	}
+	if presentCalls != 1 || labelCalls != 0 {
+		t.Fatalf("continued device checks after cancellation: present=%d labels=%d", presentCalls, labelCalls)
+	}
+}
 
 func TestCheckPersistentRejectsPathsOutsideFESDATA3BeforeTouchingThem(t *testing.T) {
 	for _, path := range []string{

@@ -26,6 +26,8 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 			return fail(errors.New("usage: fogcast save-disk"))
 		}
 		return diskDataThroughHostAPI(ctx, origin, "", "")
+	case "insert-floppy", "eject-floppy":
+		return floppyThroughHostAPI(ctx, origin, args)
 	case "insert-library-disk":
 		if len(args) != 3 {
 			return fail(errors.New("usage: fogcast insert-library-disk <game-id> <base-media-id>"))
@@ -292,7 +294,7 @@ func postSessionMedia(ctx context.Context, client *http.Client, origin, path str
 }
 
 func liveMediaCommand(name string) bool {
-	return name == "save-disk" || name == "insert-library-disk" || name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk" ||
+	return name == "save-disk" || name == "insert-library-disk" || name == "insert-floppy" || name == "eject-floppy" || name == "change-tape" || name == "eject-tape" || name == "change-disk" || name == "eject-disk" ||
 		name == "change-cassette" || name == "eject-cassette"
 }
 

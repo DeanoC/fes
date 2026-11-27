@@ -1,0 +1,13 @@
+[11-23 10:23:58] ########## spectrum (c2)
+[11-23 10:31:42] spectrum.base rc=0 (856ef5c64)
+[11-23 10:31:42] spectrum.base rbf 77a3a3912484f0d3f0aa653a12c1196ae3a558f891ffddd3396d1257d0a85c53 from sources/misteross/build/fes-spectrum-oss/core.rbf
+[11-23 10:39:19] spectrum.forced rc=0 (0be20e575)
+[11-23 10:39:19] spectrum.forced rbf 77a3a3912484f0d3f0aa653a12c1196ae3a558f891ffddd3396d1257d0a85c53 from sources/misteross/build/fes-spectrum-oss/core.rbf
+[11-23 10:39:19] RESULT spectrum condition 2: RBF reproduced byte for byte
+[11-23 10:39:19] ########## spectrum-plus3 (c2)
+[11-23 11:08:37] spectrum-plus3.base rc=0 (856ef5c64)
+[11-23 11:08:38] spectrum-plus3.base rbf 50876d4b5c20746a5126d1eedfd30ed26f557436d5ca323951be9462b77b66f5 from sources/misteross/build/fes-spectrum-plus3-oss/core.rbf
+[11-23 12:04:36] spectrum-plus3.forced rc=0 (0be20e575)
+[11-23 12:04:37] spectrum-plus3.forced rbf 7df758e4e4df496442b489d8390b76c35303cb4b442bf521dee54db2f6fc8013 from sources/misteross/build/fes-spectrum-plus3-oss/core.rbf
+[11-23 12:04:37] RESULT spectrum-plus3 condition 2: RBF DIFFERS
+[11-23 12:04:37] stream done

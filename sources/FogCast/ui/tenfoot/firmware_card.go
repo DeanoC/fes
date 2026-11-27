@@ -30,6 +30,7 @@ var userFirmwareFiles = map[string]string{
 	"fes.spectrum-plus3": "a 64 KiB +2A or +3 ROM (ROMs 0 to 3)",
 	"fes.pentagon":       "a 48 KiB image: the 128K ROMs, then TR-DOS",
 	"fes.c64":            c64FirmwareFile,
+	"fes.c64-pal-n":      c64FirmwareFile,
 	"fes.c64-ntsc":       c64FirmwareFile,
 	"fes.c64-early-ntsc": c64FirmwareFile,
 	"fes.c64c":           c64FirmwareFile,

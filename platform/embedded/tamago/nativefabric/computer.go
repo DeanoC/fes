@@ -80,18 +80,19 @@ func checkedComputerMapFor(source HPSBootContext, control, raw []byte) (computer
 // access is bracketed by fresh secure snapshots. Closing retires it before the
 // bridge mutation and waits for an in-flight ordered access to finish.
 type computerIO struct {
-	mu         sync.Mutex
-	cpu        CPUTransport
-	bridges    *FirmwareBridges
-	want       BridgeSnapshot
-	base       uint64
-	retired    bool
-	closing    bool
-	clock      func() time.Time
-	lastTiming computer.AccessTiming
-	romBatch   spectrumROMBatchPlatform
-	mediaBatch heldMediaBatchPlatform
-	inputBatch inputBatchPlatform
+	mu             sync.Mutex
+	cpu            CPUTransport
+	bridges        *FirmwareBridges
+	want           BridgeSnapshot
+	base           uint64
+	retired        bool
+	closing        bool
+	clock          func() time.Time
+	lastTiming     computer.AccessTiming
+	romBatch       spectrumROMBatchPlatform
+	mediaBatch     heldMediaBatchPlatform
+	liveMediaBatch liveMediaBatchPlatform
+	inputBatch     inputBatchPlatform
 }
 
 // The board can batch the fixed, already-held held mailbox aperture.
@@ -101,6 +102,10 @@ type spectrumROMBatchPlatform interface {
 
 type heldMediaBatchPlatform interface {
 	WithHeldMediaBatch(uint64, func(computer.IO) error) error
+}
+
+type liveMediaBatchPlatform interface {
+	WithLiveMediaBatch(uint64, func(computer.IO) error) error
 }
 
 type inputBatchPlatform interface {
@@ -119,6 +124,13 @@ func (c *computerIO) WithMediaChunkBatch(send func(computer.IO) error) error {
 		return send(c)
 	}
 	return c.withDataBatch(send, c.mediaBatch.WithHeldMediaBatch)
+}
+
+func (c *computerIO) WithLiveMediaChunkBatch(send func(computer.IO) error) error {
+	if c.liveMediaBatch == nil {
+		return errors.New("native fabric: live C64 media batch unavailable")
+	}
+	return c.withDataBatch(send, c.liveMediaBatch.WithLiveMediaBatch)
 }
 
 func (c *computerIO) WithFirmwareDataBatch(send func(computer.IO) error) error {
@@ -362,6 +374,7 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		s.port.romBatch, _ = cpu.(spectrumROMBatchPlatform)
 		if binding.program.identity.ProgrammingProfile == c64Profile {
 			s.port.mediaBatch, _ = cpu.(heldMediaBatchPlatform)
+			s.port.liveMediaBatch, _ = cpu.(liveMediaBatchPlatform)
 		}
 	}
 	if _, secure := cpu.(InitialTapePlatform); secure && !spectrum {

@@ -33,7 +33,7 @@ func registerDiskImageRoutes(mux *http.ServeMux, token string, controller Develo
 			var result protocol.DiskImageStatus
 			var apiErr *protocol.APIError
 			if upload {
-				if !exactContentType(r, "application/octet-stream") || !protocol.AdmitAtaDiskSize(r.ContentLength) {
+				if !exactContentType(r, "application/octet-stream") || !protocol.AdmitStagedDiskImageSize(r.ContentLength) {
 					writeBadRequest(w, r, "disk image upload requires a raw image of 1 to 128 MiB in whole sectors")
 					return
 				}

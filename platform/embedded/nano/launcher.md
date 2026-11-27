@@ -87,25 +87,78 @@ The SDK's optional `--lifecycle-trace` records launch checkpoints and the
 Ctrl, Alt, Escape and menu Quit states relevant to USB shortcut diagnosis.
 It leaves the normal build default off and excludes ordinary typed input.
 
-## 3. Assemble the SD image
+## 3. Build and verify the SD image
 
-After the matched chain passes source and file admission:
+Run both commands from the same FES checkout with mtools on PATH. The
+receipt binds the producer sources as well as the matched builds, recovery
+kit and staging files at their original paths. The verify target checks
+images assembled with this workflow.
 
 ```sh
-python3 platform/embedded/nano/launcher_image.py \
-  --uboot-build /absolute/native-uboot --entry-build /absolute/native-entry \
-  --native-build /absolute/native-sdk --recovery-kit /absolute/recovery-kit \
-  --launcher-staging /absolute/new-launcher-staging \
-  --output out/native-launcher-image
+export DE25_EMBEDDED_ARGS="--uboot-build /absolute/native-uboot \
+  --entry-build /absolute/native-entry --native-build /absolute/native-sdk \
+  --recovery-kit /absolute/recovery-kit --launcher-staging /absolute/new-launcher-staging"
+FES_EXPERIMENTAL_DE25_EMBEDDED=1 make de25-embedded-image
+make verify-de25-embedded-image
 ```
 
-`launcher_image.py` copies the recovery template into a fresh `out/` directory,
-writes `FES/UPLOAD.BIN` and the closed launcher file set into
-`native-launcher-sd.img`, reads back every added file, verifies protected
-recovery files, raw prefix, and FAT boot sectors, and publishes `result.json`
-only on full verification (it never writes to a block device or QSPI). Pass
-`--recovery-profile return-trace` (with `--recovery-source-root` if needed) to
-select the Ethernet return-trace recovery template instead of standard recovery.
+Assembly writes `native-launcher-sd.img` and `result.json` under a fresh
+`out/de25-nano-embedded/`. Set `DE25_EMBEDDED_OUTPUT` for both commands to
+choose a different fresh directory under `out/`. Verification checks the
+recorded image digest, re-admits the boot chain and MENU, enumerates the FAT
+directories, and compares the installed files, protected raw prefix and boot
+sectors with the original inputs. It prints the verified SHA-256 and performs
+its readbacks in temporary storage. For a return-trace recovery kit, pass
+`--recovery-profile return-trace` and its optional `--recovery-source-root`
+to both commands.
+
+The SD image accepts the shared input mode compiled into its matched SDK and
+entry. Choose `--shared-usb-input boot-keyboard`, `gamepad` or `multi` when
+building the SDK. The `multi` launcher supports a USB hub. The optional
+`--initial-tape` profile currently accepts `boot-keyboard` and `gamepad`.
+
+## Prototype a C64 disk set
+
+Add `--c64-disk-swap` to a shared-shell Tenfoot build with paired HDMI, the shared USB boot keyboard, an initial
+`--c64-d64`, and the sealed native C64 package containing the text overlay.
+Add one to three extra read-only 35-track D64 files to `FES/` and
+create `FES/DISKSET.JSON` with the exact catalogue game ID and SHA-256 for
+each extra disk. For a catalogue entry named `c64` and a second disk named
+`SIDE2.D64`, run this from the host directory containing `FES/`.
+
+```sh
+disk_sha=$(sha256sum FES/SIDE2.D64 | cut -d ' ' -f 1)
+jq -cnS --arg sha "$disk_sha" \
+  '{game_id:"c64",disks:[{name:"SIDE2.D64",sha256:$sha}]}' >FES/DISKSET.JSON
+```
+
+The startup reader validates and retains the set in RAM before the paired menu
+contains SD. Tenfoot's existing in-play selector receives the set through the
+same API as the Linux backend. A swap binds to the captured session, target,
+package and native generation. It uses the owned unit-0 mailbox under the
+five-second control limit. A failed transfer leaves the native service retired
+with SD contained.
+
+While C64 runs, press Ctrl+Alt+M to open Tenfoot's media selector. Use Up and
+Down to select a disk, Enter to insert it, or Escape to dismiss the selector.
+The native shell draws a text panel over the active C64 video. The panel uses
+one M20K for two text buffers and switches between them at vertical blanking.
+The CPU writes through the existing control bridge, so the panel requires no
+FPGA DDR access.
+
+The native C64 picker extends the scanout control aperture in previously
+unused access directions. It reads tagged picker status at `0x0c` and
+writes picker data and commands at `0x64` and `0x68`. Scanout command
+writes, build ID reads and first-fault reads still use the scanout endpoint.
+The runtime requires the tagged picker status before it writes any overlay
+data.
+
+The host test exercises Tenfoot and its keyboard controls with a regular
+FAT32 image and a modeled mailbox. The native C64 RTL simulation checks the
+panel on the active video stream, both disk commits, and continuing
+instruction fetches. The [TRWU8CBL prototype result](../../../docs/validation/2026-11-25-de25-c64-live-selector/README.md)
+records both swaps on the earlier BRAM-backed C64 package. The SDRAM-backed
+package requires a fresh fit and board run.
 
 ## 4. Controls and clean-reboot persistence
 
@@ -132,8 +185,11 @@ GOWORK=off go -C platform/embedded/tamago test -race -count=1 -timeout=120s \
   ./nativefabric -run 'TestProgramLauncher|TestProgramStartup|TestProgramPreferences'
 ```
 
-Remaining physical qualification (repeated/injected failures, standalone SD
-power-on, physical HDMI/keyboard behavior on matched artifacts, and QSPI
-factory rollback) is tracked in [Issue #1867](https://github.com/DeanoC/fes/issues/1867).
+An earlier matched R1 image cold-booted to Tenfoot twice, launched and
+returned from ZX81 by keyboard, and retained the List layout. Factory
+restore, a factory cold boot and native reinstall are still open. Each new
+image needs its own board evidence.
+[R1 trial](https://github.com/DeanoC/fes/pull/2026) ·
+[Lifecycle qualification](https://github.com/DeanoC/fes/issues/1867)
 Standard DE25 HIL uses Kit D25 (`TRWU8J8G`) on Linux; never access `TRWU8CBL`
 without an explicit assignment and lease.
