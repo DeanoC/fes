@@ -30,7 +30,7 @@ MAX_FIT_SIZE=fit_layout.FIT_MAX_BYTES
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def selected_profile(receipt):
-    for name in ('probe-profile.json','sd-profile.json','smmu-profile.json'):
+    for name in ('probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json'):
         profile=HERE/name
         if receipt.get('firmware_profile_sha256')==sha(profile):return profile
     raise ValueError('entry image has no source-derived Nano diagnostic profile')
@@ -88,7 +88,15 @@ def entry(entry_build):
     if selected_tape and any(name not in (entry_build/'payload.elf').read_bytes() for name in
             (b'initialTapeCPU.LoadInitialTape',b'InitialTapeArena).PublishInitialTape')):
         raise ValueError('initial tape platform is absent from matched native entry')
-    if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
+    sd_adma2 = receipt.get('sd_adma2', False)
+    if type(sd_adma2) is not bool or sd_adma2 != (profile.name == 'sd-dma-profile.json'):
+        raise ValueError('SD ADMA2 selection must match sd-dma-profile.json')
+    if sd_adma2 and (receipt.get('native_program') != 'fpgaload' or
+            receipt.get('sd_dma_base') != 0x95a00000 or receipt.get('sd_dma_bytes') != 2 << 20 or
+            [0x95a00000, 0x95c00000] not in receipt.get('staging_exclusions', [])):
+        raise ValueError('cold SD ADMA2 pool must be bound to fpgaload and excluded from entry staging')
+    expected_sd_profile = 'sd-dma-profile.json' if sd_adma2 else 'sd-profile.json'
+    if context is not None and profile.name != (expected_sd_profile if receipt.get('native_program') == 'fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
         raise ValueError('cold configuration arena is not excluded from entry staging')
@@ -106,7 +114,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE.parent/'experiment.py',HERE/'fit_layout.py',HERE.parent/'entry/payload.py',ROOT/'scripts/de25_boot_contract.py']+[HERE/name for name in ('startup.py','cold_profile.py','native_admission.py','fault_status.py','mmu_status.py','mmu_logging.py','mmu_mailbox_view.py','runtime_startup.py','loader_progress.py','call_trace.py','hps_context.py','hps_io.py','usb_selection.py','initial_tape.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','sd-dma-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cpu_mode.h','nano_mmu.h','nano_mmu.c','nano_mmu_platform.h','nano_mmu_platform.c','nano_mmu_memory.h','nano_mmu_memory.c','nano_mmu_transition.S','nano_mmu_transition.h','nano_mmu_logging.inc','nano_firmware_mmu.py','nano_firmware_ram.h','nano_firmware_ram.py','nano_firmware_runtime.py','nano_firmware_call.py','nano_firmware_percpu.py','nano_firmware_runtime.inc','nano_firmware_entry.inc','nano_firmware_fault.inc','nano_firmware_decode.inc','nano_firmware_cache.inc','nano_firmware_exit_cache.inc','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_mac.c','nano_mac.h','generated/fes_embedded_mac.h',
@@ -210,8 +218,10 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     if spectrum is not None or shared_shell:
         selected.append(Path(hps_context.spectrum48.__file__))
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
-    identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
-              'sd_pio':profile.name=='sd-profile.json','usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
+    sd_dma = profile.name == 'sd-dma-profile.json'
+    sd_owned = profile.name in ('sd-profile.json', 'sd-dma-profile.json')
+    identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-dma-preloaded' if sd_dma else 'cold-sd-pio-preloaded' if sd_owned else 'cold-serial-preloaded',
+              'sd_pio':sd_owned,**({'sd_dma':True} if sd_dma else {}),'usb_pio':build.get('usb_control',False),'firmware_profile_sha256':sha(profile),
               'usb_input':build.get('usb_input'),'usb_shared':build.get('usb_shared',False),
               'configuration_retained':build.get('configuration_retained',False),
               'usb_probe':hps_context.usb_selection.contained_probe(build,program_key='native_program'),
@@ -481,12 +491,16 @@ def header(profile):
     extra+=sdm_fault.header(profile)
     extra+=sdm_input.header(profile)
     extra+=fit_layout.header(profile.get('boot_fit'))
+    sd_dma=profile.get('sd_dma',False)
+    if type(sd_dma) is not bool or (sd_dma and not profile['sd_pio']):
+        raise ValueError('controlled SD DMA requires owned SD profile')
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             ('#define FES_NANO_FIRMWARE_MMU 1\n' if profile.get('firmware_mmu') is not None else '')+
             '#define FES_NANO_CAPABILITY_DIAGNOSTIC '+str(int(capability_contract is not None))+'\n'+
-            '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'
-            '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'
+            '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'+
+            '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'+
+            '#define FES_NANO_SD_DMA '+str(int(sd_dma))+'\n'+
             '#define FES_NANO_COLD_CHAIN '+array(profile['chain_sha256'])+'\n'
             '#define FES_NANO_COLD_OWNER_SEED '+hex(profile['owner_seed'])+'ULL\n'
             '#define FES_NANO_HPS_CONTEXT_SHA '+(array(profile['hps_context_sha256']) if profile.get('hps_context_sha256') else '{0}')+'\n'

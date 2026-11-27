@@ -16,11 +16,18 @@ import (
 const spectrumROMBase = 0x20010300
 
 func (FabricCPUTransport) WithSpectrumROMBatch(base uint64, send func(computer.IO) error) error {
-	return withHeldDataBatch(base, g.FesFirmwareUploadOpcodeData, send)
+	return withMailboxDataBatch(base, g.FesFirmwareUploadOpcodeData, send)
 }
 
 func (FabricCPUTransport) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
-	return withHeldDataBatch(base, g.FesComputerOpcodeMediaData, send)
+	return withMailboxDataBatch(base, g.FesComputerOpcodeMediaData, send)
+}
+
+// WithLiveMediaBatch exposes only the fixed chunk and data opcodes to the
+// already-owned running C64 session. The caller brackets each batch with its
+// secure bridge observations; the MMIO aperture and write bound are identical.
+func (FabricCPUTransport) WithLiveMediaBatch(base uint64, send func(computer.IO) error) error {
+	return withMailboxDataBatch(base, g.FesComputerOpcodeMediaData, send)
 }
 
 // WithInputBatch brackets one keyboard/controller/mouse input flush in a single
@@ -70,7 +77,7 @@ func (p *inputBatchPort) Write32(offset, value uint32) error {
 	return nil
 }
 
-func withHeldDataBatch(base uint64, opcode uint32, send func(computer.IO) error) error {
+func withMailboxDataBatch(base uint64, opcode uint32, send func(computer.IO) error) error {
 	if base != spectrumROMBase || send == nil {
 		return errors.New("DE25: held mailbox data batch differs from the fixed mailbox")
 	}

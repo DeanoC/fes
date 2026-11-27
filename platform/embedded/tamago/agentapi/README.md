@@ -1,6 +1,6 @@
-# TamaGo Target HTTP Integration (`agentapi/`)
+# TamaGo Target HTTP & Discovery Integration (`agentapi/`)
 
-Verifies [FogCast targethttp](../../../../sources/FogCast/targethttp/README.md) (`github.com/DeanoC/FogCast/targethttp`) over `network.NewLink` (`lneto`) Ethernet frames. All HTTP routing, authentication, error mapping, and session-facing target contracts live in FogCast (`sources/FogCast/targethttp`).
+Hosts `agentapi.Service`, wiring [FogCast targethttp](../../../../sources/FogCast/targethttp/README.md) (`github.com/DeanoC/FogCast/targethttp`), `network.HTTPServer`, and [mdns.Responder](../mdns/README.md) (`_fogcast._tcp`) over a live `board.Network` / `network.Link` interface.
 
 ## Verification
 

@@ -88,7 +88,7 @@ def main():
     frame.mkdir()
     derive = load(HERE / "derive.py", "de25_c64_frame_derive")
     store = frame / "c64_frame_store.sv"
-    store.write_bytes(derive.retarget_frame_store((C64 / "c64_frame_store.sv").read_bytes())[0])
+    store.write_bytes(derive.retarget_frame_store((C64 / "c64_frame_store.sv").read_bytes(), native=native)[0])
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-O2", "-Wall",
                     *["-Wno-" + name for name in WAIVERS], "-Wno-MULTIDRIVEN",
                     "--top-module", "c64_frame_store", "--Mdir", str(frame), str(store),

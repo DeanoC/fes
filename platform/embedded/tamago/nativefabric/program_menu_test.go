@@ -8,6 +8,7 @@ import (
 	"errors"
 	stdimage "image"
 	"maps"
+	"sync"
 	"testing"
 	"time"
 
@@ -333,5 +334,63 @@ func TestMenuProgramRequestCancellationDoesNotExpireRestoredDisplay(t *testing.T
 	f.frame(t, 0x21)
 	if _, err := f.s.Launch(context.Background(), 0, request); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProgramServiceLaunchWaitsForInFlightPresentMenu(t *testing.T) {
+	f := newProgramMenuFixture(t, "")
+	request, _, _ := addROMProgram(t, f.r, 0, 8192)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	presentDone := make(chan error, 1)
+	go func() {
+		presentDone <- f.s.presentMenu(context.Background(), menuFrame(0x31), func(context.Context) error {
+			once.Do(func() {
+				close(entered)
+				<-release
+			})
+			return nil
+		})
+	}()
+	<-entered
+
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancelErr := make(chan error, 1)
+	go func() {
+		_, err := f.s.Launch(cancelCtx, 0, request)
+		cancelErr <- err
+	}()
+	// Give Launch a brief moment to block on presentDone before cancelling.
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	if err := <-cancelErr; !errors.Is(err, context.Canceled) {
+		close(release)
+		t.Fatalf("expected context.Canceled while waiting on presentMenu, got %v", err)
+	}
+
+	launchDone := make(chan error, 1)
+	go func() {
+		_, err := f.s.Launch(context.Background(), 0, request)
+		launchDone <- err
+	}()
+	// Launch must wait for presentMenu rather than failing with ErrProgramBusy.
+	select {
+	case err := <-launchDone:
+		close(release)
+		t.Fatalf("Launch returned early while presentMenu held operation lock: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(release)
+	if err := <-presentDone; err != nil {
+		t.Fatalf("presentMenu failed: %v", err)
+	}
+	if err := <-launchDone; err != nil {
+		t.Fatalf("Launch failed after presentMenu completed: %v", err)
+	}
+	if f.s.Status().State != ProgramRunning {
+		t.Fatalf("expected ProgramRunning, got %+v", f.s.Status())
 	}
 }

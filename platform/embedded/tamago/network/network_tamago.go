@@ -402,3 +402,27 @@ func (i *Interface) Err() error {
 // Done closes when networking becomes unavailable. It is not a DMA fence;
 // the device allocations remain reserved until reboot.
 func (i *Interface) Done() <-chan struct{} { return i.ctx.Done() }
+
+var _ RawFramePort = (*Interface)(nil)
+
+// SendRawFrame transmits one raw Ethernet frame while obeying the link's
+// pause gate and DMA failure contract.
+func (i *Interface) SendRawFrame(frame []byte) error {
+	if i == nil || i.bridge == nil {
+		return ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return err
+	}
+	return i.bridge.SendRawFrame(frame)
+}
+
+// AddTap registers a non-blocking callback invoked with a copy of each inbound
+// Ethernet frame received by Link.Start. Call the returned function to remove
+// the tap (idempotent).
+func (i *Interface) AddTap(fn func([]byte)) func() {
+	if i == nil || i.bridge == nil {
+		return func() {}
+	}
+	return i.bridge.AddTap(fn)
+}

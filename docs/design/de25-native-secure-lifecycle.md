@@ -106,6 +106,36 @@ runtime authority or a new receipt to synchronize. Consolidation should remove
 redundant *checks of identical immutable inputs*, not merge these independent
 ownership domains or accept one domain's token as another's permission.
 
+### Games-machine fast-path policy
+
+Because the DE25-Nano target is a single-owner games machine with no secrets,
+redundant EL3 and uncached-DDR re-verification on already admitted data is
+intentionally omitted in favor of fast core loading while preserving upfront
+validation and hardware lifecycle fencing:
+
+- **Configuration transfer (`transfer.go`, `nano_cold_platform.c`):**
+  `ProgramLoader.Preflight` (`loadConfiguredPayload`) performs single-pass
+  EL1 SHA-256/SHA-384 validation upfront and `retire_configuration.go` checks
+  `transfer.digest` at retirement while the single-CPU owned
+  `ConfigurationArena` remains locked. `ConfigurationTransfer.stable()` /
+  `stableChunk()` check bounds rather than re-hashing uncached DDR on every SMC,
+  and EL3 `configuration_check()` verifies ownership, bridge containment, arena
+  bounds, and captured chunk metadata without per-chunk EL3 SHA-384 hashing.
+- **ROM and initial tape delivery (`nano_rom_platform.inc`,
+  `nano_tape_platform.inc`):** `computer_rom_verify()` and
+  `computer_tape_verify_image()` check metadata bounds rather than recomputing
+  EL3 SHA-384; upfront EL1 validation and `nano_rom.c` / `nano_tape.c` CRC32
+  checks remain active.
+- **SMMU retained source validation (`nano_sdm_source_platform.inc`):**
+  `fes_nano_sdm_source_validate()` checks software ownership, binding, and
+  queue completion without re-reading live SMMU registers or re-scanning the
+  48 KiB translation tables on retirement, release, or warm rearm; SMMU
+  programming, command-queue invalidation, and retirement sequences remain
+  enforced.
+
+This is an accepted performance/TOCTOU tradeoff for this target, not an
+accidental omission.
+
 ## Required transition ordering
 
 Let `C` be the completed source's bridge generation. All operations retain the

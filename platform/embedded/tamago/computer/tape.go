@@ -165,7 +165,12 @@ func (c *Computer) LoadInitialSpectrumTape(ctx context.Context, pzx []byte) (err
 	if c.gpo & ^g.FesComputerRequestMask != g.FesComputerOpcodeExecution<<24|g.FesComputerControlIndex<<16|g.FesComputerExecutionHoldReset {
 		return ErrProtocol
 	}
-	return o.transferMedia(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true, nil)
+	batch, _ := c.io.(MediaChunkBatcher)
+	var send func(func(IO) error) error
+	if batch != nil {
+		send = batch.WithMediaChunkBatch
+	}
+	return o.transferMedia(pzx, g.FesComputerSpectrumTapeMinBytes, g.FesComputerSpectrumTapeMaxBytes, true, send)
 }
 
 // C64DiskTransferBudget bounds one standard 35-track D64 transfer.
@@ -195,7 +200,37 @@ func (c *Computer) LoadInitialC64Disk(ctx context.Context, image []byte, deadlin
 		return ErrProtocol
 	}
 	batch, _ := c.io.(MediaChunkBatcher)
-	return o.transferMedia(image, g.FesComputerC64DiskBytes, g.FesComputerC64DiskBytes, true, batch)
+	var send func(func(IO) error) error
+	if batch != nil {
+		send = batch.WithMediaChunkBatch
+	}
+	return o.transferMedia(image, g.FesComputerC64DiskBytes, g.FesComputerC64DiskBytes, true, send)
+}
+
+// ReplaceC64Disk publishes one complete D64 through the running drive's
+// mailbox. The caller owns the active C64 session. Loading withdraws disk
+// readiness until Commit, and this operation never changes execution state.
+func (c *Computer) ReplaceC64Disk(ctx context.Context, image []byte, deadline time.Time) (err error) {
+	budget, err := C64DiskTransferBudget(len(image), c.limits.Timeout)
+	if err != nil || c.identity.Capabilities&g.FesComputerCapabilityMediaC64Disk == 0 {
+		return ErrArgument
+	}
+	o, err := c.begin(ctx, "replace-c64-disk")
+	if err != nil {
+		return err
+	}
+	o.timeout = min(budget, deadline.Sub(o.start))
+	if o.timeout <= 0 {
+		o.finish(nil)
+		return ErrLimit
+	}
+	defer func() { o.finish(err) }()
+	batch, _ := c.io.(interface{ WithLiveMediaChunkBatch(func(IO) error) error })
+	var send func(func(IO) error) error
+	if batch != nil {
+		send = batch.WithLiveMediaChunkBatch
+	}
+	return o.transferMedia(image, g.FesComputerC64DiskBytes, g.FesComputerC64DiskBytes, false, send)
 }
 
 // MediaChunkBatcher owns one chunk header and its consecutive Data words.
@@ -204,7 +239,7 @@ type MediaChunkBatcher interface {
 }
 
 // Unit zero uses the same chunk, CRC and commit protocol across media types.
-func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireEmpty bool, batch MediaChunkBatcher) (err error) {
+func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireEmpty bool, batch func(func(IO) error) error) (err error) {
 	state, err := o.mediaState(minimum, maximum)
 	if err != nil {
 		return err
@@ -244,7 +279,7 @@ func (o *operation) transferMedia(data []byte, minimum, maximum uint32, requireE
 		if batch == nil {
 			err = send(o.io)
 		} else {
-			err = batch.WithMediaChunkBatch(send)
+			err = batch(send)
 		}
 		if err != nil {
 			return err

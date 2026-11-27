@@ -51,7 +51,12 @@ requires 32-byte command alignment on the 256-bit F2SDRAM path.
 The adapter issues reads with one AXI ID so the hard bridge returns them
 in issue order. Its 16-entry FIFO restores each Avalon request's ID
 through the last read beat, including when scanout and guest reads are
-both pending.
+both pending. On shared window builds, the adapter also raises AXI write
+credits from one to sixteen to match `agilex_hps.f2sdram`, and the window
+arbiter prioritizes display ports (`p1` before `p2` before `p0` on reads,
+`p2` before `p1` before `p0` on writes, with bounded `p0` anti-starvation)
+while batching within a direction to limit `PREVENT_HAZARDS` read/write
+turnaround stalls on the single-ID bridge.
 
 ## The control block
 

@@ -15,6 +15,10 @@ import (
 	"testing"
 )
 
+type transferHashCaller func([7]uint64) ([4]uint64, error)
+
+func (f transferHashCaller) Invoke(r [7]uint64) ([4]uint64, error) { return f(r) }
+
 func retainedTapeProgram(t *testing.T) (*ConfigurationArena, *Region, []byte) {
 	t.Helper()
 	backing := make([]byte, 8<<20)

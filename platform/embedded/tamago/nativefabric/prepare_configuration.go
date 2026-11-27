@@ -3,6 +3,8 @@ package nativefabric
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -80,12 +82,14 @@ func checkConfigurationBytes(m coldConfigurationMap, data []byte) error {
 		return errors.New("native fabric: core size differs from compiled package")
 	}
 	var reader arenaHash
-	sha256sum, sha384sum := reader.sum(data), reader.sum384(data)
+	sha256sum, sha384sum, chunks := reader.sum256And384WithChunks(data, m.ChunkBytes)
 	if hex.EncodeToString(sha256sum[:]) != m.CoreSHA256 || hex.EncodeToString(sha384sum[:]) != m.CoreSHA384 {
 		return errors.New("native fabric: staged core differs from compiled package")
 	}
-	for offset, index := 0, 0; offset < len(data); offset, index = offset+m.ChunkBytes, index+1 {
-		digest := reader.sum384(data[offset:min(offset+m.ChunkBytes, len(data))])
+	if len(chunks) != len(m.ChunkSHA384) {
+		return errors.New("native fabric: staged chunk differs from compiled package")
+	}
+	for index, digest := range chunks {
 		if hex.EncodeToString(digest[:]) != m.ChunkSHA384[index] {
 			return errors.New("native fabric: staged chunk differs from compiled package")
 		}
@@ -93,21 +97,54 @@ func checkConfigurationBytes(m coldConfigurationMap, data []byte) error {
 	return nil
 }
 
+func populateProgramConfiguration(config *coldConfigurationMap, data []byte) error {
+	if len(data) != config.CoreSize {
+		return errors.New("native fabric: core size differs from compiled package")
+	}
+	if config.ChunkBytes <= 0 {
+		return errors.New("native fabric: invalid chunk size")
+	}
+	chunkCount := (len(data) + config.ChunkBytes - 1) / config.ChunkBytes
+	if chunkCount > maxProgramChunks {
+		return errors.New("native fabric: selected program exceeds bounded chunk inventory")
+	}
+	h256 := sha256.New()
+	h384 := sha512.New384()
+	chunkHash := sha512.New384()
+	config.ChunkSHA384 = make([]string, 0, chunkCount)
+	for offset := 0; offset < len(data); offset += config.ChunkBytes {
+		part := data[offset:min(offset+config.ChunkBytes, len(data))]
+		chunkHash.Reset()
+		for sub := 0; sub < len(part); sub += 32 << 10 {
+			slice := part[sub:min(sub+(32<<10), len(part))]
+			h256.Write(slice)
+			h384.Write(slice)
+			chunkHash.Write(slice)
+		}
+		config.ChunkSHA384 = append(config.ChunkSHA384, hex.EncodeToString(chunkHash.Sum(nil)))
+	}
+	if hex.EncodeToString(h256.Sum(nil)) != config.CoreSHA256 {
+		return errors.New("native fabric: staged core differs from compiled package")
+	}
+	config.CoreSHA384 = hex.EncodeToString(h384.Sum(nil))
+	return nil
+}
+
 // NewColdConfigurationTransfer takes its DMA and block parameters from the
 // compiled sealed map. Preparation rechecks the staged bytes and original held
 // source immediately before START. This grants no runtime admission or release.
 func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
-	return v.newSourceConfigurationTransfer(control, configuration, region, source, false, nil)
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, false, nil, nil, nil)
 }
 
 // NewReconfigurationTransfer uses the same sealed bytes after an owned return.
 // Its region must carry a fresh platform lease; it never reuses or releases a
 // previous transfer's reservation. Secure rearming is deferred until START.
 func (v *HPSContextVerifier) NewReconfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
-	return v.newSourceConfigurationTransfer(control, configuration, region, source, true, nil)
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, true, nil, nil, nil)
 }
 
-func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation, rearm bool, program *selectedProgram) (*ConfigurationTransfer, error) {
+func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation, rearm bool, program *selectedProgram, payload []byte, payloadDigest *[32]byte) (*ConfigurationTransfer, error) {
 	m, err := v.programConfiguration(control, configuration, program)
 	if err != nil {
 		return nil, err
@@ -121,8 +158,16 @@ func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configurati
 		return nil, errors.New("native fabric: held source and compiled reservation required")
 	}
 	control, configuration = bytes.Clone(control), bytes.Clone(configuration)
+	var usePayload []byte
+	var useDigest *[32]byte
+	if payloadDigest != nil && len(payload) == m.CoreSize {
+		if wantDigest, ok := decodeSHA256Hex(m.CoreSHA256); ok && wantDigest == *payloadDigest {
+			usePayload = payload
+			useDigest = &wantDigest
+		}
+	}
 	beforeStart := func() error {
-		prepared, err := v.prepareProgramConfiguration(control, configuration, region, rearm, program)
+		prepared, err := v.prepareProgramConfiguration(control, configuration, region, rearm, program, usePayload)
 		if err != nil {
 			return err
 		}
@@ -131,7 +176,7 @@ func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configurati
 		}
 		return nil
 	}
-	transfer, err := NewConfigurationTransfer(v.cpu, region.Bytes, region, m.DRAMBase, m.ChunkBytes, beforeStart)
+	transfer, err := newConfigurationTransfer(v.cpu, region.Bytes, region, m.DRAMBase, m.ChunkBytes, beforeStart, useDigest)
 	if err != nil {
 		return nil, err
 	}
@@ -157,10 +202,10 @@ func (v *HPSContextVerifier) PrepareReconfiguration(control, configuration []byt
 }
 
 func (v *HPSContextVerifier) prepareConfiguration(control, configuration []byte, region *Region, rearm bool) (HPSBootObservation, error) {
-	return v.prepareProgramConfiguration(control, configuration, region, rearm, nil)
+	return v.prepareProgramConfiguration(control, configuration, region, rearm, nil, nil)
 }
 
-func (v *HPSContextVerifier) prepareProgramConfiguration(control, configuration []byte, region *Region, rearm bool, program *selectedProgram) (HPSBootObservation, error) {
+func (v *HPSContextVerifier) prepareProgramConfiguration(control, configuration []byte, region *Region, rearm bool, program *selectedProgram, payload []byte) (HPSBootObservation, error) {
 	m, err := v.programConfiguration(control, configuration, program)
 	if err != nil {
 		return HPSBootObservation{}, err
@@ -168,7 +213,15 @@ func (v *HPSContextVerifier) prepareProgramConfiguration(control, configuration 
 	if region == nil || region.Release == nil || region.Address != m.Base || len(region.Bytes) != m.CoreSize {
 		return HPSBootObservation{}, errors.New("native fabric: configuration bytes are outside the compiled reservation")
 	}
-	if err := checkConfigurationBytes(m, region.Bytes); err != nil {
+	if payload != nil {
+		if len(payload) != m.CoreSize {
+			return HPSBootObservation{}, errors.New("native fabric: core size differs from compiled package")
+		}
+		var cmp arenaComparison
+		if !cmp.equal(region.Bytes, payload) {
+			return HPSBootObservation{}, errors.New("native fabric: staged core differs from compiled package")
+		}
+	} else if err := checkConfigurationBytes(m, region.Bytes); err != nil {
 		return HPSBootObservation{}, err
 	}
 	source, err := v.Verify(v.Identity())

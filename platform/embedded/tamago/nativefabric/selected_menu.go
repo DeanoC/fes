@@ -5,10 +5,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"errors"
-	"io"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
@@ -208,22 +206,8 @@ func (l *ProgramLoader) preflightMenu(selection *packagestore.Selection) (*Store
 	if access != driver.access {
 		return nil, errors.New("native fabric: selected menu changes its compiled adapter")
 	}
-	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), d.Payload.Size+1))
+	data, config, err := l.loadConfiguredPayload(selection, i.PackageID, d.Build.ID, d.Payload.SHA256, int(d.Payload.Size))
 	if err != nil {
-		return nil, err
-	}
-	config := l.configuration
-	config.PackageID, config.BuildID, config.CoreSHA256, config.CoreSize = i.PackageID, d.Build.ID, d.Payload.SHA256, int(d.Payload.Size)
-	hash := sha512.Sum384(data)
-	config.CoreSHA384, config.ChunkSHA384 = hex.EncodeToString(hash[:]), nil
-	for offset := 0; offset < len(data); offset += config.ChunkBytes {
-		hash := sha512.Sum384(data[offset:min(offset+config.ChunkBytes, len(data))])
-		config.ChunkSHA384 = append(config.ChunkSHA384, hex.EncodeToString(hash[:]))
-	}
-	if len(config.ChunkSHA384) > maxProgramChunks {
-		return nil, errors.New("native fabric: selected menu exceeds chunk inventory")
-	}
-	if err := checkConfigurationBytes(config, data); err != nil {
 		return nil, err
 	}
 	configRaw, _ := canonicalProgramRecord(config)
@@ -234,8 +218,10 @@ func (l *ProgramLoader) preflightMenu(selection *packagestore.Selection) (*Store
 			ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor)},
 		configuration: config, controlRaw: controlRaw, configurationRaw: configRaw,
 		menu: &selectedMenuProgram{control: ctrl, memoryRaw: memoryRaw, accessRaw: accessRaw}}
+	digest, ok := decodeSHA256Hex(config.CoreSHA256)
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: program, selection: selection,
-		control: bytes.Clone(controlRaw), configuration: bytes.Clone(configRaw), payload: data}}, nil
+		control: bytes.Clone(controlRaw), configuration: bytes.Clone(configRaw), payload: data,
+		payloadDigest: digest, payloadValidated: ok}}, nil
 }
 
 func (l *ProgramLoader) OpenMenu(ctx context.Context, transfer *ConfigurationTransfer, limits scanout.MenuLimits) (*MenuSession, error) {

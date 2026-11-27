@@ -701,3 +701,113 @@ func TestPrepareClockBeforeCommandsAndOnResume(t *testing.T) {
 		}
 	}
 }
+
+type zeroAllocMultiPIOCard struct {
+	regs    [0x244 / 4]uint32
+	image   []byte
+	pioPos  int
+	pioLeft int
+	now     time.Time
+}
+
+func (c *zeroAllocMultiPIOCard) Now() time.Time {
+	c.now = c.now.Add(time.Microsecond)
+	return c.now
+}
+
+func (c *zeroAllocMultiPIOCard) Read32(reg uint32) uint32 {
+	if reg == dataPort && c.pioLeft > 0 {
+		v := binary.LittleEndian.Uint32(c.image[c.pioPos : c.pioPos+4])
+		c.pioPos += 4
+		c.pioLeft -= 4
+		if c.pioLeft == 0 {
+			c.regs[status/4] |= 2
+		} else if c.pioPos%512 == 0 {
+			c.regs[status/4] |= 1 << 5
+		}
+		return v
+	}
+	return c.regs[reg/4]
+}
+
+func (c *zeroAllocMultiPIOCard) Write32(reg, value uint32) {
+	if reg == status {
+		c.regs[status/4] &^= value
+		return
+	}
+	if reg == clock {
+		c.regs[clock/4] = value &^ (7 << 24)
+		if value&1 != 0 {
+			c.regs[clock/4] |= 2
+		}
+		return
+	}
+	c.regs[reg/4] = value
+	if reg != command {
+		return
+	}
+	index := value >> 24
+	c.regs[response/4] = 0
+	switch index {
+	case 8:
+		c.regs[response/4] = c.regs[argument/4] & 0xfff
+	case 55:
+		c.regs[response/4] = 1 << 5
+	case 41:
+		c.regs[response/4] = 0xc0300000
+	case 2:
+		c.regs[response/4+3] = 0x00112233
+	case 3:
+		c.regs[response/4] = 9 << 16
+	case 9:
+		csize := uint32(len(c.image)/512/1024 - 1)
+		c.regs[response/4+1] = csize << 8
+		c.regs[response/4+2] = 0x32 << 24
+		c.regs[response/4+3] = 1 << 22
+	case 7:
+		c.regs[response/4] = 4<<9 | 1<<8
+		c.regs[status/4] |= 2
+	case 13:
+		c.regs[response/4] = 4<<9 | 1<<8
+	case 17, 18:
+		lba := c.regs[argument/4]
+		blocks := c.regs[blockSize/4] >> 16
+		if blocks == 0 {
+			blocks = 1
+		}
+		c.pioPos = int(lba) * 512
+		c.pioLeft = int(blocks) * 512
+		c.regs[status/4] |= 1 << 5
+	}
+	c.regs[status/4] |= 1
+}
+
+func TestMultiBlockPIOReadZeroAllocsAfterWarmup(t *testing.T) {
+	img := make([]byte, 2048*512)
+	for i := range img {
+		img[i] = byte(i * 29)
+	}
+	hw := &zeroAllocMultiPIOCard{image: img, now: time.Unix(1, 0)}
+	hw.regs[capabilities/4] = cap33V
+	hw.regs[host/4] = 1 << 8
+	hw.regs[clock/4] = 7
+	d, err := Open(hw, Config{InputClockHz: 200_000_000, TransferClockHz: 25_000_000, MultiBlock: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := make([]byte, 128*512)
+	if err := d.ReadSectors(4, dst); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(dst, img[4*512:132*512]) {
+		t.Fatal("multi-block PIO read mismatch")
+	}
+	allocs := testing.AllocsPerRun(5, func() {
+		if err := d.ReadSectors(4, dst); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocations on repeated multi-block PIO reads, got %v", allocs)
+	}
+}
