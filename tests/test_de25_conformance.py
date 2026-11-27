@@ -376,6 +376,57 @@ class Run(unittest.TestCase):
         self.assertFalse(self.run_steps(steps, FakeHost(), [], recorder=FakeRecorder)["checks"]["t"]["ok"],
                          "no kit capture named")
 
+    def test_recorder_stops_when_step_action_raises(self):
+        class TrackingRecorder(FakeRecorder):
+            instances = []
+
+            def __init__(self, evidence, kit):
+                super().__init__(evidence, kit)
+                self.started = False
+                self.stopped = False
+                self.instances.append(self)
+
+            def start(self):
+                self.started = True
+
+            def stop(self):
+                self.stopped = True
+                super().stop()
+
+        class RaisingHost(FakeHost):
+            def tap(self, session_id, token):
+                raise RuntimeError("injected input failure")
+
+        TrackingRecorder.instances.clear()
+        FakeRecorder.tone = 440
+        steps = [{"name": "t", "keys": ["enter"],
+                  "expect": {"audio": {"tone_hz": 440, "min_rms": 500}}}]
+        with self.assertRaisesRegex(RuntimeError, "injected input failure"):
+            self.run_steps(steps, RaisingHost(), [], kit="D25", recorder=TrackingRecorder)
+        self.assertEqual(len(TrackingRecorder.instances), 1)
+        self.assertTrue(TrackingRecorder.instances[0].started)
+        self.assertTrue(TrackingRecorder.instances[0].stopped)
+
+    def test_audio_cleanup_incomplete_aborts_later_steps(self):
+        class IncompleteRecorder(FakeRecorder):
+            def stop(self):
+                error = conf.AudioError("recorder is still running")
+                error.audio_cleanup_incomplete = True
+                raise error
+
+        steps = [
+            {"name": "audio", "cli": ["first"],
+             "expect": {"audio": {"tone_hz": 440, "min_rms": 500}}},
+            {"name": "later", "cli": ["later"]},
+        ]
+        host = FakeHost()
+        report = self.run_steps(steps, host, [], kit="D25", recorder=IncompleteRecorder)
+        self.assertFalse(report["checks"]["audio"]["ok"], report)
+        self.assertIn("audio cleanup incomplete", report["checks"]["audio"]["detail"])
+        self.assertNotIn("later", report["checks"])
+        self.assertEqual(host.calls, [("first",)])
+        self.assertEqual(report["verdict"], "FAIL")
+
     def test_ocr_expectation(self):
         steps = [{"name": "o", "keys": ["enter"], "expect": {"ocr": "BLOCKS FREE"}}]
         self.assertTrue(self.run_steps(steps, FakeHost(), [], "664 blocks free.")["checks"]["o"]["ok"])

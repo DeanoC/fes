@@ -552,6 +552,8 @@ def run(core: str, steps: list[dict], interfaces: list[str], host: Host, video: 
             before = idle
         detail, ok = [], True
         rec = None
+        recorder_started = False
+        cleanup_incomplete = False
         if "audio" in expect:
             try:
                 if not kit:
@@ -560,90 +562,108 @@ def run(core: str, steps: list[dict], interfaces: list[str], host: Host, video: 
                 evidence.mkdir()
                 rec = recorder(evidence, kit)
                 rec.start()
+                recorder_started = True
             except (AudioError, OSError) as exc:
                 rec, ok = None, False
-                detail.append(f"audio capture did not start: {exc}")
-        if "keys" in step:
-            for token in expand_keys(step["keys"]):
-                if not session_id:
-                    ok = False
-                    detail.append("no input session")
-                    break
-                r = host.tap(session_id, token)
-                if r.get("ok") is not True:
-                    ok = False
-                    detail.append(f"{token}: {r}")
-                    break
-                time.sleep(0.15)
-            detail.append("keys " + " ".join(step["keys"]))
-        elif "mouse" in step:
-            dx, dy, buttons = step["mouse"]
-            rc, _, text = host.cli("mouse", str(dx), str(dy), str(buttons))
-            ok = rc == 0
-            detail.append(f"mouse {dx},{dy} rc={rc} {text[:120]}")
-        elif "media" in step:
-            command, *rest = step["media"]
-            args = [command]
-            if rest:
-                path = fixtures / rest[0]
-                path.write_bytes(FIXTURES[rest[0]]())
-                args.append(str(path))
-            rc, value, text = host.cli(*args)
-            ok = rc == 0
-            if ok and rest:
-                good, note = wait_units(host, value, step.get("covers", []))
-                ok = good
-                detail.append(note)
-            detail.append(f"{' '.join(args[:1] + [Path(a).name for a in args[1:]])} rc={rc} {text[:160]}")
-        else:
-            args = [a.format(**variables) for a in step["cli"]]
-            rc, value, text = host.cli(*args)
-            ok = rc == 0
-            for var, field in step.get("bind", {}).items():
-                variables[var] = str(value.get(field, ""))
-                ok = ok and bool(variables[var])
-            if ok and expect.get("units"):
-                good, note = wait_units(host, value, step.get("covers", []))
-                ok = good
-                detail.append(note)
-            if "shelf_kept" in expect:
-                game = expect["shelf_kept"].format(**variables)
-                disks = {d.get("game_id"): d for d in value.get("disks", []) if isinstance(d, dict)}
-                kept = (disks.get(game) or {}).get("kept_revision", "")
-                ok = ok and bool(kept)
-                detail.append(f"shelf {game} kept_revision={kept or 'none'}")
-            detail.append(f"{' '.join(args)} rc={rc} {text[:160]}")
-        time.sleep(step.get("settle", 1))
-        after = out / f"f{index:02d}-{name}.png"
-        grabbed = grab(video, after)
-        if "idle_max" in expect:
-            ok = ok and idle_delta is not None and idle_delta <= expect["idle_max"]
-            detail.append(f"idle_delta={idle_delta}")
-        if "change" in expect:
-            delta = frame_delta(rgb(before), rgb(after)) if grabbed else None
-            ok = ok and delta is not None and delta >= expect["change"]
-            detail.append(f"delta={delta}")
-        if "ocr" in expect:
-            text = ocr(after) if grabbed else ""
-            (out / f"f{index:02d}-{name}.txt").write_text(text)
-            found = normalise(expect["ocr"]) in normalise(text)
-            ok = ok and found
-            detail.append(f"ocr {expect['ocr']!r} {'found' if found else 'missing'}")
-        if "audio" in expect:
-            if rec is not None:
-                try:
-                    rec.stop()
-                    good, note = judge_audio(audio_windows(rec.path), expect["audio"])
-                    ok = ok and good
-                    detail.append(note)
-                except (AudioError, OSError, ValueError, wave.Error) as exc:
-                    ok = False
-                    detail.append(f"audio capture failed: {exc}")
-        previous = after if grabbed else previous
+                cleanup_incomplete = bool(getattr(exc, "audio_cleanup_incomplete", False))
+                if cleanup_incomplete:
+                    detail.append(f"audio cleanup incomplete: {exc}; aborting remaining steps")
+                else:
+                    detail.append(f"audio capture did not start: {exc}")
+        if not cleanup_incomplete:
+            try:
+                if "keys" in step:
+                    for token in expand_keys(step["keys"]):
+                        if not session_id:
+                            ok = False
+                            detail.append("no input session")
+                            break
+                        r = host.tap(session_id, token)
+                        if r.get("ok") is not True:
+                            ok = False
+                            detail.append(f"{token}: {r}")
+                            break
+                        time.sleep(0.15)
+                    detail.append("keys " + " ".join(step["keys"]))
+                elif "mouse" in step:
+                    dx, dy, buttons = step["mouse"]
+                    rc, _, text = host.cli("mouse", str(dx), str(dy), str(buttons))
+                    ok = rc == 0
+                    detail.append(f"mouse {dx},{dy} rc={rc} {text[:120]}")
+                elif "media" in step:
+                    command, *rest = step["media"]
+                    args = [command]
+                    if rest:
+                        path = fixtures / rest[0]
+                        path.write_bytes(FIXTURES[rest[0]]())
+                        args.append(str(path))
+                    rc, value, text = host.cli(*args)
+                    ok = rc == 0
+                    if ok and rest:
+                        good, note = wait_units(host, value, step.get("covers", []))
+                        ok = good
+                        detail.append(note)
+                    detail.append(f"{' '.join(args[:1] + [Path(a).name for a in args[1:]])} rc={rc} {text[:160]}")
+                else:
+                    args = [a.format(**variables) for a in step["cli"]]
+                    rc, value, text = host.cli(*args)
+                    ok = rc == 0
+                    for var, field in step.get("bind", {}).items():
+                        variables[var] = str(value.get(field, ""))
+                        ok = ok and bool(variables[var])
+                    if ok and expect.get("units"):
+                        good, note = wait_units(host, value, step.get("covers", []))
+                        ok = good
+                        detail.append(note)
+                    if "shelf_kept" in expect:
+                        game = expect["shelf_kept"].format(**variables)
+                        disks = {d.get("game_id"): d for d in value.get("disks", []) if isinstance(d, dict)}
+                        kept = (disks.get(game) or {}).get("kept_revision", "")
+                        ok = ok and bool(kept)
+                        detail.append(f"shelf {game} kept_revision={kept or 'none'}")
+                    detail.append(f"{' '.join(args)} rc={rc} {text[:160]}")
+                time.sleep(step.get("settle", 1))
+                after = out / f"f{index:02d}-{name}.png"
+                grabbed = grab(video, after)
+                if "idle_max" in expect:
+                    ok = ok and idle_delta is not None and idle_delta <= expect["idle_max"]
+                    detail.append(f"idle_delta={idle_delta}")
+                if "change" in expect:
+                    delta = frame_delta(rgb(before), rgb(after)) if grabbed else None
+                    ok = ok and delta is not None and delta >= expect["change"]
+                    detail.append(f"delta={delta}")
+                if "ocr" in expect:
+                    text = ocr(after) if grabbed else ""
+                    (out / f"f{index:02d}-{name}.txt").write_text(text)
+                    found = normalise(expect["ocr"]) in normalise(text)
+                    ok = ok and found
+                    detail.append(f"ocr {expect['ocr']!r} {'found' if found else 'missing'}")
+            finally:
+                if recorder_started:
+                    try:
+                        rec.stop()
+                    except (AudioError, OSError, ValueError, wave.Error) as exc:
+                        ok = False
+                        cleanup_incomplete = bool(getattr(exc, "audio_cleanup_incomplete", False))
+                        detail.append(f"audio capture failed: {exc}")
+                        if cleanup_incomplete:
+                            detail.append("audio cleanup incomplete; aborting remaining steps")
+                    else:
+                        try:
+                            good, note = judge_audio(audio_windows(rec.path), expect["audio"])
+                            ok = ok and good
+                            detail.append(note)
+                        except (AudioError, OSError, ValueError, wave.Error) as exc:
+                            ok = False
+                            detail.append(f"audio capture failed: {exc}")
+        if not cleanup_incomplete:
+            previous = after if grabbed else previous
         if step.get("name"):
             check(name, ok, "; ".join(detail))
         elif not ok:
             check(name, False, "; ".join(detail))
+        if cleanup_incomplete:
+            break
     report["verdict"] = "PASS" if checks and all(c["ok"] for c in checks.values()) else "FAIL"
     return report
 
