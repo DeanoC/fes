@@ -70,13 +70,13 @@ int fes_positive_cpu_scope(struct fes_nano_cold *s, struct fes_nano_cold_sample 
     board.write_text(includes + replace_once(board.read_text(), end,
                      '\tfes_nano_spl_report();\n' + ddr +
                      '\tfes_nano_positive_tx();\n\thang();') +
-                     '\nint fes_nano_positive_sdm_ready(void) { return mbox_get_fpga_config_status(MBOX_CONFIG_STATUS) == 0; }\n')
+                     '\nint fes_nano_positive_sdm_status(void) { return mbox_get_fpga_config_status(MBOX_CONFIG_STATUS); }\n')
     clock = soc / "clock_manager_agilex5.c"
     clock.write_text(clock.read_text() + '''
-int fes_nano_positive_clock_rates(void)
+void fes_nano_positive_clock_rates(unsigned *l4sp, unsigned *emac)
 {
-    return cm_get_rate_dm(AGILEX5_L4_SP_CLK) == 100000000 &&
-           cm_get_rate_dm(AGILEX5_EMAC0_CLK) == 125000000;
+    *l4sp = cm_get_rate_dm(AGILEX5_L4_SP_CLK);
+    *emac = cm_get_rate_dm(AGILEX5_EMAC0_CLK);
 }
 ''')
     copied = []
@@ -137,13 +137,17 @@ def main():
     for name in ("fes_tx_once","fes_nano_positive_tx","fes_nano_cpu_diag_park"):
         if not re.search(r"^[0-9a-f]+ <"+name+r">:",asm,re.M):
             raise ValueError(f"positive SPL lacks {name}")
+    # Inspect the emitted ARM code for the one local exception-mask transition.
+    setup_instruction = re.findall(r"\bmsr\s+daifset,\s*#0x4\b", asm, re.I)
+    if not setup_instruction or not re.search(r"\bmrs\s+x[0-9]+,\s*isr_el1\b", asm, re.I):
+        raise ValueError("missing compiled EL3 exception-mask setup or SError readback")
     sys.path.insert(0,str(HERE.parent))
     from sof_hps import inspect
     covered = inspect((output/"cpu-state.sof").read_bytes(),
                       (output/"build/spl/u-boot-spl-dtb.hex").read_bytes(),
                       Path(rest[rest.index("--vendor-sof")+1]).read_bytes())
     result = dict(scope="de25-cbl-positive-mac-spl-v1",status="prepared",historical_trace=TRACE,
-                  parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
+                  startup_predicate_report=True, parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
                   diagnostic_id=receipt["diagnostic_id"],sof_sha256=receipt["sof_sha256"],
                   spl_sha256=receipt["spl_sha256"],frame_sha256=args.frame_sha256,
                   build_receipt_sha256=digest(original_receipt),embedded_spl=covered,

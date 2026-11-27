@@ -11,7 +11,8 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     frame_hash = receipt.get("frame_sha256", "")
     if (not isinstance(raw, bytes) or len(raw) > 2 << 20 or
             receipt.get("scope") != "de25-cbl-positive-mac-spl-v1" or
-            receipt.get("status") != "prepared" or receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
+            receipt.get("status") != "prepared" or receipt.get("startup_predicate_report") is not True or
+            receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
             not re.fullmatch("[0-9a-f]{64}", frame_hash)):
         raise ValueError("invalid positive diagnostic source receipt or UART stream")
     data = raw.replace(b"\r\n", b"\n")
@@ -21,8 +22,9 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     banners = [i for i, line in enumerate(lines) if line.startswith("U-Boot SPL ")]
     if len(banners) != 1 or not lines[banners[0]].startswith("U-Boot SPL 2025.01-fes-nano-cpu-"+identity+" "):
         raise ValueError("missing matched SPL startup")
-    trace = [s for s in lines if s.startswith(("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX"))]
-    if any(s.startswith(("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX")) for s in lines[:banners[0]]):
+    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP")
+    trace = [s for s in lines if s.startswith(prefixes)]
+    if any(s.startswith(prefixes) for s in lines[:banners[0]]):
         raise ValueError("positive diagnostics before matched banner")
     def power_trace(stage):
         rows=[]
@@ -48,7 +50,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if trace[:len(expected)] != expected or trace[-9:] != [*late,
             f"FES_NANO_CPU_TRACE id={identity} stage=12 value=00000000 mpidr=0000000081000000 el=3", PARK]:
         raise ValueError("missing ordered matching cold CPU, ownership or park")
-    if len(trace) != len(expected)+12:
+    if len(trace) not in (len(expected)+13, len(expected)+14):
         raise ValueError("missing or duplicated diagnostic evidence")
     powers = []
     for n, phase in enumerate(("first", "live")):
@@ -63,7 +65,29 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
         powers.append(dict(primary=primary,request=req,acknowledgement=ack,boot=boot))
     if len({early_power[6],powers[0]["boot"],powers[1]["boot"],late_power[6]}) != 1:
         raise ValueError("selected boot configuration changed")
-    terminal = trace[len(expected)+2]
+    setup = None
+    gate_index = len(expected) + 2
+    if len(trace) == len(expected) + 14:
+        setup_match = re.fullmatch(r"FES_CBL_TX_SETUP id=" + identity +
+            r" daif_before=(2c0|3c0) daif_after=3c0 serror=000 l4sp_hz=100000000 emaca_hz=250000000",
+            trace[gate_index])
+        if not setup_match:
+            raise ValueError("unqualified EL3 setup or controller reference clock")
+        setup = dict(daif_before=int(setup_match[1],16), daif_after=0x3c0, serror=0,
+                     l4sp_hz=100000000, emaca_hz=250000000)
+        gate_index += 1
+    gate = re.fullmatch(r"FES_CBL_TX_GATE id=" + identity +
+                        r" predicate=([a-z][a-z0-9-]*) observed=([a-f0-9]{16}) required=([a-f0-9]{16})",
+                        trace[gate_index])
+    if not gate:
+        raise ValueError("missing startup predicate")
+    predicate, observed, required = gate[1], int(gate[2], 16), int(gate[3], 16)
+    passed_startup = predicate == "accepted"
+    if (passed_startup and (observed, required) != (1, 1)) or (not passed_startup and observed == required):
+        raise ValueError("contradictory startup predicate")
+    if (setup is not None) != (passed_startup or predicate == "stable-dma-owner"):
+        raise ValueError("startup evidence is inconsistent with the recorded predicate")
+    terminal = trace[gate_index+1]
     fields = re.fullmatch(
         r"FES_CBL_MAC_TX END id="+identity+
         r" rc=(0|-1) stage=([0-8]) arm=([01]) mapped=([01]) mac=([01]) possible=([01])"
@@ -71,13 +95,13 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
         r" writes=([01]) terminal_per0=([0-9a-f]{8}) terminal_route=([0-9a-f]{8})"
         r" terminal_sid=([0-9a-f]{8}) terminal_cr0=([0-9a-f]{8}) terminal_ack=([0-9a-f]{8})"
         r" terminal_ste=([0-9a-f]{8}) reg=10d11024 value=([0-9a-f]{8}) desc=([0-9a-f]{8})"
-        r" dma=([0-9a-f]{8}) fault_reg=([0-9a-f]{8}) fault_value=([0-9a-f]{8})", terminal)
+        r" dma=([0-9a-f]{8}) fault_reg=([0-9a-f]{8}) fault_value=([0-9a-f]{8}) phy=([0-9a-f]{4})", terminal)
     if not fields:
         raise ValueError("missing terminal hardware closure")
     rc, stage = int(fields[1]), int(fields[2])
     arm, mapped, mac, possible, dispatch, tps, revoked, reset = map(int, fields.groups()[2:10])
     disposition, writes = fields[11], int(fields[12])
-    per0, route, sid, cr0, ack, ste, reset_readback, desc, dma, fault_reg, fault_value = (
+    per0, route, sid, cr0, ack, ste, reset_readback, desc, dma, fault_reg, fault_value, phy = (
         int(x, 16) for x in fields.groups()[12:])
     if per0 != 0xff7fbfff or reset_readback != per0:
         raise ValueError("terminal reset scope differs from the initial CBL state")
@@ -86,16 +110,18 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     abort = (3, 0x10001, 13, 13, 1)
     if disposition == "closed":
         valid = (rc == 0 and stage == 8 and flags == (1,)*9 and state == abort
-                 and desc & 0xb0008000 == 0x30000000 and not dma & 0x3200
-                 and fault_reg == fault_value == 0)
+                 and desc & 0xf8000000 == 0x30000000 and not dma & 0x3200
+                 and fault_reg == fault_value == 0 and phy & 0x79 == 0x48)
     elif disposition == "unchanged":
         valid = (rc == -1 and stage in (0,1) and flags == (0,)*9
-                 and state == (0x30, 0, 0, 0, 0) and desc == dma == 0)
+                 and state == (0x30, 0, 0, 0, 0) and desc == dma == phy == 0)
     elif disposition == "revoked-undispatched":
         valid = (rc == -1 and stage in (3,4,5) and flags == (1,1,mac,0,0,0,1,1,1)
                  and state == abort and desc == dma == 0)
     else:
         valid = False
+    if stage > 0 and not passed_startup:
+        raise ValueError("hardware admission followed a rejected startup predicate")
     if not valid:
         raise ValueError("terminal result conflicts with observed ownership or controller state")
     if any("Trying to boot from" in s or "FES_NANO_SPL HANDOFF" in s for s in lines):
@@ -105,7 +131,8 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
                 parking_revision=PARKING, cpu_power=powers, device_frame_dispatched=bool(dispatch),
                 process_stopped=bool(tps), translation_revoked=bool(revoked), disposition=disposition,
                 mac_in_reset=True, parked=True, terminal_reset=per0, tx_descriptor=desc, dma_status=dma,
-                fault_reg=fault_reg, fault_value=fault_value)
+                fault_reg=fault_reg, fault_value=fault_value, phy_status=phy,
+                startup=dict(predicate=predicate, observed=observed, required=required), setup=setup)
 
 
 def decode_positive(raw: bytes, receipt: dict) -> dict:

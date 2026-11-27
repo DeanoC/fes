@@ -18,6 +18,8 @@
 #define MAX_US 12000000U
 #define OWN (1U << 31)
 #define FIRST_LAST (3U << 28)
+#define CONTEXT (1U << 30)
+#define DESCRIPTOR_ERROR (1U << 27)
 #define FAULTS ((1U << 9) | (1U << 12) | (1U << 13))
 #define SID1_STE (FES_TX_TABLES + 64U)
 #define DESC_FLAGS ((3ULL << 53) | (1U << 10) | (2U << 8) | (5U << 2) | 3U)
@@ -217,9 +219,13 @@ static int verify_link(struct trial *t)
             return -1;
         if ((s & 0x24) != 0x24)
             continue; /* BMSR link and completed autonegotiation */
-        if (!(ctrl & (1U << 12)) || ctrl & 0xcc00 || mdio(t, 9, &adv) || mdio(t, 10, &peer))
+        if (!(ctrl & (1U << 12)) || ctrl & 0xcc00 || mdio(t, 9, &adv) || mdio(t, 10, &peer) ||
+            mdio(t, 31, &t->out->phy_status))
             return -1;
-        return (adv & (1U << 9)) && (peer & (1U << 11)) && !(peer & (1U << 15)) ? 0 : -1;
+        /* KSZ9031RNX register 1F: final speed[6:4]=1000, duplex[3]=full,
+         * link status check fail[0]=0 (datasheet Table 4-4). */
+        return (adv & (1U << 9)) && (peer & (1U << 11)) && !(peer & (1U << 15)) &&
+               (t->out->phy_status & 0x79) == 0x48 ? 0 : -1;
     }
     return -1;
 }
@@ -227,7 +233,7 @@ static int start_mac(struct trial *t)
 {
     uint32_t per0 = read_reg(t, RST), mode = read_reg(t, PHYSEL);
     if ((per0 & MAC_RESETS) != MAC_RESETS || mode & 0xc0000000U ||
-        set_reg(t, PHYSEL, (mode & ~3U) | 1U))
+        set_reg(t, PHYSEL, (mode & ~3U) | FES_TX_RGMII_SELECT))
         return -1;
     t->out->mac_release_attempted = 1;
     if (set_reg(t, RST, per0 & ~MAC_RESETS))
@@ -248,14 +254,14 @@ static int send_frame(struct trial *t)
         set_reg(t, MAC + 0x3110, 0) || set_reg(t, MAC + 0x3114, FES_TX_IOVA) ||
         set_reg(t, MAC + 0x3130, 31) || set_reg(t, MAC + 0x3138, 0) ||
         set_reg(t, MAC + 0x300, 0x800001cb) || set_reg(t, MAC + 0x304, 0x0825fe02) ||
-        set_reg(t, MAC, 3U << 29) || write_reg(t, MAC + 0x3160, 0xffff) ||
+        set_reg(t, MAC, FES_TX_GIGABIT_SPEED) || write_reg(t, MAC + 0x3160, 0xffff) ||
         read_reg(t, MAC + 0x3160) & (FAULTS | 2))
         return -1;
     if (guard(t) || store(t, FES_TX_DESC, FES_TX_BUFFER) ||
         store(t, FES_TX_DESC + 8, (uint64_t)(FIRST_LAST | OWN | 60) << 32 | 60))
         return -1;
     t->out->dma_possible = 1;
-    if (set_reg(t, MAC + 0x3104, 4U << 16 | 1) || set_reg(t, MAC, 3U << 29 | 1))
+    if (set_reg(t, MAC + 0x3104, 4U << 16 | 1) || set_reg(t, MAC, FES_TX_GIGABIT_SPEED | 1))
         return -1;
     if (guard(t))
         return -1;
@@ -271,7 +277,7 @@ static int send_frame(struct trial *t)
         t->io->sync_memory(t->io->ctx);
         t->out->descriptor_status = (uint32_t)(t->io->load(t->io->ctx, FES_TX_DESC + 8) >> 32);
         if (!(t->out->descriptor_status & OWN))
-            return (t->out->descriptor_status & (FIRST_LAST | (1U << 15))) != FIRST_LAST;
+            return (t->out->descriptor_status & (FIRST_LAST | CONTEXT | DESCRIPTOR_ERROR)) != FIRST_LAST;
     }
     return -1;
 }
@@ -286,7 +292,7 @@ static int stop_mac(struct trial *t)
             return -1;
         uint32_t debug = read_reg(t, MAC + 0x1108);
         if (!(debug & MTL_TX_ACTIVITY)) {
-            if (set_reg(t, MAC, 3U << 29))
+            if (set_reg(t, MAC, FES_TX_GIGABIT_SPEED))
                 return -1;
             t->out->process_stopped = 1;
             return 0;
@@ -404,9 +410,36 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
         r->fault_address = r->last_address;
         r->fault_value = r->last_value;
     }
-    if (r->scope_lost || io->owns(io->ctx) != 1)
-        return FES_TX_COLD_RECOVERY;
     struct trial t = {io, r, 0, 1};
+    if (r->scope_lost)
+        return FES_TX_COLD_RECOVERY;
+    if (rc && r->stage <= FES_TX_TABLE_BUILD && !r->write_attempted && !r->arm_attempted &&
+        !r->mapped && !r->mac_release_attempted && !r->dma_possible && !r->dispatched &&
+        !r->process_stopped && !r->revoke_started && !r->translation_revoked && !r->mac_in_reset) {
+        /* Repeat the physical observations under their own ownership predicate.
+         * The clock/SDM/DDR profile needed for TX has no role in an idle read. */
+        for (unsigned i = 0; i < 2; i++) {
+            if (!io->observe_unchanged || io->observe_unchanged(io->ctx) != 1)
+                return FES_TX_COLD_RECOVERY;
+            io->sync_memory(io->ctx);
+            if (read_reg(&t, SMMU) != 0x080f7e3f || read_reg(&t, SMMU + 4) != 0x0e739d18 ||
+                read_reg(&t, SMMU + 0x14) != 0x400075 || read_reg(&t, SMMU + 0x8020) ||
+                read_reg(&t, SMMU + 0x8024) || read_reg(&t, SMMU + 0x98) ||
+                read_reg(&t, SMMU + 0x9c) || queues_clean(&t))
+                return FES_TX_COLD_RECOVERY;
+            r->terminal_route = read_reg(&t, STREAM);
+            r->terminal_sid = read_reg(&t, SID);
+            r->terminal_cr0 = read_reg(&t, SMMU + 0x20);
+            r->terminal_ack = read_reg(&t, SMMU + 0x24);
+            r->terminal_per0 = read_reg(&t, RST);
+            if (r->terminal_route != 0x30 || r->terminal_sid || r->terminal_cr0 ||
+                r->terminal_ack || r->terminal_per0 != 0xff7fbfff)
+                return FES_TX_COLD_RECOVERY;
+        }
+        return FES_TX_UNCHANGED;
+    }
+    if (io->owns(io->ctx) != 1)
+        return FES_TX_COLD_RECOVERY;
     io->sync_memory(io->ctx);
     r->terminal_route = read_reg(&t, STREAM);
     r->terminal_sid = read_reg(&t, SID);
@@ -424,11 +457,6 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
     r->terminal_per0 = read_reg(&t, RST);
     if (r->terminal_per0 != 0xff7fbfffU)
         return FES_TX_COLD_RECOVERY;
-    if (!r->write_attempted && !r->arm_attempted && !r->mapped && !r->mac_release_attempted &&
-        !r->dma_possible && !r->dispatched && !r->process_stopped && !r->translation_revoked &&
-        !r->mac_in_reset && rc && r->stage <= FES_TX_TABLE_BUILD && r->terminal_route == 0x30 &&
-        !r->terminal_sid && !r->terminal_cr0 && !r->terminal_ack)
-        return FES_TX_UNCHANGED;
     if (!r->write_attempted || !r->arm_attempted || !r->mapped || !r->translation_revoked ||
         !r->mac_in_reset || r->terminal_ste != 1)
         return FES_TX_COLD_RECOVERY;

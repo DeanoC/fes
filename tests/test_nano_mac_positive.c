@@ -19,7 +19,10 @@ enum fault {
     DIRTY_QUEUE,
     BAD_ROUTE,
     WRONG_PHY,
+    SLOW_PHY,
+    FAILED_PHY_CHECK,
     BAD_DESCRIPTOR,
+    CONTEXT_DESCRIPTOR,
     LOST_STOP,
     FAILED_SYNC,
     LOST_OWNER,
@@ -35,7 +38,7 @@ enum fault {
 struct fixture {
     uint32_t smmu[0x10100 / 4], mac[0x3800 / 4], reset, sys, ctrl, sid;
     uint64_t table[0xa000 / 8], packet[0x4000 / 8], ticks;
-    unsigned writes, transmits, queued, acknowledged, revocations;
+    unsigned writes, transmits, queued, acknowledged, revocations, observations;
     enum fault fault;
     uint8_t wire[60];
 };
@@ -139,9 +142,12 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
     if (a == M + 0x204) {
         unsigned addr = *reg(f, M + 0x200);
         assert((addr >> 16) == 1);
-        const uint16_t phy[] = {0x1000, 0x24, 0x22, 0x1622, 0, 0, 0, 0, 0, 1U << 9, 1U << 11};
+        const uint16_t phy[32] = {[0]=0x1000, [1]=0x24, [2]=0x22, [3]=0x1622,
+                                  [9]=1U<<9, [10]=1U<<11, [31]=0x48};
         assert((addr & 31) < sizeof(phy) / sizeof(*phy));
         *p = phy[addr & 31];
+        if ((addr & 31) == 31 && f->fault == SLOW_PHY) *p=0x28;
+        if ((addr & 31) == 31 && f->fault == FAILED_PHY_CHECK) *p=0x49;
         if ((addr & 31) == 3 && f->fault == WRONG_PHY)
             ++*p;
     }
@@ -162,6 +168,7 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         if (f->fault == MTL_PENDING)
             *reg(f, M + 0x1108) = 1U << 5;
         assert(*reg(f, M + 0x3104) & 1);
+        assert((*reg(f, P) & 3) == 1 && (*reg(f, M) >> 29) == 3);
         assert(*reg(f, M) & 1);
         assert(!(*reg(f, M + 4) & 1));
         assert(v == FES_TX_IOVA + 16 && *reg(f, M + 0x3130) == 31);
@@ -174,7 +181,9 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         memcpy(f->wire, ram(f, data), 60);
         *ram(f, desc + 8) &= ~(1ULL << 63);
         if (f->fault == BAD_DESCRIPTOR)
-            *ram(f, desc + 8) |= 1ULL << 47;
+            *ram(f, desc + 8) |= 1ULL << (32 + 27);
+        if (f->fault == CONTEXT_DESCRIPTOR)
+            *ram(f, desc + 8) |= 1ULL << (32 + 30);
     }
 }
 static int owns(void *ctx)
@@ -191,6 +200,38 @@ static uint64_t now(void *ctx)
 static void barrier(void *ctx)
 {
     (void)ctx;
+}
+static int observe(void *ctx)
+{
+    struct fixture *f = ctx;
+    f->observations++;
+    return 1;
+}
+static int change_on_second_observation(void *ctx)
+{
+    struct fixture *f = ctx;
+    if (++f->observations == 2)
+        f->sid = 1;
+    return 1;
+}
+static void denied_startup(void)
+{
+    struct fixture f = {.fault = WRONG_OWNER, .reset = 0xff7fbfff, .ctrl = 0x30};
+    *reg(&f, S) = 0x080f7e3f;
+    *reg(&f, S + 4) = 0x0e739d18;
+    *reg(&f, S + 0x14) = 0x400075;
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe};
+    struct fes_tx_result out = {0};
+    assert(!owns(&f) && fes_tx_terminal(&io, &out, -1) == FES_TX_UNCHANGED);
+    assert(f.observations == 2 && !f.writes && !f.transmits);
+    f.observations = 0;
+    io.observe_unchanged = change_on_second_observation;
+    assert(fes_tx_terminal(&io, &out, -1) == FES_TX_COLD_RECOVERY);
+    assert(f.observations == 2 && !f.writes);
+    out.write_attempted = 1;
+    io.observe_unchanged = observe;
+    f.observations = 0;
+    assert(fes_tx_terminal(&io, &out, -1) == FES_TX_COLD_RECOVERY && !f.observations);
 }
 static void test(enum fault fault)
 {
@@ -212,7 +253,7 @@ static void test(enum fault fault)
         *reg(&f, S + 0x2c) = 0;
     if (fault == BAD_ROUTE)
         f.sid = 9;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns};
     struct fes_tx_result out = {0};
     uint8_t frame[60] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x45, 2, 0xfe, 0x25, 8, 0xcb, 1, 0x88, 0xb5};
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
@@ -234,9 +275,9 @@ static void test(enum fault fault)
     if (fault == DIRTY_QUEUE || fault == WRONG_OWNER || fault == NEGATIVE_OWNER ||
         fault == BAD_ROUTE)
         assert(!f.writes && !f.transmits);
-    if (fault == WRONG_PHY)
+    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == FAILED_PHY_CHECK)
         assert(!f.transmits && !out.dma_possible && out.translation_revoked && out.mac_in_reset);
-    if (fault == BAD_DESCRIPTOR || fault == LOST_STOP || fault == MTL_PENDING)
+    if (fault == BAD_DESCRIPTOR || fault == CONTEXT_DESCRIPTOR || fault == LOST_STOP || fault == MTL_PENDING)
         assert(f.transmits && !out.process_stopped && out.translation_revoked && out.mac_in_reset);
     if (fault == FAILED_SYNC || fault == LOST_OWNER)
         assert(f.transmits && !out.translation_revoked && !out.mac_in_reset);
@@ -252,7 +293,7 @@ static void test(enum fault fault)
         expected = FES_TX_CLOSED;
     if (fault == UNKNOWN_CR2)
         expected = FES_TX_UNCHANGED;
-    if (fault == WRONG_PHY)
+    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == FAILED_PHY_CHECK)
         expected = FES_TX_REVOKED_UNDISPATCHED;
     unsigned writes = f.writes;
     assert(fes_tx_terminal(&io, &out, rc) == expected);
@@ -262,6 +303,7 @@ static void test(enum fault fault)
 }
 int main(void)
 {
+    denied_startup();
     for (enum fault i = OK; i <= UNKNOWN_CR2; i++)
         test(i);
     puts("CBL TX domain/translation, frame and retirement fault checks passed");
