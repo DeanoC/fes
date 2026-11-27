@@ -2,7 +2,7 @@
 
 Slice 4g of the DE25 pc386 HPS-DDR window lane (`#2029`, plan in [../2026-11-22-de25-pc386-s4-plan/plan.md](../2026-11-22-de25-pc386-s4-plan/plan.md)) exercises the real `fes.memory.hps-ddr` window ioctls on Kit D25 (`de25-j8g`, serial `TRWU8J8G`) using an exact-`main` 486SX package and exact-`main` DE25 kit-software bundle.
 
-All three `fes.pc386` launches and clean Stops completed on the reserved 256 MiB `fes-window-pool` with **zero `arm-smmu` faults**, booted FreeDOS from the 128 MiB `pmode` ATA disk, accepted interactive HID keyboard input, launched DOOM into live E1M1 gameplay with non-silent HDMI audio, persisted file changes (`C:\S4G.TXT` containing `S4G_DE25_OK`) across Stop and relaunch, and restored cleanly to the J8G baseline.
+All three `fes.pc386` launches and clean Stops completed on the reserved 256 MiB `fes-window-pool` with **zero `arm-smmu` faults** and restored cleanly to the J8G baseline. Across the two visually observed runs (Pass 1 Launch 1 and Pass 2 relaunch; Pass 1 Launch 2 captured black frames after an early `wait_stable` match as noted below), the run booted FreeDOS from the 128 MiB `pmode` ATA disk, accepted interactive HID keyboard input, launched DOOM into live E1M1 gameplay with non-silent HDMI audio, and persisted `C:\S4G.TXT` (`S4G_DE25_OK`) across Stop and relaunch.
 
 ## Exact artifacts verified
 
