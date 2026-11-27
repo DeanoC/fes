@@ -133,8 +133,9 @@ new_video = old_video + """
     tool = os.environ.get("C_CONFORMANCE_TOOL", "")
     if tool and os.path.isfile(tool):
         cf = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), "--package", str(PKG),
-            "--api", ORIGIN, "--fogcast", FOGCAST, "--video", VID, "--out", str(OUT / "conformance")],
-            capture_output=True, text=True, timeout=900)
+            "--api", ORIGIN, "--fogcast", FOGCAST, "--video", VID, "--out", str(OUT / "conformance"),
+            "--kit", "D25", "--package-id", str(pid)],
+            capture_output=True, text=True, timeout=1200)
         (OUT / "conformance.log").write_text(cf.stdout + cf.stderr)
         if cf.returncode != 3:
             try:

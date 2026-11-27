@@ -4,54 +4,485 @@
   "cores": {
     "fes.zx81": {
       "steps": [
-        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
-         "keys": ["p"], "expect": {"idle_max": 0.0001, "change": 0.0003}},
-        {"keys": ["enter"], "settle": 3},
-        {"name": "tape_mounts", "covers": ["fes.media.zx81-tape"],
-         "media": ["change-tape", "zx81-fes-tape-ok.p"]},
-        {"name": "tape_loads", "covers": ["fes.media.zx81-tape"], "settle": 30,
-         "keys": ["j", "shift+p", "shift+p", "enter"], "expect": {"ocr": "FES TAPE OK"}}
+        {
+          "name": "keyboard_reaches_core",
+          "covers": [
+            "fes.keyboard.hid"
+          ],
+          "settle": 2,
+          "keys": [
+            "p"
+          ],
+          "expect": {
+            "idle_max": 0.0001,
+            "change": 0.0003
+          }
+        },
+        {
+          "keys": [
+            "enter"
+          ],
+          "settle": 3
+        },
+        {
+          "name": "tape_mounts",
+          "covers": [
+            "fes.media.zx81-tape"
+          ],
+          "media": [
+            "change-tape",
+            "zx81-fes-tape-ok.p"
+          ]
+        },
+        {
+          "name": "tape_loads",
+          "covers": [
+            "fes.media.zx81-tape",
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 30,
+          "keys": [
+            "j",
+            "shift+p",
+            "shift+p",
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FES TAPE OK",
+            "audio": {
+              "min_rms": 500
+            }
+          }
+        }
       ]
     },
     "fes.spectrum": {
       "steps": [
-        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
-         "keys": ["p"], "expect": {"idle_max": 0.0001, "change": 0.0003}},
-        {"keys": ["enter"], "settle": 3},
-        {"name": "tape_mounts", "covers": ["fes.media.spectrum-tape"],
-         "media": ["change-cassette", "spectrum-fes-tape-ok.tap"]},
-        {"name": "tape_loads", "covers": ["fes.media.spectrum-tape"], "settle": 25,
-         "keys": ["j", "ctrl+p", "ctrl+p", "enter"], "expect": {"ocr": "FES TAPE OK"}}
+        {
+          "name": "keyboard_reaches_core",
+          "covers": [
+            "fes.keyboard.hid"
+          ],
+          "settle": 2,
+          "keys": [
+            "p"
+          ],
+          "expect": {
+            "idle_max": 0.0001,
+            "change": 0.0003
+          }
+        },
+        {
+          "keys": [
+            "enter"
+          ],
+          "settle": 3
+        },
+        {
+          "name": "tape_mounts",
+          "covers": [
+            "fes.media.spectrum-tape"
+          ],
+          "media": [
+            "change-cassette",
+            "spectrum-fes-tape-ok.tap"
+          ]
+        },
+        {
+          "name": "tape_loads",
+          "covers": [
+            "fes.audio.pcm-s16-stereo-48k",
+            "fes.media.spectrum-tape"
+          ],
+          "settle": 25,
+          "keys": [
+            "j",
+            "ctrl+p",
+            "ctrl+p",
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FES TAPE OK",
+            "audio": {
+              "tone_hz": 807.3,
+              "tolerance": 0.03,
+              "min_rms": 500
+            }
+          }
+        }
       ]
     },
     "fes.spectrum128": {
       "steps": [
-        {"name": "tape_mounts", "covers": ["fes.media.spectrum-tape"],
-         "media": ["change-cassette", "spectrum-fes-tape-ok.tap"]},
-        {"name": "tape_loader_runs", "covers": ["fes.keyboard.hid", "fes.media.spectrum-tape"], "settle": 25,
-         "keys": ["enter"], "expect": {"ocr": "FES TAPE OK"}}
+        {
+          "name": "tape_mounts",
+          "covers": [
+            "fes.media.spectrum-tape"
+          ],
+          "media": [
+            "change-cassette",
+            "spectrum-fes-tape-ok.tap"
+          ]
+        },
+        {
+          "name": "tape_loader_runs",
+          "covers": [
+            "fes.audio.pcm-s16-stereo-48k",
+            "fes.keyboard.hid",
+            "fes.media.spectrum-tape"
+          ],
+          "settle": 25,
+          "keys": [
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FES TAPE OK",
+            "audio": {
+              "tone_hz": 807.3,
+              "tolerance": 0.03,
+              "min_rms": 500
+            }
+          }
+        }
       ]
     },
     "fes.c64": {
       "steps": [
-        {"name": "keyboard_reaches_core", "covers": ["fes.keyboard.hid"], "settle": 2,
-         "keys": ["a"], "expect": {"idle_max": 0.0001, "change": 0.0001}},
-        {"keys": ["enter"], "settle": 2},
-        {"name": "disk_mounts", "covers": ["fes.media.c64-disk"],
-         "media": ["change-disk", "c64-fes-blank.d64"]},
-        {"name": "disk_directory", "covers": ["fes.media.c64-disk"], "settle": 12,
-         "keys": ["l", "o", "a", "d", "shift+2", "shift+4", "shift+2", "comma", "8", "enter"]},
-        {"name": "disk_directory_lists", "covers": ["fes.media.c64-disk"], "settle": 4,
-         "keys": ["l", "i", "s", "t", "enter"], "expect": {"ocr": "BLOCKS FREE"}}
+        {
+          "name": "keyboard_reaches_core",
+          "covers": [
+            "fes.keyboard.hid"
+          ],
+          "settle": 2,
+          "keys": [
+            "a"
+          ],
+          "expect": {
+            "idle_max": 0.0001,
+            "change": 0.0001
+          }
+        },
+        {
+          "keys": [
+            "enter"
+          ],
+          "settle": 2
+        },
+        {
+          "name": "disk_mounts",
+          "covers": [
+            "fes.media.c64-disk"
+          ],
+          "media": [
+            "change-disk",
+            "c64-fes-blank.d64"
+          ]
+        },
+        {
+          "name": "disk_directory",
+          "covers": [
+            "fes.media.c64-disk"
+          ],
+          "settle": 12,
+          "keys": [
+            "l",
+            "o",
+            "a",
+            "d",
+            "shift+2",
+            "shift+4",
+            "shift+2",
+            "comma",
+            "8",
+            "enter"
+          ]
+        },
+        {
+          "name": "disk_directory_lists",
+          "covers": [
+            "fes.media.c64-disk"
+          ],
+          "settle": 4,
+          "keys": [
+            "l",
+            "i",
+            "s",
+            "t",
+            "enter"
+          ],
+          "expect": {
+            "ocr": "BLOCKS FREE"
+          }
+        },
+        {
+          "keys": [
+            "text:poke54296,15",
+            "enter",
+            "text:poke54277,0",
+            "enter",
+            "text:poke54278,240",
+            "enter",
+            "text:poke54273,29",
+            "enter",
+            "text:poke54272,69",
+            "enter"
+          ],
+          "settle": 1
+        },
+        {
+          "name": "sid_tone",
+          "covers": [
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 3,
+          "keys": [
+            "text:poke54276,17",
+            "enter"
+          ],
+          "expect": {
+            "audio": {
+              "tone_hz": 440.0,
+              "tolerance": 0.03,
+              "min_rms": 500
+            }
+          }
+        },
+        {
+          "keys": [
+            "text:poke54276,16",
+            "enter"
+          ],
+          "settle": 1
+        }
       ]
     },
     "fes.atari-st": {
       "steps": [
-        {"name": "mouse_moves_pointer", "covers": ["fes.mouse.relative"], "settle": 2,
-         "mouse": [120, 80, 0], "expect": {"idle_max": 0.0001, "change": 0.00005}},
-        {"name": "floppy_mounts",
-         "covers": ["fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry"],
-         "media": ["change-disk", "atari-st-fes-blank.st"]}
+        {
+          "name": "mouse_moves_pointer",
+          "covers": [
+            "fes.mouse.relative"
+          ],
+          "settle": 2,
+          "mouse": [
+            120,
+            80,
+            0
+          ],
+          "expect": {
+            "idle_max": 0.0001,
+            "change": 5e-05
+          }
+        },
+        {
+          "name": "floppy_mounts",
+          "covers": [
+            "fes.media.atari-st-floppy",
+            "fes.media.atari-st-floppy-geometry"
+          ],
+          "media": [
+            "change-disk",
+            "atari-st-fes-blank.st"
+          ]
+        },
+        {
+          "name": "keyclick_sounds",
+          "covers": [
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 1,
+          "keys": [
+            "space",
+            "space",
+            "space",
+            "space",
+            "space",
+            "space"
+          ],
+          "expect": {
+            "audio": {
+              "min_rms": 300
+            }
+          }
+        }
+      ]
+    },
+    "fes.spectrum-plus3": {
+      "steps": [
+        {
+          "name": "tape_mounts",
+          "covers": [
+            "fes.media.spectrum-tape"
+          ],
+          "media": [
+            "change-cassette",
+            "spectrum-fes-tape-ok.tap"
+          ]
+        },
+        {
+          "name": "disk_mounts",
+          "covers": [
+            "fes.media.spectrum-disk",
+            "fes.media.spectrum-disk-plus3"
+          ],
+          "media": [
+            "change-disk",
+            "plus3-fes-blank.dsk"
+          ]
+        },
+        {
+          "name": "menu_reaches_basic",
+          "covers": [
+            "fes.keyboard.hid"
+          ],
+          "settle": 3,
+          "keys": [
+            "down",
+            "enter"
+          ],
+          "expect": {
+            "change": 0.0003
+          }
+        },
+        {
+          "name": "disk_catalog",
+          "covers": [
+            "fes.media.spectrum-disk"
+          ],
+          "settle": 8,
+          "keys": [
+            "text:cat",
+            "enter"
+          ],
+          "expect": {
+            "ocr": "FREE"
+          }
+        },
+        {
+          "name": "beep_tone",
+          "covers": [
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 3,
+          "keys": [
+            "text:beep 2,9",
+            "enter"
+          ],
+          "expect": {
+            "audio": {
+              "tone_hz": 440.0,
+              "tolerance": 0.03,
+              "min_rms": 500
+            }
+          }
+        }
+      ]
+    },
+    "fes.pentagon": {
+      "steps": [
+        {
+          "name": "tape_mounts",
+          "covers": [
+            "fes.media.spectrum-tape"
+          ],
+          "media": [
+            "change-cassette",
+            "spectrum-fes-tape-ok.tap"
+          ]
+        },
+        {
+          "name": "disk_mounts",
+          "covers": [
+            "fes.media.spectrum-disk",
+            "fes.media.spectrum-disk-trdos"
+          ],
+          "media": [
+            "change-disk",
+            "trdos-fes-blank.trd"
+          ]
+        }
+      ]
+    },
+    "fes.pcxt-dos": {
+      "steps": [
+        {
+          "name": "freedos_disk_made",
+          "cli": [
+            "shelf-new",
+            "{core_id}",
+            "FES F3 {stamp}",
+            "{package_id}",
+            "freedos"
+          ],
+          "bind": {
+            "game": "game_id",
+            "media": "media_id"
+          }
+        },
+        {
+          "name": "floppy_mounts",
+          "covers": [
+            "fes.media.pcxt-floppy"
+          ],
+          "cli": [
+            "insert-library-disk",
+            "{game}",
+            "{media}"
+          ],
+          "expect": {
+            "units": true
+          }
+        },
+        {
+          "name": "freedos_boots",
+          "covers": [
+            "fes.keyboard.hid",
+            "fes.audio.pcm-s16-stereo-48k"
+          ],
+          "settle": 60,
+          "keys": [
+            "ctrl+alt+delete"
+          ],
+          "expect": {
+            "ocr": "FreeDOS",
+            "audio": {
+              "min_rms": 300
+            }
+          }
+        },
+        {
+          "name": "dos_writes",
+          "settle": 8,
+          "keys": [
+            "text:md fes",
+            "enter"
+          ],
+          "expect": {
+            "change": 0.0003
+          }
+        },
+        {
+          "name": "floppy_saves",
+          "covers": [
+            "fes.media.pcxt-floppy-write"
+          ],
+          "cli": [
+            "save-disk"
+          ]
+        },
+        {
+          "name": "save_kept",
+          "covers": [
+            "fes.media.pcxt-floppy-write"
+          ],
+          "cli": [
+            "shelf",
+            "{core_id}"
+          ],
+          "expect": {
+            "shelf_kept": "{game}"
+          }
+        }
       ]
     }
   }
