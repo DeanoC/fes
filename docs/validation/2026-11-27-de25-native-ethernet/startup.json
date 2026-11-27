@@ -1,0 +1,76 @@
+{
+  "measurement": {
+    "finished_utc": "2026-11-27T13:16:24.649748+00:00",
+    "freeze_sha256": "a8332886c94ca19bbbdf73c3a8779deebf9859ffc1d7fe9361ed53b58e46b890",
+    "handles_clear": true,
+    "image_sha256": "5473592561f281ade6761e0434836f2e15a57415ad2404ae246aa5929718e440",
+    "program_verified": true,
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-27T13:16:07.981037+00:00",
+    "status": "passed",
+    "uart_closed": true
+  },
+  "observation": {
+    "cpu_mpidr": "0000000081000000",
+    "diagnostic_id": "d885bcf2aa670022",
+    "dma_started": false,
+    "mac_skip_reason": "tsn0-reset",
+    "mac_version": null,
+    "parked": true,
+    "register_samples": [
+      {
+        "clock_stat": 33751808,
+        "counter_rst": 0,
+        "emac_sel": 0,
+        "l4_fw_emac0": 0,
+        "main_bypass": 0,
+        "main_en": 3934,
+        "noc_clk": 0,
+        "noc_div": 673448088,
+        "noc_idle": 17,
+        "per0_reset": 4286562303,
+        "per_bypass": 0,
+        "per_en": 268435455,
+        "tsn0": 3,
+        "tsn0_sidctrl": 48,
+        "tsn0_sids": 0
+      },
+      {
+        "clock_stat": 33751808,
+        "counter_rst": 0,
+        "emac_sel": 0,
+        "l4_fw_emac0": 0,
+        "main_bypass": 0,
+        "main_en": 3934,
+        "noc_clk": 0,
+        "noc_div": 673448088,
+        "noc_idle": 17,
+        "per0_reset": 4286562303,
+        "per_bypass": 0,
+        "per_en": 268435455,
+        "tsn0": 3,
+        "tsn0_sidctrl": 48,
+        "tsn0_sids": 0
+      }
+    ],
+    "scope": "de25-cbl-mac-ocramspl-v1",
+    "uart_sha256": "28db6d679c74f58425c9cfeb7b88fc89cb63245e2fbe5f69512d23e55659d0ea"
+  },
+  "restore": {
+    "finished_utc": "2026-11-27T13:18:46.763956+00:00",
+    "freeze_sha256": "a8332886c94ca19bbbdf73c3a8779deebf9859ffc1d7fe9361ed53b58e46b890",
+    "generation": 1,
+    "handles_clear": true,
+    "image_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+    "parked": true,
+    "preferences": "ram",
+    "program_verified": true,
+    "ready": true,
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-27T13:17:02.793405+00:00",
+    "status": "passed",
+    "uart_closed": true,
+    "uart_sha256": "d1ee69d3112da67f49f54b9d20480071983b80d5b278fb022ed6cd9352c0661d"
+  },
+  "serial": "TRWU8CBL"
+}
