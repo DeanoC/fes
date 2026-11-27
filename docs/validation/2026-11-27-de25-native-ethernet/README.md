@@ -119,3 +119,20 @@ operator loaded the original C64 image. C64 reached Ready with boot ID
 `af4407e48b21634e` and RAM preferences. It accepted Quit, parked at
 generation 1, and released all board handles.
 [C64 recovery and board release](tx12-c64-release.json)
+
+## First reply received by CBL
+
+At 15:58:07 UTC, Powerboat captured CBL's 60-byte request on the physical
+switch and sent the nonce-matched reply. CBL recorded the exact 60 reply
+bytes with a completed RX descriptor (`0x3007003c`). The TX descriptor
+completed and the channel reported the TX process-stopped bit. The receive
+shutdown check failed before the test could prove the DMA window was safe
+to revoke. The SPL requested cold recovery and withheld the second request.
+This establishes one physical round trip. Testing authenticated FogCast
+discovery still requires the native launcher.
+[Target UART](bidi04-uart.gz) · [Request on the wire](bidi04-request.bin) ·
+[Host and target evidence](bidi04-wire.json)
+
+After a physical power cycle with the original 4 GB card, C64 reached Ready,
+accepted Quit and parked at generation 1. The operator verified the return
+and released CBL. [C64 recovery and board release](bidi04-c64-release.json)
