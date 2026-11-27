@@ -405,4 +405,8 @@ def producer_environment(env=None, recipe=None):
             mapped["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = CUDA_ARCHITECTURES
         else:
             mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+    elif recipe.toolchain == "quartus":
+        edition_root = mapped.get(f"FES_QUARTUS_{recipe.quartus['edition'].upper()}_ROOTDIR")
+        if edition_root:
+            mapped["QUARTUS_ROOTDIR"] = edition_root
     return mapped

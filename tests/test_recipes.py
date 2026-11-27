@@ -50,6 +50,67 @@ class ClosureAuditPrivateCacheTest(unittest.TestCase):
 
 
 class RecipeRegistryTest(unittest.TestCase):
+    def test_quartus_recipes_select_their_edition_root(self):
+        env = {
+            "FES_QUARTUS_LITE_ROOTDIR": "/lite/quartus",
+            "FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus",
+            "QUARTUS_ROOTDIR": "/ambient/quartus",
+        }
+        lite = recipes.recipe_for("fes.zx81")
+        pro = recipes.recipe_for("fes.menu", board="de25-nano")
+        self.assertEqual(recipes.producer_environment(env, lite)["QUARTUS_ROOTDIR"],
+                         "/lite/quartus")
+        self.assertEqual(recipes.producer_environment(env, pro)["QUARTUS_ROOTDIR"],
+                         "/pro/quartus")
+
+    def test_missing_or_empty_edition_root_preserves_ambient_value(self):
+        lite = recipes.recipe_for("fes.zx81")
+        for edition_root in (None, ""):
+            for ambient in ("/ambient/quartus", ""):
+                with self.subTest(edition_root=edition_root, ambient=ambient):
+                    env = {"QUARTUS_ROOTDIR": ambient}
+                    if edition_root is not None:
+                        env["FES_QUARTUS_LITE_ROOTDIR"] = edition_root
+                    result = recipes.producer_environment(env, lite)
+                    self.assertEqual(result["QUARTUS_ROOTDIR"], ambient)
+        absent = recipes.producer_environment({"FES_QUARTUS_LITE_ROOTDIR": ""}, lite)
+        self.assertNotIn("QUARTUS_ROOTDIR", absent)
+
+    def test_lite_does_not_fall_back_to_pro_root(self):
+        env = {"FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus"}
+        result = recipes.producer_environment(env, recipes.recipe_for("fes.zx81"))
+        self.assertNotIn("QUARTUS_ROOTDIR", result)
+
+    def test_oss_recipe_leaves_quartus_root_untouched(self):
+        recipe = recipes.recipe_for("fes.pong")
+        for root in (None, "", "/ambient/quartus"):
+            with self.subTest(root=root):
+                env = {"FES_QUARTUS_LITE_ROOTDIR": "/lite/quartus",
+                       "FES_QUARTUS_PRO_ROOTDIR": "/pro/quartus"}
+                if root is not None:
+                    env["QUARTUS_ROOTDIR"] = root
+                result = recipes.producer_environment(env, recipe)
+                self.assertEqual(result.get("QUARTUS_ROOTDIR"), root)
+
+    def test_unset_edition_roots_preserve_legacy_environment_for_all_recipes(self):
+        # This is the pre-edition-root producer_environment contract: edition
+        # host variables remain ordinary caller environment and do not affect
+        # the selected QUARTUS_ROOTDIR. Compare full mappings, not just the key.
+        for roots in ({}, {"FES_QUARTUS_LITE_ROOTDIR": "",
+                           "FES_QUARTUS_PRO_ROOTDIR": ""}):
+            caller = {"QUARTUS_ROOTDIR": "/ambient/quartus", "KEEP_ME": "value", **roots}
+            for recipe in (r for board in recipes.BOARDS for r in recipes.load_recipes(board=board).values()):
+                with self.subTest(core_id=recipe.core_id, board=recipe.board, roots=roots):
+                    expected = dict(caller)
+                    expected.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+                    expected.pop("FES_TOOLCHAIN_ROOT", None)
+                    expected.pop("FES_TOOLCHAIN_GPU_ROUTER", None)
+                    expected.pop("FES_TOOLCHAIN_HIP_ARCHITECTURES", None)
+                    if recipe.toolchain == "oss":
+                        expected["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
+                        expected["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+                    self.assertEqual(recipes.producer_environment(caller, recipe), expected)
+
     def test_menu_board_selection_is_explicit_and_has_no_cross_board_fallback(self):
         default = recipes.recipe_for('fes.menu')
         self.assertEqual(default.board, 'de10-nano')
