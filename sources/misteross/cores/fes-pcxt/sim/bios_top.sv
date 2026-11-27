@@ -127,6 +127,8 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY), .FLOPPY_WRITE(WITH_WRITABLE),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
+        .video_card(2'd0), .hercules_graphics_mode(),
+        .display_pixel_ce(), .display_de(), .display_sof(), .display_eol(), .display_rgbi(),
         .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
         .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
         .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),

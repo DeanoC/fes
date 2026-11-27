@@ -30,19 +30,26 @@ func registerCoreData(mux *http.ServeMux, service Service) {
 			var err error
 			if r.Method == http.MethodPut {
 				var body struct {
-					ExpectedPackageID string                    `json:"expected_package_id"`
-					ExpectedRevision  string                    `json:"expected_revision"`
-					PaddleSpeed       *protocol.PaddleSpeed     `json:"paddle_speed"`
-					Machine           *protocol.MachineSettings `json:"machine"`
+					ExpectedPackageID string                        `json:"expected_package_id"`
+					ExpectedRevision  string                        `json:"expected_revision"`
+					PaddleSpeed       *protocol.PaddleSpeed         `json:"paddle_speed"`
+					Machine           *protocol.MachineSettings     `json:"machine"`
+					PcxtMachine       *protocol.PcxtMachineSettings `json:"pcxt_machine"`
 				}
 				if decodeSingleJSON(w, r, &body) != nil {
 					return
 				}
-				if (body.PaddleSpeed == nil) == (body.Machine == nil) {
-					writeError(w, 400, "BAD_REQUEST", "exactly one of paddle_speed or machine is required")
+				present := 0
+				for _, set := range []bool{body.PaddleSpeed != nil, body.Machine != nil, body.PcxtMachine != nil} {
+					if set {
+						present++
+					}
+				}
+				if present != 1 {
+					writeError(w, 400, "BAD_REQUEST", "exactly one of paddle_speed, machine, or pcxt_machine is required")
 					return
 				}
-				update := protocol.CoreSettingsUpdate{ExpectedPackageID: body.ExpectedPackageID, ExpectedRevision: body.ExpectedRevision, Machine: body.Machine}
+				update := protocol.CoreSettingsUpdate{ExpectedPackageID: body.ExpectedPackageID, ExpectedRevision: body.ExpectedRevision, Machine: body.Machine, PcxtMachine: body.PcxtMachine}
 				if body.PaddleSpeed != nil {
 					update.PaddleSpeed = *body.PaddleSpeed
 				} else {

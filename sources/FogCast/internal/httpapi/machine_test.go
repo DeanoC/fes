@@ -126,4 +126,19 @@ func TestMachineRoutesCarryGameDiskAndSettings(t *testing.T) {
 			t.Errorf("%s settings %d", name, out.Code)
 		}
 	}
+	pcxtHeaders := with(map[string]string{protocol.LibraryGameHeader: "beast-1984", "X-FogCast-Expected-Revision": "absent", protocol.PcxtMachineSettingsHeader: "2,1"})
+	if out := send("/v1/library/core/settings", grant.Token, strings.NewReader("package"), 7, pcxtHeaders); out.Code != 200 ||
+		c.update.PcxtMachine == nil || c.update.GameID != "beast-1984" || c.update.PcxtMachine.VideoCard != 2 || c.update.PcxtMachine.MonoTint != 1 {
+		t.Fatalf("pcxt machine settings %d %+v", out.Code, c.update)
+	}
+	for name, bad := range map[string]map[string]string{
+		"card-3":      with(map[string]string{protocol.LibraryGameHeader: "beast-1984", "X-FogCast-Expected-Revision": "absent", protocol.PcxtMachineSettingsHeader: "3,0"}),
+		"no-game":     with(map[string]string{"X-FogCast-Expected-Revision": "absent", protocol.PcxtMachineSettingsHeader: "2,1"}),
+		"with-pc386":  with(map[string]string{protocol.LibraryGameHeader: "beast-1984", "X-FogCast-Expected-Revision": "absent", protocol.PcxtMachineSettingsHeader: "2,1", protocol.MachineSettingsHeader: "3,0,1,0,576,5,1"}),
+		"with-paddle": with(map[string]string{protocol.LibraryGameHeader: "beast-1984", "X-FogCast-Expected-Revision": "absent", protocol.PcxtMachineSettingsHeader: "2,1", "X-FogCast-Paddle-Speed": "1"}),
+	} {
+		if out := send("/v1/library/core/settings", grant.Token, strings.NewReader("package"), 7, bad); out.Code != 400 {
+			t.Errorf("pcxt %s settings %d", name, out.Code)
+		}
+	}
 }

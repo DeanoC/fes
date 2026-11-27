@@ -545,6 +545,36 @@ constants:
     value: 7
   - name: FesComputerPc386SbDma
     value: 1
+  # fes.pcxt.machine 1.0: 4 settings words on tag 4 (following tag 3, fes.pc386.machine).
+  # Words 2 and 3 are reserved and must be zero.
+  - name: FesComputerPcxtMachineTag
+    value: 4
+  - name: FesComputerPcxtMachineWordCount
+    value: 4
+  - name: FesComputerPcxtVideoCardIndex
+    value: 0
+  - name: FesComputerPcxtMonoTintIndex
+    value: 1
+  - name: FesComputerPcxtReserved0Index
+    value: 2
+  - name: FesComputerPcxtReserved1Index
+    value: 3
+  - name: FesComputerPcxtVideoCardCga
+    value: 0
+  - name: FesComputerPcxtVideoCardMda
+    value: 1
+  - name: FesComputerPcxtVideoCardHercules
+    value: 2
+  - name: FesComputerPcxtVideoCardMax
+    value: 2
+  - name: FesComputerPcxtMonoTintWhite
+    value: 0
+  - name: FesComputerPcxtMonoTintGreen
+    value: 1
+  - name: FesComputerPcxtMonoTintAmber
+    value: 2
+  - name: FesComputerPcxtMonoTintMax
+    value: 2
   # fes.rtc.wall-clock 1.0: four binary words, staged in order; word 3
   # applies them. Weekday counts 1 (Sunday) to 7 as the MC146818 does.
   - name: FesComputerWallClockWordCount
@@ -666,3 +696,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 22
+  - id: fes.pcxt.machine
+    major: 1
+    minor: 0
+    capability_bit: 23

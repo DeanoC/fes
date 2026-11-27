@@ -164,6 +164,7 @@ const (
 	stateEmpty, stateLoading, stateReady, stateVerifying = 1, 2, 3, 4
 	capPersistence                                       = 1 << 17
 	capPC386Machine                                      = 1 << 19
+	capPCXTMachine                                       = 1 << 23
 )
 
 func newV11Model(caps uint32, minor uint16, window []byte, verifyReads int) *v11Model {
@@ -173,7 +174,9 @@ func newV11Model(caps uint32, minor uint16, window []byte, verifyReads int) *v11
 		caps: caps, minor: minor, window: window, verifyReads: verifyReads,
 		disk: stateEmpty, dirty: map[uint32]bool{},
 	}
-	copy(m.words[:8], []uint16{0, 0, 0, 0, 0x220, 7, 1, 0})
+	if caps&capPCXTMachine == 0 || caps&capPC386Machine != 0 {
+		copy(m.words[:8], []uint16{0, 0, 0, 0, 0x220, 7, 1, 0})
+	}
 	return m
 }
 
@@ -198,6 +201,21 @@ func (m *v11Model) reset(state uint16) {
 	m.disk, m.frozen, m.saved, m.failed = state, false, false, false
 	m.writerBusy, m.pendingSector = false, 0
 	m.dirty, m.commitWords, m.geometry, m.verifyRemaining = map[uint32]bool{}, nil, nil, 0
+}
+
+func pcxtMachineValid(w []uint16) bool {
+	return len(w) == 4 && w[0] <= 2 && w[1] <= 2 && w[2] == 0 && w[3] == 0
+}
+
+func (m *v11Model) pcxtLayout() bool {
+	return m.caps&capPCXTMachine != 0 && m.caps&capPC386Machine == 0
+}
+
+func (m *v11Model) dataLayout() (wordCount, tag uint32, valid func([]uint16) bool) {
+	if m.pcxtLayout() {
+		return 4, 4, pcxtMachineValid
+	}
+	return 72, 3, machineValid
 }
 
 func machineValid(w []uint16) bool {
@@ -250,8 +268,8 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			return 1, 0
 		}
 	case 24, 25, 26, 27:
-		persistenceCaps := uint32(capPersistence | capPC386Machine)
-		if m.caps&persistenceCaps != persistenceCaps {
+		hasLayout := (m.caps&capPC386Machine != 0) != (m.caps&capPCXTMachine != 0)
+		if m.caps&capPersistence == 0 || !hasLayout {
 			return 1, 0
 		}
 	case 28:
@@ -377,70 +395,74 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			}
 		}
 		return 0, word
-	case 24:
-		if index != 0 {
-			return 2, 0
-		}
-		switch arg {
-		case 0:
-			if held {
-				return 4, 0
+	case 24, 25, 26, 27:
+		wordCount, tag, valid := m.dataLayout()
+		switch op {
+		case 24:
+			if index != 0 {
+				return 2, 0
 			}
-			if m.snapshot == nil {
-				snap := m.words
-				m.snapshot = &snap
-			}
-		case 1:
-			if !held {
-				return 4, 0
-			}
-			m.staging = map[uint32]uint16{}
-		case 2:
-			if !held || m.staging == nil || len(m.staging) != 72 {
-				return 4, 0
-			}
-			staged := make([]uint16, 72)
-			for i := range staged {
-				staged[i] = m.staging[uint32(i)]
-			}
-			if !machineValid(staged) {
+			switch arg {
+			case 0:
+				if held {
+					return 4, 0
+				}
+				if m.snapshot == nil {
+					snap := m.words
+					m.snapshot = &snap
+				}
+			case 1:
+				if !held {
+					return 4, 0
+				}
+				m.staging = map[uint32]uint16{}
+			case 2:
+				if !held || m.staging == nil || len(m.staging) != int(wordCount) {
+					return 4, 0
+				}
+				staged := make([]uint16, wordCount)
+				for i := range staged {
+					staged[i] = m.staging[uint32(i)]
+				}
+				if !valid(staged) {
+					return 3, 0
+				}
+				copy(m.words[:wordCount], staged)
+				m.staging = nil
+			case 3:
+				if m.snapshot == nil {
+					return 4, 0
+				}
+				m.snapshot = nil
+			default:
 				return 3, 0
 			}
-			copy(m.words[:], staged)
-			m.staging = nil
-		case 3:
-			if m.snapshot == nil {
+			return 0, 0
+		case 25:
+			if index >= wordCount {
+				return 2, 0
+			} else if arg != 0 {
+				return 3, 0
+			} else if m.snapshot == nil {
 				return 4, 0
 			}
-			m.snapshot = nil
-		default:
-			return 3, 0
+			return 0, m.snapshot[index]
+		case 26:
+			if index >= wordCount {
+				return 2, 0
+			} else if !held || m.staging == nil {
+				return 4, 0
+			}
+			m.staging[index] = uint16(arg)
+			return 0, 0
+		case 27:
+			if index > 3 {
+				return 2, 0
+			} else if arg != 0 {
+				return 3, 0
+			}
+			return 0, [4]uint16{uint16(wordCount), uint16(tag), 1, 0}[index]
 		}
-		return 0, 0
-	case 25:
-		if index >= 72 {
-			return 2, 0
-		} else if arg != 0 {
-			return 3, 0
-		} else if m.snapshot == nil {
-			return 4, 0
-		}
-		return 0, m.snapshot[index]
-	case 26:
-		if index >= 72 {
-			return 2, 0
-		} else if !held || m.staging == nil {
-			return 4, 0
-		}
-		m.staging[index] = uint16(arg)
-		return 0, 0
-	case 27:
-		if index > 3 {
-			return 2, 0
-		} else if arg != 0 {
-			return 3, 0
-		}
-		return 0, [4]uint16{72, 3, 1, 0}[index]
 	}
 	// 28: wall clock
 	if index > 3 {
@@ -581,7 +603,7 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || fixture.ABI.Major != 1 || fixture.ABI.Minor != 1 ||
-		len(fixture.Scenarios) != 6 {
+		len(fixture.Scenarios) != 7 {
 		t.Fatalf("fixture identity %+v", fixture.ABI)
 	}
 	for _, s := range fixture.Scenarios {
@@ -675,10 +697,11 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 			if clock == nil {
 				clock = []int{}
 			}
+			wordCount, _, _ := m.dataLayout()
 			f := s.Final
 			if m.legacy.held != f.Held || m.disk != f.DiskState || m.flags() != f.DiskFlags || m.epoch != f.DiskEpoch ||
 				!reflect.DeepEqual(dirty, f.DiskDirty) || !reflect.DeepEqual(geometry, f.DiskGeom) ||
-				!reflect.DeepEqual(m.words[:], f.Persistent) || !reflect.DeepEqual(clock, f.WallClock) {
+				!reflect.DeepEqual(m.words[:wordCount], f.Persistent) || !reflect.DeepEqual(clock, f.WallClock) {
 				t.Fatalf("final state differs: model disk %d flags %d epoch %d dirty %v geometry %v clock %v",
 					m.disk, m.flags(), m.epoch, dirty, geometry, clock)
 			}

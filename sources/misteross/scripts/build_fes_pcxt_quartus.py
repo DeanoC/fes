@@ -35,7 +35,7 @@ from scripts.fes_build_common import BuildError, _require_clean_source as requir
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import load_quartus_lock, locate_quartus, tree_digest
 from scripts import toolchain_cache
-from scripts.sim_fes_pcxt import cga_font
+from scripts.sim_fes_pcxt import cga_font, mda_font
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_fes_pcxt_quartus.py'
@@ -222,7 +222,7 @@ def dos_assets(root):
             or floppy_lock['license'] != floppy['license']
             or floppy['sources'] != locked_sources):
         raise BuildError('PC/XT DOS floppy differs from the FreeDOS lock')
-    return metadata, cga_font(root)
+    return metadata, cga_font(root), mda_font(root)
 
 
 def create_build_record(root, repository, revision, tool_identities, *, identity_version=2,
@@ -243,7 +243,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     if (quartus['edition'], quartus['device_family']) != (lock.edition, lock.device_family):
         raise BuildError('PC/XT recipe edition or device family differs from the lock')
     parameters = {'device': board.DEVICE, 'core_id': 'fes.pcxt-dos',
-                  'hardware_dos': True,
+                  'hardware_dos': True, 'enable_hercules': True, 'enable_pcxt_machine': True,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
                   'enable_fes_computer': True, 'enable_pcxt_media': True,
                   'enable_pcxt_floppy_write': True, 'enable_keyboard': True,
@@ -266,9 +266,10 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     # it hashes the recipe without `version`/`threads`, which become toolchain
     # parameters, so the design id stops moving when only the Quartus version does.
     parameters.update(quartus_recipe_parameters(entry['quartus']))
-    metadata, font = dos_assets(root)
+    metadata, font, mda = dos_assets(root)
     parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
-                      cga_font_sha256=hashlib.sha256(font).hexdigest())
+                      cga_font_sha256=hashlib.sha256(font).hexdigest(),
+                      mda_font_sha256=hashlib.sha256(mda).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
@@ -347,7 +348,7 @@ def manifest(record, payload):
             'description': description}
     interfaces = [{'id': name, 'major': 1, 'minor': 0, 'required': True} for name in (
         'fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write',
-        'fes.keyboard.hid', 'fes.audio.pcm-s16-stereo-48k')]
+        'fes.persistence.words', 'fes.pcxt.machine', 'fes.keyboard.hid', 'fes.audio.pcm-s16-stereo-48k')]
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},

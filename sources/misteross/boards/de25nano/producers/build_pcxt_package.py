@@ -2,8 +2,9 @@
 """Build the standard DE25 PC/XT DOS machine; retain candidates and never program hardware.
 
 The machine and its gates are in build_machine_package.py. GLaBIOS and the
-CGA font are not part of the package: they are uploaded at launch as one
-image, the 64 KiB system ROM window and then the 4 KiB character ROM.
+CGA/MDA fonts are not part of the package: they are uploaded at launch as one
+73,728-byte image: the 64 KiB system ROM window, the 4 KiB CGA font, and
+the 4 KiB MDA font.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -22,9 +23,10 @@ MACHINE = Machine(
     recipe=RECIPE, directory='pcxt', core_id='fes.pcxt-dos', rom_id='pcxt-firmware',
     name='FES PC/XT FreeDOS', version='0.1.0',
     descriptions={
-        'xt': 'Standard DE25 PC/XT with uploaded GLaBIOS and CGA font, board SDRAM, '
-              'a writable 360 KiB floppy and the XT keyboard'},
-    interfaces=(('fes.media.pcxt-floppy', 1, 0), ('fes.media.pcxt-floppy-write', 1, 0)),
+        'xt': 'Standard DE25 PC/XT with uploaded GLaBIOS, CGA/MDA fonts, board SDRAM, '
+              'a writable 360 KiB floppy, CGA/MDA/Hercules video selection, and the XT keyboard'},
+    interfaces=(('fes.media.pcxt-floppy', 1, 0), ('fes.media.pcxt-floppy-write', 1, 0),
+                ('fes.persistence.words', 1, 0), ('fes.pcxt.machine', 1, 0)),
     abi_minor=1)
 
 

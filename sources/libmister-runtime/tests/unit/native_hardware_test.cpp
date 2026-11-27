@@ -1544,7 +1544,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pc-floppy", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pc-floppy", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.pcxt.machine", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
@@ -4783,23 +4783,23 @@ void TestPc386FloppyLaunch()
 	const std::vector<mister::InitialComputerMedia> disks = {
 		Disk("boot.img", 1474560, 1, false), Disk("b.img", 1228800, 2, true)};
 	// Refused before programming: no drives declared, or the wrong drive.
-	assert(fixture.runtime.LoadLibraryCore(bare.path, opened_bare.package_id, data.path, "freedos", nullptr,
+	assert(fixture.runtime.LoadLibraryCore(bare.path, opened_bare.package_id, data.path, "freedos", nullptr, nullptr,
 		&disks).code == mister::ErrorCode::unsupported_interface);
 	auto swapped = disks;
 	swapped[0].binding.unit = 2;
 	swapped[1].binding.unit = 1;
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr,
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, nullptr,
 		&swapped).code == mister::ErrorCode::invalid_request);
 	// A disk whose bytes are not its digest's, or of another game.
 	auto corrupt = disks;
 	corrupt[1].binding.base_media_id = disks[0].binding.base_media_id;
 	const auto refused = fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos",
-		nullptr, &corrupt);
+		nullptr, nullptr, &corrupt);
 	assert(refused.code == mister::ErrorCode::invalid_request && refused.phase == "admission");
-	assert(!fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", nullptr,
+	assert(!fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", nullptr, nullptr,
 		&disks).ok());
 	assert(programmed == 0);
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, &disks).ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, nullptr, &disks).ok());
 	std::size_t release = 0, last_commit = 0;
 	for (std::size_t at = 0; at < endpoint.requests.size(); ++at) {
 		const auto& request = endpoint.requests[at];
@@ -4819,7 +4819,7 @@ void TestPc386FloppyLaunch()
 	const std::vector<std::uint8_t> written(window.floppy.begin(), window.floppy.begin() + 1474560);
 	assert(fixture.runtime.Stop().ok());
 	std::fill(window.floppy.begin(), window.floppy.end(), 0xee);
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, &disks).ok());
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "freedos", nullptr, nullptr, &disks).ok());
 	assert(std::equal(written.begin(), written.end(), window.floppy.begin()));
 	assert(fixture.runtime.Stop().ok());
 	const MediaDataIdentity identity{"fes.pc386", "freedos", disks[0].binding.base_media_id, kPc386FloppyNamespaceUnit};
@@ -4957,6 +4957,54 @@ void TestPongInputFaultDoesNotCapture()
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "", &inspected).ok());
 	assert(inspected.revision == "absent");
 	assert(rmdir((data.path + "/" + mister::native::CoreDataNamespace("fes.pong")).c_str()) == 0);
+}
+
+void TestPcxtLibraryRecordAndSettings()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPcxtMachine |
+		FesComputerCapabilityMediaPcxtFloppy;
+	mister_test::ComputerEndpoint endpoint(caps, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}},
+		"0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	TempDirectory package, data;
+	std::string manifest = Pc386Manifest();
+	ReplaceAll(&manifest, "id = \"fes.pc386\"", "id = \"fes.pcxt-dos\"");
+	ReplaceAll(&manifest, "id = \"fes.pc386.machine\"", "id = \"fes.pcxt.machine\"");
+	ReplaceAll(&manifest, "id = \"fes.rtc.wall-clock\"", "id = \"fes.media.pcxt-floppy\"");
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	const std::string id = opened.package_id;
+	mister::CoreData inspected;
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "beast-1984", &inspected).ok());
+	assert(inspected.revision == "absent" && inspected.layout.id == FesComputerInterfacePcxtMachineID &&
+		inspected.words == PcxtMachineDefaults());
+	mister::CoreSettingsUpdate update;
+	update.pcxt = true;
+	update.pcxt_machine.video_card = FesComputerPcxtVideoCardHercules;
+	update.pcxt_machine.mono_tint = FesComputerPcxtMonoTintAmber;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "beast-1984", "absent",
+		update, &inspected).ok());
+	assert(inspected.words == std::vector<std::uint16_t>({2, 2, 0, 0}));
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "beast-1984").ok());
+	assert(!endpoint.held && fixture.runtime.status().core_data.layout.id == FesComputerInterfacePcxtMachineID);
+	assert(endpoint.machine_words == inspected.words);
+	assert(fixture.runtime.Stop().ok());
+	const std::string games = data.path + "/games/";
+	const std::string record_dir = games + GameDataNamespace("fes.pcxt-dos", "beast-1984");
+	assert(unlink((record_dir + "/record.bin").c_str()) == 0 && rmdir(record_dir.c_str()) == 0);
+	assert(rmdir(games.c_str()) == 0);
 }
 
 void TestPersistentReplacementRefreshAndSaveFailureResume()
@@ -7147,6 +7195,7 @@ int main(int argc,char** argv)
 	TestPc386DiskFaultSaveRealignsMailbox();
 	TestPongInputFaultDoesNotCapture();
 	TestPc386LibraryRecordAndWallClock();
+	TestPcxtLibraryRecordAndSettings();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();

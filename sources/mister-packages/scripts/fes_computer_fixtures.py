@@ -42,6 +42,7 @@ CAP_PERSISTENCE = 1 << 17
 CAP_WALL_CLOCK = 1 << 18
 CAP_PC386_MACHINE = 1 << 19
 CAP_PC_FLOPPY = 1 << 22
+CAP_PCXT_MACHINE = 1 << 23
 MEDIA_CAPS = CAP_APPLE2_FLOPPY
 
 OP_IDENTITY, OP_EXECUTION, OP_KEYBOARD, OP_CONTROLLER = 1, 2, 3, 4
@@ -72,10 +73,12 @@ FLOPPY_WRITE_PROTECT = 1
 FLAG_DIRTY, FLAG_FROZEN, FLAG_BUSY, FLAG_ERROR = 1, 2, 4, 8
 PREPARE, COMMIT, EJECT, FREEZE, RESUME, SAVED = range(6)
 
-# fes.persistence.words 1.0 with layout fes.pc386.machine 1.0
+# fes.persistence.words 1.0 with layout fes.pc386.machine 1.0 / fes.pcxt.machine 1.0
 DATA_FREEZE, DATA_BEGIN, DATA_COMMIT, DATA_RESUME = range(4)
 PC386_TAG, PC386_WORDS = 3, 72
 PC386_DEFAULTS = [0, 0, 0, 0, 0x220, 7, 1, 0] + [0] * 64
+PCXT_TAG, PCXT_WORDS = 4, 4
+PCXT_DEFAULTS = [0, 0, 0, 0]
 
 # fes.rtc.wall-clock 1.0
 YEAR_MIN, YEAR_MAX = 1980, 2099
@@ -504,6 +507,11 @@ def pc386_machine_valid(words: list[int]) -> bool:
     return base in (0x220, 0x240) and irq in (2, 3, 5, 7) and dma == 1
 
 
+def pcxt_machine_valid(words: list[int]) -> bool:
+    """Commit-time check of fes.pcxt.machine 1.0 (docs/computer-io.md)."""
+    return len(words) == PCXT_WORDS and words[0] <= 2 and words[1] <= 2 and words[2] == 0 and words[3] == 0
+
+
 def month_days(year: int, month: int) -> int:
     if month == 2:
         return 29 if year % 4 == 0 and (year % 100 or year % 400 == 0) else 28
@@ -573,7 +581,8 @@ class Endpoint11(Endpoint):
         self.verify_left = 0
         self.verify_result = EMPTY
         # Persistence
-        self.words = list(PC386_DEFAULTS)
+        self.pcxt_layout = bool(capabilities & CAP_PCXT_MACHINE) and not (capabilities & CAP_PC386_MACHINE)
+        self.words = list(PCXT_DEFAULTS if self.pcxt_layout else PC386_DEFAULTS)
         self.snapshot: list[int] | None = None
         self.staging: dict[int, int] | None = None
         # Wall clock
@@ -659,8 +668,8 @@ class Endpoint11(Endpoint):
                 return E_OPCODE, 0
             return self._disk(op, index, arg)
         if op in (OP_DATA_CONTROL, OP_DATA_READ, OP_DATA_WRITE, OP_DATA_INFO):
-            persistence_caps = CAP_PERSISTENCE | CAP_PC386_MACHINE
-            if self.capabilities & persistence_caps != persistence_caps:
+            has_layout = bool(self.capabilities & CAP_PC386_MACHINE) ^ bool(self.capabilities & CAP_PCXT_MACHINE)
+            if not (self.capabilities & CAP_PERSISTENCE) or not has_layout:
                 return E_OPCODE, 0
             return self._data(op, index, arg)
         if op == OP_WALL_CLOCK:
@@ -830,6 +839,9 @@ class Endpoint11(Endpoint):
         return 0, 0
 
     def _data(self, op: int, index: int, arg: int) -> tuple[int, int]:
+        word_count = PCXT_WORDS if self.pcxt_layout else PC386_WORDS
+        tag = PCXT_TAG if self.pcxt_layout else PC386_TAG
+        valid = pcxt_machine_valid if self.pcxt_layout else pc386_machine_valid
         if op == OP_DATA_CONTROL:
             if index:
                 return E_INDEX, 0
@@ -845,10 +857,10 @@ class Endpoint11(Endpoint):
                 self.staging = {}
                 return 0, 0
             if arg == DATA_COMMIT:
-                if not self.held or self.staging is None or len(self.staging) != PC386_WORDS:
+                if not self.held or self.staging is None or len(self.staging) != word_count:
                     return E_STATE, 0
-                words = [self.staging[i] for i in range(PC386_WORDS)]
-                if not pc386_machine_valid(words):
+                words = [self.staging[i] for i in range(word_count)]
+                if not valid(words):
                     return E_ARGUMENT, 0
                 self.words = words
                 self.staging = None
@@ -860,7 +872,7 @@ class Endpoint11(Endpoint):
                 return 0, 0
             return E_ARGUMENT, 0
         if op == OP_DATA_READ:
-            if index >= PC386_WORDS:
+            if index >= word_count:
                 return E_INDEX, 0
             if arg:
                 return E_ARGUMENT, 0
@@ -868,7 +880,7 @@ class Endpoint11(Endpoint):
                 return E_STATE, 0
             return 0, self.snapshot[index]
         if op == OP_DATA_WRITE:
-            if index >= PC386_WORDS:
+            if index >= word_count:
                 return E_INDEX, 0
             if not self.held or self.staging is None:
                 return E_STATE, 0
@@ -879,7 +891,7 @@ class Endpoint11(Endpoint):
             return E_INDEX, 0
         if arg:
             return E_ARGUMENT, 0
-        return 0, [PC386_WORDS, PC386_TAG, 1, 0][index]
+        return 0, [word_count, tag, 1, 0][index]
 
     def _wall_clock(self, index: int, arg: int) -> tuple[int, int]:
         if index > 3:
@@ -1187,6 +1199,34 @@ def disk_session() -> Session11:
     return s
 
 
+PCXT_CAPS = CAP_VIDEO | CAP_KEYBOARD | CAP_AUDIO | CAP_PERSISTENCE | CAP_PCXT_MACHINE | (1 << 20) | (1 << 21)
+
+
+def pcxt_persistence_session() -> Session11:
+    s = Session11("pcxt-persistence", Endpoint11(PCXT_CAPS, 1),
+                  "Restore and Stop snapshot of the fes.pcxt.machine 1.0 record (video_card, mono_tint).")
+    s.identify()
+    for index in range(4):
+        s.send(f"pcxt-data-info-{index}", OP_DATA_INFO, index, 0)
+    s.send("pcxt-data-begin", OP_DATA_CONTROL, 0, DATA_BEGIN)
+    s.send("pcxt-data-write-0", OP_DATA_WRITE, 0, 2)
+    s.send("pcxt-data-write-1", OP_DATA_WRITE, 1, 2)
+    s.send("pcxt-data-write-2", OP_DATA_WRITE, 2, 0)
+    s.send("pcxt-commit-incomplete", OP_DATA_CONTROL, 0, DATA_COMMIT)
+    s.send("pcxt-data-write-3", OP_DATA_WRITE, 3, 0)
+    for name, index, bad in (("video-card", 0, 3), ("mono-tint", 1, 3), ("reserved0", 2, 1), ("reserved1", 3, 1)):
+        s.send(f"pcxt-stage-invalid-{name}", OP_DATA_WRITE, index, bad)
+        s.send(f"pcxt-commit-invalid-{name}", OP_DATA_CONTROL, 0, DATA_COMMIT)
+        s.send(f"pcxt-restore-{name}", OP_DATA_WRITE, index, [2, 2, 0, 0][index])
+    s.send("pcxt-data-commit", OP_DATA_CONTROL, 0, DATA_COMMIT)
+    s.send("pcxt-release", OP_EXECUTION, 0, 1)
+    s.send("pcxt-data-freeze", OP_DATA_CONTROL, 0, DATA_FREEZE)
+    for index in range(4):
+        s.send(f"pcxt-data-read-{index}", OP_DATA_READ, index, 0)
+    s.send("pcxt-hold", OP_EXECUTION, 0, 0)
+    return s
+
+
 def floppy_commit(s: Session11, unit: int, words: list[int], label: str) -> None:
     for word, value in enumerate(words):
         s.send(f"{label}commit-word-{word}", OP_DISK_COMMIT, unit * 8 + word, value)
@@ -1259,6 +1299,7 @@ def document_11() -> dict:
         "description": "Synthetic fes.computer 1.1 wire fixtures; never deploy.",
         "abi": {"id": "fes.computer", "tag": 4, "major": 1, "minor": 1},
         "scenarios": [minor0_session().document(), persistence_session().document(),
+                      pcxt_persistence_session().document(),
                       disk_session().document(), floppy_session().document(),
                       persistence_capability_session("persistence-without-layout",
                                                      PC386_CAPS & ~CAP_PC386_MACHINE).document(),

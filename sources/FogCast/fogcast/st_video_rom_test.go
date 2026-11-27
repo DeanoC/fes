@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
@@ -288,5 +289,90 @@ func TestInitialSTDiskLaunchRequiresReadySelectedBinding(t *testing.T) {
 		if selected.matchesLoadedIdentity(&candidate) {
 			t.Fatal("different or incomplete initial disk accepted")
 		}
+	}
+}
+
+func TestPcxtMachineLaunchIdentityAcceptsFloppyAndRejectsMismatches(t *testing.T) {
+	baseMediaID := strings.Repeat("a", 64)
+	pcxtUnit := protocol.MediaUnitStatus{
+		Unit:       0,
+		Interface:  protocol.PcxtFloppyInterface(),
+		MinBytes:   uint32(protocol.PcxtFloppyBytes),
+		MaxBytes:   uint32(protocol.PcxtFloppyBytes),
+		ChunkBytes: 512,
+		State:      protocol.MediaUnitReady,
+		Persistence: &protocol.MediaDataStatus{
+			Mode: "persistent", GameID: "pcxt-game", BaseMediaID: baseMediaID, Revision: "absent",
+		},
+	}
+	makeStatus := func(coreID, persistenceMode string, unit protocol.MediaUnitStatus) *protocol.CorePackageStatus {
+		return &protocol.CorePackageStatus{
+			CoreID: coreID,
+			ABI:    protocol.RuntimeContract{ID: protocol.ComputerABIID, Major: 1, Minor: 1},
+			ActiveInterfaces: []protocol.RuntimeInterface{
+				{ID: protocol.PcxtFloppyInterface().ID, Major: 1},
+				{ID: protocol.PcxtFloppyWriteInterface().ID, Major: 1},
+				{ID: protocol.PcxtMachineInterface().ID, Major: 1},
+			},
+			PersistenceMode: persistenceMode,
+			MediaUnits:      []protocol.MediaUnitStatus{unit},
+		}
+	}
+
+	withDisk := coreLoadSource{
+		machine: &protocol.LibraryMachineBinding{GameID: "pcxt-game"},
+		initialMedia: &corepackage.InitialMedia{
+			InterfaceID: protocol.PcxtFloppyInterface().ID,
+			GameID:      "pcxt-game",
+			BaseMediaID: baseMediaID,
+			Unit:        0,
+		},
+	}
+	if !withDisk.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", pcxtUnit)) {
+		t.Fatal("PC/XT machine launch with matching initial floppy was rejected")
+	}
+
+	mismatchedGame := withDisk
+	mismatchedGame.machine = &protocol.LibraryMachineBinding{GameID: "other-game"}
+	if mismatchedGame.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", pcxtUnit)) {
+		t.Fatal("mismatched machine and initialMedia game IDs accepted")
+	}
+
+	emptyUnit := pcxtUnit
+	emptyUnit.State = protocol.MediaUnitEmpty
+	emptyUnit.Persistence = nil
+	diskless := coreLoadSource{machine: &protocol.LibraryMachineBinding{GameID: "pcxt-game"}}
+	if !diskless.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", emptyUnit)) {
+		t.Fatal("diskless PC/XT machine launch with empty unit 0 was rejected")
+	}
+	if diskless.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", pcxtUnit)) {
+		t.Fatal("diskless PC/XT launch accepted ready floppy binding")
+	}
+	if diskless.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "volatile", emptyUnit)) {
+		t.Fatal("diskless PC/XT machine launch accepted volatile persistence")
+	}
+	if diskless.matchesLoadedIdentity(makeStatus("fes.pc386", "persistent", emptyUnit)) {
+		t.Fatal("pc386 machine launch accepted PC/XT floppy interface on unit 0")
+	}
+
+	missingUnit := makeStatus("fes.pcxt-dos", "persistent", emptyUnit)
+	missingUnit.MediaUnits = nil
+	if diskless.matchesLoadedIdentity(missingUnit) {
+		t.Fatal("diskless PC/XT launch accepted missing unit 0")
+	}
+
+	emptyATA := protocol.MediaUnitStatus{
+		Unit:      protocol.AtaDiskUnit,
+		Interface: protocol.AtaDiskInterface(),
+		State:     protocol.MediaUnitEmpty,
+	}
+	if diskless.matchesLoadedIdentity(makeStatus("fes.pcxt-dos", "persistent", emptyATA)) {
+		t.Fatal("diskless PC/XT launch accepted empty ATA disk on unit 0")
+	}
+
+	disklessWithEntry := diskless
+	disklessWithEntry.entry = &catalog.CoreEntry{CoreID: "fes.pcxt-dos"}
+	if disklessWithEntry.matchesLoadedIdentity(makeStatus("fes.pc386", "persistent", emptyATA)) {
+		t.Fatal("PC/XT core entry accepted fes.pc386 status with empty ATA disk")
 	}
 }

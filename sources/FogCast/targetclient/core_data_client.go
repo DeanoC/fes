@@ -57,6 +57,8 @@ func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id, g
 		request.Header.Set("X-FogCast-Expected-Revision", u.ExpectedRevision)
 		if u.Machine != nil {
 			request.Header.Set(protocol.MachineSettingsHeader, u.Machine.String())
+		} else if u.PcxtMachine != nil {
+			request.Header.Set(protocol.PcxtMachineSettingsHeader, u.PcxtMachine.String())
 		} else {
 			request.Header.Set("X-FogCast-Paddle-Speed", strconv.Itoa(int(u.PaddleSpeed)))
 		}
@@ -102,10 +104,17 @@ func decodeCoreDataInspection(raw json.RawMessage, result *protocol.CoreDataInsp
 		return invalid
 	}
 	keys := []string{"package_id", "core_id", "mode", "revision", "paddle_speed", "best_rally", "descriptor"}
-	if _, machine := fields["machine"]; machine {
+	_, hasMachine := fields["machine"]
+	_, hasPcxt := fields["pcxt_machine"]
+	if hasMachine && hasPcxt {
+		return invalid
+	}
+	if hasMachine {
 		// A pc386 record adds its library game and settings; its Pong
 		// fields read zero.
 		keys = append(keys, "game_id", "machine")
+	} else if hasPcxt {
+		keys = append(keys, "game_id", "pcxt_machine")
 	}
 	if len(fields) != len(keys)+1 {
 		return invalid

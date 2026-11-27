@@ -148,7 +148,7 @@ func TestMachineRequestsCarryGameAndDisk(t *testing.T) {
 	floppies := []floppyRequest{
 		{Unit: 1, Path: DiskImageRoot + "/" + strings.Repeat("d", 64) + ".img", Size: 1474560, DataRoot: MediaDataRoot, BaseMediaID: strings.Repeat("d", 64)},
 		{Unit: 2, Path: DiskImageRoot + "/" + strings.Repeat("e", 64) + ".img", Size: 1228800, DataRoot: MediaDataRoot, BaseMediaID: strings.Repeat("e", 64), WriteProtected: true}}
-	_, _ = client.LoadLibraryMachineCore(ctxShort, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", disk, floppies)
+	_, _ = client.LoadLibraryMachineCore(ctxShort, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", disk, nil, floppies)
 	requests := fixture.wait(t)
 	if len(requests) < 4 {
 		t.Fatalf("requests %v", requests)
@@ -185,7 +185,7 @@ func TestMachineRequestsCarryGameAndDisk(t *testing.T) {
 		{Path: disk.Path, Size: 64<<20 + 1, BaseMediaID: disk.BaseMediaID, DataRoot: MediaDataRoot, Cylinders: 130, Heads: 16, SectorsPerTrack: 63},
 		{Path: disk.Path, Size: 64 << 20, BaseMediaID: disk.BaseMediaID, DataRoot: MediaDataRoot, Cylinders: 131, Heads: 16, SectorsPerTrack: 63},
 	} {
-		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", bad, nil); err != errInvalidRuntimeRequest {
+		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", bad, nil, nil); err != errInvalidRuntimeRequest {
 			t.Errorf("sent %+v: %v", bad, err)
 		}
 	}
@@ -193,12 +193,44 @@ func TestMachineRequestsCarryGameAndDisk(t *testing.T) {
 	wrongDrive = append(wrongDrive, floppies[0])
 	wrongDrive[1].Unit = 2
 	for _, bad := range [][]floppyRequest{{floppies[0], floppies[0]}, wrongDrive, {floppies[0], floppies[1], floppies[1]}} {
-		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", nil, bad); err != errInvalidRuntimeRequest {
+		if _, err := client.LoadLibraryMachineCore(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi", nil, nil, bad); err != errInvalidRuntimeRequest {
 			t.Errorf("sent %+v: %v", bad, err)
 		}
 	}
 	if _, err := client.InspectMachineCoreData(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, ""); err != errInvalidRuntimeRequest {
 		t.Error("inspected without a game")
+	}
+}
+
+func TestPcxtMachineClientAndResponseShape(t *testing.T) {
+	if err := validateCoreDataShape([]byte(`{"package_id":"` + strings.Repeat("a", 64) + `","core_id":"fes.pcxt-dos","layout":{"id":"fes.pcxt.machine","major":1,"minor":0},"mode":"persistent","revision":"absent","game_id":"beast-1984","pcxt_machine":{"video_card":2,"mono_tint":1}}`)); err != nil {
+		t.Fatalf("validateCoreDataShape(pcxt) = %v", err)
+	}
+	if err := validateCoreDataShape([]byte(`{"package_id":"` + strings.Repeat("a", 64) + `","core_id":"fes.pcxt-dos","layout":{"id":"fes.pcxt.machine","major":1,"minor":0},"mode":"persistent","revision":"absent","game_id":"beast-1984","pcxt_machine":{"video_card":2}}`)); err == nil {
+		t.Fatal("accepted incomplete pcxt_machine object")
+	}
+	base := fixtureLines(t, "protocol-v2.jsonl")[1]
+	updateLine := strings.TrimSuffix(base, "}") + `,"core_data":{"package_id":"` +
+		fixturePackageID + `","core_id":"fes.pcxt-dos","layout":{"id":"fes.pcxt.machine","major":1,"minor":0},"mode":"persistent","revision":"` +
+		strings.Repeat("d", 64) + `","game_id":"beast-1984","pcxt_machine":{"video_card":2,"mono_tint":2}}}`
+	fixture := newSequenceSocketFixture(t, []string{updateLine + "\n"})
+	client := NewClient(fixture.path)
+	ctx := context.Background()
+	resp, err := client.UpdatePcxtMachineSettings(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "beast-1984", "absent", protocol.PcxtMachineSettings{VideoCard: 2, MonoTint: 2})
+	if err != nil || resp.CoreData == nil || resp.CoreData.PcxtMachine == nil || resp.CoreData.PcxtMachine.VideoCard != 2 || resp.CoreData.PcxtMachine.MonoTint != 2 {
+		t.Fatalf("UpdatePcxtMachineSettings = %+v, %v", resp, err)
+	}
+	reqs := fixture.wait(t)
+	var sent map[string]any
+	if len(reqs) != 1 || json.Unmarshal([]byte(reqs[0]), &sent) != nil {
+		t.Fatalf("requests = %v", reqs)
+	}
+	pcxt, _ := sent["pcxt_machine"].(map[string]any)
+	if sent["operation"] != "update_core_settings" || sent["game_id"] != "beast-1984" || len(pcxt) != 2 || pcxt["video_card"] != float64(2) || pcxt["mono_tint"] != float64(2) {
+		t.Fatalf("unexpected request: %s", reqs[0])
+	}
+	if _, err := client.UpdatePcxtMachineSettings(ctx, "/tmp/package", fixturePackageID, CoreDataRoot, "beast-1984", "absent", protocol.PcxtMachineSettings{VideoCard: 3}); err != errInvalidRuntimeRequest {
+		t.Fatalf("accepted invalid pcxt settings: %v", err)
 	}
 }
 

@@ -261,18 +261,18 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 	return client.LoadROMLinkedCoreWithInitialMedia(ctx, path, packageID, root, expansionPath, payloadPath, composition, programmedPath, identity, nil)
 }
 func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
-	return client.loadROMCore(ctx, path, packageID, root, expansionPath, payloadPath, composition, programmedPath, "", identity, initial)
+	return client.loadROMCore(ctx, path, packageID, root, "", expansionPath, payloadPath, composition, programmedPath, "", identity, initial)
 }
 
 // LoadFirmwareCore launches a package whose firmware the runtime uploads over
 // the fes.computer mailbox. firmwarePath is the ROM source itself; the receipt
 // binds it to the package's unchanged payload. The runtime's computer ABI must
 // list fes.fabric.firmware-upload 1.0; rom_linking is not required.
-func (client *Client) LoadFirmwareCore(ctx context.Context, path, packageID, root, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
-	if !validRuntimePath(firmwarePath) || identity.Role != protocol.FirmwareRole {
+func (client *Client) LoadFirmwareCore(ctx context.Context, path, packageID, root, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest, gameID string) (Protocol2Response, error) {
+	if !validRuntimePath(firmwarePath) || identity.Role != protocol.FirmwareRole || (gameID != "" && !protocol.ValidMediaGameID(gameID)) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	return client.loadROMCore(ctx, path, packageID, root, "", "", nil, "", firmwarePath, identity, initial)
+	return client.loadROMCore(ctx, path, packageID, root, gameID, "", "", nil, "", firmwarePath, identity, initial)
 }
 
 // firmwareUploadSupported reports a runtime that uploads a ROM source itself.
@@ -301,14 +301,14 @@ func romDeliverySupported(capabilities Protocol2Capabilities, descriptor corepac
 
 // loadROMCore sends one single-ROM load: a linked bitstream at programmedPath,
 // or a ROM source at firmwarePath, never both.
-func (client *Client) loadROMCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+func (client *Client) loadROMCore(ctx context.Context, path, packageID, root, gameID, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath, firmwarePath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if !validRuntimePath(path) || (firmwarePath == "") == (programmedPath == "") || (firmwarePath == "" && !validRuntimePath(programmedPath)) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if root != "" && !validRuntimePath(root) {
+	if (root != "" && !validRuntimePath(root)) || (gameID != "" && (root == "" || firmwarePath == "" || !protocol.ValidMediaGameID(gameID))) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if composition != nil && (root != "" || !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(*composition, packageID)) {
@@ -338,13 +338,14 @@ func (client *Client) loadROMCore(ctx context.Context, path, packageID, root, ex
 		PackagePath    string                 `json:"package_path"`
 		PackageID      string                 `json:"package_id"`
 		DataRoot       string                 `json:"data_root,omitempty"`
+		GameID         string                 `json:"game_id,omitempty"`
 		ExpansionPath  string                 `json:"expansion_path,omitempty"`
 		PayloadPath    string                 `json:"payload_path,omitempty"`
 		Composition    *expansion.Composition `json:"composition,omitempty"`
 		ProgrammedPath string                 `json:"programmed_path,omitempty"`
 		FirmwarePath   string                 `json:"firmware_path,omitempty"`
 		ROMLink        protocol2ROMLink       `json:"rom_link"`
-	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, FirmwarePath: firmwarePath, ROMLink: protocol2ROMLinkFromIdentity(identity)})
+	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, GameID: gameID, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, FirmwarePath: firmwarePath, ROMLink: protocol2ROMLinkFromIdentity(identity)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -1810,6 +1811,17 @@ func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaU
 			return unit.Persistence == nil && (unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) &&
 				protocol.DeclaresAtaDisk(d)
 		}
+	}
+	if protocol.DeclaresPcxtMachine(d) && !protocol.DeclaresAtaDisk(d) {
+		if !protocol.DeclaresPcxtFloppy(d) {
+			return true
+		}
+		for _, unit := range units {
+			if unit.Unit == protocol.PcxtFloppyUnit && unit.Interface == protocol.PcxtFloppyInterface() && unit.Persistence == nil {
+				return true
+			}
+		}
+		return false
 	}
 	// With no disk, a pc386 machine record alone is persistent.
 	return protocol.DeclaresPc386Machine(d) && !protocol.DeclaresAtaDisk(d)

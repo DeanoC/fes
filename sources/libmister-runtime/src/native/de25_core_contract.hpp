@@ -145,13 +145,15 @@ constexpr std::array<De25StandardCore, 9> kDe25StandardCores = {{
 		{{{generated::FesComputerInterfaceMediaC64DiskID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
 		{{36864, 0}}, nullptr, 0},
-	// The DE10 package's PC/XT: its floppy is a fes.computer 1.1 interface. Its
-	// image is the 64 KiB system ROM window and then the 4 KiB CGA font.
+	// The PC/XT: its floppy, write extension and per-game settings are fes.computer 1.1
+	// interfaces. Its image is the 64 KiB system ROM window, 4 KiB CGA font, and 4 KiB MDA font.
 	{"fes.pcxt-dos",
 		{{{generated::FesComputerInterfaceMediaPcxtFloppyID, 1, 0},
 		  {generated::FesComputerInterfaceMediaPcxtFloppyWriteID, 1, 0},
+		  {generated::FesComputerInterfacePersistenceWordsID, 1, 0},
+		  {generated::FesComputerInterfacePcxtMachineID, 1, 0},
 		  {kFirmwareUploadInterfaceID, 1, 0}}},
-		{{69632, 0}}, nullptr, 1},
+		{{73728, 0}}, nullptr, 1},
 	// The DE10 package's pc386 (fes.computer 1.1): a mouse and no gamepad,
 	// all memory in a window in HPS DDR, its BIOS linked in the netlist.
 	{"fes.pc386",

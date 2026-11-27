@@ -23,11 +23,11 @@ foreach file {fes_pcxt_core.v fes_pcxt_firmware.v fes_firmware_upload.v
     fes_computer_mailbox.v fes_de25_session_display.v fes_display_plane.v fes_menu_control.v
     fes_video_part_direct.v
     pcxt_isa_bridge.sv pcxt_isa_boundary.sv pcxt_isa_endpoint.sv pcxt_isa_probe.sv pcxt_6845.sv
-    pcxt_display_card.sv pcxt_cga_card.sv pcxt_mda_card.sv pcxt_fdc_card.sv pcxt_display_bus.sv KF8255.sv
+    pcxt_display_card.sv pcxt_cga_card.sv pcxt_mda_card.sv pcxt_hercules_card.sv pcxt_fdc_card.sv pcxt_display_bus.sv KF8255.sv
     KF8255_Control_Logic.sv KF8255_Group.sv KF8255_Port.sv KF8255_Port_C.sv pcxt_xtio.sv pcxt_xt_keyboard.sv
     pcxt_speaker.sv pcxt_motherboard.sv pcxt_logic_operand1_mux.sv mcl86_adder.sv mcl86_eu_core.sv
-    mcl86_biu_max.sv mcl86_ucode.sv i8088.sv pcxt_cpu_bus.sv pcxt_cpu.sv pcxt_memory.sv pcxt_video_de25.sv
-    pcxt_video_output.sv pcxt_machine.sv pcxt_disk_loader.sv pcxt_sector_writer.sv pcxt_media_arbiter.sv
+    mcl86_biu_max.sv mcl86_ucode.sv i8088.sv pcxt_cpu_bus.sv pcxt_cpu.sv pcxt_memory.sv pcxt_video_de25.sv pcxt_video_dynamic_de25.sv
+    pcxt_video_output.sv pcxt_machine.sv pcxt_machine_settings.sv pcxt_disk_loader.sv pcxt_sector_writer.sv pcxt_media_arbiter.sv
     pcxt_system.sv pcxt_media_writer.sv pcxt_media.sv pcxt_boot_media_gate.sv pcxt_hid_keyboard.sv
     pcxt_xt_keyboard_bat.sv KF8259.sv KF8259_Bus_Control_Logic.sv KF8259_Control_Logic.sv KF8259_In_Service.sv
     KF8259_Interrupt_Request.sv KF8259_Priority_Resolver.sv KF8253.sv KF8253_Control_Logic.sv

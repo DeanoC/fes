@@ -44,8 +44,9 @@ module fes_pcxt_core #(
     output wire dq_oe,
     input wire [15:0] dq_in
 );
-    // The upload image: the 64 KiB system ROM window, then the 4 KiB font.
-    localparam [31:0] FIRMWARE_BYTES = 32'd69632;
+    // The upload image: the 64 KiB system ROM window, the 4 KiB CGA font,
+    // and the 4 KiB MDA font.
+    localparam [31:0] FIRMWARE_BYTES = 32'd73728;
     wire [31:0] mailbox_gpo, mailbox_gpi;
     wire [16:0] firmware_write_addr;
     wire [15:0] firmware_write_data;
@@ -77,12 +78,18 @@ module fes_pcxt_core #(
     wire [15:0] source_data;
     wire [1:0] source_enable;
     wire source_ready;
+    wire [1:0] video_card, mono_tint;
+    wire storage_request, storage_response_valid, storage_response_error, execution_accepted;
+    wire [6:0] storage_opcode;
+    wire [7:0] storage_index;
+    wire [15:0] storage_argument, storage_response_data;
     /* verilator lint_off PINCONNECTEMPTY */
     // The DE10 package's fes_computer_mailbox_pcxt profile, with the session
-    // display and the shell's gamepad ports, which the XT does not read.
+    // display, fes.pcxt.machine settings, and the shell's gamepad ports.
     fes_computer_mailbox_core #(
         .ENABLE_PCXT_FLOPPY(1), .ENABLE_PCXT_FLOPPY_WRITE(1),
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
+        .ENABLE_PERSISTENCE(1), .ENABLE_PCXT_MACHINE(1),
         .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
         .ENABLE_SESSION_DISPLAY(1), .ENABLE_HPS_DDR_WINDOW(0),
         .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
@@ -105,9 +112,19 @@ module fes_pcxt_core #(
         .display_response_error(display_response_error),
         .display_response_data(display_response_data),
         .display_quiesced(display_quiesced),
-        .storage_request(), .storage_opcode(), .storage_index(), .storage_argument(),
-        .storage_response_valid(1'b0), .storage_response_error(1'b0), .storage_response_data(16'd0),
-        .execution_accepted()
+        .storage_request(storage_request), .storage_opcode(storage_opcode),
+        .storage_index(storage_index), .storage_argument(storage_argument),
+        .storage_response_valid(storage_response_valid),
+        .storage_response_error(storage_response_error),
+        .storage_response_data(storage_response_data),
+        .execution_accepted(execution_accepted)
+    );
+    pcxt_machine_settings machine_settings (
+        .clk(clk_sys), .exec_reset(exec_reset), .execution_accepted(execution_accepted),
+        .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+        .argument(storage_argument), .response_valid(storage_response_valid),
+        .response_error(storage_response_error), .response_data(storage_response_data),
+        .video_card(video_card), .mono_tint(mono_tint)
     );
     /* verilator lint_on PINCONNECTEMPTY */
     pcxt_media media (
@@ -161,10 +178,15 @@ module fes_pcxt_core #(
     // retains the selected word.
     reg [15:0] dq_sample;
     always @(posedge clk_capture) dq_sample <= dq_in;
-    wire speaker_valid;
+    wire speaker_valid, hercules_graphics_mode;
+    wire [1:0] display_pixel_ce, display_de, display_sof, display_eol;
+    wire [7:0] display_rgbi;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(0), .SCANLINES(0), .HALF_RATE_BOARD(0), .SDRAM_CAPTURE_PIPELINE(1),
-                  .EXTERNAL_CS_REGISTER(0), .FLOPPY(1), .FLOPPY_WRITE(1), .DIAGNOSTIC_PROBE(0)) system (
+                  .EXTERNAL_CS_REGISTER(0), .FLOPPY(1), .FLOPPY_WRITE(1), .HERCULES(1), .DIAGNOSTIC_PROBE(0)) system (
+        .video_card(video_card), .hercules_graphics_mode(hercules_graphics_mode),
+        .display_pixel_ce(display_pixel_ce), .display_de(display_de), .display_sof(display_sof),
+        .display_eol(display_eol), .display_rgbi(display_rgbi),
         .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
         .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
         .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),
@@ -184,11 +206,21 @@ module fes_pcxt_core #(
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(machine_reset), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(speaker_valid), .audio_sample(audio_sample),
-        .video_request(), .video_response(machine_video),
+        .video_request(), .video_response(),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_sample), .dq_fall(dq_sample)
+    );
+    wire select_mono = (video_card == 2'd1 || video_card == 2'd2);
+    wire [1:0] source_mode = !select_mono ? 2'd0 : (hercules_graphics_mode ? 2'd2 : 2'd1);
+    pcxt_video_dynamic_output #(.SCANLINES(0)) video (
+        .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(machine_cold), .reset_pixel(pixel_reset),
+        .hold(machine_reset), .pixel_ce(display_pixel_ce[select_mono]),
+        .source_de(display_de[select_mono]), .source_sof(display_sof[select_mono]),
+        .source_eol(display_eol[select_mono]), .rgbi(select_mono ? display_rgbi[7:4] : display_rgbi[3:0]),
+        .source_mode(source_mode), .mono_tint(mono_tint),
+        .video_request(), .video_response(machine_video)
     );
     /* verilator lint_on PINCONNECTEMPTY */
     // The DE10 audio hold: any machine hold, a cold start or the host's hold.

@@ -23,12 +23,16 @@ proc mailbox_regs {pattern expected} {
  }
  return $all
 }
-set received [mailbox_regs {system_video_adapter_received} {system_video_adapter_received}]
-set sent [mailbox_regs {system_video_adapter_sent} {system_video_adapter_sent}]
+set prefix system_video_adapter
+if {[get_collection_size [get_registers -nowarn {dos_video_video_adapter_received}]] > 0} {
+ set prefix dos_video_video_adapter
+}
+set received [mailbox_regs "${prefix}_received" [list "${prefix}_received"]]
+set sent [mailbox_regs "${prefix}_sent" [list "${prefix}_sent"]]
 set hold_source [mailbox_regs {system_machine_reset} {system_machine_reset}]
 foreach role {ack sent hold} {
- set head($role) [mailbox_regs system_video_adapter_${role}_meta system_video_adapter_${role}_meta]
- set tail($role) [mailbox_regs system_video_adapter_${role}_sync system_video_adapter_${role}_sync]
+ set head($role) [mailbox_regs "${prefix}_${role}_meta" [list "${prefix}_${role}_meta"]]
+ set tail($role) [mailbox_regs "${prefix}_${role}_sync" [list "${prefix}_${role}_sync"]]
  if {[get_collection_size $head($role)] != 1 || [get_collection_size $tail($role)] != 1} {
   error "Duplicated mailbox synchronizer: $role"
  }
@@ -40,10 +44,21 @@ set_false_path -from $sent -to $head(sent)
 set_false_path -from $hold_source -to $head(hold)
 # The payload is held, not synchronized. Keep it timed to the pixel capture
 # registers and bound its physical delay to one pixel period.
-set published [mailbox_regs {system_video_adapter_published_bank[*]} {system_video_adapter_published_bank[0] system_video_adapter_published_bank[1]}]
-set front [mailbox_regs {system_video_adapter_front[*]} {system_video_adapter_front[0] system_video_adapter_front[1]}]
+if {$prefix eq "dos_video_video_adapter"} {
+ set published [mailbox_regs "${prefix}_published_*\[*\]" [list \
+  "${prefix}_published_bank\[0\]" "${prefix}_published_bank\[1\]" \
+  "${prefix}_published_mode\[0\]" "${prefix}_published_mode\[1\]" \
+  "${prefix}_published_tint\[0\]" "${prefix}_published_tint\[1\]"]]
+ set front [mailbox_regs "${prefix}_front*\[*\]" [list \
+  "${prefix}_front\[0\]" "${prefix}_front\[1\]" \
+  "${prefix}_front_mode\[0\]" "${prefix}_front_mode\[1\]" \
+  "${prefix}_front_tint\[0\]" "${prefix}_front_tint\[1\]"]]
+} else {
+ set published [mailbox_regs "${prefix}_published_bank\[*\]" [list "${prefix}_published_bank\[0\]" "${prefix}_published_bank\[1\]"]]
+ set front [mailbox_regs "${prefix}_front\[*\]" [list "${prefix}_front\[0\]" "${prefix}_front\[1\]"]]
+}
 set pixel [get_clocks {video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}]
 if {[get_collection_size $pixel] != 1} {error "Missing pixel capture clock"}
 set period [get_clock_info -period $pixel]
 set_max_delay $period -from $published -to $front
-puts "MAILBOX_CANDIDATE: three first-stage source pairs; two held payload bits; max delay $period ns"
+puts "MAILBOX_CANDIDATE: three first-stage source pairs; held payload bits on ${prefix}; max delay $period ns"

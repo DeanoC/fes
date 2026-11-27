@@ -20,10 +20,25 @@ from scripts import quartus_fes_pcxt as board
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT.parents[1] / 'docs/validation/2026-11-22-pcxt-sim-evidence'
 SIM = 'cores/fes-pcxt/sim/'
+# Added to the evidence set after the record was measured: Hercules/dynamic/DOS video testbenches.
+ADDED_SINCE_RECORD = frozenset({
+    'cores/fes-pcxt/sim/hercules_tb.cpp',
+    'cores/fes-pcxt/sim/hercules_top.sv',
+    'cores/fes-pcxt/sim/machine_settings_tb.cpp',
+    'cores/fes-pcxt/sim/machine_settings_top.sv',
+    'cores/fes-pcxt/sim/video_dos_tb.cpp',
+    'cores/fes-pcxt/sim/video_dos_top.sv',
+    'cores/fes-pcxt/sim/video_dynamic_tb.cpp',
+    'cores/fes-pcxt/sim/video_dynamic_top.sv',
+})
 # What only a Verilator simulation consumes: lint configuration, testbench C++
 # and testbench top modules. The .S programs and the BIOS and FreeDOS locks under
 # sim/ are not in this class and stay design.
 SIMULATION_ONLY = ('.vlt', '.cpp', '.h', '.hpp', '.sv', '.v')
+
+
+def cleared_now(added: frozenset) -> frozenset:
+    return frozenset(path for path in added if not compiler_reads_now(path))
 
 
 def classification() -> dict:
@@ -66,14 +81,18 @@ def edit(fields: dict, *paths: str, policy=ii.DESIGN_V2) -> dict:
 class ClassificationTest(unittest.TestCase):
     def test_the_set_is_the_measured_role_table(self):
         record = classification()
-        self.assertEqual(ii.PCXT_EVIDENCE_INPUTS, set(record['evidence']))
+        self.assertEqual(ii.PCXT_EVIDENCE_INPUTS - ADDED_SINCE_RECORD, set(record['evidence']))
+        self.assertFalse(ADDED_SINCE_RECORD & {row['path'] for row in record['candidates']})
         self.assertEqual(record['dropped'], [])
         self.assertEqual(record['yosys_exit'], 0)
         for proof in record['proofs'].values():
             self.assertEqual(proof['exit'], 0)
 
     def test_no_member_is_read_by_a_compiler(self):
-        ii.refuse_compiler_read(classification()['candidates'], ii.PCXT_EVIDENCE_INPUTS, frozenset())
+        self.assertEqual(cleared_now(ADDED_SINCE_RECORD), ADDED_SINCE_RECORD)
+        ii.refuse_compiler_read(
+            classification()['candidates'], ii.PCXT_EVIDENCE_INPUTS, frozenset(),
+            cleared=cleared_now(ADDED_SINCE_RECORD))
         for path in sorted(ii.PCXT_EVIDENCE_INPUTS):
             with self.subTest(path=path):
                 self.assertEqual(compiler_reads_now(path), [])

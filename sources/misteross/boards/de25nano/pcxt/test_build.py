@@ -3,7 +3,9 @@ from pathlib import Path
 import importlib.util
 import re
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -69,6 +71,21 @@ class Derivations(unittest.TestCase):
         with self.assertRaises(ValueError):
             derive.retarget_video(result)
 
+    def test_dynamic_video_mailbox_crosses_through_free_synchronizers_and_a_held_copy(self):
+        source = (ROOT / "cores/fes-pcxt/rtl/pcxt_video_dynamic.sv").read_bytes()
+        result, record = derive.retarget_video_dynamic(source)
+        self.assertEqual(len(record["changes"]), len(derive.VIDEO_DYNAMIC_EDITS))
+        for name in (b"ack_meta <= ", b"sent_meta <= ", b"hold_meta <= ", b"hold_launch <= "):
+            self.assertEqual(result.count(name), 1, name)
+        for name in (b"ack_meta <= 1'b0", b"sent_meta <= 1'b0", b"hold_meta <= 1'b0", b"hold_meta <= hold;"):
+            self.assertNotIn(name, result)
+        self.assertEqual(result.count(b"published_code <= {"), 2)
+        self.assertIn(b"if (sent_sync != sent_held) begin pixel_code <= published_code;", result)
+        self.assertIn(b"pixel_code ^ {~pixel_loaded, 4'b0, pixel_loaded}", result)
+        self.assertIn(b"front <= published_pixel[1:0];", result)
+        with self.assertRaises(ValueError):
+            derive.retarget_video_dynamic(result)
+
     def test_component_lists_every_staged_file(self):
         build = load(HERE / "build.py", "de25_pcxt_build")
         files, derived, _ = build.board.component_files(build, build.board.capture(build))
@@ -84,6 +101,7 @@ class Derivations(unittest.TestCase):
                 self.assertNotIn(b"altsyncram", data, name)
                 self.assertNotIn(b"cyclonev_", data, name)
         self.assertEqual(set(derived), {"coleco_video_dpram_de25.v", "sdram_addon_port_de25.v", "pcxt_video_de25.sv",
+                                        "pcxt_video_dynamic_de25.sv",
                                         "fes_de25_computer_transport.v", "fes_menu_reader_de25.v"})
         # The DE10 machine sources are staged unchanged.
         for name in build.MACHINE_FILES:
@@ -106,6 +124,55 @@ class Derivations(unittest.TestCase):
         st = load(HERE.parent / "atari-st/build.py", "de25_pcxt_st_build")
         self.assertIs(st.board.top_after(st), st.board.TOP_AFTER)
         self.assertEqual(st.board.clocks(st)[0], 52222222)
+
+    def test_machine_reset_max_fanout_is_emitted_once_at_the_component_instance(self):
+        build = load(HERE / "build.py", "de25_pcxt_build")
+        combined = load(HERE.parent / "combined/test_build.py", "de25_pcxt_combined_fixture")
+        fixture = combined.CombinedBuildTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+
+        sources = build.board.capture(build)
+        sources.update(fixture.sources)
+        original_selected_scanout = build.board.selected_scanout
+
+        def selected_scanout(source):
+            scanout = original_selected_scanout(source)
+            original_load = scanout.load
+
+            def load(path, name):
+                module = original_load(path, name)
+                if name == "scanout_retained_linux_dma":
+                    module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                                                                {"master_ownership": "scanout-only"}, {}))
+                    module.retire_managed_jtag_constraints = mock.Mock(return_value={})
+                return module
+
+            scanout.load = load
+            original_prepare = scanout.prepare
+
+            def prepare(*args, **kwargs):
+                result = original_prepare(*args, **kwargs)
+                qsf_path = result[0] / "combined/hps/project/golden_top.qsf"
+                # The shared fixture omits machine clock and SDRAM pins required by this builder.
+                qsf_path.write_text(qsf_path.read_text() +
+                    "set_location_assignment PIN_V16 -to CLOCK1_50\n"
+                    "set_location_assignment PIN_A1 -to DRAM_CLK\n"
+                    "set_location_assignment PIN_A2 -to DRAM_DQ[15]\n")
+                return result
+
+            scanout.prepare = prepare
+            return scanout
+
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(build.board, "capture", return_value=sources), \
+                    mock.patch.object(build.board, "selected_scanout", side_effect=selected_scanout):
+                output, *_ = build.board.prepare(build, fixture.archive, Path(directory) / "prepared")
+            qsf = (output / "combined/hps/project/golden_top.qsf").read_text()
+
+        self.assertEqual(re.findall(r"(?m)^.*\bMAX_FANOUT\b.*$", qsf), [
+            'set_instance_assignment -name MAX_FANOUT 256 -to '
+            '"soc_inst|subsys_periph|fes_scanout|fes_scanout|core|system|machine_reset"'])
 
     def test_dq_capture_is_timed_at_the_edge_the_handoff_consumes(self):
         build = load(HERE / "build.py", "de25_pcxt_build")
