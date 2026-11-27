@@ -902,3 +902,197 @@ func encodeDeviceAddedState(path string, paired bool) []byte {
 	})
 	return e.buf
 }
+
+func TestSlowReconnectDoesNotBlockAnotherController(t *testing.T) {
+	client, server := net.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer client.Close()
+	defer server.Close()
+	bus := newBus(bufio.NewReader(client), client)
+	go bus.readLoop()
+	a := &agent{bus: bus, attempts: newAttempts(), logged: map[string]time.Time{}, bluezOwner: ":1.1", reconnectDone: make(chan reconnectResult, maxReconnects)}
+	const sleeping = "/org/bluez/hci0/dev_00_00_00_00_00_01"
+	const awake = "/org/bluez/hci0/dev_00_00_00_00_00_02"
+	seen := make(chan string, 4)
+	peerErr := make(chan error, 1)
+	go func() {
+		r := bufio.NewReader(server)
+		var serial uint32
+		for {
+			msg, err := readMessage(r)
+			if err != nil {
+				peerErr <- err
+				return
+			}
+			serial++
+			switch msg.Member {
+			case "Set":
+				if err := reply(server, serial, msg.Serial, "", nil); err != nil {
+					peerErr <- err
+					return
+				}
+			case "Connect":
+				seen <- msg.Path
+				if msg.Path == awake {
+					if err := reply(server, serial, msg.Serial, "", nil); err != nil {
+						peerErr <- err
+						return
+					}
+				}
+			default:
+				peerErr <- fmt.Errorf("unexpected call %s", msg.Member)
+				return
+			}
+		}
+	}()
+	startSecond := make(chan struct{})
+	go func() {
+		a.act(ctx, devInfo{Path: sleeping, Class: 0x508, Paired: true})
+		<-startSecond
+		a.act(ctx, devInfo{Path: awake, Class: 0x508, Paired: true})
+	}()
+	for i, want := range []string{sleeping, awake} {
+		if i == 1 {
+			close(startSecond)
+		}
+		select {
+		case got := <-seen:
+			if got != want {
+				t.Fatalf("call %d connected %s, want %s", i+1, got, want)
+			}
+		case err := <-peerErr:
+			t.Fatalf("fake BlueZ: %v", err)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("call %d to %s blocked behind sleeping controller", i+1, want)
+		}
+	}
+}
+
+func TestBlueZOwnerLossCancelsReconnectWithoutRemovingNewOwnerBond(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	bus := newBus(bufio.NewReader(client), client)
+	go bus.readLoop()
+	a := &agent{bus: bus, attempts: newAttempts(), logged: map[string]time.Time{}, bluezOwner: ":1.1", reconnectDone: make(chan reconnectResult, maxReconnects)}
+	a.resetReconnectContext(ctx)
+	defer func() { a.reconnectCancel() }()
+	started := make(chan struct{})
+	peerErr := make(chan error, 1)
+	go func() {
+		r := bufio.NewReader(server)
+		set, err := readMessage(r)
+		if err == nil && (set.Member != "Set" || set.Dest != ":1.1") {
+			err = fmt.Errorf("unexpected trust call: %+v", set)
+		}
+		if err == nil {
+			err = reply(server, 1, set.Serial, "", nil)
+		}
+		var connect *Message
+		if err == nil {
+			connect, err = readMessage(r)
+		}
+		if err == nil && (connect.Member != "Connect" || connect.Dest != ":1.1") {
+			err = fmt.Errorf("unexpected connect call: %+v", connect)
+		}
+		if err != nil {
+			peerErr <- err
+			return
+		}
+		close(started)
+	}()
+	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
+	a.act(ctx, pad)
+	select {
+	case <-started:
+	case err := <-peerErr:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("reconnect did not start")
+	}
+	lost := &Message{Member: "NameOwnerChanged", Body: bodyNameOwnerChanged(bluezDest, ":1.1", "")}
+	if err := a.onSignal(ctx, lost); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case result := <-a.reconnectDone:
+		if !errors.Is(result.err, context.Canceled) || result.owner != ":1.1" {
+			t.Fatalf("old reconnect result = %+v", result)
+		}
+		// No bus call is permitted for a result from the old owner. In
+		// particular, a stale error must not remove a replacement bond.
+		result.err = &dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"}
+		a.finishReconnect(ctx, result)
+		if !a.attempts.Start(pad, time.Now(), actionConnect) {
+			t.Fatal("old owner imposed a retry delay on the replacement")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("old owner's reconnect was not cancelled")
+	}
+}
+
+func TestReconnectLimitDoesNotConsumeDeviceAttempt(t *testing.T) {
+	a := &agent{attempts: newAttempts(), bluezOwner: ":1.1", reconnects: maxReconnects}
+	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
+	a.act(context.Background(), pad)
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("full reconnect capacity consumed the waiting controller's retry")
+	}
+}
+
+func TestReplacedDeviceIgnoresOldMissingKeyResult(t *testing.T) {
+	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
+	a := &agent{
+		bus: newBus(nil, nil), attempts: newAttempts(), bluezOwner: ":1.1", reconnects: 1,
+		devices: map[string]devInfo{gamepadPath: pad}, deviceGeneration: map[string]uint64{gamepadPath: 7},
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("initial reconnect did not start")
+	}
+	removed := &encoder{}
+	removed.str(gamepadPath)
+	removed.array(4, func() { removed.str(deviceIface) })
+	added := &Message{Member: "InterfacesAdded", Body: encodeDeviceAddedState(gamepadPath, true)}
+	// The reply and these already-received signals are simultaneously ready;
+	// selecting the reply must not let it overtake the replacement signals.
+	a.bus.queue = []*Message{{Member: "InterfacesRemoved", Body: removed.buf}, added}
+	// The result is from the earlier incarnation. A RemoveDevice call would
+	// act on the replacement, and the nil bus deliberately makes that fail.
+	if err := a.handleReconnectResult(context.Background(), reconnectResult{
+		dev: pad, owner: ":1.1", generation: 7,
+		err: &dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("old incarnation imposed a delay on the replacement")
+	}
+}
+
+func TestQueuedOwnerLossPrecedesMissingKeyResult(t *testing.T) {
+	pad := devInfo{Path: gamepadPath, Class: 0x508, Paired: true}
+	a := &agent{
+		bus: newBus(nil, nil), attempts: newAttempts(), bluezOwner: ":1.1", reconnects: 1,
+		devices: map[string]devInfo{gamepadPath: pad}, deviceGeneration: map[string]uint64{gamepadPath: 7},
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("initial reconnect did not start")
+	}
+	a.bus.queue = []*Message{{Member: "NameOwnerChanged", Body: bodyNameOwnerChanged(bluezDest, ":1.1", "")}}
+	if err := a.handleReconnectResult(context.Background(), reconnectResult{
+		dev: pad, owner: ":1.1", generation: 7,
+		err: &dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer a.reconnectCancel()
+	if a.bluezOwner != "" {
+		t.Fatal("queued owner loss was not processed")
+	}
+	if !a.attempts.Start(pad, time.Now(), actionConnect) {
+		t.Fatal("old owner imposed a delay on the replacement")
+	}
+}
