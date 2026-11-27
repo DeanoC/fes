@@ -1812,6 +1812,17 @@ func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaU
 				protocol.DeclaresAtaDisk(d)
 		}
 	}
+	if protocol.DeclaresPcxtMachine(d) && !protocol.DeclaresAtaDisk(d) {
+		if !protocol.DeclaresPcxtFloppy(d) {
+			return true
+		}
+		for _, unit := range units {
+			if unit.Unit == protocol.PcxtFloppyUnit && unit.Interface == protocol.PcxtFloppyInterface() && unit.Persistence == nil {
+				return true
+			}
+		}
+		return false
+	}
 	// With no disk, a pc386 machine record alone is persistent.
 	return protocol.DeclaresPc386Machine(d) && !protocol.DeclaresAtaDisk(d)
 }

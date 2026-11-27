@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
@@ -301,4 +303,92 @@ func TestFirmwareUploadPCXTRunsItsComputerMinor(t *testing.T) {
 func decodeOK(line string) bool {
 	_, err := decodeProtocol2Response([]byte(line))
 	return err == nil
+}
+
+func de25PCXTDisklessMachineResponse(t *testing.T, withMachine, withFloppyUnit bool) (string, corepackage.ROMLinkIdentity) {
+	t.Helper()
+	line, link := de25PCXTResponse(t, 1)
+	var root map[string]any
+	if err := json.Unmarshal([]byte(line), &root); err != nil {
+		t.Fatal(err)
+	}
+	iface := func(id string, major, minor int) map[string]any {
+		return map[string]any{"id": id, "major": major, "minor": minor}
+	}
+	extra := []map[string]any{iface("fes.persistence.words", 1, 0)}
+	if withMachine {
+		extra = append(extra, iface("fes.pcxt.machine", 1, 0))
+	}
+	active := root["active_package"].(map[string]any)
+	active["persistence_mode"] = "persistent"
+	descriptor := active["descriptor"].(map[string]any)
+	declared := descriptor["interfaces"].([]any)
+	for _, item := range extra {
+		declared = append(declared, map[string]any{
+			"id": item["id"], "major": item["major"], "minor": item["minor"], "required": true,
+		})
+	}
+	descriptor["interfaces"] = declared
+
+	capabilities := root["capabilities"].(map[string]any)
+	sortInterfaces := func(items []any) []any {
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].(map[string]any)["id"].(string) < items[j].(map[string]any)["id"].(string)
+		})
+		return items
+	}
+	supported := capabilities["abis"].([]any)[1].(map[string]any)["interfaces"].([]any)
+	live := capabilities["active_interfaces"].([]any)
+	for _, item := range extra {
+		supported = append(supported, item)
+		live = append(live, item)
+	}
+	capabilities["abis"].([]any)[1].(map[string]any)["interfaces"] = sortInterfaces(supported)
+	capabilities["active_interfaces"] = sortInterfaces(live)
+	if !withFloppyUnit {
+		capabilities["media_units"] = []any{}
+	}
+	encoded, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded), link
+}
+
+// A DE25 fes.pcxt-dos launch with a per-game fes.pcxt.machine record and no
+// floppy disk is persistent with an empty unit 0. Rejecting it wedges kit
+// cleanup because StopReady also validates status via decodeProtocol2Response.
+func TestDE25PCXTDisklessMachineRecordStatusDecodesStopsAndPassesTargetClient(t *testing.T) {
+	line, link := de25PCXTDisklessMachineResponse(t, true, true)
+	active, err := decodeProtocol2Response([]byte(line))
+	if err != nil || active.ActivePackage == nil || active.ActivePackage.PersistenceMode != "persistent" ||
+		len(active.Capabilities.MediaUnits) != 1 || active.Capabilities.MediaUnits[0].State != protocol.MediaUnitEmpty ||
+		active.Capabilities.MediaUnits[0].Persistence != nil {
+		t.Fatalf("DE25 diskless PC/XT machine-record status refused: %+v %v", active, err)
+	}
+	fixture := newSequenceSocketFixture(t, []string{line + "\n", line + "\n"})
+	response, err := NewClient(fixture.path).LoadFirmwareCore(context.Background(), "/tmp/package", active.ActivePackage.PackageID, CoreDataRoot, "/tmp/firmware.rom", link, nil, "dos-entry")
+	if err != nil || response.ActivePackage == nil || response.ActivePackage.PersistenceMode != "persistent" {
+		t.Fatalf("LoadFirmwareCore diskless PC/XT library reply refused: %+v %v", response, err)
+	}
+	requests := fixture.wait(t)
+	var sent map[string]any
+	if len(requests) != 2 || json.Unmarshal([]byte(requests[1]), &sent) != nil ||
+		sent["operation"] != "load_rom_library_core" || sent["data_root"] != CoreDataRoot || sent["game_id"] != "dos-entry" {
+		t.Fatalf("unexpected load request sequence: %v", requests)
+	}
+	rt := NewRuntime(pc386FixtureControl{response: active}, "", time.Millisecond, time.Second)
+	if !rt.StopReady() {
+		t.Fatal("StopReady returned false for active DE25 diskless PC/XT session")
+	}
+	assertTargetClientAcceptsStatus(t, computerMediaStatus(active))
+
+	noUnit, _ := de25PCXTDisklessMachineResponse(t, true, false)
+	if decodeOK(noUnit) {
+		t.Fatal("accepted DE25 PC/XT persistent status with missing unit 0")
+	}
+	noMachine, _ := de25PCXTDisklessMachineResponse(t, false, true)
+	if decodeOK(noMachine) {
+		t.Fatal("accepted recordless diskless DE25 PC/XT status as persistent")
+	}
 }

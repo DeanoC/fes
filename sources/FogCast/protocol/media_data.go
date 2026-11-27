@@ -85,8 +85,8 @@ func PersistentMediaBound(p *CorePackageStatus) bool {
 }
 
 // PersistentMediaStatusValid accepts a bound persistent unit, the empty
-// fixed ATA unit reported before a library disk is loaded, or a pc386
-// package without a disk, which its machine record alone makes persistent.
+// fixed ATA unit reported before a library disk is loaded, or a pc386 or
+// PC/XT package whose machine record alone makes it persistent.
 func PersistentMediaStatusValid(p *CorePackageStatus) bool {
 	if !activeComputer(p) {
 		return false
@@ -99,6 +99,13 @@ func PersistentMediaStatusValid(p *CorePackageStatus) bool {
 	}
 	if activeInterface(p, Pc386MachineInterface()) && !activeInterface(p, AtaDiskInterface()) {
 		return true
+	}
+	if activeInterface(p, PcxtMachineInterface()) && !activeInterface(p, AtaDiskInterface()) {
+		if !activeInterface(p, PcxtFloppyInterface()) {
+			return true
+		}
+		unit, ok := MediaUnit(p, PcxtFloppyUnit)
+		return ok && unit.Interface == PcxtFloppyInterface() && unit.Persistence == nil
 	}
 	unit, ok := MediaUnit(p, AtaDiskUnit)
 	return ok && unit.Interface == AtaDiskInterface() && !unit.CanSave() && unit.Persistence == nil &&

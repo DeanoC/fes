@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -337,4 +338,95 @@ toolchain = "synthetic fixture generator 1.0 (test-only)"
 	if control.loads != 1 || attempted || apiErr == nil || apiErr.Code != protocol.CodeInvalidArchive {
 		t.Fatalf("mismatched game binding should fail before load: loads=%d attempted=%v err=%+v", control.loads, attempted, apiErr)
 	}
+}
+
+func TestPcxtMachineDisklessStatusReconciles(t *testing.T) {
+	ctx := context.Background()
+	payload, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadDigest := sha256.Sum256(payload)
+	var blocks string
+	for _, id := range []string{
+		"fes.video.fixed-720p60", "fes.memory.hps-ddr",
+		protocol.PcxtFloppyInterface().ID, protocol.PcxtFloppyWriteInterface().ID,
+		protocol.PersistenceWordsInterface().ID, protocol.PcxtMachineInterface().ID,
+	} {
+		blocks += fmt.Sprintf("[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n\n", id)
+	}
+	manifest := []byte(fmt.Sprintf(`format = 2
+
+[core]
+id = "fes.pcxt-dos"
+name = "FES PC/XT FreeDOS"
+description = "Synthetic test-only core bundle fixture; never deploy."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = %d
+sha256 = "%x"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 1
+
+%s[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/fes-pcxt"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "synthetic fixture generator 1.0 (test-only)"
+`, len(payload), payloadDigest, blocks))
+	archive := pc386TarArchive(manifest, payload)
+	pkgRoot := t.TempDir()
+	staged, err := corepackage.Stage(ctx, pkgRoot, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+
+	response, err := decodeProtocol2Response([]byte(fixtureLines(t, "protocol-v2-pc386-responses.jsonl")[3]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := staged.Descriptor
+	response.ActivePackage.PackageID, response.ActivePackage.Descriptor = staged.PackageID, d
+	abi := matchingABI(response.Capabilities, d)
+	if abi == nil {
+		t.Fatal("the runtime advertises no ABI for the package")
+	}
+	abi.Interfaces = append(abi.Interfaces,
+		Protocol2Interface{ID: protocol.PcxtFloppyInterface().ID, Major: 1},
+		Protocol2Interface{ID: protocol.PcxtFloppyWriteInterface().ID, Major: 1},
+		Protocol2Interface{ID: protocol.PcxtMachineInterface().ID, Major: 1},
+	)
+	sort.Slice(abi.Interfaces, func(i, j int) bool { return abi.Interfaces[i].ID < abi.Interfaces[j].ID })
+	response.Capabilities.ActiveInterfaces = interfaceIntersection(d, *abi)
+	response.Capabilities.MediaUnits = []protocol.MediaUnitStatus{{
+		Unit:       protocol.PcxtFloppyUnit,
+		Interface:  protocol.PcxtFloppyInterface(),
+		MinBytes:   uint32(protocol.PcxtFloppyBytes),
+		MaxBytes:   uint32(protocol.PcxtFloppyBytes),
+		ChunkBytes: 512,
+		State:      protocol.MediaUnitEmpty,
+	}}
+	if !validProtocol2Response(response) {
+		t.Fatal("diskless PC/XT machine-record status failed validProtocol2Response")
+	}
+	control := pc386FixtureControl{response: response}
+	status := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(pkgRoot)).reconcileProtocol2(ctx, control)
+	if status.State != protocol.StateActive || status.CorePackage == nil || status.CorePackage.CoreID != "fes.pcxt-dos" ||
+		status.CorePackage.PersistenceMode != "persistent" || len(status.CorePackage.MediaUnits) != 1 ||
+		status.CorePackage.MediaUnits[0].State != protocol.MediaUnitEmpty || protocol.PersistentMediaBound(status.CorePackage) {
+		t.Fatalf("reconciled diskless PC/XT status = %+v", status)
+	}
+	assertTargetClientAcceptsStatus(t, status)
 }

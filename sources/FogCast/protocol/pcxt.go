@@ -29,6 +29,12 @@ func DeclaresPcxtMachine(descriptor corepackage.Descriptor) bool {
 		declaresRequired(descriptor, PersistenceWordsInterface()) && declaresRequired(descriptor, PcxtMachineInterface())
 }
 
+// DeclaresPcxtFloppy reports a fes.computer 1.1 descriptor with the PC/XT floppy.
+func DeclaresPcxtFloppy(descriptor corepackage.Descriptor) bool {
+	return descriptor.ABI.ID == ComputerABIID && descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 1 &&
+		declaresRequired(descriptor, PcxtFloppyInterface())
+}
+
 // DeclaresPerGameMachine reports a fes.computer 1.1 descriptor that uses a
 // per-game persistent machine record (fes.pc386.machine or fes.pcxt.machine).
 func DeclaresPerGameMachine(descriptor corepackage.Descriptor) bool {
