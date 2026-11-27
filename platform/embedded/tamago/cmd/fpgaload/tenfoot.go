@@ -219,6 +219,8 @@ func serveProgramTenfoot(loader *nativefabric.ProgramLoader, store *packagestore
 				MenuButtons:     input.GamepadButtons{Confirm: 1, Back: 2},
 				CoreKeys:        keys,
 				PairingDuration: 30 * time.Second,
+				App:             app,
+				Preferences:     startup.Preferences,
 				OnPairingEvent: func(active bool, pairErr error) {
 					fmt.Printf("FES_NATIVE_BT_PAIRING active=%t err=%v\n", active, pairErr)
 				},

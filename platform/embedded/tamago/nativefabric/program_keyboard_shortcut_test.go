@@ -185,6 +185,18 @@ func (s *lockedMultiShortcutSource) BluetoothGeneration() uint64 {
 	return s.inner.BluetoothGeneration()
 }
 
+func (s *lockedMultiShortcutSource) GamepadGeneration() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inner.GamepadGeneration()
+}
+
+func (s *lockedMultiShortcutSource) GamepadDevicesInto(dst []usbhub.GamepadDevice) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inner.GamepadDevicesInto(dst)
+}
+
 func (s *lockedMultiShortcutSource) ForgetBluetoothDevice(address string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

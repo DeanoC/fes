@@ -64,6 +64,7 @@ type BondRecord struct {
 	Name      string
 	VendorID  uint16
 	ProductID uint16
+	Version   uint16
 	Kind      controllers.Kind
 	Slot      uint8
 }
@@ -74,6 +75,7 @@ type bondJSON struct {
 	Name      string `json:"name,omitempty"`
 	VendorID  uint16 `json:"vendor_id,omitempty"`
 	ProductID uint16 `json:"product_id,omitempty"`
+	Version   uint16 `json:"version,omitempty"`
 	Kind      uint8  `json:"kind,omitempty"`
 	Slot      uint8  `json:"slot,omitempty"`
 }
@@ -122,6 +124,9 @@ func (s *BondStore) Upsert(rec BondRecord) error {
 			if rec.VendorID == 0 {
 				rec.VendorID = s.records[i].VendorID
 				rec.ProductID = s.records[i].ProductID
+				rec.Version = s.records[i].Version
+			} else if rec.Version == 0 && rec.VendorID == s.records[i].VendorID && rec.ProductID == s.records[i].ProductID {
+				rec.Version = s.records[i].Version
 			}
 			s.records[i] = rec
 			s.dirty = true
@@ -186,6 +191,7 @@ func (s *BondStore) MarshalJSON() ([]byte, error) {
 			Name:      r.Name,
 			VendorID:  r.VendorID,
 			ProductID: r.ProductID,
+			Version:   r.Version,
 			Kind:      uint8(r.Kind),
 			Slot:      r.Slot,
 		})
@@ -236,6 +242,7 @@ func (s *BondStore) UnmarshalJSON(data []byte) error {
 			Name:      b.Name,
 			VendorID:  b.VendorID,
 			ProductID: b.ProductID,
+			Version:   b.Version,
 			Kind:      controllers.Kind(b.Kind),
 			Slot:      b.Slot,
 		})
