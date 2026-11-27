@@ -5,6 +5,8 @@ agent, runtime and UI binaries. It never builds those components on a cache miss
 A missing or changed input stops assembly with an error. The artifact set contains
 no playable cores; install those through the existing core catalog.
 
+A published [nightly qualification set](nightly-qualification.md#release-consumption-and-retries) supplies compatible MENU inputs for packing and playable packages for the release catalog.
+
 Start by exporting from a retained, receipt-checked image on Linux (`debugfs` from
 `e2fsprogs` is required). An older multi-core image is also suitable if its
 runtime accepts its MENU: the export selects only its MENU firmware and bootstrap

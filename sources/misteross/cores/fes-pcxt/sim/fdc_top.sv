@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Complete logical ISA path for the read-only PC/XT floppy adapter.
+// Complete logical ISA path for the PC/XT floppy adapter, with optional writes.
 module fdc_top (
     input wire clk, reset, cold_reset, guest_ce,
     output wire observed_commit,

@@ -50,6 +50,18 @@ Main_MiSTer is a comparison reference, not a supported launch backend.
 
 ## How a build fits together
 
+Both Linux profiles bootstrap with board-specific MENU firmware. Playable cores
+come through the catalog. The [support matrix](support-matrix.md) records
+release scope, quality, freshness and check level. The [forward plan](plans/forward-plan.md#tiers)
+assigns quality per machine and board. Use the [recipe registry](../config/core-recipes.toml)
+to establish which board variants can actually be built.
+
+The [image artifact workflow](image-artifacts.md) assembles Linux bootstrap
+software and MENU from selected bytes for DE10 ARMv7 or DE25 AArch64. The
+[kit software workflow](kit-software-releases.md) updates Linux target software,
+including Tenfoot, independently of the base OS. The [DE25 TamaGo experiment](../platform/embedded/README.md)
+builds Tenfoot into a separate bare-metal application.
+
 mister-packages definitions generate checked-in consumers used by the runtime
 and FPGA source, and describe upstream core sources. FogCast consumes the
 runtime-advertised ABI registry without a second static Go allowlist. misteross
