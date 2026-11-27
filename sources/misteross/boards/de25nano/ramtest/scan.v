@@ -83,7 +83,15 @@ module fes_de25_ram_scan #(
                     0: value[i*8 +: 8] = 0;
                     1: value[i*8 +: 8] = 8'hff;
                     2: value[i*8 +: 8] = lane[3] ? 8'haa : 8'h55;
-                    3: value[i*8 +: 8] = (64'd1 << lane[8:3]) >> ((i % 8)*8);
+                    3: begin
+                        // Narrow words cannot carry the original 64-bit lane
+                        // walk. Advance once per word and wrap within DATA_W;
+                        // retain the established lane pattern for wider scans.
+                        if (DATA_W <= 64)
+                            value[i*8 +: 8] = (64'd1 << ((a >> SHIFT) % DATA_W)) >> (i*8);
+                        else
+                            value[i*8 +: 8] = (64'd1 << lane[8:3]) >> ((i % 8)*8);
+                    end
                     4: value[i*8 +: 8] = ordinary;
                     5: value[i*8 +: 8] = inverted;
                     6: value[i*8 +: 8] = expected && i != ((a >> SHIFT) & (STEP-1)) ? inverted : ordinary;
