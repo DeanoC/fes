@@ -186,7 +186,7 @@ class AffectedTests(unittest.TestCase):
 
     def test_de25_machine_paths_select_their_machines(self):
         board = 'sources/misteross/boards/de25nano/'
-        for path, cores in (('spectrum/derive.py', ['spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
+        for path, cores in (('spectrum/derive.py', ['c64', 'pc386', 'spectrum']), ('spectrum/spectrum-clocks.sdc', ['spectrum']),
                             ('atari-st/derive.py', ['atari-st', 'pcxt']), ('atari-st/sim.py', ['atari-st']),
                             ('atari-st/build.py', ['atari-st']),
                             ('c64/derive.py', ['c64']), ('c64/c64-clocks.sdc', ['c64']),
@@ -203,9 +203,16 @@ class AffectedTests(unittest.TestCase):
                             ('shared-rtl/fes_c64_firmware_rom.v', ['c64']),
                             ('shared-rtl/fes_pcxt_core.v', ['pcxt']),
                             ('shared-rtl/fes_media_sdram.v', ['atari-st', 'spectrum']),
+                            ('shared-rtl/generated/fes_firmware_upload.vh', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_firmware_upload.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
                             ('shared-rtl/fes_gp_crossing.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
-                            ('shared-rtl/fes_de25_machine_audio.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum'])):
+                            ('shared-rtl/fes_de25_machine_audio.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum']),
+                            ('shared-rtl/fes_menu_reader.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_menu_video.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_menu_control.v', ['atari-st', 'c64', 'menu', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_computer_mailbox.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_display_plane.v', ['atari-st', 'c64', 'pc386', 'pcxt', 'spectrum', 'zx81']),
+                            ('shared-rtl/fes_zx81_core.v', ['zx81'])):
             with self.subTest(path=path):
                 self.assertEqual(sorted(plan([board + path])['cores']), cores)
 

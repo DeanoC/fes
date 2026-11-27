@@ -346,6 +346,9 @@ def fpga_cores(path):
         if len(parts) >= 4 and parts[2] == 'package':
             return ('menu', 'zx81'), 'DE25 package format implementation'
         if parts[2] == 'spectrum':
+            # C64 native and pc386 reuse the Spectrum transport derivation.
+            if parts[3:] == ('derive.py',):
+                return ('spectrum', 'c64', 'pc386'), 'DE25 Spectrum derivations, shared with C64 native and pc386'
             return ('spectrum',), 'DE25 Spectrum integration and its derivations'
         if parts[2] == 'atari-st':
             # The PC/XT takes the ST's SDRAM clock and transport derivations.
@@ -363,7 +366,7 @@ def fpga_cores(path):
         if len(parts) >= 4 and parts[2] == 'shared-rtl':
             name = parts[3]
             if name in ('fes_menu_reader.v', 'fes_menu_video.v', 'fes_menu_control.v'):
-                return ('menu', 'zx81'), 'DE25 local display and menu consumers'
+                return ('menu', 'zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 local display, menu and standard machine consumers'
             if name in ('fes_spectrum_core.v', 'fes_spectrum_firmware_rom.v'):
                 return ('spectrum',), 'DE25 Spectrum machine shell'
             if name in ('fes_atari_st_core.v', 'fes_st_rom_sdram.v'):
@@ -374,10 +377,12 @@ def fpga_cores(path):
                 return ('pcxt',), 'DE25 PC/XT machine shell'
             if name == 'fes_media_sdram.v':
                 return ('spectrum', 'atari-st'), 'DE25 board SDRAM media store'
-            if name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v'):
+            if (parts[3:] == ('generated', 'fes_firmware_upload.vh')
+                    or name in ('fes_firmware_upload.v', 'fes_gp_crossing.v', 'fes_de25_machine_audio.v')):
                 return ('spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 standard machine shell'
-            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v',
-                        'fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
+            if name in ('fes_computer_mailbox.v', 'fes_display_plane.v'):
+                return ('zx81', 'spectrum', 'atari-st', 'c64', 'pcxt', 'pc386'), 'DE25 computer mailbox and display-plane consumers'
+            if name in ('fes_zx81_core.v', 'zx81_machine.sv', 'zx81_machine_clock.v',
                         'zx81_top.v'):
                 return ('zx81',), 'DE25 local ZX81 computer consumer'
         return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
