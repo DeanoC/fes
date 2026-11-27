@@ -12,7 +12,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if (not isinstance(raw, bytes) or len(raw) > 2 << 20 or
             receipt.get("scope") != "de25-cbl-positive-mac-spl-v1" or
             receipt.get("status") != "prepared" or receipt.get("startup_predicate_report") is not True or
-            receipt.get("capability_snapshot") is not True or receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
+            receipt.get("phy_samples") is not True or receipt.get("capability_snapshot") is not True or receipt.get("parking_revision") != PARKING or not re.fullmatch("[0-9a-f]{16}", identity) or
             not re.fullmatch("[0-9a-f]{64}", frame_hash)):
         raise ValueError("invalid positive diagnostic source receipt or UART stream")
     data = raw.replace(b"\r\n", b"\n")
@@ -22,7 +22,7 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     banners = [i for i, line in enumerate(lines) if line.startswith("U-Boot SPL ")]
     if len(banners) != 1 or not lines[banners[0]].startswith("U-Boot SPL 2025.01-fes-nano-cpu-"+identity+" "):
         raise ValueError("missing matched SPL startup")
-    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP", "FES_CBL_TX_CAPS")
+    prefixes = ("FES_NANO_CPU_TRACE", "FES_NANO_SPL", "FES_CBL_MAC_TX", "FES_CBL_TX_GATE", "FES_CBL_TX_SETUP", "FES_CBL_TX_CAPS", "FES_CBL_TX_PHY")
     trace = [s for s in lines if s.startswith(prefixes)]
     if any(s.startswith(prefixes) for s in lines[:banners[0]]):
         raise ValueError("positive diagnostics before matched banner")
@@ -50,6 +50,25 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if trace[:len(expected)] != expected or trace[-9:] != [*late,
             f"FES_NANO_CPU_TRACE id={identity} stage=12 value=00000000 mpidr=0000000081000000 el=3", PARK]:
         raise ValueError("missing ordered matching cold CPU, ownership or park")
+    phy_samples = []
+    fields = ("id1","id2","bmcr","bmsr_latch","bmsr","adv","partner","gig_adv","gig_partner","pcs","resolved")
+    rows = [i for i,line in enumerate(trace) if line.startswith("FES_CBL_TX_PHY")]
+    if rows:
+        if (len(rows)>2 or rows != list(range(rows[0],rows[0]+len(rows))) or
+                rows[-1]+1>=len(trace) or not trace[rows[-1]+1].startswith("FES_CBL_MAC_TX END ")):
+            raise ValueError("out-of-order PHY observations")
+        for i,row in enumerate(rows):
+            m = re.fullmatch(r"FES_CBL_TX_PHY id="+identity+f" sample={i} us=([0-9]{{1,20}})"+
+                             "".join(" "+f+"=([0-9a-f]{4})" for f in fields),trace[row])
+            if not m:
+                raise ValueError("malformed PHY observation")
+            phy_samples.append(dict(zip(fields,(int(v,16) for v in m.groups()[1:])),time_us=int(m[1])))
+        del trace[rows[0]:rows[-1]+1]
+    def link_ready(p):
+        return (p["id1"]==0x22 and p["id2"]==0x1622 and p["bmcr"] & 0xde00 == 0x1000 and
+                p["bmsr"] & 0x34 == 0x24 and p["adv"] & 31 == 1 and p["partner"] & 0x201f == 1 and
+                p["gig_adv"] & 0xe200 == 0x200 and p["gig_partner"] & 0xb800 == 0x3800 and
+                p["gig_partner"] & 0xff != 0xff and p["pcs"] & 6 == 4 and p["resolved"] & 0x78 == 0x48)
     caps = None
     capability_rows = [i for i,line in enumerate(trace) if line.startswith("FES_CBL_TX_CAPS")]
     if capability_rows:
@@ -108,13 +127,13 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
         r" writes=([01]) terminal_per0=([0-9a-f]{8}) terminal_route=([0-9a-f]{8})"
         r" terminal_sid=([0-9a-f]{8}) terminal_cr0=([0-9a-f]{8}) terminal_ack=([0-9a-f]{8})"
         r" terminal_ste=([0-9a-f]{8}) reg=10d11024 value=([0-9a-f]{8}) desc=([0-9a-f]{8})"
-        r" dma=([0-9a-f]{8}) fault_reg=([0-9a-f]{8}) fault_value=([0-9a-f]{8}) phy=([0-9a-f]{4})", terminal)
+        r" dma=([0-9a-f]{8}) fault_reg=([0-9a-f]{8}) fault_value=([0-9a-f]{8}) phy=([0-9a-f]{4}) drain_dma=([0-9a-f]{8}) drain_mtl=([0-9a-f]{8}) drain_status=([0-9a-f]{8})", terminal)
     if not fields:
         raise ValueError("missing terminal hardware closure")
     rc, stage = int(fields[1]), int(fields[2])
     arm, mapped, mac, possible, dispatch, tps, revoked, reset = map(int, fields.groups()[2:10])
     disposition, writes = fields[11], int(fields[12])
-    per0, route, sid, cr0, ack, ste, reset_readback, desc, dma, fault_reg, fault_value, phy = (
+    per0, route, sid, cr0, ack, ste, reset_readback, desc, dma, fault_reg, fault_value, phy, drain_dma, drain_mtl, drain_status = (
         int(x, 16) for x in fields.groups()[12:])
     if per0 != 0xff7fbfff or reset_readback != per0:
         raise ValueError("terminal reset scope differs from the initial CBL state")
@@ -124,7 +143,9 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
     if disposition == "closed":
         valid = (rc == 0 and stage == 8 and flags == (1,)*9 and state == abort
                  and desc & 0xf8000000 == 0x30000000 and not dma & 0x3200
-                 and fault_reg == fault_value == 0 and phy & 0x79 == 0x48)
+                 and fault_reg == fault_value == 0 and phy & 0x78 == 0x48)
+    elif disposition == "failed-drained":
+        valid = (rc==-1 and stage==5 and flags==(1,)*9 and state==abort and fault_reg!=0 and not dma & 0x3200)
     elif disposition == "unchanged":
         valid = (rc == -1 and stage in (0,1) and flags == (0,)*9
                  and state == (0x30, 0, 0, 0, 0) and desc == dma == phy == 0)
@@ -133,6 +154,14 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
                  and state == abort and desc == dma == 0)
     else:
         valid = False
+    if tps and (drain_dma & 0xff03 or drain_mtl & 0x3e or drain_status & 0x3202 != 2):
+        raise ValueError("TX queue, channel or AXI activity after stop")
+    if phy_samples and (stage < 4 or phy_samples[-1]["resolved"] != phy):
+        raise ValueError("PHY observation without MAC admission or contradictory resolved status")
+    if stage >= 5 and (len(phy_samples)!=2 or not all(link_ready(p) for p in phy_samples) or
+            phy_samples[1]["bmsr_latch"] & 0x34 != 0x24 or
+            not 100000 <= phy_samples[1]["time_us"] - phy_samples[0]["time_us"] <= 12000000):
+        raise ValueError("two independent linked PMA/PCS snapshots required before dispatch")
     if caps is not None and not (mac and stage >= 3):
         raise ValueError("MAC capability read without a released controller")
     if stage >= 4:
@@ -153,11 +182,13 @@ def decode_closed(raw: bytes, receipt: dict) -> dict:
                 process_stopped=bool(tps), translation_revoked=bool(revoked), disposition=disposition,
                 mac_in_reset=True, parked=True, terminal_reset=per0, tx_descriptor=desc, dma_status=dma,
                 fault_reg=fault_reg, fault_value=fault_value, phy_status=phy,
-                startup=dict(predicate=predicate, observed=observed, required=required), setup=setup, capabilities=caps)
+                startup=dict(predicate=predicate, observed=observed, required=required), setup=setup, capabilities=caps, phy_samples=phy_samples,
+                vendor_link_check_fail=[bool(p["resolved"] & 1) for p in phy_samples],
+                target_succeeded=disposition=="closed", drain_dma=drain_dma, drain_mtl=drain_mtl, drain_status=drain_status)
 
 
 def decode_positive(raw: bytes, receipt: dict) -> dict:
     result = decode_closed(raw, receipt)
-    if not result["device_frame_dispatched"]:
-        raise ValueError("diagnostic closed before frame dispatch")
+    if not result["target_succeeded"]:
+        raise ValueError("diagnostic did not complete successful TX")
     return result

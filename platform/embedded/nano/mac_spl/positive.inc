@@ -90,6 +90,13 @@ static void positive_report_caps(void *ctx, const struct fes_tx_caps *c)
     printf("FES_CBL_TX_CAPS id=%s version=%08x feature0=%08x feature1=%08x feature2=%08x interface=%08x\n",
            FES_CPU_DIAG_ID,c->version,c->feature0,c->feature1,c->feature2,c->interface);
 }
+static void positive_report_phy(void *ctx, unsigned sample, const struct fes_tx_phy_sample *p)
+{
+    (void)ctx;
+    printf("FES_CBL_TX_PHY id=%s sample=%u us=%llu id1=%04x id2=%04x bmcr=%04x bmsr_latch=%04x bmsr=%04x adv=%04x partner=%04x gig_adv=%04x gig_partner=%04x pcs=%04x resolved=%04x\n",
+           FES_CPU_DIAG_ID,sample,(unsigned long long)p->time_us,p->id1,p->id2,p->bmcr,p->bmsr_latch,
+           p->bmsr,p->adv,p->partner,p->gig_adv,p->gig_partner,p->pcs,p->resolved);
+}
 static int positive_matches(const char *predicate, unsigned long long observed, unsigned long long required)
 {
     if (observed==required) return 1;
@@ -153,10 +160,10 @@ __attribute__((__noinline__)) void fes_nano_positive_tx(void)
 {
     struct fes_tx_result result={0};
     const struct fes_tx_io io={NULL,positive_rd,positive_wr,positive_ld,positive_st,positive_barrier,
-                               positive_time,positive_owns,positive_observe_unchanged,positive_report_caps};
+                               positive_time,positive_owns,positive_observe_unchanged,positive_report_caps,positive_report_phy};
     int rc=-1;
     enum fes_tx_disposition closed;
-    static const char *const names[]={"cold-recovery","closed","unchanged","revoked-undispatched"};
+    static const char *const names[]={"cold-recovery","closed","unchanged","revoked-undispatched","failed-drained"};
     printf("FES_CBL_MAC_TX BEGIN id=%s\n",FES_CPU_DIAG_ID);
     struct fes_nano_cold_sample now;
     if (!positive_matches("initial-cpu-scope",fes_positive_cpu_scope(&source,&now),1)) goto done;
@@ -173,12 +180,12 @@ __attribute__((__noinline__)) void fes_nano_positive_tx(void)
 done:
     closed=fes_tx_terminal(&io,&result,rc);
     if(!rc && closed!=FES_TX_CLOSED)rc=-1;
-    printf("FES_CBL_MAC_TX END id=%s rc=%d stage=%u arm=%u mapped=%u mac=%u possible=%u dispatch=%u tps=%u revoked=%u reset=%u disposition=%s writes=%u terminal_per0=%08x terminal_route=%08x terminal_sid=%08x terminal_cr0=%08x terminal_ack=%08x terminal_ste=%08x reg=%08x value=%08x desc=%08x dma=%08x fault_reg=%08x fault_value=%08x phy=%04x\n",
+    printf("FES_CBL_MAC_TX END id=%s rc=%d stage=%u arm=%u mapped=%u mac=%u possible=%u dispatch=%u tps=%u revoked=%u reset=%u disposition=%s writes=%u terminal_per0=%08x terminal_route=%08x terminal_sid=%08x terminal_cr0=%08x terminal_ack=%08x terminal_ste=%08x reg=%08x value=%08x desc=%08x dma=%08x fault_reg=%08x fault_value=%08x phy=%04x drain_dma=%08x drain_mtl=%08x drain_status=%08x\n",
            FES_CPU_DIAG_ID,rc,result.stage,result.arm_attempted,result.mapped,result.mac_release_attempted,
            result.dma_possible,result.dispatched,result.process_stopped,
            result.translation_revoked,result.mac_in_reset,names[closed],result.write_attempted,result.terminal_per0,
            result.terminal_route,result.terminal_sid,result.terminal_cr0,result.terminal_ack,result.terminal_ste,
            result.last_address,result.last_value,result.descriptor_status,result.channel_status,
-           result.fault_address,result.fault_value,result.phy_status);
+           result.fault_address,result.fault_value,result.phy_status,result.drain_dma,result.drain_mtl,result.drain_status);
     fes_nano_cpu_diag_park();
 }

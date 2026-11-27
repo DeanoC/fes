@@ -27,6 +27,10 @@
 struct fes_tx_caps {
     uint32_t version, feature0, feature1, feature2, interface;
 };
+struct fes_tx_phy_sample {
+    uint64_t time_us;
+    uint16_t id1, id2, bmcr, bmsr_latch, bmsr, adv, partner, gig_adv, gig_partner, pcs, resolved;
+};
 struct fes_tx_io {
     void *ctx;
     uint32_t (*read)(void *, uint32_t);
@@ -43,6 +47,7 @@ struct fes_tx_io {
      * path may use this. It cannot grant a hardware write or DMA dispatch. */
     int (*observe_unchanged)(void *);
     void (*report_caps)(void *, const struct fes_tx_caps *);
+    void (*report_phy)(void *, unsigned, const struct fes_tx_phy_sample *);
 };
 enum fes_tx_stage {
     FES_TX_INITIAL, FES_TX_TABLE_BUILD, FES_TX_ARM, FES_TX_RELEASE_MAC,
@@ -55,10 +60,11 @@ struct fes_tx_result {
     uint32_t terminal_per0, terminal_route, terminal_sid, terminal_cr0, terminal_ack, terminal_ste;
     uint32_t fault_address, fault_value;
     uint16_t phy_status;
+    uint32_t drain_dma, drain_mtl, drain_status;
     unsigned process_stopped, revoke_started, translation_revoked, mac_in_reset;
     uint64_t started_us, last_us;
 };
-enum fes_tx_disposition { FES_TX_COLD_RECOVERY, FES_TX_CLOSED, FES_TX_UNCHANGED, FES_TX_REVOKED_UNDISPATCHED };
+enum fes_tx_disposition { FES_TX_COLD_RECOVERY, FES_TX_CLOSED, FES_TX_UNCHANGED, FES_TX_REVOKED_UNDISPATCHED, FES_TX_FAILED_DRAINED };
 enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *, struct fes_tx_result *, int rc);
 int fes_tx_once(const struct fes_tx_io *, const uint8_t frame[60], struct fes_tx_result *);
 #endif

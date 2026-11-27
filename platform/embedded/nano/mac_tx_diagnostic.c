@@ -209,23 +209,53 @@ static int mdio(struct trial *t, uint32_t reg, uint16_t *v)
     *v = (uint16_t)read_reg(t, MAC + 0x204);
     return 0;
 }
+static int sample_phy(struct trial *t, struct fes_tx_phy_sample *p)
+{
+    p->time_us = t->io->time_us(t->io->ctx);
+    return mdio(t,2,&p->id1) || mdio(t,3,&p->id2) || mdio(t,0,&p->bmcr) ||
+           mdio(t,1,&p->bmsr_latch) || mdio(t,1,&p->bmsr) ||
+           mdio(t,4,&p->adv) || mdio(t,5,&p->partner) ||
+           mdio(t,9,&p->gig_adv) || mdio(t,10,&p->gig_partner) ||
+           mdio(t,19,&p->pcs) || mdio(t,31,&p->resolved);
+}
+static int link_ready(const struct fes_tx_phy_sample *p)
+{
+    /* Standard current link, AN, IEEE 802.3 selectors and both gigabit
+     * receiver statuses. Linux micrel rejects a saturated idle-error count.
+     * Microchip 13.2 is the current digital 1000BASE-T PMA/PCS link status.
+     * 1F.0 is a separate vendor diagnostic, reported verbatim on both reads. */
+    return p->id1 == 0x22 && p->id2 == 0x1622 && (p->bmcr & 0xde00) == 0x1000 &&
+           (p->bmsr & 0x34) == 0x24 && (p->adv & 31) == 1 &&
+           (p->partner & 0x201f) == 1 && (p->gig_adv & 0xe200) == 0x200 &&
+           (p->gig_partner & 0xb800) == 0x3800 && (p->gig_partner & 0xff) != 0xff &&
+           (p->pcs & 6) == 4 && (p->resolved & 0x78) == 0x48;
+}
 static int verify_link(struct trial *t)
 {
-    uint16_t hi = 0, lo = 0, s = 0, ctrl = 0, adv = 0, peer = 0;
-    if (mdio(t, 2, &hi) || mdio(t, 3, &lo) || hi != 0x22 || lo != 0x1622)
-        return -1;
-    for (unsigned i = 0; i < 10000; i++) {
-        if (mdio(t, 1, &s) || mdio(t, 1, &s) || mdio(t, 0, &ctrl))
-            return -1;
-        if ((s & 0x24) != 0x24)
-            continue; /* BMSR link and completed autonegotiation */
-        if (!(ctrl & (1U << 12)) || ctrl & 0xcc00 || mdio(t, 9, &adv) || mdio(t, 10, &peer) ||
-            mdio(t, 31, &t->out->phy_status))
-            return -1;
-        /* KSZ9031RNX register 1F: final speed[6:4]=1000, duplex[3]=full,
-         * link status check fail[0]=0 (datasheet Table 4-4). */
-        return (adv & (1U << 9)) && (peer & (1U << 11)) && !(peer & (1U << 15)) &&
-               (t->out->phy_status & 0x79) == 0x48 ? 0 : -1;
+    struct fes_tx_phy_sample previous={0}, current={0};
+    const uint64_t start=t->io->time_us(t->io->ctx);
+    for (unsigned attempt=0; attempt<41; attempt++) {
+        if (guard(t) || sample_phy(t,&current)) return -1;
+        t->out->phy_status=current.resolved;
+        int ready=link_ready(&current);
+        /* The first BMSR read can be latched low; a transition since the
+         * preceding qualifying sample breaks that pair. Subsequent pairs can qualify. */
+        int stable=attempt && link_ready(&previous) && ready &&
+                   (current.bmsr_latch & 0x34)==0x24;
+        int irreversible=current.id1!=0x22 || current.id2!=0x1622 ||
+                         (current.gig_partner & 0xff)==0xff;
+        if (stable || irreversible || attempt==40 || current.time_us-start>=4000000) {
+            if (attempt) t->io->report_phy(t->io->ctx,0,&previous);
+            t->io->report_phy(t->io->ctx,attempt!=0,&current);
+            return stable && !irreversible ? 0 : -1;
+        }
+        previous=current;
+        /* The suite also bounds a stopped counter; reserve the rest of the
+         * independent 12-second domain lease for stop, revoke and readback. */
+        unsigned poll_count=0;
+        while (t->io->time_us(t->io->ctx)-previous.time_us < 100000) {
+            if (++poll_count>=10000000 || (!(poll_count&255) && guard(t))) return -1;
+        }
     }
     return -1;
 }
@@ -307,16 +337,25 @@ static int send_frame(struct trial *t)
     t->out->dispatched = 1;
     if (write_reg(t, MAC + 0x3124, FES_TX_IOVA + 16))
         return -1;
+    uint64_t completion_start=t->io->time_us(t->io->ctx);
     for (unsigned i = 0; i < 1000000; i++) {
         if (guard(t) || queues_clean(t))
             return -1;
+        if (t->out->last_us-completion_start >= 2000000) {
+            t->out->last_address = FES_TX_DESC + 12;
+            t->out->last_value = t->out->descriptor_status;
+            return -1;
+        }
         t->out->channel_status = read_reg(t, MAC + 0x3160);
         if (t->out->channel_status & FAULTS)
             return -1;
         t->io->sync_memory(t->io->ctx);
         t->out->descriptor_status = (uint32_t)(t->io->load(t->io->ctx, FES_TX_DESC + 8) >> 32);
-        if (!(t->out->descriptor_status & OWN))
+        if (!(t->out->descriptor_status & OWN)) {
+            t->out->last_address = FES_TX_DESC + 12;
+            t->out->last_value = t->out->descriptor_status;
             return (t->out->descriptor_status & (FIRST_LAST | CONTEXT | DESCRIPTOR_ERROR)) != FIRST_LAST;
+        }
     }
     return -1;
 }
@@ -327,13 +366,21 @@ static int stop_mac(struct trial *t)
         poll(t, MAC + 0x3160, FAULTS | 2, 2))
         return -1;
     for (unsigned i = 0; i < 100000; i++) {
-        if (guard(t))
-            return -1;
-        uint32_t debug = read_reg(t, MAC + 0x1108);
-        if (!(debug & MTL_TX_ACTIVITY)) {
-            if (set_reg(t, MAC, FES_TX_GIGABIT_SPEED))
-                return -1;
-            t->out->process_stopped = 1;
+        if (guard(t)) return -1;
+        if (!(read_reg(t,MAC+0x1108) & MTL_TX_ACTIVITY)) {
+            if (set_reg(t,MAC,FES_TX_GIGABIT_SPEED)) return -1;
+            for (unsigned j=0; j<2; j++) {
+                if (guard(t)) return -1;
+                t->io->sync_memory(t->io->ctx);
+                t->out->drain_dma=read_reg(t,MAC+0x3020);
+                t->out->drain_mtl=read_reg(t,MAC+0x1108);
+                t->out->drain_status=read_reg(t,MAC+0x3160);
+                /* Ch0 RX/TX DMA FSM stopped, AXI R/W inactive, MTL drained. */
+                if ((t->out->drain_dma & 0xff03) || (t->out->drain_mtl & MTL_TX_ACTIVITY) ||
+                    (t->out->drain_status & (FAULTS | 2)) != 2)
+                    return -1;
+            }
+            t->out->process_stopped=1;
             return 0;
         }
     }
@@ -372,7 +419,7 @@ int fes_tx_once(const struct fes_tx_io *io, const uint8_t frame[60], struct fes_
     static const uint8_t header[22] = {2,   0xfe, 0x25, 8,   0xcb, 1,   0x88, 0xb5, 'F', 'E', 'S',
                                        '-', 'C',  'B',  'L', '-',  'T', 'X',  '-',  'v', '1', 0};
     if (!io || !frame || !out || out->stage != FES_TX_INITIAL || out->dispatched || !io->owns ||
-        !io->report_caps || !io->read || !io->write || !io->store || !io->load || !io->time_us || !io->sync_memory)
+        !io->report_phy || !io->report_caps || !io->read || !io->write || !io->store || !io->load || !io->time_us || !io->sync_memory)
         return -1;
     struct trial t = {io, out, 0, 13};
     unsigned nonce = 0, nonzero = 0, different = 0;
@@ -436,8 +483,13 @@ failed:
     out->fault_address = out->last_address;
     out->fault_value = out->last_value;
     /* Revoke only while the original controlled domain is still proved present. */
-    if (!guard(&t) && !queues_clean(&t))
+    if (!guard(&t) && !queues_clean(&t)) {
+        /* Only a completion failure after the tail doorbell can take the
+         * normal stop path. A failed stop is never retried or called drained. */
+        if (out->stage == FES_TX_DISPATCH && out->dma_possible && out->dispatched)
+            (void)stop_mac(&t);
         (void)revoke(&t);
+    }
     return -1;
 }
 
@@ -502,6 +554,9 @@ enum fes_tx_disposition fes_tx_terminal(const struct fes_tx_io *io, struct fes_t
     if (rc && r->stage >= FES_TX_RELEASE_MAC && r->stage <= FES_TX_DISPATCH && !r->dma_possible &&
         !r->dispatched && !r->process_stopped)
         return FES_TX_REVOKED_UNDISPATCHED;
+    if (rc && r->stage == FES_TX_DISPATCH && r->dma_possible && r->dispatched &&
+        r->process_stopped && r->fault_address && !(r->channel_status & FAULTS))
+        return FES_TX_FAILED_DRAINED;
     if (!rc && r->stage == FES_TX_PARKED && r->dispatched && r->process_stopped)
         return FES_TX_CLOSED;
     return FES_TX_COLD_RECOVERY;

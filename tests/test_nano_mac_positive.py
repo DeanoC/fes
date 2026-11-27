@@ -23,14 +23,14 @@ class PositiveTX(unittest.TestCase):
 
     def test_closed_receipt_and_incomplete_evidence(self):
         identity = "1a2b3c4d5e6f7890"
-        receipt = dict(scope="de25-cbl-positive-mac-spl-v1", status="prepared", startup_predicate_report=True, capability_snapshot=True, parking_revision=replay.PARKING, diagnostic_id=identity,
+        receipt = dict(scope="de25-cbl-positive-mac-spl-v1", status="prepared", startup_predicate_report=True, capability_snapshot=True, phy_samples=True, parking_revision=replay.PARKING, diagnostic_id=identity,
                        frame_sha256=hashlib.sha256(b"fixture only").hexdigest())
         def trace(n, value=0):
             return f"FES_NANO_CPU_TRACE id={identity} stage={n:02x} value={value:08x} mpidr=0000000081000000 el=3"
         end = (f"FES_CBL_MAC_TX END id={identity} rc=0 stage=8 arm=1 mapped=1 mac=1 possible=1 dispatch=1 "
                "tps=1 revoked=1 reset=1 disposition=closed writes=1 terminal_per0=ff7fbfff terminal_route=00000003 "
                "terminal_sid=00010001 terminal_cr0=0000000d terminal_ack=0000000d terminal_ste=00000001 "
-               "reg=10d11024 value=ff7fbfff desc=3000003c dma=00000001 fault_reg=00000000 fault_value=00000000 phy=004c")
+               "reg=10d11024 value=ff7fbfff desc=3000003c dma=00000001 fault_reg=00000000 fault_value=00000000 phy=004c drain_dma=00000000 drain_mtl=00000000 drain_status=00000003")
         power_words=(0x90000021,0,0,0,0x23,0x23,0x70021e)
         lines = [f"U-Boot SPL 2025.01-fes-nano-cpu-{identity} (Nov 1)",
                  trace(1), *(trace(0x20+i,v) for i,v in enumerate(power_words)), *map(trace,range(2,18)),
@@ -41,6 +41,7 @@ class PositiveTX(unittest.TestCase):
                  f"FES_CBL_TX_SETUP id={identity} daif_before=2c0 daif_after=3c0 serror=000 l4sp_hz=100000000 emaca_hz=250000000",
                  f"FES_CBL_TX_GATE id={identity} predicate=accepted observed=0000000000000001 required=0000000000000001",
                  f"FES_CBL_TX_CAPS id={identity} version=00107631 feature0=cafd5b3f feature1=49ef7a27 feature2=221c71c7 interface=00000001",
+                 *(f"FES_CBL_TX_PHY id={identity} sample={i} us={1000000+i*100000} id1=0022 id2=1622 bmcr=1140 bmsr_latch=796d bmsr=796d adv=01e1 partner=cde1 gig_adv=0300 gig_partner=3c00 pcs=0004 resolved=004c" for i in range(2)),
                  end, *(trace(0x30+i,v) for i,v in enumerate(power_words)), trace(18), replay.PARK]
         raw = ("\r\n".join(lines)+"\r\n").encode()
         self.assertTrue(replay.decode_positive(raw,receipt)["target_closed"])
@@ -57,25 +58,41 @@ class PositiveTX(unittest.TestCase):
                                  (b"serror=000",b"serror=100"),(b"250000000",b"125000000"),
                                  (b"dma=00000001",b"dma=00002001"), (b"phy=004c",b"phy=002c"),
                                  (b"phy=004c",b"phy=004d"), (b"phy=004c",b"phy=0044"),
+                                 (b"gig_adv=0300",b"gig_adv=2300"),(b"pcs=0004",b"pcs=0000"), (b"gig_partner=3c00",b"gig_partner=1c00"),
+                                 (b"gig_partner=3c00",b"gig_partner=3cff"),(b"us=1100000",b"us=1000001"),
+                                 (b"drain_dma=00000000",b"drain_dma=00001000"),
+                                 (b"drain_status=00000003",b"drain_status=00002003"),
+                                 (b"drain_status=00000003",b"drain_status=00000001"),
                                  (b"FES_CBL_MAC_TX BEGIN",b"Trying to boot from MMC\r\nFES_CBL_MAC_TX BEGIN"),
                                  (b"per0=ff7fbfff",b"per0=ff7fbffe"),
                                  (replay.PARK.encode(),b"no final park")):
             with self.subTest(altered=altered), self.assertRaises(ValueError):
                 replay.decode_positive(raw.replace(original,altered),receipt)
+        flagged = raw.replace(b"resolved=004c",b"resolved=004d").replace(b"phy=004c",b"phy=004d")
+        self.assertEqual(replay.decode_positive(flagged, receipt)["vendor_link_check_fail"],[True,True])
+        drained = raw.replace(b"rc=0 stage=8",b"rc=-1 stage=5").replace(b"disposition=closed",b"disposition=failed-drained").replace(b"fault_reg=00000000",b"fault_reg=9480000c").replace(b"desc=3000003c",b"desc=3800003c")
+        self.assertFalse(replay.decode_closed(drained,receipt)["target_succeeded"])
+        with self.assertRaises(ValueError): replay.decode_positive(drained,receipt)
+        with self.assertRaises(ValueError): replay.decode_closed(drained.replace(b"tps=1",b"tps=0"),receipt)
         with self.assertRaises(ValueError):
             replay.decode_positive(raw+raw,receipt)
         unchanged = (f"FES_CBL_MAC_TX END id={identity} rc=-1 stage=1 arm=0 mapped=0 mac=0 possible=0 dispatch=0 "
                      "tps=0 revoked=0 reset=0 disposition=unchanged writes=0 terminal_per0=ff7fbfff terminal_route=00000030 "
                      "terminal_sid=00000000 terminal_cr0=00000000 terminal_ack=00000000 terminal_ste=00000000 "
-                     "reg=10d11024 value=ff7fbfff desc=00000000 dma=00000000 fault_reg=16000020 fault_value=00000008 phy=0000")
+                     "reg=10d11024 value=ff7fbfff desc=00000000 dma=00000000 fault_reg=16000020 fault_value=00000008 phy=0000 drain_dma=00000000 drain_mtl=00000000 drain_status=00000000")
         revoked = (f"FES_CBL_MAC_TX END id={identity} rc=-1 stage=4 arm=1 mapped=1 mac=1 possible=0 dispatch=0 "
                    "tps=0 revoked=1 reset=1 disposition=revoked-undispatched writes=1 terminal_per0=ff7fbfff "
                    "terminal_route=00000003 terminal_sid=00010001 terminal_cr0=0000000d terminal_ack=0000000d "
                    "terminal_ste=00000001 reg=10d11024 value=ff7fbfff desc=00000000 dma=00000000 "
-                   "fault_reg=10810204 fault_value=00001622 phy=0000")
+                   "fault_reg=10810204 fault_value=00001622 phy=0000 drain_dma=00000000 drain_mtl=00000000 drain_status=00000000")
+        phy_lines = [line.encode()+b"\r\n" for line in lines if line.startswith("FES_CBL_TX_PHY")]
         for terminal in (unchanged, unchanged.replace("stage=1","stage=0"), revoked,
                          revoked.replace("stage=4","stage=3").replace("mac=1","mac=0"), revoked.replace("stage=4","stage=5")):
             wire = raw.replace(end.encode(), terminal.encode())
+            if "stage=5" in terminal:
+                wire = wire.replace(b"phy=0000",b"phy=004c")
+            else:
+                for line in phy_lines: wire=wire.replace(line,b"")
             if "mac=0" in terminal:
                 wire = wire.replace(caps_line, b"")
             result = replay.decode_closed(wire, receipt)
@@ -95,6 +112,7 @@ class PositiveTX(unittest.TestCase):
         rejected = b"predicate=sdm-config-status observed=0000000010000000 required=0000000000000000"
         accepted = b"predicate=accepted observed=0000000000000001 required=0000000000000001"
         startup = raw.replace(caps_line,b"").replace(accepted, rejected).replace(end.encode(), unchanged.replace("stage=1", "stage=0").encode())
+        for line in phy_lines: startup=startup.replace(line,b"")
         setup = next(line.encode()+b"\r\n" for line in lines if line.startswith("FES_CBL_TX_SETUP"))
         with self.assertRaises(ValueError):
             replay.decode_closed(startup, receipt)

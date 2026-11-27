@@ -20,7 +20,13 @@ enum fault {
     BAD_ROUTE,
     WRONG_PHY,
     SLOW_PHY,
-    FAILED_PHY_CHECK,
+    VENDOR_PHY_FLAG,
+    PCS_DOWN,
+    BAD_LOCAL_RECEIVER,
+    IDLE_ERRORS_SATURATED,
+    TX_TIMEOUT,
+    AXI_STILL_ACTIVE,
+    LATE_BUS_FAULT,
     BAD_DESCRIPTOR,
     CONTEXT_DESCRIPTOR,
     LOST_STOP,
@@ -52,7 +58,7 @@ struct fixture {
     unsigned writes, transmits, queued, acknowledged, revocations, observations;
     enum fault fault;
     uint8_t wire[60];
-    unsigned caps_seen;
+    unsigned caps_seen, phy_reports, drain_reads;
 };
 static uint32_t *reg(struct fixture *f, uint32_t a)
 {
@@ -101,6 +107,9 @@ static void put(void *ctx, uint32_t a, uint64_t v)
 }
 static uint32_t read32(void *ctx, uint32_t a)
 {
+    struct fixture *f=ctx;
+    if (f->fault == LATE_BUS_FAULT && a==M+0x3020 && ++f->drain_reads==2)
+        *reg(f,M+0x3160) |= 1U<<12;
     return *reg(ctx, a);
 }
 static uint32_t translate(struct fixture *f, uint32_t va, unsigned write)
@@ -155,11 +164,14 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         unsigned addr = *reg(f, M + 0x200);
         assert((addr >> 16) == 1);
         const uint16_t phy[32] = {[0]=0x1000, [1]=0x24, [2]=0x22, [3]=0x1622,
-                                  [9]=1U<<9, [10]=1U<<11, [31]=0x48};
+                                  [4]=0x1e1, [5]=0xcde1, [9]=1U<<9, [10]=0x3c00, [19]=4, [31]=0x48};
         assert((addr & 31) < sizeof(phy) / sizeof(*phy));
         *p = phy[addr & 31];
         if ((addr & 31) == 31 && f->fault == SLOW_PHY) *p=0x28;
-        if ((addr & 31) == 31 && f->fault == FAILED_PHY_CHECK) *p=0x49;
+        if ((addr & 31) == 31 && f->fault == VENDOR_PHY_FLAG) *p=0x49;
+        if ((addr & 31) == 19 && f->fault == PCS_DOWN) *p=0;
+        if ((addr & 31) == 10 && f->fault == BAD_LOCAL_RECEIVER) *p=0x1c00;
+        if ((addr & 31) == 10 && f->fault == IDLE_ERRORS_SATURATED) *p|=0xff;
         if ((addr & 31) == 3 && f->fault == WRONG_PHY)
             ++*p;
     }
@@ -191,7 +203,8 @@ static void write32(void *ctx, uint32_t a, uint32_t v)
         assert(data == FES_TX_DATA && (uint32_t)get(f, desc + 8) == 60);
         assert((get(f, desc + 8) >> 60 & 0xb) == 0xb);
         memcpy(f->wire, ram(f, data), 60);
-        *ram(f, desc + 8) &= ~(1ULL << 63);
+        if (f->fault != TX_TIMEOUT) *ram(f, desc + 8) &= ~(1ULL << 63);
+        if (f->fault == AXI_STILL_ACTIVE) *reg(f, M+0x3020)=1;
         if (f->fault == BAD_DESCRIPTOR)
             *ram(f, desc + 8) |= 1ULL << (32 + 27);
         if (f->fault == CONTEXT_DESCRIPTOR)
@@ -207,7 +220,8 @@ static int owns(void *ctx)
 }
 static uint64_t now(void *ctx)
 {
-    return ++((struct fixture *)ctx)->ticks;
+    struct fixture *f=ctx;
+    return f->ticks += (!f->transmits || f->fault==TX_TIMEOUT) ? 16 : 1;
 }
 static void barrier(void *ctx)
 {
@@ -219,6 +233,12 @@ static void report_caps(void *ctx, const struct fes_tx_caps *caps)
     assert(++f->caps_seen == 1 && !(f->reset & 0x101) && !f->transmits);
     assert(caps->version == *reg(f, M+0x110) && caps->feature0 == *reg(f, M+0x11c));
     assert(caps->feature1 == *reg(f, M+0x120) && caps->feature2 == *reg(f,M+0x124));
+}
+static void report_phy(void *ctx,unsigned sample,const struct fes_tx_phy_sample *p)
+{
+    struct fixture *f=ctx;
+    assert(sample==f->phy_reports++ && sample<2 && !f->transmits && !(*reg(f,M+0x3104)&1));
+    assert(p->time_us);
 }
 static int observe(void *ctx)
 {
@@ -239,7 +259,7 @@ static void denied_startup(void)
     *reg(&f, S) = 0x080f7e3f;
     *reg(&f, S + 4) = 0x0e739d18;
     *reg(&f, S + 0x14) = 0x400075;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe, report_caps};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, observe, report_caps, report_phy};
     struct fes_tx_result out = {0};
     assert(!owns(&f) && fes_tx_terminal(&io, &out, -1) == FES_TX_UNCHANGED);
     assert(f.observations == 2 && !f.writes && !f.transmits);
@@ -287,15 +307,15 @@ static void test(enum fault fault)
         *reg(&f, S + 0x2c) = 0;
     if (fault == BAD_ROUTE)
         f.sid = 9;
-    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns, report_caps};
+    struct fes_tx_io io = {&f, read32, write32, get, put, barrier, now, owns, owns, report_caps, report_phy};
     struct fes_tx_result out = {0};
     uint8_t frame[60] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x45, 2, 0xfe, 0x25, 8, 0xcb, 1, 0x88, 0xb5};
     memcpy(frame + 14, "FES-CBL-TX-v1", 14);
     memset(frame + 28, 0x7e, 16);
     int rc = fes_tx_once(&io, frame, &out);
-    assert((rc == 0) == (fault == OK || fault == OPTIONAL_FEATURES));
+    assert((rc == 0) == (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG));
     assert(f.transmits <= 1);
-    if (fault == OK || fault == OPTIONAL_FEATURES) {
+    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG) {
         assert(!memcmp(frame, f.wire, 60) && out.mapped && out.dma_possible && out.dispatched &&
                out.process_stopped);
         assert(out.stage == FES_TX_PARKED && out.translation_revoked && out.mac_in_reset &&
@@ -309,9 +329,9 @@ static void test(enum fault fault)
     if (fault == DIRTY_QUEUE || fault == WRONG_OWNER || fault == NEGATIVE_OWNER ||
         fault == BAD_ROUTE)
         assert(!f.writes && !f.transmits);
-    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == FAILED_PHY_CHECK)
+    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == PCS_DOWN || fault == BAD_LOCAL_RECEIVER || fault == IDLE_ERRORS_SATURATED)
         assert(!f.transmits && !out.dma_possible && out.translation_revoked && out.mac_in_reset);
-    if (fault == BAD_DESCRIPTOR || fault == CONTEXT_DESCRIPTOR || fault == LOST_STOP || fault == MTL_PENDING)
+    if (fault == LOST_STOP || fault == MTL_PENDING || fault == AXI_STILL_ACTIVE || fault == LATE_BUS_FAULT)
         assert(f.transmits && !out.process_stopped && out.translation_revoked && out.mac_in_reset);
     if (fault == FAILED_SYNC || fault == LOST_OWNER)
         assert(f.transmits && !out.translation_revoked && !out.mac_in_reset);
@@ -323,7 +343,7 @@ static void test(enum fault fault)
         fault == LOST_PTE_BEFORE_OWN)
         assert(!f.transmits && !out.dispatched && !out.translation_revoked);
     enum fes_tx_disposition expected = FES_TX_COLD_RECOVERY;
-    if (fault == OK || fault == OPTIONAL_FEATURES)
+    if (fault == OK || fault == OPTIONAL_FEATURES || fault == VENDOR_PHY_FLAG)
         expected = FES_TX_CLOSED;
     if (fault >= WRONG_VERSION && fault <= WRONG_QUEUES) {
         assert(f.caps_seen == 1 && !out.dispatched && !out.dma_possible);
@@ -331,9 +351,13 @@ static void test(enum fault fault)
                fault <= NO_AXI_DMA ? 0x11c : fault <= WRONG_ADDRESS_WIDTH ? 0x120 : 0x124));
         expected = FES_TX_REVOKED_UNDISPATCHED;
     }
+    if (fault == BAD_DESCRIPTOR || fault == CONTEXT_DESCRIPTOR || fault == TX_TIMEOUT) {
+        assert(out.dispatched && out.process_stopped && out.translation_revoked && out.mac_in_reset);
+        expected = FES_TX_FAILED_DRAINED;
+    }
     if (fault == UNKNOWN_CR2)
         expected = FES_TX_UNCHANGED;
-    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == FAILED_PHY_CHECK)
+    if (fault == WRONG_PHY || fault == SLOW_PHY || fault == PCS_DOWN || fault == BAD_LOCAL_RECEIVER || fault == IDLE_ERRORS_SATURATED)
         expected = FES_TX_REVOKED_UNDISPATCHED;
     unsigned writes = f.writes;
     assert(fes_tx_terminal(&io, &out, rc) == expected);

@@ -147,7 +147,7 @@ def main():
                       (output/"build/spl/u-boot-spl-dtb.hex").read_bytes(),
                       Path(rest[rest.index("--vendor-sof")+1]).read_bytes())
     result = dict(scope="de25-cbl-positive-mac-spl-v1",status="prepared",historical_trace=TRACE,
-                  startup_predicate_report=True, capability_snapshot=True, parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
+                  startup_predicate_report=True, capability_snapshot=True, phy_samples=True, parking_revision=PARKING, parking_sha256={name:hashlib.sha256(data).hexdigest() for name,data in parking.items()},
                   diagnostic_id=receipt["diagnostic_id"],sof_sha256=receipt["sof_sha256"],
                   spl_sha256=receipt["spl_sha256"],frame_sha256=args.frame_sha256,
                   build_receipt_sha256=digest(original_receipt),embedded_spl=covered,
