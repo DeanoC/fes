@@ -52,7 +52,8 @@ class Fixtures(unittest.TestCase):
         size, autostart, prog = struct.unpack_from("<HHH", header, 12)
         self.assertEqual((autostart, size, prog), (10, len(body) - 2, len(body) - 2))
         self.assertEqual(body[0], 0xFF)
-        self.assertIn(b'\xF5"FES TAPE OK"\x0D', body)
+        # 10 PRINT "FES TAPE OK": BEEP 2,9
+        self.assertIn(b'\xF5"FES TAPE OK":\xD7' + b"2\x0E\x00\x00\x02\x00\x00," + b"9\x0E\x00\x00\x09\x00\x00\x0D", body)
 
     def test_c64_d64_is_empty_and_formatted(self):
         data = conf.c64_blank_d64()
@@ -72,6 +73,23 @@ class Fixtures(unittest.TestCase):
         data = conf.atari_st_blank()
         self.assertEqual(hashlib.sha256(data).hexdigest(), ATARI_ST_BLANK_SHA256)
         self.assertNotEqual(sum(struct.unpack(">256H", data[:512])) & 0xFFFF, 0x1234)
+
+    def test_plus3_dsk_layout(self):
+        data = conf.plus3_blank_dsk()
+        self.assertTrue(data.startswith(b"EXTENDED CPC DSK File\r\nDisk-Info\r\n"))
+        self.assertEqual((data[48], data[49]), (40, 1))
+        self.assertEqual(len(data), 256 + 40 * (256 + 9 * 512))
+        track0 = data[256:512]
+        self.assertEqual(track0[:12], b"Track-Info\r\n")
+        self.assertEqual([track0[24 + 8 * k + 2] for k in range(9)], list(range(1, 10)))
+        self.assertEqual(set(data[512:512 + 9 * 512]), {0xE5})
+
+    def test_trd_layout(self):
+        data = conf.trdos_blank_trd()
+        self.assertEqual(len(data), 655360)
+        info = data[0x800:0x900]
+        self.assertEqual((info[0xE3], info[0xE4], info[0xE7]), (0x16, 0, 0x10))
+        self.assertEqual(struct.unpack_from("<H", info, 0xE5)[0], 2544)
 
     def test_every_fixture_is_deterministic(self):
         for name, make in conf.FIXTURES.items():
@@ -120,22 +138,102 @@ class Spec(unittest.TestCase):
                          ["fes.media.atari-st-floppy-write", "fes.mouse.relative"])
 
     def test_spec_covers_every_declared_kind_for_its_cores(self):
+        audio = "fes.audio.pcm-s16-stereo-48k"
+        # What each sealed DE25 package declares (fes.media/mouse/audio only).
         declared = {
-            "fes.zx81": ["fes.media.zx81-tape"],
-            "fes.spectrum": ["fes.media.spectrum-tape"],
-            "fes.spectrum128": ["fes.media.spectrum-tape"],
-            "fes.c64": ["fes.media.c64-disk"],
-            "fes.atari-st": ["fes.mouse.relative", "fes.media.atari-st-floppy",
-                             "fes.media.atari-st-floppy-geometry"],
+            "fes.zx81": [audio, "fes.media.zx81-tape", "fes.media.zx81-tape-write"],
+            "fes.spectrum": [audio, "fes.media.spectrum-tape"],
+            "fes.spectrum128": [audio, "fes.media.spectrum-tape"],
+            "fes.spectrum-plus3": [audio, "fes.media.spectrum-tape", "fes.media.spectrum-disk",
+                                   "fes.media.spectrum-disk-plus3"],
+            "fes.pentagon": [audio, "fes.media.spectrum-tape", "fes.media.spectrum-disk",
+                             "fes.media.spectrum-disk-trdos"],
+            "fes.c64": [audio, "fes.media.c64-disk"],
+            "fes.atari-st": [audio, "fes.mouse.relative", "fes.media.atari-st-floppy",
+                             "fes.media.atari-st-floppy-write", "fes.media.atari-st-floppy-geometry"],
+            "fes.pcxt-dos": [audio, "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write"],
+        }
+        # Checks not written yet must show as pending, never as covered.
+        pending = {
+            "fes.zx81": ["fes.media.zx81-tape-write"],
+            "fes.atari-st": ["fes.media.atari-st-floppy-write"],
         }
         spec = conf.load_spec()["cores"]
+        self.assertEqual(set(spec), set(declared))
         for core, interfaces in declared.items():
-            self.assertEqual(conf.pending_interfaces(spec[core]["steps"], interfaces), [], core)
-        # Writes are declared but not yet checked; they must show as pending.
-        self.assertEqual(conf.pending_interfaces(spec["fes.zx81"]["steps"], ["fes.media.zx81-tape-write"]),
-                         ["fes.media.zx81-tape-write"])
-        self.assertEqual(conf.pending_interfaces(spec["fes.atari-st"]["steps"], ["fes.media.atari-st-floppy-write"]),
-                         ["fes.media.atari-st-floppy-write"])
+            self.assertEqual(conf.pending_interfaces(spec[core]["steps"], interfaces,
+                                                     spec[core].get("not_applicable")),
+                             pending.get(core, []), core)
+        self.assertEqual(list(spec["fes.zx81"]["not_applicable"]), [audio])
+
+    def test_not_applicable_needs_a_reason(self):
+        for na in ({"fes.audio.x": "short"}, {"fes.keyboard.hid": "a reason that is long enough here"}):
+            path = self.write({"fes.x": {"not_applicable": na, "steps": [{"name": "a", "keys": ["p"]}]}})
+            with self.subTest(na=na), self.assertRaises(ValueError):
+                conf.load_spec(path)
+
+    def test_text_keys(self):
+        self.assertEqual(conf.expand_keys(["text:poke54276,17", "enter"]),
+                         ["p", "o", "k", "e", "5", "4", "2", "7", "6", "comma", "1", "7", "enter"])
+        self.assertEqual(conf.expand_keys(["text:beep 2,9"])[4], "space")
+        with self.assertRaises(ValueError):
+            conf.expand_keys(['text:load"$"'])
+        self.assertEqual(conf.key_tap("ctrl+alt+delete"), (0x104C, 0x05))
+
+    def test_bind_needs_cli(self):
+        path = self.write({"fes.x": {"steps": [{"name": "a", "keys": ["p"], "bind": {"g": "game_id"}}]}})
+        with self.assertRaises(ValueError):
+            conf.load_spec(path)
+
+    def test_audio_expectation_needs_min_rms(self):
+        for audio in ({"tone_hz": 440}, {"min_rms": 1, "pitch": 2}):
+            path = self.write({"fes.x": {"steps": [{"name": "a", "keys": ["p"], "expect": {"audio": audio}}]}})
+            with self.subTest(audio=audio), self.assertRaises(ValueError):
+                conf.load_spec(path)
+
+
+class Audio(unittest.TestCase):
+    def wav(self, seconds, tone=None, amplitude=8000):
+        import math, wave
+        path = Path(tempfile.mkdtemp()) / "a.wav"
+        frames = bytearray()
+        for i in range(int(48000 * seconds)):
+            v = int(amplitude * math.sin(2 * math.pi * tone * i / 48000)) if tone else 0
+            frames += struct.pack("<hh", v, v)
+        with wave.open(str(path), "wb") as f:
+            f.setnchannels(2); f.setsampwidth(2); f.setframerate(48000); f.writeframes(bytes(frames))
+        return path
+
+    def test_tone_at_the_right_rate(self):
+        windows = conf.audio_windows(self.wav(1.0, 807.3))
+        self.assertTrue(all(abs(f - 807.3) < 807.3 * 0.03 for _, f in windows))
+        ok, note = conf.judge_audio(windows, {"tone_hz": 807.3, "tolerance": 0.03, "min_rms": 500})
+        self.assertTrue(ok, note)
+        # The same tone played 5% fast is the wrong rate.
+        ok, note = conf.judge_audio(conf.audio_windows(self.wav(1.0, 847.7)),
+                                    {"tone_hz": 807.3, "tolerance": 0.03, "min_rms": 500})
+        self.assertFalse(ok, note)
+
+    def test_silence_and_quiet_fail(self):
+        self.assertFalse(conf.judge_audio(conf.audio_windows(self.wav(1.0)), {"min_rms": 300})[0])
+        quiet = conf.audio_windows(self.wav(1.0, 440, amplitude=100))
+        self.assertFalse(conf.judge_audio(quiet, {"min_rms": 300})[0])
+        self.assertTrue(conf.judge_audio(conf.audio_windows(self.wav(1.0, 440)), {"min_rms": 300})[0])
+
+    def test_a_short_tone_is_not_held(self):
+        ok, note = conf.judge_audio(conf.audio_windows(self.wav(0.3, 440)),
+                                    {"tone_hz": 440, "min_rms": 500})
+        self.assertFalse(ok, note)
+
+
+class Units(unittest.TestCase):
+    def test_both_reply_shapes(self):
+        unit = {"interface": {"id": "fes.media.pcxt-floppy"}, "state": "ready"}
+        self.assertEqual(conf.media_unit_states({"core_package": {"media_units": [unit]}}),
+                         {"fes.media.pcxt-floppy": "ready"})
+        self.assertEqual(conf.media_unit_states({"CorePackage": {"media_units": [unit]}}),
+                         {"fes.media.pcxt-floppy": "ready"})
+        self.assertEqual(conf.media_unit_states({}), {})
 
 
 class Frames(unittest.TestCase):
@@ -187,20 +285,36 @@ class FakeHost:
         self.taps.append(token)
         return {"ok": self.tap_ok}
 
+    replies = {}
+
     def cli(self, *args):
         self.calls.append(args)
-        return self.cli_rc, units(self.unit_state), "ok"
+        reply = self.replies.get(args[0], units(self.unit_state))
+        return self.cli_rc, reply, "ok"
+
+
+class FakeRecorder:
+    tone = None
+
+    def __init__(self, evidence, kit):
+        self.path = Path(evidence) / "a.wav"
+
+    def start(self):
+        pass
+
+    def stop(self):
+        Audio.wav(Audio(), 1.0, self.tone).replace(self.path)
 
 
 class Run(unittest.TestCase):
-    def run_steps(self, steps, host, frames, ocr_text=""):
+    def run_steps(self, steps, host, frames, ocr_text="", **kw):
         out = Path(tempfile.mkdtemp())
         seq = iter(frames)
         with mock.patch.object(conf, "grab", lambda video, dest: dest.write_bytes(b"png") or True), \
              mock.patch.object(conf, "rgb", lambda path: next(seq)), \
              mock.patch.object(conf, "ocr", lambda path: ocr_text), \
              mock.patch.object(conf.time, "sleep", lambda s: None):
-            return conf.run("fes.x", steps, ["fes.media.x-disk"], host, "/dev/null", out)
+            return conf.run("fes.x", steps, ["fes.media.x-disk"], host, "/dev/null", out, **kw)
 
     def test_keys_change_frame_and_idle(self):
         still, moved = bytes(300), bytes([255]) * 300
@@ -232,6 +346,86 @@ class Run(unittest.TestCase):
         self.assertFalse(self.run_steps(steps, FakeHost(cli_rc=1), [])["checks"]["m"]["ok"])
         other = [{"name": "m", "media": ["change-disk", "c64-fes-blank.d64"], "covers": ["fes.media.y-disk"]}]
         self.assertFalse(self.run_steps(other, FakeHost(), [])["checks"]["m"]["ok"], "no unit for the covered kind")
+
+    def test_cli_binds_values_for_later_steps(self):
+        host = FakeHost()
+        host.replies = {"shelf-new": {"game_id": "g1", "media_id": "m1"},
+                        "shelf": {"disks": [{"game_id": "g1", "kept_revision": "r1"}]}}
+        steps = [{"name": "made", "cli": ["shelf-new", "{core_id}", "T {stamp}", "{package_id}", "freedos"],
+                  "bind": {"game": "game_id", "media": "media_id"}},
+                 {"name": "in", "cli": ["insert-library-disk", "{game}", "{media}"],
+                  "covers": ["fes.media.x-disk"], "expect": {"units": True}},
+                 {"name": "kept", "cli": ["shelf", "{core_id}"], "expect": {"shelf_kept": "{game}"}}]
+        report = self.run_steps(steps, host, [], package_id="p" * 64)
+        self.assertEqual(report["verdict"], "PASS", report)
+        self.assertEqual(host.calls[0][1], "fes.x")
+        self.assertEqual(host.calls[0][3], "p" * 64)
+        self.assertEqual(host.calls[1], ("insert-library-disk", "g1", "m1"))
+        host.replies["shelf"] = {"disks": [{"game_id": "g1"}]}
+        self.assertFalse(self.run_steps(steps, host, [])["checks"]["kept"]["ok"], "nothing kept")
+        host.replies["shelf-new"] = {}
+        self.assertFalse(self.run_steps(steps, host, [])["checks"]["made"]["ok"], "nothing to bind")
+
+    def test_audio_expectation_records_the_step(self):
+        steps = [{"name": "t", "keys": ["enter"], "expect": {"audio": {"tone_hz": 440, "min_rms": 500}}}]
+        FakeRecorder.tone = 440
+        report = self.run_steps(steps, FakeHost(), [], kit="D25", recorder=FakeRecorder)
+        self.assertTrue(report["checks"]["t"]["ok"], report)
+        FakeRecorder.tone = 600
+        self.assertFalse(self.run_steps(steps, FakeHost(), [], kit="D25", recorder=FakeRecorder)["checks"]["t"]["ok"])
+        self.assertFalse(self.run_steps(steps, FakeHost(), [], recorder=FakeRecorder)["checks"]["t"]["ok"],
+                         "no kit capture named")
+
+    def test_recorder_stops_when_step_action_raises(self):
+        class TrackingRecorder(FakeRecorder):
+            instances = []
+
+            def __init__(self, evidence, kit):
+                super().__init__(evidence, kit)
+                self.started = False
+                self.stopped = False
+                self.instances.append(self)
+
+            def start(self):
+                self.started = True
+
+            def stop(self):
+                self.stopped = True
+                super().stop()
+
+        class RaisingHost(FakeHost):
+            def tap(self, session_id, token):
+                raise RuntimeError("injected input failure")
+
+        TrackingRecorder.instances.clear()
+        FakeRecorder.tone = 440
+        steps = [{"name": "t", "keys": ["enter"],
+                  "expect": {"audio": {"tone_hz": 440, "min_rms": 500}}}]
+        with self.assertRaisesRegex(RuntimeError, "injected input failure"):
+            self.run_steps(steps, RaisingHost(), [], kit="D25", recorder=TrackingRecorder)
+        self.assertEqual(len(TrackingRecorder.instances), 1)
+        self.assertTrue(TrackingRecorder.instances[0].started)
+        self.assertTrue(TrackingRecorder.instances[0].stopped)
+
+    def test_audio_cleanup_incomplete_aborts_later_steps(self):
+        class IncompleteRecorder(FakeRecorder):
+            def stop(self):
+                error = conf.AudioError("recorder is still running")
+                error.audio_cleanup_incomplete = True
+                raise error
+
+        steps = [
+            {"name": "audio", "cli": ["first"],
+             "expect": {"audio": {"tone_hz": 440, "min_rms": 500}}},
+            {"name": "later", "cli": ["later"]},
+        ]
+        host = FakeHost()
+        report = self.run_steps(steps, host, [], kit="D25", recorder=IncompleteRecorder)
+        self.assertFalse(report["checks"]["audio"]["ok"], report)
+        self.assertIn("audio cleanup incomplete", report["checks"]["audio"]["detail"])
+        self.assertNotIn("later", report["checks"])
+        self.assertEqual(host.calls, [("first",)])
+        self.assertEqual(report["verdict"], "FAIL")
 
     def test_ocr_expectation(self):
         steps = [{"name": "o", "keys": ["enter"], "expect": {"ocr": "BLOCKS FREE"}}]

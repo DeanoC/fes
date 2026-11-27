@@ -409,8 +409,16 @@ def pcxt_glabios_post(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> t
         if max(p) - min(p) < 30:
             return "grey"
         return "other"
-    counts = Counter(hue(p) for _, _, p in text)
-    share = {name: counts[name] / len(text) for name in ("grey", "cyan", "green", "yellow")}
+    # Measure the colours on the POST table: the text down to its last
+    # coloured row. A host with its bundled FreeDOS disk boots on into grey
+    # kernel text below the table, which is not part of the POST.
+    hues = [(y, hue(p)) for _, y, p in text]
+    coloured = [y for y, h in hues if h in ("cyan", "green", "yellow")]
+    if not coloured:
+        return False, "POST text has no colour"
+    table = [h for y, h in hues if y <= max(coloured)]
+    counts = Counter(table)
+    share = {name: counts[name] / len(table) for name in ("grey", "cyan", "green", "yellow")}
     low = [name for name, value in share.items() if value < 0.03]
     if low:
         return False, "POST text has too little " + ", ".join(low)

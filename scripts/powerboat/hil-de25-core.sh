@@ -196,8 +196,9 @@ new_video = old_video + """
     tool = os.environ.get("C_CONFORMANCE_TOOL", "")
     if tool and os.path.isfile(tool):
         cf = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), "--package", str(PKG),
-            "--api", ORIGIN, "--fogcast", FOGCAST, "--video", VID, "--out", str(OUT / "conformance")],
-            capture_output=True, text=True, timeout=900)
+            "--api", ORIGIN, "--fogcast", FOGCAST, "--video", VID, "--out", str(OUT / "conformance"),
+            "--kit", "D25", "--package-id", str(pid)],
+            capture_output=True, text=True, timeout=1200)
         (OUT / "conformance.log").write_text(cf.stdout + cf.stderr)
         if cf.returncode != 3:
             try:
@@ -246,13 +247,21 @@ fi
 PRIVATE_API=$SWAP_HOME/bin/fogcast-api; PRIVATE_FOGCAST=$SWAP_HOME/bin/fogcast
 AGENT_TOKEN=$(/home/deano/lander-hilq/kits/kssh D25 'grep "^token" /media/fat/fogcast/agent.toml | cut -d= -f2 | xargs')
 [[ "$AGENT_TOKEN" =~ ^[A-Za-z0-9._~-]{32,256}$ ]] || { fail "could not read valid J8G API credential"; echo NOTSTARTED > "$D/verdict"; exit 3; }
-FOGCAST_AGENT_TOKEN="$AGENT_TOKEN" python3 - "$SWAP_HOME/.config/fogcast/config.toml" <<'PY'
+# The PC/XT FreeDOS shelf disk is a copy of the host's bundled FreeDOS disk.
+# Stage only that object, so no bundled ROM changes which firmware the smoke
+# selects for the other cores.
+BUNDLED=$SWAP_HOME/firmware
+if ! (cd "$FES_SOURCE/scripts" && python3 -c 'import sys,bundled_firmware as b,recipes; b.stage(sys.argv[1], recipes.shared_cache_root() / "firmware", firmware=[e for e in b.FIRMWARE if e["id"] == "freedos-xt-360"])' "$BUNDLED") >"$D/logs/bundled-firmware.log" 2>&1; then
+  fail "could not stage the bundled FreeDOS disk"; echo NOTSTARTED > "$D/verdict"; exit 3
+fi
+FOGCAST_BUNDLED_DIR="$BUNDLED" FOGCAST_AGENT_TOKEN="$AGENT_TOKEN" python3 - "$SWAP_HOME/.config/fogcast/config.toml" <<'PY'
 from pathlib import Path
 import os,re,sys
 token=os.environ['FOGCAST_AGENT_TOKEN']
 if not re.fullmatch(r'[A-Za-z0-9._~-]{32,256}', token): raise SystemExit('invalid J8G credential')
 def quote(value): return '"' + value.replace('\\','\\\\').replace('"','\\"') + '"'
 src='selected_target = "de25"\nrequest_timeout_seconds = 5\nupload_timeout_seconds = 60\n\n[[targets]]\nname = "de25"\nenabled = true\naddress = "http://192.168.10.119:8182"\ntarget_id = "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"\nagent = ' + quote(token) + '\n\n[remote_input]\nenabled = true\n'
+src += '\n[firmware]\nbundled_dir = ' + quote(os.environ['FOGCAST_BUNDLED_DIR']) + '\n'
 p=Path(sys.argv[1]); p.write_text(src); p.chmod(0o600)
 PY
 unset AGENT_TOKEN

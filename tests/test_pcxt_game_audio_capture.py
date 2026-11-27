@@ -63,6 +63,48 @@ class AudioCaptureTests(unittest.TestCase):
             self.assertEqual(audio.AudioRecorder(Path(tmp), 'B').device, 'hw:CARD=D4KPRO,DEV=0')
             with self.assertRaises(audio.AudioError): audio.AudioRecorder(Path(tmp), 'C')
 
+    def test_kit_d25_binds_the_serial_less_ms2109_by_port(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sysroot, procroot, devroot = root/'sys', root/'proc', root/'dev'
+            usb = sysroot/'devices/usb3/3-6'; video_if = usb/'3-6:1.0'; audio_if = usb/'3-6:1.2'
+            video_if.mkdir(parents=True); audio_if.mkdir()
+            (usb/'idVendor').write_text('534d\n'); (usb/'idProduct').write_text('2109\n')
+            sound = sysroot/'class/sound/card0'; sound.mkdir(parents=True)
+            (sound/'device').symlink_to(audio_if)
+            video = sysroot/'class/video4linux/video0'; video.mkdir(parents=True)
+            (video/'device').symlink_to(video_if)
+            loop = sysroot/'class/video4linux/video24'; loop.mkdir(parents=True)
+            (loop/'name').write_text('fes-ms2109-hil\n')
+            (procroot/'asound/card0').mkdir(parents=True)
+            (procroot/'asound/MS2109').symlink_to('card0')
+            (procroot/'7').mkdir()
+            by_id = devroot/'v4l/by-id'; by_id.mkdir(parents=True)
+            (devroot/'video0').touch(); (devroot/'video24').touch()
+            raw = by_id/'usb-MACROSILICON_2109-video-index0'; hil = by_id/'fes-ms2109-hil'
+            raw.symlink_to('../../video0'); hil.symlink_to('../../video24')
+            (procroot/'7/cmdline').write_bytes(b'ffmpeg\0-i\0'+str(raw).encode()+b'\0'+str(hil).encode()+b'\0')
+            runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0, stdout='7\n'))
+            kw = dict(sysroot=sysroot, procroot=procroot, devroot=devroot, runner=runner)
+            mapping = audio.capture_identity('D25', **kw)
+            self.assertEqual(mapping['alsa_card'], 'card0')
+            self.assertEqual((mapping['usb']['vendor'], mapping['usb']['product'], mapping['usb']['serial']),
+                             ('534d', '2109', None))
+            self.assertEqual(runner.call_args.args[0][2], 'fes-ms2109-fanout.service')
+            with tempfile.TemporaryDirectory() as ev:
+                self.assertEqual(audio.AudioRecorder(Path(ev), 'D25').device, 'hw:CARD=MS2109,DEV=0')
+
+            # The same model on another port is not Kit D25's capture.
+            other = sysroot/'devices/usb3/3-5'; other_if = other/'3-5:1.2'; other_if.mkdir(parents=True)
+            (other/'idVendor').write_text('534d\n'); (other/'idProduct').write_text('2109\n')
+            (sound/'device').unlink(); (sound/'device').symlink_to(other_if)
+            with self.assertRaisesRegex(audio.AudioError, 'expected port'):
+                audio.capture_identity('D25', **kw)
+            (sound/'device').unlink(); (sound/'device').symlink_to(audio_if)
+            (usb/'idProduct').write_text('2110\n')
+            with self.assertRaisesRegex(audio.AudioError, 'physical capture identities differ'):
+                audio.capture_identity('D25', **kw)
+
     def test_kit_b_binds_audio_and_video_to_same_usb_and_fanout(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
