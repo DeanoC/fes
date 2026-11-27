@@ -264,19 +264,19 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	}
 	var targetInputsMu sync.Mutex
 	targetInputs := make(map[string][]*host.RemoteInput)
-	targetInputFactory := func(targetName string) host.RemoteInputController {
+	targetInputFactory := func(targetName string) (host.RemoteInputController, error) {
 		targetStarter, createErr := makeTargetBridgeStarter(config, targetName, service, makeStarter, starter)
 		if createErr != nil {
-			return nil
+			return nil, fmt.Errorf("bridge starter: %w", createErr)
 		}
 		controller, createErr := host.NewRemoteInput(host.RemoteInputConfig{Starter: targetStarter})
 		if createErr != nil {
-			return nil
+			return nil, fmt.Errorf("remote input: %w", createErr)
 		}
 		targetInputsMu.Lock()
 		targetInputs[targetName] = append(targetInputs[targetName], controller)
 		targetInputsMu.Unlock()
-		return controller
+		return controller, nil
 	}
 	if provider, ok := service.(interface{ SetTargetReset(func(string)) }); ok {
 		provider.SetTargetReset(func(targetName string) {

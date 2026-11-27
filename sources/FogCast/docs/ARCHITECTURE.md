@@ -3983,9 +3983,12 @@ reconnect, a new launcher input POST or event POST returns 503
 `INPUT_UNAVAILABLE` (`no live input stream`). A host whose configuration does
 not enable `[remote_input]` has no input bridge for the session: attach,
 detach, tap and event return 503 `INPUT_UNAVAILABLE` (`remote input is not
-enabled in this host's configuration`). That check comes before the kit-lease
-and connection checks, so a disconnected or foreign-leased target gives the
-same answer. An already-open launcher stream
+enabled in this host's configuration`). When `[remote_input]` is enabled but
+the per-target bridge for that target could not be built, the same routes
+instead return 503 `INPUT_BRIDGE_FAILED`, naming the target and the build
+error, so a bridge failure never reads as a configuration problem. Both checks
+come before the kit-lease and connection checks, so a disconnected or
+foreign-leased target gives the same answer. An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
 its initial ready response does not acknowledge individual events. Launcher
 clients can request sequenced event receipts; the original stream has no

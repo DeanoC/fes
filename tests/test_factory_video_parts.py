@@ -33,6 +33,17 @@ class VideoIndexTests(unittest.TestCase):
     def publish(self, index=None):
         return video._publish(self.tree, self.files | {"index.json": video.canonical(index or self.index)})
 
+    def test_inspector_payload_uses_resolved_cuda_router(self):
+        recipe = video.recipes.recipe_for('fes.coleco')
+        completed = subprocess.CompletedProcess([], 0, stdout=b'{}', stderr=b'')
+        with patch.object(video.recipes.shutil, 'which',
+                          side_effect=lambda name, path=None: '/tool/nvcc' if name == 'nvcc' else None), \
+                patch.object(video.subprocess, 'run', return_value=completed) as run:
+            self.assertEqual(video._inspect(self.root, 'part', {'profile': 'direct'}, recipe, {}), {})
+        self.assertEqual(json.loads(run.call_args.kwargs['input'])['gpu_router'], 'CUDA')
+        self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_GPU_ROUTER'], 'CUDA')
+        self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_CUDA_ARCHITECTURES'], '86')
+
     def rewrite(self, name, data):
         path = self.tree / name
         path.chmod(0o644)
@@ -682,6 +693,27 @@ class STResolverTransactionTests(ResolverTransactionTests):
         with self.assertRaisesRegex(ValueError, "unexpected members"):
             self.resolve(self.root / "second")
         self.assertEqual(self.builder.call_count, 2)
+
+
+class VideoPartProducerLaunchTests(unittest.TestCase):
+    def test_producer_launch_forwards_selected_cuda_router(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            archive = source / "build/video-parts/direct/part.tar"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"fixture archive")
+            completed = subprocess.CompletedProcess([], 0, stdout=str(archive) + "\n")
+            recipe = video.recipes.recipe_for("fes.coleco")
+            with patch.object(video.subprocess, "run", return_value=completed) as run, \
+                    patch.object(video.recipes.shutil, "which",
+                                 side_effect=lambda name, path=None: "/tool/nvcc" if name == "nvcc" else None):
+                result = video._build_part(source, source / "shell", source / "package",
+                                           "direct", recipe, {"PATH": "/tool"})
+            args = [str(part) for part in run.call_args.args[0]]
+            self.assertEqual(result, archive)
+            self.assertIn("--gpu-router", args)
+            self.assertEqual(args[args.index("--gpu-router") + 1], "CUDA")
+            self.assertEqual(run.call_args.kwargs["env"]["FES_TOOLCHAIN_GPU_ROUTER"], "CUDA")
 
 
 class VideoPartProducerFailureTests(unittest.TestCase):

@@ -15,7 +15,8 @@ _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 from recipes import (FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment,
-                     recipe_for, require_private_audit_cache)
+                     recipe_for, require_private_audit_cache, selected_gpu_router,
+                     CUDA_ROUTER, CUDA_ARCHITECTURES)
 import artifact_cache
 import optional_cores
 from module_sources import normalize_known_origin
@@ -154,7 +155,10 @@ if "--selection-only" in sys.argv:
         identities = {"quartus": "selection-only", "yosys": "selection-only"}
     options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 else:
-    tools = authenticate(root, cache_root=cache_root)
+    kwargs = {"cache_root": cache_root}
+    if "--gpu-router" in sys.argv:
+        kwargs["gpu_router"] = sys.argv[sys.argv.index("--gpu-router") + 1]
+    tools = authenticate(root, **kwargs)
     if hasattr(producer, "record_tool_options"):
         options.update(producer.record_tool_options(tools))
     identities = {name: tool.identity for name, tool in tools.items()}
@@ -175,15 +179,24 @@ else:
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
+    child_env = package_build_environment(env, recipe=recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
                "--producer-script", recipe.producer_script,
                *license_arguments, *(["--selection-only"] if selection_only else []),
                *(["--quartus-yosys"] if selection_only and recipe.toolchain == "quartus"
-                 and recipe.front_end == "yosys" else [])]
+                 and recipe.front_end == "yosys" else []),
+               # HIP keeps the historical authenticate() call; only CUDA is passed
+               # explicitly so producers do not stay on the HIP default.
+               *(["--gpu-router", selected_router] if selected_router == CUDA_ROUTER else [])]
     try:
-        child_env = package_build_environment(env, recipe=recipe)
+        router_architecture = None
+        if selected_router == CUDA_ROUTER:
+            router_architecture = 'FES_TOOLCHAIN_CUDA_ARCHITECTURES=' + CUDA_ARCHITECTURES
+        elif recipe.hip_architectures:
+            router_architecture = 'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures
         record = (_bounded_pc386_canonical(command, source, child_env)
                   if recipe.core_id == 'fes.pc386' and not selection_only else
                   subprocess.check_output(command, cwd=source, env=child_env))
@@ -202,8 +215,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
             + shlex.join(['env',
                 'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
                 'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
-                'FES_TOOLCHAIN_GPU_ROUTER=' + recipe.gpu_router,
-                'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
+                'FES_TOOLCHAIN_GPU_ROUTER=' + selected_router,
+                router_architecture,
                 'make', '-C', str(source), 'toolchain']) +
             '; then rerun the original FES command. Use a shell without compiler/toolchain '
             'overrides: FES producer_environment sanitizes those overrides for producers, '
@@ -426,14 +439,19 @@ def _build_package(source, recipe=None, env=None):
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     report_path = Path(source) / "build" / optional_cores.PRODUCER_REPORT_NAME
     _discard_producer_report(report_path)
+    child_env = package_build_environment(env, recipe=recipe)
+    selected_router = selected_gpu_router(recipe, path=child_env.get('PATH'))
     try:
         subprocess.run(
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
              "--identity-version", "2", *recipe.producer_arguments,
+             # Keep the historical HIP default, but make the selected CUDA
+             # backend explicit to producers whose command-line default is HIP.
+             *(["--gpu-router", selected_router] if selected_router == CUDA_ROUTER else []),
              *_de25_license_arguments(env, recipe)],
-            cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
+            cwd=source, check=True, env=child_env)
     except (OSError, subprocess.CalledProcessError) as error:
         report = optional_cores.read_producer_report(report_path)
         _discard_producer_report(report_path)
