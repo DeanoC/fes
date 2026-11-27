@@ -470,6 +470,14 @@ local function picture(part)
   local c=choice()
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
+  local has_socket=machine and machine.socket.supported
+  -- A refreshed package can remove the focused socket, import action or card.
+  -- Keep keyboard and controller focus on a visible, safe action in that case.
+  local card_index=tonumber(string.match(focus or "", "^card:(%d+)$") or "")
+  local missing_card=card_index and (not machine or (page-1)*3+card_index > #machine.choices)
+  if data and ((not has_socket and (focus == "socket" or focus == "import_card" or card_index)) or missing_card) then
+    focus="refresh" remember()
+  end
   if part ~= "lower" and part ~= "append" then
 
   -- Header: FES identity, this room, and the routes out.
@@ -493,7 +501,7 @@ local function picture(part)
   -- running machine the real one shows through instead of card and artwork.
   if not overlay then rect(24,144,576,296,C.raised) end
   text("Setup preview",40,154,17,C.muted,300)
-  text("1 rear connector",432,154,17,C.muted,152)
+  text(has_socket and "1 rear connector" or (machine and "No expansion socket" or "Socket unknown"),432,154,17,C.muted,152)
   if overlay then
     -- No artwork or silhouette: the running machine is behind the room.
   elseif model().id == "fes.zx81" and art and art.ready then
@@ -508,9 +516,11 @@ local function picture(part)
     text(model().mark,360,268,24,C.light,100,true)
     text("Machine illustration unavailable",130,206,15,C.muted,400)
   end
-  -- The ZX81 has one rear connector, not numbered internal slots.
-  rect(314,198,48,3,C.accent)
-  rect(308,195,10,10,C.accent)
+  -- A supported package has one rear connector, not numbered internal slots.
+  if has_socket then
+    rect(314,198,48,3,C.accent)
+    rect(308,195,10,10,C.accent)
+  end
   -- Solid means the host still admits the saved card. An unavailable saved
   -- selection keeps its Next start label and uses the muted shelf colour.
   -- Only a ready preview is drawn beside it.
@@ -521,11 +531,11 @@ local function picture(part)
       if item.expansion_id == saved_id and item.ready then saved_ready=true end
     end
   end
-  if saved_id ~= "" then
+  if has_socket and saved_id ~= "" then
     connector_card(276,180,saved_ready and "fitted" or "unavailable")
     text("Next start",preview_ready and 276 or 236,166,13,C.ink,preview_ready and 96 or 120,true)
   end
-  if preview_ready then
+  if has_socket and preview_ready then
     if saved_id ~= "" then
       connector_card(228,180,"preview")
       text("Preview",164,188,13,C.ink,60,true)
@@ -534,7 +544,9 @@ local function picture(part)
       text("Preview",236,166,13,C.ink,120,true)
     end
   end
-  button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
+  if not machine or has_socket then
+    button("socket","Rear expansion",372,182,200,40,has_socket,function() focus="card:1" end)
+  end
   local readonly=data and data.expansion_selection == false
   local save_guidance=readonly and ("Open the "..workshop_title().." on the host computer to choose Fit & save.") or "A saved setup remembers the machine, not its running memory."
   text(save_guidance,40,412,16,C.muted,544)
@@ -557,9 +569,10 @@ local function picture(part)
   if previewing then text("Previewing: "..label(inspected).." (not saved)",620,194,16,C.muted,476)
   elseif pending() then text("Restart needed: Stop, then Start, to use Next start",620,194,16,C.ink,476,true) end
   rect(620,220,476,2,C.line)
-  text(c and ("REAR CONNECTOR · ONE EXPANSION"..(c.in_progress and " · IN PROGRESS" or "")) or "REAR CONNECTOR · ONE EXPANSION",620,230,15,C.muted,476,true)
-  text(c and c.label or "Empty socket",620,248,22,C.ink,476,true)
-  local description=c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine."
+  local no_socket=machine and not machine.socket.supported
+  text(no_socket and "NO EXPANSION SOCKET" or (c and ("REAR CONNECTOR · ONE EXPANSION"..(c.in_progress and " · IN PROGRESS" or "")) or "REAR CONNECTOR · ONE EXPANSION"),620,230,15,C.muted,476,true)
+  text(no_socket and "Expansion unavailable" or (c and c.label or "Empty socket"),620,248,22,C.ink,476,true)
+  local description=no_socket and "This machine package has no expansion socket." or (c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine.")
   if c and not c.ready then description=c.unavailable_reason end
   lines(description,620,278,470,description_size,2,C.muted)
   -- expansion_selection is this listener's save permission. Content
@@ -604,15 +617,23 @@ local function picture(part)
     end
   end
   if #choices == 0 then
-    text(machine and "RAM, Zon X and QS expansions supported." or ("Add a "..model().label.." setup in the FPGA library to begin."),24,486,19,C.muted,720)
-    text("Import a card archive to add it to this shelf.",24,512,15,C.muted,720)
+    if not machine then
+      text("Add a "..model().label.." setup in the FPGA library to begin.",24,486,19,C.muted,720)
+    elseif machine.socket.supported then
+      text("RAM, Zon X and QS expansions supported.",24,486,19,C.muted,720)
+      text("Import a card archive to add it to this shelf.",24,512,15,C.muted,720)
+    else
+      text("Expansions are unavailable for this machine package.",24,486,19,C.muted,720)
+    end
   end
   -- Setup tools: two columns so Direction moves straight between them.
   -- The left column is wide enough for "Import expansion" at kit size,
   -- including the bolder focused face. Refresh and Library stay beside it.
   button("shelf_page","More cards",776,480,188,28,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
   button("refresh",loading and "Checking..." or "Refresh",976,480,120,28,not loading and not saving,function() read() end)
-  button("import_card","Import expansion",776,514,188,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  if not machine or has_socket then
+    button("import_card","Import expansion",776,514,188,28,has_socket and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  end
 
   -- The host cassette label, on its own row above the machine controls.
   -- A starter uses its display name. An import uses its recorded basename;

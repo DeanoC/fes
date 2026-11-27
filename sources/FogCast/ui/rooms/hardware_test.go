@@ -113,6 +113,72 @@ func loadHardware(t *testing.T, svc Services, pack Pack) *Instance {
 	return r
 }
 
+func TestHardwareRoomEmptyExpansionShelfFollowsSocket(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(fmt.Sprintf("socket_supported_%t", supported), func(t *testing.T) {
+			s := hardwareData(false)
+			s.value.Machines[0].Socket.Supported = supported
+			s.value.Machines[0].Choices = nil
+			r := newRoom(t, examplePack(t, "example.hardware"), Options{Services: s, StorePath: filepath.Join(t.TempDir(), "room.json")})
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Expansion shelf") && !r.hardwareReading })
+			if supported {
+				if !frameHas(f, "RAM, Zon X and QS expansions supported.") || !frameHas(f, "Import a card archive") || !frameHas(f, "Import expansion") || !frameHas(f, "1 rear connector") {
+					t.Fatalf("supported socket lost import guidance:\n%s", frameText(f))
+				}
+				r.Activate("import_card")
+				acts := r.TakeActions()
+				if len(acts) != 1 || acts[0].Kind != ActionHardwareImportExpansion || acts[0].GameID != "zx81-workbench" {
+					t.Fatalf("supported socket lost import action: %+v", acts)
+				}
+			} else {
+				if !frameHas(f, "Expansions are unavailable for this machine package.") || !frameHas(f, "NO EXPANSION SOCKET") {
+					t.Fatalf("unsupported socket did not explain its limitation:\n%s", frameText(f))
+				}
+				if frameHas(f, "expansions supported") || frameHas(f, "Import a card archive") || frameHas(f, "Import expansion") || frameHas(f, "1 rear connector") || frameHas(f, "Rear expansion") {
+					t.Fatalf("unsupported socket offered an expansion:\n%s", frameText(f))
+				}
+				r.Activate("import_card")
+				if acts := r.TakeActions(); len(acts) != 0 {
+					t.Fatalf("unsupported socket accepted import: %+v", acts)
+				}
+				if got := hardwareFocus(t, r); got != "refresh" {
+					t.Fatalf("unsupported initial focus = %q, want refresh", got)
+				}
+				if !r.Input("down") || hardwareFocus(t, r) != "library" || !r.Input("select") {
+					t.Fatal("unsupported room could not navigate to Library using direction and select")
+				}
+				if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
+					t.Fatalf("unsupported room did not open library: %+v", acts)
+				}
+			}
+		})
+	}
+}
+
+func TestHardwareRoomFocusFallsBackWhenSocketDisappears(t *testing.T) {
+	s := hardwareData(false)
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	r.Hover("socket")
+	s.lock.Lock()
+	s.value.Machines[0].Socket.Supported = false
+	s.value.Machines[0].Choices = nil
+	s.lock.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "NO EXPANSION SOCKET") && !r.hardwareReading })
+	if got := hardwareFocus(t, r); got != "refresh" {
+		t.Fatalf("focus after socket disappeared = %q, want refresh", got)
+	}
+	if !r.Input("down") || hardwareFocus(t, r) != "library" || !r.Input("select") {
+		t.Fatal("room could not navigate after socket disappeared")
+	}
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
+		t.Fatalf("post-refresh navigation did not open library: %+v", acts)
+	}
+}
+
 func TestHardwareRoomQueuesRefreshRequestedDuringRead(t *testing.T) {
 	svc := &delayedFirstHardwareServices{
 		hardwareFixture: hardwareData(false),

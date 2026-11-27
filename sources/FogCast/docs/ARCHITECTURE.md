@@ -1482,7 +1482,9 @@ still fail the refresh. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
-status separately. `expansion_selection` on that response says whether this
+status separately. The empty expansion shelf and import action follow the
+selected package's socket support; a package without a socket shows expansions
+as unavailable. `expansion_selection` on that response says whether this
 listener accepts the single-entry next-start PUT. Fit/remove use the existing
 compare-and-swap expansion selection API, including from a paired kit when
 the flag is true. An older paired host omits the flag and the kit stays
