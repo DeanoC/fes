@@ -154,11 +154,14 @@
           ],
           "settle": 3,
           "keys": [
-            "text:print 1e3",
+            "text:print",
+            "shift+2",
+            "text:fes key ok",
+            "shift+2",
             "enter"
           ],
           "expect": {
-            "ocr": "1000"
+            "ocr": "FES KEY OK"
           }
         },
         {
