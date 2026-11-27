@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "b49b151df8d0a556952bcb0c4b7cd57c376bba8d",
+  "source_revision": "f89afc23b1b76c6bdd6ce4cd7d378217d28be77e",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -107,7 +107,7 @@
     "sources/libmister-runtime/src/native/pc386_machine.hpp": "a276c03830d412271d45893c4cf397f93187bb6d103ad68dfe6f12b5dbd6d3a7",
     "sources/libmister-runtime/src/native/atari_st_geometry.hpp": "a00dedc42dd1bef6f9aeeeaf8557ddb6fd264e9a2670839c370d89a8c119c6cb",
     "sources/libmister-runtime/src/native/core_composition.hpp": "3f2df836517ed9cfdf2eaa484df3fba6fdabaf80212427b36e44ae4c0a6d8984",
-    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "cd91993a996c2d9b5aece2176eb96129f435e171dd51d332b50dfd966dc1ef40",
+    "sources/libmister-runtime/src/native/de25_core_contract.hpp": "3ff0bdc7486cd669f315534a9b6962c9e806c7d8c1efff1e1777d142956242f7",
     "sources/libmister-runtime/src/native/diagnostic.hpp": "778c93c96c5ae4c0eda141cc5c9fa498445ba5748e7b3ee651a370a075e78c7a",
     "sources/libmister-runtime/src/native/artifacts.hpp": "1d1abad2c4bdbf02fe39e115b0b88cbc1c9ba7a66370d09a581d24955fcefeab",
     "sources/libmister-runtime/src/native/de25_hps_window.hpp": "69ba7e6fa7f33667da044e9b732201b9a009bb230852a78d29b54fe5ae37f3af",
@@ -330,7 +330,7 @@
   ],
   "tools": {
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
-    "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "cxx": "x86_64-linux-gnu-g++-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
     "builder_image": "fes-build-base:12.11-pinned",
     "sdk_volume": "fes-de25-stack-proof-sdk-7912076c-claude-20261124",
     "sdk_before": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
@@ -344,7 +344,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "a3c8d49d179e6a13dedc740fd2e181c2ba884ef9111d35d8e955820960bd35ea",
-    "Vfes_de25_combined_sim": "027fa130a33a448ddb4665edc4a039c87241e105cf38fd512d53ba3faf5c8200",
+    "Vfes_de25_combined_sim": "b448d98f9ce47fba01ee2c1bb8ee11db3fc533584af5a81b920e2d52992f7667",
     "client-aarch64": "cf763f001d257e257c8f2fcf56e74e76e296728abfdc624888a2a087236e34d4"
   },
   "physical_PR": "selection-mux-model-only",
