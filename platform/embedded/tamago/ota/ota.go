@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 )
 
@@ -105,11 +106,10 @@ type BootDecision struct {
 
 // Manager coordinates crash-safe A/B slot transitions over a FileSystem.
 type Manager struct {
-	mu        sync.Mutex
-	fs        FileSystem
-	cfg       Config
-	state     State
-	persisted bool
+	mu    sync.Mutex
+	fs    FileSystem
+	cfg   Config
+	state State
 }
 
 // Open reads and validates <root>/STATE.JSN if present, or initializes clean in-memory state.
@@ -147,7 +147,6 @@ func Open(ctx context.Context, filesystem FileSystem, cfg Config) (*Manager, err
 		return nil, err
 	}
 	m.state = st
-	m.persisted = true
 	return m, nil
 }
 
@@ -156,27 +155,6 @@ func (m *Manager) Status() State {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.state.Clone()
-}
-
-// Initialize creates the OTA directory tree and persists initial STATE.JSN if absent.
-func (m *Manager) Initialize(ctx context.Context) (State, error) {
-	if ctx == nil {
-		return State{}, fmt.Errorf("ota: context required")
-	}
-	if err := ctx.Err(); err != nil {
-		return State{}, err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := m.ensureDirsLocked(ctx); err != nil {
-		return State{}, err
-	}
-	if !m.persisted {
-		if err := m.persistStateLocked(ctx, m.state); err != nil {
-			return State{}, err
-		}
-	}
-	return m.state.Clone(), nil
 }
 
 // SeedActiveSlot installs an initial confirmed payload into the currently active slot
@@ -350,6 +328,15 @@ func (m *Manager) SelectBoot(ctx context.Context) (BootDecision, error) {
 		next.LastEvent = fmt.Sprintf("recovered interrupted staging on slot %s", interrupted)
 		next.LastError = ""
 		if err := m.persistStateLocked(ctx, next); err != nil {
+			if isStorageWriteDeferred(err) {
+				// A torn FAT mirror or read-only volume cannot mutate STATE.JSN yet,
+				// but ActiveSlot remains intact and safely bootable.
+				return BootDecision{
+					Slot:                      m.state.ActiveSlot,
+					RecoveredInterruptedStage: true,
+					Reason:                    fmt.Sprintf("%s; booting active slot %s without FAT write (%v)", next.LastEvent, m.state.ActiveSlot, err),
+				}, nil
+			}
 			return BootDecision{}, err
 		}
 		return BootDecision{
@@ -362,7 +349,7 @@ func (m *Manager) SelectBoot(ctx context.Context) (BootDecision, error) {
 		cand := m.state.PendingSlot
 		if m.state.TriesRemaining <= 0 {
 			reason := fmt.Sprintf("trial boot attempts exhausted on slot %s", cand)
-			if err := m.rollbackPendingLocked(ctx, reason); err != nil {
+			if err := m.rollbackPendingLocked(ctx, reason); err != nil && !isStorageWriteDeferred(err) {
 				return BootDecision{}, err
 			}
 			return BootDecision{
@@ -374,7 +361,7 @@ func (m *Manager) SelectBoot(ctx context.Context) (BootDecision, error) {
 		manifest, err := m.verifySlotLocked(ctx, cand)
 		if err != nil {
 			reason := fmt.Sprintf("candidate slot %s verification failed: %v", cand, err)
-			if rbErr := m.rollbackPendingLocked(ctx, reason); rbErr != nil {
+			if rbErr := m.rollbackPendingLocked(ctx, reason); rbErr != nil && !isStorageWriteDeferred(rbErr) {
 				return BootDecision{}, rbErr
 			}
 			return BootDecision{
@@ -390,6 +377,15 @@ func (m *Manager) SelectBoot(ctx context.Context) (BootDecision, error) {
 		next.LastEvent = fmt.Sprintf("trial boot slot %s (%d tries left)", cand, next.TriesRemaining)
 		next.LastError = ""
 		if err := m.persistStateLocked(ctx, next); err != nil {
+			if isStorageWriteDeferred(err) {
+				// Never boot an uncounted trial candidate when TriesRemaining cannot be decremented;
+				// fall back safely to the confirmed ActiveSlot instead.
+				return BootDecision{
+					Slot:       m.state.ActiveSlot,
+					RolledBack: true,
+					Reason:     fmt.Sprintf("deferring trial slot %s without FAT write (%v)", cand, err),
+				}, nil
+			}
 			return BootDecision{}, err
 		}
 		cp := manifest
@@ -722,6 +718,10 @@ func (m *Manager) rollbackPendingLocked(ctx context.Context, reason string) erro
 	return m.persistStateLocked(ctx, next)
 }
 
+func isStorageWriteDeferred(err error) bool {
+	return errors.Is(err, fat.ErrCorrupt) || errors.Is(err, block.ErrReadOnly)
+}
+
 func (m *Manager) persistStateLocked(ctx context.Context, next State) error {
 	if err := next.Validate(); err != nil {
 		return err
@@ -742,6 +742,5 @@ func (m *Manager) persistStateLocked(ctx context.Context, next State) error {
 		}
 	}
 	m.state = next
-	m.persisted = true
 	return nil
 }

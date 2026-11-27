@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +26,7 @@ type recordingCard struct {
 	id          sdhci.Identity
 	sectors     uint64
 	data        map[uint64][block.SectorSize]byte
+	readOnly    bool
 	recordSnaps bool
 	snapshots   []map[uint64][block.SectorSize]byte
 }
@@ -131,6 +131,9 @@ func (c *recordingCard) ReadSectors(lba uint64, dst []byte) error {
 func (c *recordingCard) WriteSectors(lba uint64, src []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.readOnly {
+		return block.ErrReadOnly
+	}
 	if len(src)%block.SectorSize != 0 {
 		return fmt.Errorf("unaligned write %d", len(src))
 	}
@@ -529,11 +532,6 @@ func TestPowerLossCrashConsistencyAcrossEverySectorWrite(t *testing.T) {
 
 		dec, err := crashMgr.SelectBoot(ctx)
 		if err != nil {
-			// A snapshot captured strictly between writing FAT0 and FAT1 refuses further
-			// FAT mutations until fsck repairs mirrors; reads and VerifySlot above still succeeded.
-			if strings.Contains(err.Error(), "allocation FAT mirror changed") {
-				continue
-			}
 			t.Fatalf("snapshot %d/%d SelectBoot failed: %v", i, len(snaps), err)
 		}
 		if _, err := crashMgr.VerifySlot(ctx, dec.Slot); err != nil {
@@ -553,6 +551,90 @@ func TestPowerLossCrashConsistencyAcrossEverySectorWrite(t *testing.T) {
 	if sawStagingRecover == 0 || sawStagedStayA == 0 || sawTrialB == 0 || sawConfirmedB == 0 {
 		t.Fatalf("crash snapshots missed lifecycle phases: stagingRecover=%d stagedStayA=%d trialB=%d confirmedB=%d",
 			sawStagingRecover, sawStagedStayA, sawTrialB, sawConfirmedB)
+	}
+}
+
+func TestInterruptedStagingAndPendingRemainBootableOnTornFATMirrorOrReadOnly(t *testing.T) {
+	ctx := context.Background()
+	card := newApplianceFATCard(0x66)
+	v1 := bytes.Repeat([]byte("ACTIVE-A-"), 400)
+
+	vol, mgr := openTestManager(t, card)
+	if _, err := mgr.SeedActiveSlot(ctx, ota.StageRequest{Version: "1.0.0", Target: "de25-nano", Payload: v1}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate interrupted staging persisted on disk alongside a torn FAT mirror.
+	tornState, err := json.Marshal(ota.State{
+		Format:      ota.FormatVersion,
+		Generation:  9,
+		ActiveSlot:  ota.SlotA,
+		PendingSlot: ota.SlotB,
+		Phase:       ota.PhaseStaging,
+		SlotA:       mgr.Status().SlotA,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vol.ReplaceFile(ctx, "FES/OTA/STATE.JSN", tornState); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tear FAT mirror 1 at entry 1 (clean/dirty flags checked on every ReplaceFile)
+	// so any subsequent FAT allocation/mutation returns ErrCorrupt.
+	const (
+		fatStart   = uint64(4096)
+		reserved   = uint64(32)
+		fatSectors = uint64(516)
+	)
+	card.mu.Lock()
+	savedFAT1 := card.data[fatStart+reserved+fatSectors]
+	badFAT1 := savedFAT1
+	badFAT1[4] ^= 0x01
+	card.data[fatStart+reserved+fatSectors] = badFAT1
+	card.mu.Unlock()
+
+	_, tornMgr := openTestManager(t, card)
+	dec, err := tornMgr.SelectBoot(ctx)
+	if err != nil || dec.Slot != ota.SlotA || !dec.RecoveredInterruptedStage {
+		t.Fatalf("torn FAT SelectBoot during PhaseStaging: dec=%+v err=%v", dec, err)
+	}
+	if tornMgr.Status().Phase != ota.PhaseStaging {
+		t.Fatalf("expected disk PhaseStaging untouched on torn FAT mirror, got %+v", tornMgr.Status())
+	}
+
+	// Repair FAT mirror 1 and verify read-only media also boots ActiveSlot in PhaseStaging and PhasePending.
+	card.mu.Lock()
+	card.data[fatStart+reserved+fatSectors] = savedFAT1
+	card.readOnly = true
+	card.mu.Unlock()
+
+	_, roMgr := openTestManager(t, card)
+	dec, err = roMgr.SelectBoot(ctx)
+	if err != nil || dec.Slot != ota.SlotA || !dec.RecoveredInterruptedStage {
+		t.Fatalf("read-only SelectBoot during PhaseStaging: dec=%+v err=%v", dec, err)
+	}
+
+	card.mu.Lock()
+	card.readOnly = false
+	card.mu.Unlock()
+
+	// Test PhasePending on read-only media falls back safely to ActiveSlot instead of uncounted trial boot.
+	v2 := bytes.Repeat([]byte("CAND-B-"), 400)
+	if _, err := roMgr.Stage(ctx, ota.StageRequest{Version: "2.0.0", Target: "de25-nano", Payload: v2}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := roMgr.Activate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	card.mu.Lock()
+	card.readOnly = true
+	card.mu.Unlock()
+
+	_, roPendingMgr := openTestManager(t, card)
+	dec, err = roPendingMgr.SelectBoot(ctx)
+	if err != nil || dec.Slot != ota.SlotA || dec.IsTrial || !dec.RolledBack {
+		t.Fatalf("read-only SelectBoot during PhasePending: dec=%+v err=%v", dec, err)
 	}
 }
 
