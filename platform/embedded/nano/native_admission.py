@@ -73,8 +73,13 @@ def _selection(root, uboot, entry):
 def _paths(root, uboot, entry, scope=SCOPE):
     if scope not in (SCOPE, USB_SCOPE):
         raise ValueError('unsupported native file admission scope')
+    if scope == USB_SCOPE:
+        profile_name = 'probe-profile.json'
+    else:
+        e = _json(entry/'result.json')
+        profile_name = 'sd-dma-profile.json' if e.get('sd_adma2', False) else 'sd-profile.json'
     return (uboot/'build/u-boot.itb', uboot/'build/spl/u-boot-spl-dtb.hex',
-            entry/'entry.img', root/'platform/embedded/nano'/('probe-profile.json' if scope == USB_SCOPE else 'sd-profile.json'))
+            entry/'entry.img', root/'platform/embedded/nano'/profile_name)
 
 
 def _projects(root, u, e, scope):

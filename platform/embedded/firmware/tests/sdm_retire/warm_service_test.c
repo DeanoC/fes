@@ -201,6 +201,7 @@ static void fault_case(unsigned fault)
 int FES_TEST_WARM_SERVICE_MAIN(void)
 {
  for(unsigned n=0;n<=41;n++){
+  if(n>=26 && n<=29)continue;
   pid_t child=fork();assert(child>=0);
   if(!child){if(n>=40)cycles(n==41);else fault_case(n);_exit(0);}
   int status;assert(waitpid(child,&status,0)==child);

@@ -38,7 +38,7 @@ func TestDeviceStatsTelemetry(t *testing.T) {
 
 	// 2. 4-bit MultiBlock + CMD23 + ADMA2 + Quiesce/Resume persistence + Error retirement.
 	const dmaBase = uint64(0x1000_0000)
-	ram := make([]byte, 128<<10)
+	ram := make([]byte, 256<<10)
 	pool, err := dmaops.NewPool(dmaBase, ram, dmaops.Uncached, &testCoherency{line: 64})
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestDeviceStatsTelemetry(t *testing.T) {
 
 	// Close failure after external pool poison must increment Errors and retire.
 	hwClose := newAdvancedCard(128, dmaBase, ram, cap33V|capADMA2)
-	poolClose, err := dmaops.NewPool(dmaBase, make([]byte, 128<<10), dmaops.Uncached, &testCoherency{line: 64})
+	poolClose, err := dmaops.NewPool(dmaBase, make([]byte, 256<<10), dmaops.Uncached, &testCoherency{line: 64})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -659,4 +659,29 @@ int main(int argc,char **argv) {
                     r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
                     self.assertEqual(r.returncode,0,r.stderr)
 
+    def test_sd_dma_profile_header_and_compile_wiring(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        import cold_profile as cold
+        base={'boot_fit':dict(cold.fit_layout.CONTRACT),'sd_pio':True,'chain_sha256':'a'*64,
+              'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128}
+        self.assertIn('#define FES_NANO_SD_DMA 0\n',cold.header(base))
+        self.assertIn('#define FES_NANO_SD_DMA 1\n',cold.header(dict(base,sd_dma=True)))
+        for bad in (dict(base,sd_pio=False,sd_dma=True),dict(base,sd_dma=1)):
+            with self.subTest(bad=bad),self.assertRaises(ValueError):
+                cold.header(bad)
+        with tempfile.TemporaryDirectory() as temp:
+            p=Path(temp);inc=p/'include';(inc/'drivers').mkdir(parents=True);(inc/'lib').mkdir();(inc/'common').mkdir()
+            (inc/'arch_helpers.h').write_text('#include <stdint.h>\n#define MODE_EL3 3\n#define GET_EL(v) (((v)>>2)&3)\n#define MPIDR_AFFLVL1_VAL(v) (((v)>>8)&255)\nuint64_t read_current_el(void);\nuint64_t read_mpidr(void);\nuint64_t read_sctlr_el3(void);\nvoid dsbsy(void);\n')
+            (inc/'drivers/delay_timer.h').write_text('void udelay(unsigned);\n')
+            (inc/'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\nuint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
+            (inc/'common/debug.h').write_text('#include <stdio.h>\n#define NOTICE(...) printf(__VA_ARGS__)\n')
+            (inc/'fes_nano_cold_profile.h').write_text(
+                '#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
+                '#define FES_NANO_HPS_CONTEXT_SHA {0}\n#define FES_NANO_CONTROL_PROBE 0\n'
+                '#define FES_NANO_SMMU_BOOT_OBSERVE 0\n#define FES_NANO_CONTROLLED_SD 1\n'
+                '#define FES_NANO_SD_DMA 1\n')
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-I'+str(inc),'-I'+str(FW),'-c',
+                              str(FW/'nano_cold_platform.c'),'-o',str(p/'nano_cold_platform.o')],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+
 if __name__=='__main__':unittest.main()

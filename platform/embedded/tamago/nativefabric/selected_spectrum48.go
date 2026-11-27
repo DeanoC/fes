@@ -97,8 +97,10 @@ func (l *ProgramLoader) preflightUpload(selection *packagestore.Selection, s *up
 		computer: computerMap{CPUBase: s.record.ComputerCPUBase, Span: cg.FesDe25ComputerSpan,
 			Capabilities: capabilities, BuildID: s.record.BuildID},
 		controlRaw: s.raw, computerRaw: s.raw, firmware: pkg.firmware, tape: tape, disk: disk, romReceipt: s.record.ROMReceiptSHA256}
+	digest, ok := decodeSHA256Hex(s.configuration.CoreSHA256)
 	return &StoredConfigurationPlan{state: &storedConfigurationPlan{v: l.boot, program: p,
-		selection: selection, control: s.raw, configuration: s.configRaw, payload: pkg.payload}}, nil
+		selection: selection, control: s.raw, configuration: s.configRaw, payload: pkg.payload,
+		payloadDigest: digest, payloadValidated: ok}}, nil
 }
 
 // This is the host's current upload endpoint inventory. A package may

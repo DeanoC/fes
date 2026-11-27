@@ -5,6 +5,7 @@
  * These are actual platform callbacks with injectable ordered MMIO for tests.
  * Their presence is not physical qualification. */
 #include "nano_sd_platform.h"
+#include "nano_smmu.h"
 
 enum { HRS_RESET=0, PHY_ADDRESS=0x10, PHY_DATA=0x14, MODE=0x18,
        PHY_STATUS=0x24, CLOCK_ADJUST=0x28, COMPENSATION=0x1c, OUTPUT_DELAY=0x40,
@@ -109,17 +110,59 @@ static int route(struct fes_nano_sd_platform *p)
     return check(p,FES_NANO_SD_SYSMGR+0xfc,0xffffffffU,1) ||
            check(p,FES_NANO_SD_SYSMGR+0x1354,0xffffffffU,0) ? -1 : 0;
 }
+static int restore_dma_abort(struct fes_nano_sd_platform *p)
+{
+    if (!p->allow_dma || !p->restore_smmu_abort) return 0;
+
+    /* Cleanup runs after the original operation has failed, so use the raw
+     * ordered MMIO callbacks while keeping the abort debt until readback. */
+    uint32_t per0=0;
+    int error=p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0);
+    if (error) return fail(p,error);
+    if ((per0 & FES_NANO_COLD_SD_RESET)!=FES_NANO_COLD_SD_RESET) {
+        error=p->io.write(p->io.context,FES_NANO_COLD_RSTMGR+0x24,per0|0xc0U);
+        if (error) return fail(p,error);
+        p->io.barrier(p->io.context);
+        error=p->io.read(p->io.context,FES_NANO_COLD_RSTMGR+0x24,&per0);
+        if (error) return fail(p,error);
+    }
+    if ((per0 & FES_NANO_COLD_SD_RESET)!=FES_NANO_COLD_SD_RESET)
+        return fail(p,-5);
+
+    error=p->io.write(p->io.context,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
+                      FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT);
+    if (error) return fail(p,error);
+    p->io.barrier(p->io.context);
+    uint32_t gbpa=0;
+    for (unsigned i=0;i<FES_NANO_COLD_POLLS;i++) {
+        error=p->io.read(p->io.context,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,&gbpa);
+        if (error) return fail(p,error);
+        if ((gbpa & (FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT))==FES_NANO_SMMU_ABORT) {
+            p->restore_smmu_abort=0;
+            return 0;
+        }
+        p->io.wait(p->io.context);
+    }
+    return fail(p,-60);
+}
 static int scope(void *context, uint64_t owner, uint64_t epoch, unsigned active)
 {
     struct fes_nano_sd_platform *p=context;
     if (!p || p->failed || !p->initialized) return -1;
     p->stage=FES_SD_BOOT_SCOPE;
-    if (active>1 || p->active!=active || fes_nano_cold_sd_scope(p->cold,owner,epoch,active))
-        return fail(p,-1);
+    if (active>1 || p->active!=active || fes_nano_cold_sd_scope(p->cold,owner,epoch,active)) {
+        fail(p,-1); restore_dma_abort(p); return -1;
+    }
     if (clocks(p,0) || route(p) ||
-        check(p,FES_NANO_COLD_RSTMGR+0x24,FES_NANO_SD_PHY_RESET,0)) return -1;
-    if (p->prepared && check(p,FES_NANO_SD_BASE+PHY_STATUS,0x1800fU,0x1800fU)) return -1;
-    if (fes_nano_cold_sd_scope(p->cold,owner,epoch,active)) return fail(p,-1);
+        check(p,FES_NANO_COLD_RSTMGR+0x24,FES_NANO_SD_PHY_RESET,0)) {
+        restore_dma_abort(p); return -1;
+    }
+    if (p->prepared && check(p,FES_NANO_SD_BASE+PHY_STATUS,0x1800fU,0x1800fU)) {
+        restore_dma_abort(p); return -1;
+    }
+    if (fes_nano_cold_sd_scope(p->cold,owner,epoch,active)) {
+        fail(p,-1); restore_dma_abort(p); return -1;
+    }
     return 0;
 }
 static int phy(struct fes_nano_sd_platform *p)
@@ -148,71 +191,96 @@ static int phy(struct fes_nano_sd_platform *p)
         update(p,FES_NANO_SD_BASE+COMPENSATION,0x1f001fU,0xa0000U)) return -1;
     return check(p,FES_NANO_SD_BASE+PHY_STATUS,0x1800fU,0x1800fU);
 }
+static int fail_active(struct fes_nano_sd_platform *p)
+{
+    restore_dma_abort(p);
+    p->active=p->prepared=0;
+    return -1;
+}
 static int resume(void *context)
 {
     struct fes_nano_sd_platform *p=context;
     if (!p || p->failed || p->active || scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,0)) return -1;
+    if (p->allow_dma) {
+        uint32_t gbpa;
+        if (check(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_CR0,0xffffffffU,0) ||
+            read_reg(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,&gbpa)) return -1;
+        if (gbpa & FES_NANO_SMMU_UPDATE) return fail(p,-5);
+        if (gbpa & FES_NANO_SMMU_ABORT) {
+            p->restore_smmu_abort=1;
+            if (write_reg(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,FES_NANO_SMMU_UPDATE) ||
+                poll(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
+                     FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT,0)) return fail_active(p);
+        }
+    }
     p->stage=FES_SD_RESET_ASSERT;
-    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0xc0U)) return -1;
+    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0xc0U)) return fail_active(p);
     p->io.wait(p->io.context);
     p->stage=FES_SD_PHY_RELEASE;
-    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0x80U)) return -1;
+    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0x80U)) return fail_active(p);
     p->stage=FES_SD_CONTROLLER_RELEASE;
-    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0)) return -1;
+    if (update(p,FES_NANO_COLD_RSTMGR+0x24,0xc0U,0)) return fail_active(p);
     p->active=1; p->prepared=0;
     p->stage=FES_SD_HOST_RESET;
     uint32_t reset;
     if (read_reg(p,FES_NANO_SD_BASE+HRS_RESET,&reset) ||
         write_reg(p,FES_NANO_SD_BASE+HRS_RESET,reset|1U) ||
-        poll(p,FES_NANO_SD_BASE+HRS_RESET,1U,0)) return -1;
+        poll(p,FES_NANO_SD_BASE+HRS_RESET,1U,0)) return fail_active(p);
     if (write_reg(p,FES_NANO_SD_BASE+SIGNAL_ENABLE,0) ||
         write_reg(p,FES_NANO_SD_BASE+STATUS_ENABLE,0) ||
         check(p,FES_NANO_SD_BASE+SIGNAL_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+STATUS_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+CLOCK,4U,0) ||
-        check(p,FES_NANO_SD_BASE+COMMAND,1U,0) || phy(p)) return -1;
-    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return -1;
+        check(p,FES_NANO_SD_BASE+COMMAND,1U,0) || phy(p)) return fail_active(p);
+    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return fail_active(p);
     p->stage=FES_SD_COMPLETE;
     return 0;
 }
 static int prepare(void *context)
 {
     struct fes_nano_sd_platform *p=context;
-    if (!p || p->failed || !p->active || p->prepared ||
-        scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return -1;
+    if (!p || p->failed || !p->active || p->prepared) return -1;
+    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return fail_active(p);
     p->stage=FES_SD_PREPARE_CLOCK;
     if (check(p,FES_NANO_SD_BASE+CLOCK,0x070fffffU,FES_NANO_SD_IDENT_CLOCK) ||
         check(p,FES_NANO_SD_BASE+SIGNAL_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+COMMAND,1U,0) ||
         check(p,FES_NANO_SD_BASE+PRESENT,FES_NANO_COLD_SD_BUSY,0) || phy(p) ||
-        check(p,FES_NANO_SD_BASE+CLOCK,0x070fffffU,FES_NANO_SD_IDENT_CLOCK)) return -1;
+        check(p,FES_NANO_SD_BASE+CLOCK,0x070fffffU,FES_NANO_SD_IDENT_CLOCK)) return fail_active(p);
     p->prepared=1;
-    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return -1;
+    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return fail_active(p);
     p->stage=FES_SD_COMPLETE;
     return 0;
 }
 static int stop(void *context)
 {
     struct fes_nano_sd_platform *p=context;
-    if (!p || p->failed || !p->active ||
-        scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return -1;
+    if (!p || p->failed || !p->active) return -1;
+    if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,1)) return fail_active(p);
     p->stage=FES_SD_STOP_MODE;
     if (check(p,FES_NANO_SD_BASE+COMMAND,1U,0) ||
         check(p,FES_NANO_SD_BASE+SIGNAL_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+STATUS_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+STATUS,0xffff8000U,0) ||
-        check(p,FES_NANO_SD_BASE+CLOCK,0x070fffffU,FES_NANO_SD_IDENT_CLOCK)) return -1;
+        check(p,FES_NANO_SD_BASE+CLOCK,0x070fffffU,FES_NANO_SD_IDENT_CLOCK)) return fail_active(p);
     p->stage=FES_SD_STOP_IDLE;
-    if (poll(p,FES_NANO_SD_BASE+PRESENT,FES_NANO_COLD_SD_BUSY,0)) return -1;
+    if (poll(p,FES_NANO_SD_BASE+PRESENT,FES_NANO_COLD_SD_BUSY,0)) return fail_active(p);
     p->stage=FES_SD_STOP_CLOCK;
     if (update(p,FES_NANO_SD_BASE+CLOCK,4U,0) ||
         poll(p,FES_NANO_SD_BASE+PRESENT,FES_NANO_COLD_SD_BUSY,0) ||
         check(p,FES_NANO_SD_BASE+SIGNAL_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+STATUS_ENABLE,0xffffffffU,0) ||
         check(p,FES_NANO_SD_BASE+STATUS,0xffff8000U,0) ||
-        check(p,FES_NANO_SD_BASE+COMMAND,1U,0)) return -1;
+        check(p,FES_NANO_SD_BASE+COMMAND,1U,0)) return fail_active(p);
     p->stage=FES_SD_STOP_RESET;
-    if (update(p,FES_NANO_COLD_RSTMGR+0x24,FES_NANO_COLD_SD_RESET,FES_NANO_COLD_SD_RESET)) return -1;
+    if (update(p,FES_NANO_COLD_RSTMGR+0x24,FES_NANO_COLD_SD_RESET,FES_NANO_COLD_SD_RESET)) return fail_active(p);
+    if (p->allow_dma && p->restore_smmu_abort) {
+        if (write_reg(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
+                      FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT) ||
+            poll(p,FES_NANO_SMMU_BASE+FES_NANO_SMMU_GBPA,
+                 FES_NANO_SMMU_UPDATE|FES_NANO_SMMU_ABORT,FES_NANO_SMMU_ABORT)) return -1;
+        p->restore_smmu_abort=0;
+    }
     p->active=p->prepared=0;
     if (scope(p,p->cold->record.boot.owner,p->cold->record.boot.epoch,0)) return -1;
     p->stage=FES_SD_COMPLETE;
@@ -231,6 +299,13 @@ int fes_nano_sd_platform_init(struct fes_nano_sd_platform *p, struct fes_nano_co
     if (clocks(p,1) || route(p)) return -1;
     p->initialized=1;
     return scope(p,cold->record.boot.owner,cold->record.boot.epoch,0);
+}
+int fes_nano_sd_platform_enable_dma(struct fes_nano_sd_platform *p)
+{
+    if (!p) return -1;
+    if (!p->initialized || p->failed || p->active || p->prepared) return fail(p,-22);
+    p->allow_dma=1;
+    return 0;
 }
 struct fes_nano_sd_ops fes_nano_sd_platform_ops(struct fes_nano_sd_platform *p)
 {

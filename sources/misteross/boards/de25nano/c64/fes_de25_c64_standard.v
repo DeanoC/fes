@@ -143,6 +143,39 @@ module fes_de25_c64_standard #(
         .dram_cas_n(dram_cas_n), .dram_we_n(dram_we_n),
         .dq_i(dram_dq_i), .dq_o(dram_dq_o), .dq_oe(dram_dq_oe)
     );
+    // Decode the native picker by direction inside the pixel-clock endpoint.
+    // All scanout fault and identity reads remain connected to the game path.
+    wire [27:0] game_video;
+    wire [31:0] game_scanout_data;
+    wire game_scanout_read_valid, game_scanout_write_valid, game_scanout_wait;
+    wire [1:0] game_scanout_response;
+`ifdef FES_DE25_NATIVE_C64
+    wire picker_access;
+    wire [31:0] picker_data;
+    wire picker_read_valid, picker_write_valid;
+    wire [1:0] picker_response;
+    fes_de25_c64_picker picker (
+        .clk(pixel_clk), .reset_n(pixel_reset_n),
+        .address(scanout_address), .read(scanout_read),
+        .write(scanout_write), .byteenable(scanout_byteenable),
+        .writedata(scanout_writedata), .readdata(picker_data),
+        .readdatavalid(picker_read_valid), .writeresponsevalid(picker_write_valid),
+        .response(picker_response), .selected(picker_access), .machine(game_video), .video(video)
+    );
+    assign scanout_readdata = picker_read_valid ? picker_data : game_scanout_data;
+    assign scanout_readdatavalid = picker_read_valid || game_scanout_read_valid;
+    assign scanout_writeresponsevalid = picker_write_valid || game_scanout_write_valid;
+    assign scanout_response = picker_read_valid || picker_write_valid ? picker_response : game_scanout_response;
+    assign scanout_waitrequest = !picker_access && game_scanout_wait;
+`else
+    wire picker_access = 1'b0;
+    assign video = game_video;
+    assign scanout_readdata = game_scanout_data;
+    assign scanout_readdatavalid = game_scanout_read_valid;
+    assign scanout_writeresponsevalid = game_scanout_write_valid;
+    assign scanout_response = game_scanout_response;
+    assign scanout_waitrequest = game_scanout_wait;
+`endif
     // The 384x272 PAL picture is scaled into a centred 960x720 viewport.
     fes_de25_session_display #(.BUILD_ID(BUILD_ID),
 `ifdef FES_DE25_NATIVE_C64
@@ -155,12 +188,12 @@ module fes_de25_c64_standard #(
         .machine(machine_video), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument), .response_valid(response_valid),
         .response_error(response_error), .response_data(response_data), .quiesced_sys(display_quiesced),
-        .video(video), .ui_active(ui_active), .locked(), .faulted(display_faulted),
-        .address(scanout_address), .read(scanout_read), .write(scanout_write),
+        .video(game_video), .ui_active(ui_active), .locked(), .faulted(display_faulted),
+        .address(scanout_address), .read(scanout_read && !picker_access), .write(scanout_write && !picker_access),
         .byteenable(scanout_byteenable), .writedata(scanout_writedata),
-        .readdata(scanout_readdata), .readdatavalid(scanout_readdatavalid),
-        .writeresponsevalid(scanout_writeresponsevalid), .response(scanout_response),
-        .waitrequest(scanout_waitrequest), .avm_address(avm_address), .avm_burstcount(avm_burstcount),
+        .readdata(game_scanout_data), .readdatavalid(game_scanout_read_valid),
+        .writeresponsevalid(game_scanout_write_valid), .response(game_scanout_response),
+        .waitrequest(game_scanout_wait), .avm_address(avm_address), .avm_burstcount(avm_burstcount),
         .avm_read(avm_read), .avm_byteenable(avm_byteenable), .avm_waitrequest(avm_waitrequest),
         .avm_readdata(avm_readdata), .avm_readdatavalid(avm_readdatavalid), .avm_response(avm_response)
     );

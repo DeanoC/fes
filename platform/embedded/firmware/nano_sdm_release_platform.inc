@@ -10,11 +10,6 @@ static struct {
  int clock_error;
  unsigned attempted,active,failed,released;
 } sdm_release;
-static int sdm_release_mismatch(uint64_t address,uint64_t value)
-{
- if(!sdm_release.bad_address){sdm_release.bad_address=address;sdm_release.bad_value=value;}
- return 0;
-}
 static int sdm_release_clock(void)
 {
  if(!sdm_release.attempted || !sdm_release.active || sdm_release.failed ||
@@ -37,24 +32,10 @@ static int sdm_release_clock(void)
  }
  sdm_release.last=now;return 0;
 }
-static int release_observer_owns(void *context)
-{
- return context==&sdm_arm_probe.input && retained_source_owned(&sdm_arm_probe.input,2)==1;
-}
-static int release_observer_read(void *context,uint32_t offset,uint32_t *out)
-{
- if(!out || !fes_nano_smmu_offset(offset) || release_observer_owns(context)!=1)return -1;
- FES_PROBE_BARRIER();*out=FES_PROBE_READ32(UINT64_C(0x16000000)+offset);FES_PROBE_BARRIER();
- return release_observer_owns(context)==1 ? 0:-1;
-}
 int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *binding,unsigned tables)
 {
- struct fes_nano_smmu_observation observed={0};
- struct fes_nano_smmu_probe probe={.io={&sdm_arm_probe.input,release_observer_owns,release_observer_read}};
  return binding && tables<=1 && nano_sdm_input_same(binding,&sdm_release.binding) &&
-  retained_source_ready(binding,tables,2)==1 &&
-  !fes_nano_smmu_observe(&probe,&observed) && nano_sdm_reader_observed(&observed)==1 &&
-  release_observer_owns(&sdm_arm_probe.input)==1;
+  retained_source_ready(binding,tables,2)==1;
 }
 static int source_release_stop(void)
 {
@@ -88,7 +69,6 @@ int fes_nano_platform_release_source(struct fes_nano_configuration *c,uint64_t o
  return 1;
 }
 #else
-static int sdm_release_mismatch(uint64_t address,uint64_t value){(void)address;(void)value;return 0;}
 static int sdm_release_clock(void){return -13;}
 int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *binding,unsigned tables)
 {(void)binding;(void)tables;return 0;}

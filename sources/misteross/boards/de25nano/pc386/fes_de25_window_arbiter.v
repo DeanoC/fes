@@ -97,21 +97,31 @@ module fes_de25_window_arbiter #(
     wire room2 = need2 <= DEPTH[10:0];
     reg [ORDER_BITS:0] order_count = 0;
     wire order_room = order_count != (1 << ORDER_BITS);
-    wire [2:0] ready = (want_write | (want_read & {room2, room1, 1'b1} & {3{order_room}}));
+    wire [2:0] ready_read = want_read & {room2, room1, 1'b1} & {3{order_room}};
+    wire [2:0] ready_write = want_write;
+    wire [2:0] ready = ready_write | ready_read;
 
-    // ---- Grant: round robin, held through a write burst and a split read
-    reg [1:0] last = 2'd2;
+    // ---- Grant: display-priority within direction + direction batching to avoid
+    // excessive R/W flushes in Qsys PREVENT_HAZARDS limiters, held through a
+    // write burst and a split read.
+    localparam [4:0] READ_BATCH = 5'd16, WRITE_BATCH = 5'd8;
+    reg last_dir = 1'b0;        // 0 = read, 1 = write
+    reg [4:0] dir_streak = 5'd0;
+    reg [3:0] cpu_rd_wait = 4'd0, cpu_wr_wait = 4'd0;
     reg busy = 1'b0;            // a write burst is in progress
     reg split = 1'b0;           // a read's first burst is issued; its second is next
     reg [1:0] owner = 2'd0;     // the port busy or split serves
-    function [1:0] pick(input [2:0] r, input [1:0] after);
-        case (after)
-            2'd0: pick = r[1] ? 2'd1 : r[2] ? 2'd2 : 2'd0;
-            2'd1: pick = r[2] ? 2'd2 : r[0] ? 2'd0 : 2'd1;
-            default: pick = r[0] ? 2'd0 : r[1] ? 2'd1 : 2'd2;
-        endcase
-    endfunction
-    wire [1:0] chosen = pick(ready, last);
+    wire any_rd = |ready_read;
+    wire any_wr = |ready_write;
+    // Reads: s1 (VGA VRAM prefetch) > s2 (720p presenter) > s0 (CPU), with starvation guard.
+    wire [1:0] rd_pick = (cpu_rd_wait == 4'd15 && ready_read[0]) ? 2'd0 :
+                         ready_read[1] ? 2'd1 : ready_read[2] ? 2'd2 : 2'd0;
+    // Writes: s2 (VGA capture) > s1 (CPU VRAM) > s0 (CPU RAM), with starvation guard.
+    wire [1:0] wr_pick = (cpu_wr_wait == 4'd15 && ready_write[0]) ? 2'd0 :
+                         ready_write[2] ? 2'd2 : ready_write[1] ? 2'd1 : 2'd0;
+    wire pick_write = !any_rd ? 1'b1 : !any_wr ? 1'b0 :
+                      last_dir ? (dir_streak < WRITE_BATCH) : (dir_streak >= READ_BATCH);
+    wire [1:0] chosen = pick_write ? wr_pick : rd_pick;
     // Avalon: a command refused under waitrequest stays presented, unchanged,
     // until it is taken, so the choice is held while it stalls.
     reg stalled = 1'b0;
@@ -205,12 +215,23 @@ module fes_de25_window_arbiter #(
     end
     always @(posedge clk) begin
         if (reset) begin
-            busy <= 1'b0; split <= 1'b0; last <= 2'd2; order_wr <= 0; order_rd <= 0; order_count <= 0;
+            busy <= 1'b0; split <= 1'b0; last_dir <= 1'b0; dir_streak <= 5'd0;
+            cpu_rd_wait <= 4'd0; cpu_wr_wait <= 4'd0;
+            order_wr <= 0; order_rd <= 0; order_count <= 0;
             resp_beat <= 8'd0;
         end else begin
-            if (take) last <= sel;
+            if (read_issued && !split) begin
+                last_dir <= 1'b0;
+                dir_streak <= !last_dir ? (dir_streak == 5'd31 ? 5'd31 : dir_streak + 5'd1) : 5'd1;
+                if (sel == 2'd0) cpu_rd_wait <= 4'd0;
+                else if (ready_read[0] && cpu_rd_wait != 4'd15) cpu_rd_wait <= cpu_rd_wait + 4'd1;
+            end
             if (take && sel_write) begin
                 if (first_beat) begin
+                    last_dir <= 1'b1;
+                    dir_streak <= last_dir ? (dir_streak == 5'd31 ? 5'd31 : dir_streak + 5'd1) : 5'd1;
+                    if (sel == 2'd0) cpu_wr_wait <= 4'd0;
+                    else if (ready_write[0] && cpu_wr_wait != 4'd15) cpu_wr_wait <= cpu_wr_wait + 4'd1;
                     owner <= sel; lane <= ~up_address[3];
                 end else begin
                     lane <= ~lane;

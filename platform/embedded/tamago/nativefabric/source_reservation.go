@@ -2,6 +2,7 @@
 package nativefabric
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -16,7 +17,7 @@ func (v *HPSContextVerifier) reserveStoredSource(payload []byte, source HPSBootO
 	previous := v.completedConfiguration
 	if !rearm || previous == nil || previous.binding == nil || previous.binding.sourceRegion == nil || previous.binding.sourceRegion.reserveNext == nil {
 		v.configurationMu.Unlock()
-		return reserve(payload)
+		return reserve(bytes.Clone(payload))
 	}
 	defer v.configurationMu.Unlock()
 	b := previous.binding

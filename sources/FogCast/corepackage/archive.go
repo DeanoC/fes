@@ -41,7 +41,7 @@ func RetainArchive(ctx context.Context, length int64, reader io.Reader) (*Archiv
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		chunk := data[offset:min(offset+(32<<10), len(data))]
+		chunk := data[offset:min(offset+(64<<10), len(data))]
 		n, err := reader.Read(chunk)
 		if n < 0 || n > len(chunk) {
 			return nil, errors.New("core package: invalid reader count")

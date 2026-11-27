@@ -183,3 +183,23 @@ func TestAttemptStartRequiresGamepadPolicy(t *testing.T) {
 		t.Fatal("exact controller did not start pairing")
 	}
 }
+
+func TestReconnectBackoffStartsWhenTheAttemptFinishes(t *testing.T) {
+	attempts := newAttempts()
+	pad := devInfo{Path: "pad", Class: 0x508, Paired: true}
+	start := time.Unix(1_700_000_000, 0)
+	if !attempts.Start(pad, start, actionConnect) {
+		t.Fatal("first reconnect did not start")
+	}
+	end := start.Add(35 * time.Second)
+	attempts.Finish(pad.Path, false, end)
+	if attempts.Start(pad, end, actionConnect) {
+		t.Fatal("long reconnect retried immediately instead of backing off")
+	}
+	if attempts.Start(pad, end.Add(attemptGap-time.Nanosecond), actionConnect) {
+		t.Fatal("reconnect retried before its post-completion gap")
+	}
+	if !attempts.Start(pad, end.Add(attemptGap), actionConnect) {
+		t.Fatal("reconnect did not resume after its post-completion gap")
+	}
+}

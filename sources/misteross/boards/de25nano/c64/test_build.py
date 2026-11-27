@@ -93,6 +93,11 @@ class Derivations(unittest.TestCase):
         self.assertIn(b"always @* read_page = read_code ^ {~read_loaded, read_loaded};", result)
         self.assertNotIn(b"read_page <= published_page", result)
         self.assertEqual(record["source_sha256"], derive.sha(source))
+        native, native_record = derive.retarget_frame_store(source, native=True)
+        self.assertEqual(native.count(b"SYNCHRONIZER_IDENTIFICATION OFF"), 1)
+        self.assertIn(b"read_code <= published_code; read_loaded <= 1'b1;", native)
+        self.assertIn(b"frame_start && request_sync != acknowledge", native)
+        self.assertEqual(native_record["derived_sha256"], derive.sha(native))
         with self.assertRaises(ValueError):
             derive.retarget_frame_store(source.replace(b"MISTRAL_M10K", b"MISTRAL_M20K"))
         with self.assertRaises(ValueError):

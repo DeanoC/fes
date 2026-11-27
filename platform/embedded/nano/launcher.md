@@ -44,9 +44,18 @@ Build all linked artifacts from the same checked contracts:
    sealed computer project and firmware ROM, `--menu-project`,
    `--computer-control --computer-reload --computer-storage-return`,
    `--selected-programs --tenfoot-serial`, `--shared-usb-input boot-keyboard`,
-   and `--writable-storage-plan` with `--sd-transfer-clock 25000000` (add
-   `--initial-tape` when the package supplies tape, or `--shared-core-shell`
-   for Spectrum 48K / C64). The writable plan is trusted build input binding
+   and `--writable-storage-plan` with `--sd-transfer-clock 25000000` (or
+   `50000000` for SD High-Speed when supported by the card), plus optional
+   fast-loading flags `--arm64-features`, `--sd-bus-width 4`, `--sd-multi-block`,
+   `--sd-cmd23`, and `--sd-adma2` (add `--initial-tape` when the package
+   supplies tape, or `--shared-core-shell` for Spectrum 48K / C64). `--sd-adma2`
+   maps a disjoint 2 MiB uncached DDR pool at `0x95a00000..0x95c00000` and
+   requires `--profile platform/embedded/nano/sd-dma-profile.json`
+   (`sd_control.service = "fes-owned-sd-dma-v1"`), which `entry/build.py` and
+   `cold_profile.py` propagate so `build_terasic.py` compiles BL31 with
+   `#define FES_NANO_SD_DMA 1` and verifies `fes_nano_sd_platform_enable_dma` in
+   `bl31.elf`. The writable plan is
+   trusted build input binding
    the expected card CID, sector count, MBR, and protected recovery files.
 2. **Entry stub & EL3 BL31:** build `platform/embedded/entry/` and
    `platform/embedded/firmware/` against the matched memory/boot contracts.
@@ -116,6 +125,49 @@ The SD image accepts the shared input mode compiled into its matched SDK and
 entry. Choose `--shared-usb-input boot-keyboard`, `gamepad` or `multi` when
 building the SDK. The `multi` launcher supports a USB hub. The optional
 `--initial-tape` profile currently accepts `boot-keyboard` and `gamepad`.
+
+## Prototype a C64 disk set
+
+Add `--c64-disk-swap` to a shared-shell Tenfoot build with paired HDMI, the shared USB boot keyboard, an initial
+`--c64-d64`, and the sealed native C64 package containing the text overlay.
+Add one to three extra read-only 35-track D64 files to `FES/` and
+create `FES/DISKSET.JSON` with the exact catalogue game ID and SHA-256 for
+each extra disk. For a catalogue entry named `c64` and a second disk named
+`SIDE2.D64`, run this from the host directory containing `FES/`.
+
+```sh
+disk_sha=$(sha256sum FES/SIDE2.D64 | cut -d ' ' -f 1)
+jq -cnS --arg sha "$disk_sha" \
+  '{game_id:"c64",disks:[{name:"SIDE2.D64",sha256:$sha}]}' >FES/DISKSET.JSON
+```
+
+The startup reader validates and retains the set in RAM before the paired menu
+contains SD. Tenfoot's existing in-play selector receives the set through the
+same API as the Linux backend. A swap binds to the captured session, target,
+package and native generation. It uses the owned unit-0 mailbox under the
+five-second control limit. A failed transfer leaves the native service retired
+with SD contained.
+
+While C64 runs, press Ctrl+Alt+M to open Tenfoot's media selector. Use Up and
+Down to select a disk, Enter to insert it, or Escape to dismiss the selector.
+The native shell draws a text panel over the active C64 video. The panel uses
+one M20K for two text buffers and switches between them at vertical blanking.
+The CPU writes through the existing control bridge, so the panel requires no
+FPGA DDR access.
+
+The native C64 picker extends the scanout control aperture in previously
+unused access directions. It reads tagged picker status at `0x0c` and
+writes picker data and commands at `0x64` and `0x68`. Scanout command
+writes, build ID reads and first-fault reads still use the scanout endpoint.
+The runtime requires the tagged picker status before it writes any overlay
+data.
+
+The host test exercises Tenfoot and its keyboard controls with a regular
+FAT32 image and a modeled mailbox. The native C64 RTL simulation checks the
+panel on the active video stream, both disk commits, and continuing
+instruction fetches. The [TRWU8CBL prototype result](../../../docs/validation/2026-11-25-de25-c64-live-selector/README.md)
+records both swaps on the earlier BRAM-backed C64 package. The SDRAM-backed
+package requires a fresh fit and board run.
 
 ## 4. Controls and clean-reboot persistence
 
