@@ -471,6 +471,13 @@ local function picture(part)
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
   local has_socket=machine and machine.socket.supported
+  -- A refreshed package can remove the focused socket, import action or card.
+  -- Keep keyboard and controller focus on a visible, safe action in that case.
+  local card_index=tonumber(string.match(focus or "", "^card:(%d+)$") or "")
+  local missing_card=card_index and (not machine or (page-1)*3+card_index > #machine.choices)
+  if data and ((not has_socket and (focus == "socket" or focus == "import_card" or card_index)) or missing_card) then
+    focus="refresh" remember()
+  end
   if part ~= "lower" and part ~= "append" then
 
   -- Header: FES identity, this room, and the routes out.
