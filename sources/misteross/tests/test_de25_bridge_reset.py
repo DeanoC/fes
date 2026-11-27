@@ -39,6 +39,10 @@ class BridgeResetTests(unittest.TestCase):
         changed = row(br.ROWS[0], c2='fes_top_reset_inst|sync_regs[0]   some|other|chain[3]')
         with self.assertRaises(BuildError):
             output_reset.findings(rdc([changed, row(br.ROWS[1]), VIDEO]), bridge=True)
+        for sources in (br.ROWS[0][3] - {br.HPS_RESET_SOURCE}, br.ROWS[0][3] | {'some|other|reset'}):
+            with self.subTest(sources=sorted(sources)), self.assertRaises(BuildError):
+                changed = row(br.ROWS[0], c3='   '.join(sorted(sources)))
+                output_reset.findings(rdc([changed, row(br.ROWS[1]), VIDEO]), bridge=True)
         with self.assertRaises(Exception):  # a waived bridge row is not this basis
             output_reset.findings(rdc([row(br.ROWS[0], c4='Yes'), row(br.ROWS[1]), VIDEO]), bridge=True)
         with self.assertRaises(Exception):  # a fourth domain is reviewed by nobody

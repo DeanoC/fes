@@ -18,7 +18,7 @@
 module fes_de25_hps_window #(
     parameter [31:0] GRANT_BYTES = 32'h10000000
 ) (
-    input  wire         hold,
+    input  wire         reset_n, hold,
     input  wire         grant_valid,
     input  wire [31:0]  grant_base,
     // Sticky until fault_clear (machine clock, level): the first fault --
@@ -98,12 +98,12 @@ module fes_de25_hps_window #(
     (* async_reg = "true" *) reg [1:0] p0_hold_sync = 2'b11;
     (* async_reg = "true" *) reg [1:0] p1_hold_sync = 2'b11;
     (* async_reg = "true" *) reg [1:0] p2_hold_sync = 2'b11;
-    always @(posedge p0_clk) p0_hold_sync <= {p0_hold_sync[0], hold};
-    always @(posedge p1_clk) p1_hold_sync <= {p1_hold_sync[0], hold};
-    always @(posedge p2_clk) p2_hold_sync <= {p2_hold_sync[0], hold};
-    assign p0_reset = p0_hold_sync[1];
-    assign p1_reset = p1_hold_sync[1];
-    assign p2_reset = p2_hold_sync[1];
+    always @(posedge p0_clk) p0_hold_sync <= reset_n ? {p0_hold_sync[0], hold} : 2'b11;
+    always @(posedge p1_clk) p1_hold_sync <= reset_n ? {p1_hold_sync[0], hold} : 2'b11;
+    always @(posedge p2_clk) p2_hold_sync <= reset_n ? {p2_hold_sync[0], hold} : 2'b11;
+    assign p0_reset = !reset_n || p0_hold_sync[1];
+    assign p1_reset = !reset_n || p1_hold_sync[1];
+    assign p2_reset = !reset_n || p2_hold_sync[1];
 
     wire [27:0] g0_address;
     wire [28:0] g1_address, g2_address;
@@ -111,7 +111,7 @@ module fes_de25_hps_window #(
     wire g0_read, g0_write, g1_read, g1_write, g2_read, g2_write;
     wire g0_ok, g1_ok, g2_ok;
     fes_hps_ddr_guard #(.DATA_W(128), .ADDR_W(28)) port0 (
-        .clk(p0_clk), .hold(p0_reset), .drained(p0_drained),
+        .clk(p0_clk), .reset(!reset_n), .hold(p0_reset), .drained(p0_drained),
         .address(p0_address), .burstcount(p0_burstcount), .waitrequest(p0_waitrequest),
         .readdata(p0_readdata), .readdatavalid(p0_readdatavalid), .read(p0_read),
         .writedata(p0_writedata), .byteenable(p0_byteenable), .write(p0_write),
@@ -121,7 +121,7 @@ module fes_de25_hps_window #(
         .m_writedata(m0_writedata), .m_byteenable(m0_byteenable), .m_write(g0_write)
     );
     fes_hps_ddr_guard #(.DATA_W(64), .ADDR_W(29)) port1 (
-        .clk(p1_clk), .hold(p1_reset), .drained(p1_drained),
+        .clk(p1_clk), .reset(!reset_n), .hold(p1_reset), .drained(p1_drained),
         .address(p1_address), .burstcount(p1_burstcount), .waitrequest(p1_waitrequest),
         .readdata(p1_readdata), .readdatavalid(p1_readdatavalid), .read(p1_read),
         .writedata(p1_writedata), .byteenable(p1_byteenable), .write(p1_write),
@@ -131,7 +131,7 @@ module fes_de25_hps_window #(
         .m_writedata(m1_writedata), .m_byteenable(m1_byteenable), .m_write(g1_write)
     );
     fes_hps_ddr_guard #(.DATA_W(64), .ADDR_W(29)) port2 (
-        .clk(p2_clk), .hold(p2_reset), .drained(p2_drained),
+        .clk(p2_clk), .reset(!reset_n), .hold(p2_reset), .drained(p2_drained),
         .address(p2_address), .burstcount(p2_burstcount), .waitrequest(p2_waitrequest),
         .readdata(p2_readdata), .readdatavalid(p2_readdatavalid), .read(p2_read),
         .writedata(p2_writedata), .byteenable(p2_byteenable), .write(p2_write),
@@ -150,9 +150,9 @@ module fes_de25_hps_window #(
     wire [33:0] e0 = {1'b0, o0} + {22'd0, g0_burstcount, 4'b0};
     wire [33:0] e1 = {1'b0, o1} + {23'd0, g1_burstcount, 3'b0};
     wire [33:0] e2 = {1'b0, o2} + {23'd0, g2_burstcount, 3'b0};
-    assign g0_ok = grant_valid && !o0[32] && e0 <= {2'b0, GRANT_BYTES};
-    assign g1_ok = grant_valid && !o1[32] && e1 <= {2'b0, GRANT_BYTES};
-    assign g2_ok = grant_valid && !o2[32] && e2 <= {2'b0, GRANT_BYTES};
+    assign g0_ok = reset_n && grant_valid && !o0[32] && e0 <= {2'b0, GRANT_BYTES};
+    assign g1_ok = reset_n && grant_valid && !o1[32] && e1 <= {2'b0, GRANT_BYTES};
+    assign g2_ok = reset_n && grant_valid && !o2[32] && e2 <= {2'b0, GRANT_BYTES};
     // The grant is 4 KiB aligned (the control block refuses any other), so its
     // low twelve bits are zero: the offset's low bits pass straight through and
     // only the page numbers add. A command's lane and its in-page address then
@@ -179,8 +179,10 @@ module fes_de25_hps_window #(
     wire bad2 = (g2_read || g2_write) && !g2_ok;
     reg [2:0] port_fault = 3'b000;
     reg no_grant = 1'b0, outside = 1'b0;
-    always @(posedge p0_clk)
-        if (fault_clear) begin
+    always @(posedge p0_clk or negedge reset_n)
+        if (!reset_n) begin
+            port_fault <= 3'b000; no_grant <= 1'b0; outside <= 1'b0;
+        end else if (fault_clear) begin
             port_fault <= 3'b000; no_grant <= 1'b0; outside <= 1'b0;
         end else if (port_fault == 3'b000 && (bad0 || bad1 || bad2)) begin
             port_fault <= {bad2, bad1, bad0};
