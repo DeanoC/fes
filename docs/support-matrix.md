@@ -126,7 +126,8 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 
 | Checks | Expected evidence |
 | --- | --- |
-| Full | Every change that moves the core's `BUILD_ID` carries that core's own evidence. After the first nightly baseline, a closure-only sweep records the netlist comparison pre-merge and defers the RBF, seal and HIL to nightly. |
+| Full | Every change that moves the core's `BUILD_ID` carries that core's own evidence. |
+|  | After the first nightly baseline, a closure-only sweep records the netlist comparison pre-merge and defers the RBF, seal and HIL to nightly. |
 | Reduced | On a sweep the core is not about, its netlist comparison still holds; the RBF repeat, seal gate and HIL do not. A moved netlist keeps every gate. |
 | Via consumer | Not a package. Evidence rides with the packages that embed it. |
 | None | No built artifact yet. |
