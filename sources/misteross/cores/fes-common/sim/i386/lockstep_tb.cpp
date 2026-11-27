@@ -495,6 +495,7 @@ public:
     uint64_t ticks = 0;       // since the start: port 0's clock
     uint64_t load_waits = 0;  // cycles D to WB or F2 waited for memory
     uint64_t md_waits = 0;    // cycles D to WB waited for a multiply or divide, since the last retirement
+    uint64_t near_returns = 0, return_redirects = 0;
     uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
     uint64_t last_fe_wait = 0;       // the last cycle D had no instruction from the front end
     std::set<uint32_t> step_writes;  // bytes written since the last next()
@@ -625,6 +626,10 @@ public:
         const bool clear_f0 = top.x87_f0, clear_f1 = top.x87_f1;
         top.clk = 0;
         top.eval();
+        if (!top.reset && top.trace_near_return) {
+            ++near_returns;
+            if (top.trace_return_redirect) ++return_redirects;
+        }
         if (!top.reset) quiet = false;
         if (top.trace_dread) dmem_reads.push_back(top.trace_dread_addr);
         const bool store = top.trace_store;
@@ -3925,7 +3930,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
 
 void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                   Summary &summary, const std::string &label, std::vector<uint8_t> code, State state,
-                  uint64_t retire_limit = 64) {
+                  uint64_t retire_limit = 64, unsigned min_predicted_returns = 0) {
     code.push_back(0xf4);  // HLT after the instruction under test.
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
@@ -3936,6 +3941,7 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     }
     oracle.set_state(state);
     rtl.start(state);
+    const auto returns_before = rtl.near_returns, redirects_before = rtl.return_redirects;
 
     Mismatches out;
     Outcome outcome;
@@ -3949,6 +3955,10 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     if (!outcome.halted) out.add(label + ".halt", 1, 0);
     if (outcome.exception >= 0) out.add(label + ".exception", 0xffffffffu, uint32_t(outcome.exception));
     if (outcome.interrupt >= 0) out.add(label + ".interrupt", 0xffffffffu, uint32_t(outcome.interrupt));
+    const auto returns = rtl.near_returns - returns_before;
+    const auto redirects = rtl.return_redirects - redirects_before;
+    if (returns < redirects || returns - redirects < min_predicted_returns)
+        out.add(label + ".predicted-returns", min_predicted_returns, returns - redirects);
 
     end_run(bus, rtl, outcome.halted, out);
     summary.cycles += rtl.cycles;
@@ -4789,6 +4799,47 @@ void run_ras_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
     limit.resize(0x800, 0x90);
     limit.insert(limit.end(), {0x68, 0x04, 0x00, 0xc3, 0x4a, 0x75, 0xf9});
     run_nop_case(oracle, bus, rtl, entries, summary, "ras-limit", limit, state, 600);
+
+    // 32-bit CS with a non-aligned base: a 16-bit CALL above FFFFh pushes
+    // only its low return offset. Its RET must predict base + that offset,
+    // not the full fall-through linear address. Loop eight times so the BTB
+    // learns both sites and require several returns without a redirect.
+    State pm = state;
+    pm.cr0 = 0x7ffffff1;
+    pm.seg[fes_i386::SEG_CS] = fes_i386::Segment{0x0008, 0x12345, 0x3ffff, 0x409b, true};
+    for (int k : {fes_i386::SEG_ES, fes_i386::SEG_SS, fes_i386::SEG_DS, fes_i386::SEG_FS, fes_i386::SEG_GS})
+        pm.seg[k] = fes_i386::Segment{0x0010, 0, 0x3ffff, 0x4093, true};
+    pm.gpr[fes_i386::REG_ECX] = 8;
+    std::vector<uint8_t> call16(0x10201, 0x90);
+    const auto put = [](std::vector<uint8_t> &v, size_t at, std::initializer_list<uint8_t> bytes) {
+        std::copy(bytes.begin(), bytes.end(), v.begin() + at);
+    };
+    put(call16, 0, {0xe9, 0xfb, 0x00, 0x01, 0x00});  // JMP 10100h
+    put(call16, 0x10100, {0x66, 0xe8, 0xfc, 0x00}); // CALL16 0200h, return 0104h
+    put(call16, 0x0200, {0x66, 0xc3});              // RET16
+    put(call16, 0x0104, {0x49, 0x0f, 0x85, 0xf5, 0xff, 0x00, 0x00, 0xf4}); // DEC ECX; JNZ 10100h; HLT
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-call16-high", call16, pm, 600, 4);
+
+    std::vector<uint8_t> call32(0x10201, 0x90);
+    put(call32, 0, {0xe9, 0xfb, 0x00, 0x01, 0x00});  // JMP 10100h
+    put(call32, 0x10100, {0xe8, 0xfb, 0x00, 0x00, 0x00}); // CALL32 10200h
+    put(call32, 0x10105, {0x49, 0x0f, 0x85, 0xf4, 0xff, 0xff, 0xff, 0xf4});
+    put(call32, 0x10200, {0xc3});                   // RET32
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-call32-high", call32, pm, 600, 4);
+
+    // Alternate an indirect CALL16's target so its BTB prediction redirects
+    // every iteration. The committed stack restore must still give each
+    // already-trained RET16 the truncated return offset.
+    State indirect = pm;
+    indirect.gpr[fes_i386::REG_ECX] = 12;
+    indirect.gpr[fes_i386::REG_EBX] = 0x0200;
+    std::vector<uint8_t> call16_indirect(0x10103, 0x90);
+    put(call16_indirect, 0, {0xe9, 0xfb, 0x00, 0x01, 0x00}); // JMP 10100h
+    put(call16_indirect, 0x10100, {0x66, 0xff, 0xd3});        // CALL16 BX
+    put(call16_indirect, 0x0200, {0x66, 0xc3});
+    put(call16_indirect, 0x0210, {0x66, 0xc3});
+    put(call16_indirect, 0x0103, {0x66, 0x83, 0xf3, 0x10, 0x49, 0x0f, 0x85, 0xf2, 0xff, 0x00, 0x00, 0xf4});
+    run_nop_case(oracle, bus, rtl, entries, summary, "ras-call16-redirect", call16_indirect, indirect, 800, 4);
 }
 
 // The indirect near JMP and CALL cases (JMP r/m, CALL r/m), from CS:0 at

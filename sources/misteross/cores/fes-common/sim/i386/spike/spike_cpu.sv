@@ -172,7 +172,7 @@ module spike_cpu (
         .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
         .trace_unimplemented, .trace_unbuilt, .shutdown, .trace_error, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
-        .trace_mem_wait, .trace_fe_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
+        .trace_mem_wait, .trace_fe_wait, .trace_mem_idle, .trace_replay, .trace_near_return(), .trace_return_redirect(), .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
         .trace_store_mask, .trace_store_pg0, .trace_store_pg1, .trace_pw, .trace_pw_addr, .trace_pw_data,
         .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
