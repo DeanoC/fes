@@ -487,8 +487,11 @@ class Host:
 
 
 def media_unit_states(session: dict) -> dict[str, str]:
-    """Interface id -> unit state from a session or CLI status reply."""
-    units = ((session.get("core_package") or {}).get("media_units")) or []
+    """Interface id -> unit state from a session or CLI status reply. The
+    library-disk commands print the host client's session struct, whose
+    outer fields keep their Go names (CorePackage)."""
+    package = session.get("core_package") or session.get("CorePackage") or {}
+    units = package.get("media_units") or []
     return {u.get("interface", {}).get("id", ""): u.get("state", "") for u in units if isinstance(u, dict)}
 
 

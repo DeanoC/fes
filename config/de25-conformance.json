@@ -319,6 +319,11 @@
           ]
         },
         {
+          "media": [
+            "eject-cassette"
+          ]
+        },
+        {
           "name": "disk_mounts",
           "covers": [
             "fes.media.spectrum-disk",
@@ -408,6 +413,11 @@
               "min_rms": 500
             }
           }
+        },
+        {
+          "media": [
+            "eject-cassette"
+          ]
         },
         {
           "name": "disk_mounts",

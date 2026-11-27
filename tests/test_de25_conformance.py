@@ -226,6 +226,16 @@ class Audio(unittest.TestCase):
         self.assertFalse(ok, note)
 
 
+class Units(unittest.TestCase):
+    def test_both_reply_shapes(self):
+        unit = {"interface": {"id": "fes.media.pcxt-floppy"}, "state": "ready"}
+        self.assertEqual(conf.media_unit_states({"core_package": {"media_units": [unit]}}),
+                         {"fes.media.pcxt-floppy": "ready"})
+        self.assertEqual(conf.media_unit_states({"CorePackage": {"media_units": [unit]}}),
+                         {"fes.media.pcxt-floppy": "ready"})
+        self.assertEqual(conf.media_unit_states({}), {})
+
+
 class Frames(unittest.TestCase):
     def test_text_rows_finds_and_splits_rows(self):
         width, height = 64, 60

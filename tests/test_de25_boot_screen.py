@@ -199,13 +199,27 @@ class BootScreenTests(unittest.TestCase):
                 ok, detail = boot.pcxt_glabios_post(moved)
                 self.assertTrue(ok, detail)
 
-    def test_pcxt_refuses_a_screenful_of_grey_text(self):
-        # A DOS listing filling the screen: grey text drowns the POST colours.
+    def test_pcxt_post_with_freedos_booting_below_it(self):
+        # A host with its bundled FreeDOS disk boots on past the POST table.
+        ok, detail = boot.pcxt_glabios_post(frame("pcxt-glabios-freedos"))
+        self.assertTrue(ok, detail)
+
+    def test_pcxt_refuses_grey_text_drowning_the_table(self):
+        # Grey text through the table's own rows drowns the POST colours.
         def fill(x, y, p):
-            return (200, 200, 200) if x % 4 == 0 and y % 6 == 0 else p
+            return (200, 200, 200) if x % 2 == 0 and y % 2 == 0 and y < 100 and 70 <= x <= 300 else p
         ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-post"), fill))
         self.assertFalse(ok)
         self.assertIn("too little", detail)
+
+    def test_pcxt_refuses_a_screenful_of_dos_text(self):
+        # A DOS screen with no POST table left on it: grey text, no colours.
+        def dos(x, y, p):
+            level = luma(p)
+            return (level, level, level) if level >= 50 else ((200, 200, 200) if x % 4 == 0 and y % 6 == 0 else p)
+        ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-freedos"), dos))
+        self.assertFalse(ok)
+        self.assertIn("no colour", detail)
 
     def test_pcxt_refuses_a_solid_text_block(self):
         def block(x, y, p):
