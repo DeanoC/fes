@@ -14,7 +14,7 @@ CONTRACT=dict(format=22,scope='nano-retained-source-command-publication-v22',mod
  preparation_command_completion_origin='accepted-prepublication-counter-through-owned-valid-consumption',
  preparation_command_completion_bound_us=100000,preparation_command_final_origin='original-command-and-enclosing-preparation',
  clock_origin='before-additional-source-SHA384',table_recheck_words=0,callback_bytes=256,
- source_digest='full-SHA384-before-preparation-and-existing-SMC-chunk-full-checks',
+ source_digest='full-SHA384-before-preparation-and-per-SMC-bounds-and-metadata-checks',
  reply_selection='fixed-ATF-expected-submission-job',DATA_reply_words=0,job_ids=14,
  status='IDLE-NSTATUS-CONF_DONE-INIT_DONE',continuation_before_configuration_commit=True,
  continuation_attempts=1,continuation_replay=False,
