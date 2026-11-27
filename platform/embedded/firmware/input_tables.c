@@ -62,7 +62,7 @@ static uint64_t word(const struct nano_sdm_input_binding *p,uint32_t offset)
   if(page>=pages)return 0;
   /* Identity L3 page, read-only, both execute states forbidden, AF, normal
    * noncacheable, outer-shareable. No other source/metadata/device grant. */
-  return (NANO_SDM_INPUT_BASE+(uint64_t)page*4096U) | (UINT64_C(3)<<53) | (1U<<10) | (2U<<8) | (1U<<6) | (5U<<2) | 3U;
+  return nano_stage2_page(NANO_SDM_INPUT_BASE+(uint64_t)page*4096U,1U);
  }
  return 0;
 }

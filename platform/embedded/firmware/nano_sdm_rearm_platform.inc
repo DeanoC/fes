@@ -64,6 +64,9 @@ static int sdm_source_rearm_begin(void)
     fes_nano_sdm_vendor_source_idle(&r->binding)!=1 ||
     !fes_nano_sdm_control_mailbox_idle() || !sdm_rearm_previous(old) ||
     fes_nano_sdm_vendor_source_idle(&r->binding)!=1)return 0;
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+ if(mac_handoff_before_rearm(r,configuration.generation))return 0;
+#endif
  /* The preceding engine remains at its real address. Reuse only the older
   * successful slot, after the latest completion and release were consumed. */
  sdm_rearm.previous_slot=old;sdm_rearm.previous_generation=r->binding.generation;

@@ -168,6 +168,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertFalse(report["hardware_actions"])
         return report
 
+    def test_mac_handoff_rechecks_the_retained_sdm_domain(self):
+        report = self.run_model("mac_handoff_test", joined=True)
+        self.assertEqual((report["generations"], report["negative_cases"]), (12, 22))
+
     def test_repeated_queue_generations_wrap_and_pin_callback_ownership(self):
         report = self.run_model("queue_generation_test")
         self.assertEqual(report["completed_generations"], 384)

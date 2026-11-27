@@ -9,6 +9,9 @@
 #endif
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_sdm_retire_platform.inc"
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+#include "nano_mac_handoff.inc"
+#endif
 #if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
 #include "nano_sdm_recovery_platform.inc"
 #endif
@@ -76,6 +79,9 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
    source_retirement.consumer_samples,source_retirement.observed_consumer,source_retirement.consumer_read,
    source_retirement.consumer_phase,source_retirement.consumer_stage,source_retirement.consumer_poll);
   if(!error)continuation=fes_nano_sdm_continue_source();
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+  if(!continuation)continuation=mac_handoff_freeze(&source_retirement);
+#endif
  }
  if(!continuation){
   NOTICE("FES_NANO_INPUT_CONTINUE build=%s owner=%llx epoch=%llx generation=%llu ready=1 elapsed_us=%llu retained=1 reuse=0 activated=0\n",

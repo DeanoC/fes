@@ -36,6 +36,17 @@ and warm rearm against the boot-pinned uncached DDR arena, verifying whole and
 chunk SHA-256/SHA-384 digests, live cold ownership, SMMU/source retirement and
 fresh all-master closures before advancing generations.
 
+The BL31 and U-Boot builders accept `--nano-mac-handoff` alongside
+`--nano-sdm-source-rearm` for the retained PIO profile. At each SDM retirement
+and before the next rearm, EL3 checks the original controller, its queue cursor,
+the reset state of MAC0, and the Secure and Non-secure SMMU controls. It reads
+the retained Non-secure entries for MAC SID 1 and SDM SID 10. A mismatch
+blocks continuation. EL3 also checks the prospective five-page XGMAC layout
+at `0x95c00000`. It contains one read/write descriptor page, two transmit pages readable
+by the MAC and two receive pages writable by the MAC. The build receipt
+records `mac_grant=false` and `translation_published=false`. Physical launcher
+qualification requires matching MENU, computer and return observations.
+
 ## Controlled Nano bridge service
 
 `nano_bridges.c`, `nano_bridge_sip.c`, `nano_cold.c` and `nano_cold_platform.c`

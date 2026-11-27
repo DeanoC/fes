@@ -53,7 +53,7 @@ RECOVERY_CONTRACT.update(format=24,scope='nano-source-rearm-terminal-cold-recove
   request='fixed-vendor-cold-job15-command0x47-zero-args',
   source='retained-on-all-outcomes',resume=False,replay=False,reset_completion=False,
   post_reset_admission='fresh-boot-loader-devices-epoch-required',physical_qualification=False))
-FILES=('nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
+FILES=('nano_mac_handoff.inc','nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
@@ -92,14 +92,36 @@ def checked(profile):
  if not warm and not rearm.same(v,CONTRACT):raise ValueError('unsupported SDM input transfer contract')
  if not warm and profile.get('sdm_cpu_rearm') is not None:raise ValueError('CPU rearm requires its repeated-load SDM contract')
  return selected(profile,True,source_rearm=warm,source_recovery=recovery)
+def mac_handoff_contract(profile):
+ contract=checked(profile)
+ if not contract or contract['format'] not in (23,24) or profile.get('sd_dma',False) is not False:
+  raise ValueError('MAC handoff requires a retained PIO source with explicit source rearm')
+ return dict(format=1,scope='de25-retired-sdm-mac-boundary',sdm_sid=10,mac_sid=1,
+             pool_base=0x95c00000,page_bytes=4096,page_access=['RW','R','R','W','W'],
+             mac_grant=False,translation_published=False,hardware_accepted=False)
+def checked_mac_handoff(profile):
+ if not isinstance(profile,dict) or 'mac_handoff' not in profile:return False
+ if not rearm.same(profile['mac_handoff'],mac_handoff_contract(profile)):
+  raise ValueError('incomplete retained MAC handoff contract')
+ return True
+def installed_headers(profile):
+ return H_FILES+(('nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())
+def installed_names(profile):
+ return NAMES+(('plat/intel/soc/common/include/nano_mac_handoff.inc',) if checked_mac_handoff(profile) else ())
+def verify_handoff_header(source,profile):
+ lines=[line for line in (Path(source)/HEADER).read_text().splitlines() if 'FES_NANO_MAC_HANDOFF' in line]
+ if lines!=(['#define FES_NANO_MAC_HANDOFF 1'] if checked_mac_handoff(profile) else []):
+  raise ValueError('unexpected MAC handoff build selection')
 def header(profile):
+ handoff='#define FES_NANO_MAC_HANDOFF 1\n' if checked_mac_handoff(profile) else ''
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_COLD_RECOVERY 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format'] in (23,24)))+'\n#define FES_NANO_SDM_COLD_RECOVERY '+str(int(checked(profile)['format']==24))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return (handoff+'#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format'] in (23,24)))+'\n#define FES_NANO_SDM_COLD_RECOVERY '+str(int(checked(profile)['format']==24))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
+ checked_mac_handoff(profile)
  if checked(profile) is None:return None
  if not all(isinstance(v,dict) for v in (start,mmu,ram,mailbox)) or start.get('generated_sha256')!=INPUT_SERVICE:
   raise ValueError('complete exact START/MMU/RAM/mailbox prerequisites required')
@@ -109,11 +131,12 @@ def install(source,profile,start,mmu,ram,mailbox):
  source=Path(source)
  for p,h in ((SERVICE,INPUT_SERVICE),(MAILBOX,INPUT_MAILBOX),(MAILBOX_HEADER,INPUT_HEADER)):
   if sha(source/p)!=h:raise ValueError('exact reviewed source bytes required for '+str(p))
+ verify_handoff_header(source,profile)
  common=source/'plat/intel/soc/common';include=common/'include'
- if any((directory/n).exists() for directory,names in ((common,C_FILES),(include,H_FILES)) for n in names):raise ValueError('fresh SDM input export required')
+ if any((directory/n).exists() for directory,names in ((common,C_FILES),(include,installed_headers(profile))) for n in names):raise ValueError('fresh SDM input export required')
  if header(profile) not in (source/HEADER).read_text() or '#define FES_NANO_SDM_FAULT64 0\n' not in (source/HEADER).read_text() or '#define FES_NANO_SDM_ARM_PROBE 0\n' not in (source/HEADER).read_text():
   raise ValueError('exclusive SDM input selection required')
- for directory,names in ((common,C_FILES),(include,H_FILES)):
+ for directory,names in ((common,C_FILES),(include,installed_headers(profile))):
   for n in names:(directory/n).write_bytes((HERE/({'probe_setup.c':'sdm_input_probe_setup.c','probe_setup.h':'sdm_input_probe_setup.h'}.get(n,n))).read_bytes())
  for p,n in ((SERVICE,'sdm_input_vendor_service.c'),(MAILBOX,'sdm_input_vendor_mailbox.c'),(MAILBOX_HEADER,'sdm_input_mailbox.h')):(source/p).write_bytes((HERE/({'probe_setup.c':'sdm_input_probe_setup.c','probe_setup.h':'sdm_input_probe_setup.h'}.get(n,n))).read_bytes())
  (source/PLATFORM).write_text((source/PLATFORM).read_text()+'\n#if defined(FES_NANO_SDM_SOURCE_LEASE) && FES_NANO_SDM_SOURCE_LEASE\n#include "nano_sdm_source_platform.inc"\n#endif\n')
@@ -127,15 +150,17 @@ def install(source,profile,start,mmu,ram,mailbox):
  start['pre_sdm_input_mailbox_sha256']=start['mailbox_generated_sha256'];start['mailbox_generated_sha256']=sha(source/MAILBOX)
  mailbox['pre_sdm_input_generated_sha256']=mailbox['generated_sha256'];mailbox['generated_sha256']=sha(source/MAILBOX)
  mailbox['pre_sdm_input_header_sha256']=mailbox['header_sha256'];mailbox['header_sha256']=sha(source/MAILBOX_HEADER)
- return dict(contract=checked(profile),sources={n:sha(source/n) for n in NAMES})
+ return dict(contract=checked(profile),sources={n:sha(source/n) for n in installed_names(profile)})
 def verify_installed(source,binding,profile):
+ checked_mac_handoff(profile)
  if checked(profile) is None:
   if binding is not None:raise ValueError('unselected SDM input binding')
   return
- if not isinstance(binding,dict) or not rearm.same(binding.get('contract'),checked(profile)) or set(binding.get('sources',{}))!=set(NAMES):raise ValueError('complete input binding required')
+ if not isinstance(binding,dict) or not rearm.same(binding.get('contract'),checked(profile)) or set(binding.get('sources',{}))!=set(installed_names(profile)):raise ValueError('complete input binding required')
+ verify_handoff_header(source,profile)
  if any(sha(Path(source)/n)!=h for n,h in binding['sources'].items()):raise ValueError('input source changed')
  if header(profile) not in (Path(source)/HEADER).read_text():raise ValueError('input header changed')
-def _function(image,name,expected_info):
+def _function(image,name,expected_info,optional=False):
  import struct
  if image[:6]!=b'\x7fELF\x02\x01':raise ValueError('ELF64 little-endian image required')
  offset=struct.unpack_from('<Q',image,40)[0];stride,count=struct.unpack_from('<HH',image,58)
@@ -157,11 +182,13 @@ def _function(image,name,expected_info):
    owner=sections[index]
    if owner[1]!=1 or not owner[2]&4 or not owner[3]<=address or address+size>owner[3]+owner[5]:raise ValueError('helper must be bounded executable code')
    found.append(dict(address=address,bytes=size))
+ if optional and not found:return None
  if len(found)!=1:raise ValueError('one selected function required')
  return found[0]
 def private_function(image,name):return _function(image,name,2)
 def strong_function(image,name):return _function(image,name,0x12)
 def verify_image(image,profile):
+ checked_mac_handoff(profile)
  if checked(profile) is None:return None
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
@@ -182,4 +209,10 @@ def verify_image(image,profile):
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
  if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')
- return dict(contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)
+ handoff={}
+ if checked_mac_handoff(profile):
+  handoff['mac_handoff']=dict(contract=mac_handoff_contract(profile),
+   freeze=private_function(image,'mac_handoff_freeze'),before_rearm=private_function(image,'mac_handoff_before_rearm'))
+ elif any(_function(image,n,2,optional=True) for n in ('mac_handoff_freeze','mac_handoff_before_rearm')):
+  raise ValueError('unselected retained MAC handoff in firmware')
+ return dict(**handoff,contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)

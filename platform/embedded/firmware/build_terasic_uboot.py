@@ -153,8 +153,10 @@ def main():
     parser.add_argument("--nano-sdm-fault64",action="store_true",help="explicit one-DATA-64 bounded fault capture; terminal diagnostic only")
     parser.add_argument("--nano-sdm-input-transfer",action="store_true",help="full verified source transfer, terminal before activation; retained diagnostic")
     parser.add_argument("--nano-sdm-source-rearm",action="store_true",help="explicit matched repeated-load source-release/rearm prototype; requires --nano-sdm-input-transfer")
+    parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_mac_handoff and not args.nano_sdm_source_rearm:parser.error("MAC handoff requires explicit source rearm")
     if args.nano_sdm_source_recovery and not args.nano_sdm_source_rearm:parser.error("terminal cold recovery requires explicit source rearm")
     if args.nano_sdm_source_rearm and not args.nano_sdm_input_transfer:parser.error("source rearm requires selected SDM input transfer")
     if args.nano_sdm_input_transfer and (args.nano_sdm_fault64 or args.nano_sdm_arm_probe):parser.error("SDM diagnostic modes are mutually exclusive")
@@ -195,7 +197,7 @@ def main():
     if args.native_entry_build is not None:
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)
+        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff)
     receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
@@ -275,7 +277,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []

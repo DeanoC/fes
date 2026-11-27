@@ -312,6 +312,11 @@ static unsigned smmu_index(uint64_t address){
  if(offset==0x100a8)return 44;if(offset==0x100ac)return 45;assert(offset<=0xb4 && !(offset&3));return offset/4;
 }
 static uint32_t probe_read(uint64_t address){
+#if defined(FES_NANO_MAC_HANDOFF) && FES_NANO_MAC_HANDOFF
+ if(address==0x10d11024)return mac_reset;
+ if(address==0x10d1219c)return mac_route;
+ if(address==0x10d121c8)return mac_sids;
+#endif
  if(address==0x10d12184)return 3;if(address==0x10d121b0)return 0xa000a;
  if(address==0x10d1225c)return 0;
  if(address==0x10d12280 || address==0x10d12284)return route_remap;
