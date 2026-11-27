@@ -8,6 +8,7 @@ package board
 import (
 	"context"
 	"image"
+	"net/http"
 	"net/netip"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
@@ -24,7 +25,12 @@ type Display interface{ Present(*image.RGBA) error }
 type Network interface {
 	Err() error
 	Address() string
+	MAC() string
 	Stats() string
+	SendRawFrame([]byte) error
+	AddTap(func([]byte)) func()
+	NewHTTPServer(network.ServerConfig) (*network.HTTPServer, error)
+	NewHTTPTransport(network.TransportConfig) (*http.Transport, error)
 	Lease() (network.DHCPLease, bool)
 	NewLeaseRenewer(network.RenewConfig) (*network.LeaseRenewer, error)
 	RenewLeaseOnce(context.Context, bool, network.RenewConfig) (network.DHCPLease, error)

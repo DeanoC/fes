@@ -16,6 +16,7 @@ import (
 	"errors"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
@@ -28,10 +29,17 @@ import (
 )
 
 type bootConfig struct {
-	Model   bool   `json:"model"`
-	APIURL  string `json:"api_url"`
-	APIHost string `json:"api_host"`
-	Input   string `json:"input"`
+	Model         bool   `json:"model"`
+	APIURL        string `json:"api_url"`
+	APIHost       string `json:"api_host"`
+	Input         string `json:"input"`
+	AgentPort     uint16 `json:"agent_port"`
+	AgentTargetID string `json:"agent_target_id"`
+	AgentToken    string `json:"agent_token"`
+	AgentOpen     bool   `json:"agent_allow_unauthenticated"`
+	AgentMDNS     bool   `json:"agent_mdns"`
+	AgentInstance string `json:"agent_instance"`
+	AgentHost     string `json:"agent_host"`
 }
 
 type observedTransport struct{ base http.RoundTripper }
@@ -381,6 +389,38 @@ func run() (result error) {
 			}()
 			fmt.Println("FES_NET_IRQ enabled=true")
 		}
+	}
+	if iface != nil && config.AgentPort != 0 {
+		agentCtrl := agentapi.NewStateController(agentapi.StateControllerConfig{
+			Board:   board.Name,
+			Address: iface.Address(),
+		})
+		agentSvc, err := agentapi.NewService(agentapi.ServiceConfig{
+			Endpoint:             iface,
+			Port:                 config.AgentPort,
+			TargetID:             config.AgentTargetID,
+			Token:                config.AgentToken,
+			AllowUnauthenticated: config.AgentOpen,
+			AdvertiseMDNS:        config.AgentMDNS,
+			MDNSInstance:         config.AgentInstance,
+			MDNSHost:             config.AgentHost,
+			Controller:           agentCtrl,
+			OnError: func(err error) {
+				fmt.Printf("FES_AGENT_ERROR err=%q\n", err)
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("configure target agent: %w", err)
+		}
+		if err := agentSvc.Start(ctx); err != nil {
+			return fmt.Errorf("start target agent: %w", err)
+		}
+		defer func() {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer stopCancel()
+			_ = agentSvc.Stop(stopCtx)
+		}()
+		fmt.Printf("FES_AGENT_READY addr=%s target_id=%s mdns=%t\n", agentSvc.Addr(), config.AgentTargetID, config.AgentMDNS)
 	}
 	var keyboard *input.USBKeyboard
 	uartIRQ := false
