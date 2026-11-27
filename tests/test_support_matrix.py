@@ -130,6 +130,36 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn(SUPPORT_MATRIX.CHECK_IN_FORCE, SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
         self.assertNotIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT)))
 
+    def test_long_check_level_meaning_wraps_without_losing_text(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        meaning = next(
+            level['meaning'] for level in data['check_policy']['levels']
+            if level['id'] == 'full'
+        )
+        lines = SUPPORT_MATRIX.render_check_policy(data)
+        start = lines.index('| Checks | Expected evidence |') + 2
+        full_rows = []
+        in_full = False
+        for line in lines[start:]:
+            if not line.startswith('| '):
+                break
+            cells = [part.strip() for part in line.split('|')]
+            label, value = cells[1], cells[2]
+            if label == 'Full':
+                in_full = True
+            elif label and in_full:
+                break
+            if in_full:
+                full_rows.append(value)
+
+        self.assertEqual(meaning, ' '.join(full_rows))
+        self.assertGreater(len(full_rows), 1)
+        self.assertTrue(all(
+            len(line) <= SUPPORT_MATRIX.HUMAN_TABLE_ROW_LIMIT
+            for line in lines
+            if line.startswith('| ') and not line.startswith('| ---')
+        ))
+
     def test_a_hand_set_check_level_or_quality_tier_is_rejected(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}

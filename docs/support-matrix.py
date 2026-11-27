@@ -150,6 +150,7 @@ QUALITY_TIER_IDS = {
     'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
 }
 CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
+HUMAN_TABLE_ROW_LIMIT = 180
 CHECK_PROPOSED = 'proposed'
 CHECK_ACCEPTED = 'accepted'
 CHECK_STATUSES = frozenset({CHECK_PROPOSED, CHECK_ACCEPTED})
@@ -791,7 +792,7 @@ def render_check_policy(data: dict) -> list[str]:
         lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
     lines += ['', '| Checks | Expected evidence |', '| --- | --- |']
     for item in policy['levels']:
-        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+        lines += table_entry_rows(item['label'], item['meaning'])
     lines.append('')
     for item in policy['quality_tiers']:
         names = [row['label'] for row in data['cores'] if row.get('quality_tier') == item['id']]
@@ -801,6 +802,40 @@ def render_check_policy(data: dict) -> list[str]:
         names = [row['label'] for row in data['cores'] if row.get('check_level') == item['id']]
         lines.append(f"- **{item['label']} checks:** {', '.join(names) or 'none'}")
     return lines
+
+
+def table_entry_rows(label: str, meaning: str) -> list[str]:
+    """Keep long table meanings readable without exceeding the row limit."""
+    label = cell(label)
+    meaning = cell(meaning)
+
+    def row(row_label: str, text: str) -> str:
+        return f'| {row_label} | {text} |'
+
+    if len(row(label, meaning)) <= HUMAN_TABLE_ROW_LIMIT:
+        return [row(label, meaning)]
+
+    chunks: list[str] = []
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z`])', meaning)
+    for sentence in sentences:
+        current_label = label if not chunks else ''
+        if len(row(current_label, sentence)) <= HUMAN_TABLE_ROW_LIMIT:
+            if chunks and len(row('', chunks[-1] + ' ' + sentence)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks[-1] += ' ' + sentence
+            else:
+                chunks.append(sentence)
+            continue
+
+        for word in sentence.split():
+            current_label = label if not chunks else ''
+            if chunks and len(row(current_label, chunks[-1] + ' ' + word)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks[-1] += ' ' + word
+            elif len(row(current_label, word)) <= HUMAN_TABLE_ROW_LIMIT:
+                chunks.append(word)
+            else:
+                raise ValueError(f'table entry word is too long for row: {word!r}')
+
+    return [row(label if index == 0 else '', chunk) for index, chunk in enumerate(chunks)]
 
 
 def feature_union(ids: list[str]) -> str:
@@ -1172,7 +1207,7 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f"open cell {item.get('cell')!r} still pastes its long detail")
     if rendered is not None:
         for line in rendered.splitlines():
-            if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
+            if line.startswith('| ') and not line.startswith('| ---') and len(line) > HUMAN_TABLE_ROW_LIMIT:
                 errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
     policy = '\n'.join(data.get('policy') or [])
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
