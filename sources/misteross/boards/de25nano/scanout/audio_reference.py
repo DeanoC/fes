@@ -74,7 +74,7 @@ SHARED_PLL = ('boards/de25nano/machine/machine_pll.ip', '52890ca22dea5743d009dc5
 PCXT_PLL = ('boards/de25nano/pcxt/machine_pll.ip', '926daec94bdc3e30886675f992a53d1f9b3a4a495dfb7bd516e6ae1ded2ce3ca')
 MACHINE_PLLS = {'fes.spectrum': SHARED_PLL, 'fes.spectrum128': SHARED_PLL, 'fes.spectrum-plus3': SHARED_PLL,
                 'fes.pentagon': SHARED_PLL, 'fes.atari-st': SHARED_PLL, 'fes.c64': SHARED_PLL,
-                'fes.pcxt-dos': PCXT_PLL}
+                'fes.pcxt-dos': PCXT_PLL, 'fes.ramtest': SHARED_PLL}
 PER_MODEL_PLLS = {'fes.pc386': 'boards/de25nano/pc386/model_clocks.py'}
 # The board writes every machine's PLL IP into its project as this file.
 COMPILED_PLL = 'machine_pll.ip'

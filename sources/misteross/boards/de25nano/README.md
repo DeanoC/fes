@@ -15,6 +15,8 @@ The [three-memory RAM Tester](ramtest/README.md) provides a standalone
 diagnostic for FPGA LPDDR4 B, board SDRAM and a staged HPS allocation. Its
 JTAG controller permits destructive local-memory tests and refuses HPS writes;
 physical Linux DMA binding and board acceptance remain open.
+The separate [managed board-SDRAM test](ramtest_managed/README.md) scans the
+128 MiB board SDRAM and explicitly leaves both LPDDR banks untested.
 
 The [HPS-controlled ZX81 diagnostic](zx81-hps/README.md) connects the preserved
 GHRD lightweight bridge to the current computer mailbox for keyboard and

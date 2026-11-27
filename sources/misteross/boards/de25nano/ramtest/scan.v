@@ -5,7 +5,8 @@ module fes_de25_ram_scan #(
     parameter integer DATA_W = 128,
     parameter integer MAX_BURST = 16,
     parameter integer TIMEOUT = 1000000,
-    parameter integer LATENCY_SAMPLES = 1024
+    parameter integer LATENCY_SAMPLES = 1024,
+    parameter integer CHECK_ADDRESS_HIGH = 0
 ) (
     input wire clk, reset_n, start, stop, clear, calibrated,
     input wire [31:0] base, length,
@@ -54,7 +55,10 @@ module fes_de25_ram_scan #(
     assign read = reset_n && !reset_fault && (state == READ_COMMAND || state == LAT_COMMAND);
     assign write = reset_n && !reset_fault && state == WRITE_DATA;
 
-    always @(posedge clk) if (reset_n) first_seen <= 1;
+    // Use the synchronously observed healthy state, rather than reset_n as a
+    // clock enable. The first possible scan start and this sticky observation
+    // occur on the same edge, so any subsequent reset is still latched.
+    always @(posedge clk) first_seen <= first_seen || healthy;
     always @(posedge clk or negedge reset_n)
         if (!reset_n) healthy <= 0;
         else if (!first_seen) healthy <= 1;
@@ -79,10 +83,22 @@ module fes_de25_ram_scan #(
                     0: value[i*8 +: 8] = 0;
                     1: value[i*8 +: 8] = 8'hff;
                     2: value[i*8 +: 8] = lane[3] ? 8'haa : 8'h55;
-                    3: value[i*8 +: 8] = (64'd1 << lane[8:3]) >> ((i % 8)*8);
+                    3: begin
+                        // Narrow words cannot carry the original 64-bit lane
+                        // walk. Advance once per word and wrap within DATA_W;
+                        // retain the established lane pattern for wider scans.
+                        if (DATA_W <= 64)
+                            value[i*8 +: 8] = (64'd1 << ((a >> SHIFT) % DATA_W)) >> (i*8);
+                        else
+                            value[i*8 +: 8] = (64'd1 << lane[8:3]) >> ((i % 8)*8);
+                    end
                     4: value[i*8 +: 8] = ordinary;
                     5: value[i*8 +: 8] = inverted;
-                    default: value[i*8 +: 8] = expected && i != ((a >> SHIFT) & (STEP-1)) ? inverted : ordinary;
+                    6: value[i*8 +: 8] = expected && i != ((a >> SHIFT) & (STEP-1)) ? inverted : ordinary;
+                    // Together with pattern 4 (low address XOR high address),
+                    // this distinguishes every halfword address bit. It is
+                    // enabled only by the managed 16-bit board-SDRAM tester.
+                    default: value[i*8 +: 8] = (a >> 16) >> (i*8);
                 endcase
             end
         end
@@ -240,7 +256,7 @@ module fes_de25_ram_scan #(
                             state <= LAT_COMMAND;
                         end
                     end else if (pass_end) begin
-                        if (pattern == 6) begin
+                        if ((pattern == 6 && (!CHECK_ADDRESS_HIGH || DATA_W != 16)) || pattern == 7) begin
                             beats <= 32 / STEP; cursor <= active_base; state <= LAT_COMMAND;
                         end else begin pattern <= pattern+1; cursor <= active_base; state <= WRITE_SETUP; end
                     end else begin

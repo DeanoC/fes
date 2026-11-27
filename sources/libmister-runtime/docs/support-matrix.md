@@ -106,6 +106,10 @@ waived only as an ordinary development-milestone blocker.
 | `fes-gp-v1` bridge release after user mode; SDR FPGA ports only after `fes.memory.hps-ddr` identity and mirror match, on a boot whose U-Boot core latched the layout | covered | diagnostic 2026-09-27 (port release; boot capture pending) |
 | Startup load of the release's `fes-window` driver with the `fes.memory.hps-ddr` window; a loaded copy kept only on matching version and window, otherwise replaced, or reported busy while in use; a failure is logged and startup continues | covered by host tests | [Kit A diagnostic](https://github.com/DeanoC/fes/issues/949#issuecomment-6310766923) 2026-10-21 of a dev driver build (grant, cached draw, clean, revoke); runtime load of the bundled driver pending exact-artifact acceptance |
 
+The DE25 `fes.ramtest` standard-shell contract admits a ROM-less board-SDRAM
+test. Exact-package build, seal and J8G HIL remain pending; it does not test
+either LPDDR bank or establish analogue or board-level qualification.
+
 Static DE25 dispatch is an unfinished, default-off feature. `ENABLE_DE25_STATIC=1`
 selects the declared format5/standard-ZX81 pair for qualification. The
 contract requires optional ZX81 bus 2.0 alongside the nine required computer

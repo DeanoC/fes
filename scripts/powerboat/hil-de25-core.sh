@@ -89,35 +89,98 @@ N_PKGS=${#PKGS[@]}
 NEEDS_CORE_SMOKE=0
 for CORE_ID in "${CORE_IDS[@]}"; do [ "$CORE_ID" = fes.menu ] || NEEDS_CORE_SMOKE=1; done
 if [ "$NEEDS_CORE_SMOKE" = 1 ]; then
-  cp "$Q/hilcore.py" "$Q/hil-de25-core.py"
-  python3 - "$Q/hil-de25-core.py" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
+  SMOKE_DRIVER=$TMPDIR_PATH/hil-de25-core.py
+  cp "$Q/hilcore.py" "$SMOKE_DRIVER"
+  python3 - "$SMOKE_DRIVER" <<'PY' || { echo NOTSTARTED > "$D/verdict"; echo "D25 smoke patch generation failed"; exit 3; }
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); s=p.read_text(); old='ORIGIN = "http://127.0.0.1:8787"'; new='ORIGIN = os.environ.get("C_API", "http://127.0.0.1:8787")'
 if old not in s: raise SystemExit('HIL smoke API declaration changed')
 s=s.replace(old,new,1)
-old_rom = '    plan = hil_rom.rom_plan(R["descriptor"], entry.get("core_id"), req(f"/api/v1/library/core-entries/{game}/rom", "rom-before"))'
-new_rom = """    rom = (R[\"descriptor\"] or {}).get(\"rom\") or {}
-    if rom.get(\"id\"):
-        current = req(f\"/api/v1/library/core-entries/{game}/rom?rom_id={rom['id']}\", \"rom-before\")
-        plan = hil_rom.rom_plan(R[\"descriptor\"], entry.get(\"core_id\"), current)
-    else:
-        plan = None"""
-# The HILQ engine now carries this ROM selection itself; patch only older copies.
-if new_rom not in s:
-    if old_rom not in s: raise SystemExit('HIL smoke ROM selection declaration changed')
-    s=s.replace(old_rom,new_rom,1)
 old_idle = """    rc, lc = kit("curl -s -m5 --unix-socket /run/fogcast/local-control.sock http://local-control/v1/local/status")
     check("idle_after_stop", '"phase":"idle"' in lc, lc[:160])"""
 new_idle = "    idle = req('/api/v1/session', 'session-after-stop')\n    check('idle_after_stop', idle.get('state') == 'idle', str(idle.get('state')))"
 if old_idle not in s: raise SystemExit('HIL smoke idle probe declaration changed')
 s=s.replace(old_idle,new_idle,1)
+old_install = '    inst = cli("core-install", "core-install", str(PKG)); pid = inst.get("package_id"); R["package_id"] = pid'
+if old_install not in s: raise SystemExit('HIL smoke install declaration changed')
+s=s.replace(old_install, '    ramtest_deadline = time.monotonic() + 900\n' + old_install, 1)
 old_frames = '    s1 = grab("10-core", 1); s2 = grab("11-core", 10)'
 new_frames = old_frames + """
     tool = os.environ.get("C_BOOT_SCREEN_TOOL", "")
-    if tool and os.path.isfile(tool):
+    core_id = os.environ.get("C_CORE_ID", "")
+    if core_id == "fes.ramtest":
+        # Bind RAM Tester progress to one package and runtime generation.
+        # Repeated stale PASS frames cannot satisfy this gate.
+        deadline = ramtest_deadline
+        identity, end_identity = None, None
+        stable, count, running_seen, continuity = 0, 0, False, False
+        observations = []
+        def observe_ramtest(frame):
+            bs = subprocess.run([sys.executable, tool, "--core", core_id, str(frame)],
+                                capture_output=True, text=True, timeout=180)
+            detail = ""
+            try:
+                parsed = json.loads(bs.stdout)
+                detail = parsed.get("frames", {}).get(str(frame), {}).get("detail", "")
+            except (ValueError, TypeError):
+                pass
+            observations.append({"frame": str(frame), "ok": bs.returncode == 0,
+                                 "detail": detail, "error": bs.stderr.strip()})
+            return bs.returncode, detail
+        if tool and os.path.isfile(tool):
+            import runpy
+            ramtest_helpers = runpy.run_path(tool)
+            advance = ramtest_helpers["ramtest_transition"]
+            session_bound = ramtest_helpers["ramtest_session_bound"]
+            session_identity = ramtest_helpers["ramtest_session_identity"]
+            identity = session_identity(ss)
+            initial_after = req("/api/v1/session", "ramtest-session-initial-after")
+            continuity = session_bound(ss, initial_after, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
+            for name in ("10-core", "11-core"):
+                if not continuity:
+                    break
+                frame = FR / (name + ".png")
+                if not frame.is_file() or time.monotonic() >= deadline:
+                    stable = 0
+                    continue
+                rc, detail = observe_ramtest(frame)
+                running_seen, stable = advance(running_seen, stable, rc == 0, detail)
+            while continuity and time.monotonic() < deadline and stable < 2:
+                name = f"ramtest-{count:03d}"
+                count += 1
+                before_frame = req("/api/v1/session", name + "-session-before")
+                continuity = session_bound(ss, before_frame, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
+                if not continuity:
+                    break
+                captured = grab(name, 10)
+                after_frame = req("/api/v1/session", name + "-session-after")
+                continuity = session_bound(ss, after_frame, game, pid, TARGET, os.environ.get("C_TARGET_ID", ""))
+                if not continuity:
+                    break
+                frame = FR / (name + ".png")
+                if time.monotonic() >= deadline:
+                    break
+                if not captured or not frame.is_file():
+                    observations.append({"frame": str(frame), "ok": False, "error": "capture failed"})
+                    stable = 0
+                    continue
+                rc, detail = observe_ramtest(frame)
+                running_seen, stable = advance(running_seen, stable, rc == 0 and time.monotonic() < deadline, detail)
+        end = req("/api/v1/session", "ramtest-session-after")
+        if tool and os.path.isfile(tool):
+            end_identity = session_identity(end)
+        bound = bool(tool and os.path.isfile(tool) and continuity and session_bound(ss, end, game, pid, TARGET, os.environ.get("C_TARGET_ID", "")) and
+                     time.monotonic() < deadline)
+        (OUT / "ramtest-screen.json").write_text(json.dumps({"observations": observations,
+            "identity": identity, "final_identity": end_identity, "running_seen": running_seen,
+            "stable_pass": stable >= 2, "bound": bound}, indent=2))
+        check("ramtest_sdram", bound and running_seen and stable >= 2,
+              "fresh 128-MiB SDRAM RUNNING to two PASS frames; both LPDDR banks untested" if bound and running_seen and stable >= 2
+              else "no bound RUNNING to stable PASS transition before deadline")
+    elif tool and os.path.isfile(tool):
         frames = [str(FR / (n + ".png")) for n in ("10-core", "11-core") if (FR / (n + ".png")).is_file()]
-        bs = subprocess.run([sys.executable, tool, "--core", os.environ.get("C_CORE_ID", ""), *frames], capture_output=True, text=True, timeout=180)
+        bs = subprocess.run([sys.executable, tool, "--core", core_id, *frames], capture_output=True, text=True, timeout=180)
         (OUT / "boot-screen.json").write_text(bs.stdout + bs.stderr)
         if bs.returncode != 3:
             check("boot_screen", bs.returncode == 0 and len(frames) == 2, bs.stdout.strip()[:400])"""
@@ -148,7 +211,7 @@ new_video = old_video + """
 if old_video not in s: raise SystemExit('HIL smoke core video check changed')
 s=s.replace(old_video,new_video,1)
 compile(s, str(p), 'exec')
-if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s or 'C_CONFORMANCE_TOOL' not in s: raise SystemExit('D25 smoke patch verification failed')
+if 'C_API' not in s or 'session-after-stop' not in s or 'boot-screen.json' not in s or 'C_CONFORMANCE_TOOL' not in s or 'ramtest_sdram' not in s or 'ramtest_deadline' not in s: raise SystemExit('D25 smoke patch verification failed')
 p.write_text(s)
 PY
 fi
@@ -269,8 +332,8 @@ for i in "${!PKGS[@]}"; do
       timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   else
-    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
-      timeout 1800 python3 "$Q/hil-de25-core.py" >"$SMOKE_LOG" 2>&1
+    C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_TARGET_ID="$TARGET_ID" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
+      timeout 1800 python3 "$SMOKE_DRIVER" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   fi
   set -e

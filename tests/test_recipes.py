@@ -506,7 +506,8 @@ class RecipeDataTest(unittest.TestCase):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
         self.assertEqual(set(self.load_document(document, board='de25-nano')),
-                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64', 'fes.pcxt-dos'})
+                         {'fes.menu', 'fes.zx81', 'fes.spectrum', 'fes.atari-st', 'fes.c64',
+                          'fes.pcxt-dos', 'fes.ramtest'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.
