@@ -35,7 +35,7 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 		return diskDataThroughHostAPI(ctx, origin, args[1], args[2])
 	case "change-disk":
 		if len(args) != 2 {
-			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st/.img/.trd/.scl-path>"))
+			return fail(errors.New("usage: fogcast change-disk <media-id-or-.dsk/.do/.d64/.st/.img/.ima/.trd/.scl-path>"))
 		}
 		return changeDiskThroughHostAPI(ctx, origin, args[1])
 	case "eject-disk":
