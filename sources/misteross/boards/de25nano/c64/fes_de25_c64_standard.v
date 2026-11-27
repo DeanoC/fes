@@ -143,25 +143,24 @@ module fes_de25_c64_standard #(
         .dram_cas_n(dram_cas_n), .dram_we_n(dram_we_n),
         .dq_i(dram_dq_i), .dq_o(dram_dq_o), .dq_oe(dram_dq_oe)
     );
-    // Keep the read-only scanout interface for secure drain observation.
-    // The local picker reserves three previously unused CSR words and owns
-    // only pixels. Command selection and both responses stay in pixel_clk.
+    // Decode the native picker by direction inside the pixel-clock endpoint.
+    // All scanout fault and identity reads remain connected to the game path.
     wire [27:0] game_video;
     wire [31:0] game_scanout_data;
     wire game_scanout_read_valid, game_scanout_write_valid, game_scanout_wait;
     wire [1:0] game_scanout_response;
 `ifdef FES_DE25_NATIVE_C64
-    wire picker_access = scanout_address >= 7'h74;
+    wire picker_access;
     wire [31:0] picker_data;
     wire picker_read_valid, picker_write_valid;
     wire [1:0] picker_response;
     fes_de25_c64_picker picker (
         .clk(pixel_clk), .reset_n(pixel_reset_n),
-        .address(scanout_address), .read(scanout_read && picker_access),
-        .write(scanout_write && picker_access), .byteenable(scanout_byteenable),
+        .address(scanout_address), .read(scanout_read),
+        .write(scanout_write), .byteenable(scanout_byteenable),
         .writedata(scanout_writedata), .readdata(picker_data),
         .readdatavalid(picker_read_valid), .writeresponsevalid(picker_write_valid),
-        .response(picker_response), .machine(game_video), .video(video)
+        .response(picker_response), .selected(picker_access), .machine(game_video), .video(video)
     );
     assign scanout_readdata = picker_read_valid ? picker_data : game_scanout_data;
     assign scanout_readdatavalid = picker_read_valid || game_scanout_read_valid;

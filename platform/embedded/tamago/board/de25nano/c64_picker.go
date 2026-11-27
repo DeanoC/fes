@@ -36,7 +36,7 @@ type c64PickerPort struct {
 func (p *c64PickerPort) Read32(offset uint32) (uint32, error) {
 	if p.active {
 		switch offset {
-		case 0x74, 0x7c, 0x80, 0x88:
+		case computer.C64PickerStatus, 0x80, 0x88:
 			return load32(c64PickerGuard + uintptr(offset)), nil
 		}
 	}
@@ -44,7 +44,7 @@ func (p *c64PickerPort) Read32(offset uint32) (uint32, error) {
 }
 
 func (p *c64PickerPort) Write32(offset, value uint32) error {
-	if !p.active || p.writes >= 194 || (offset != 0x78 && (offset != 0x7c || value < 1 || value > 3)) {
+	if !p.active || p.writes >= 194 || (offset != computer.C64PickerData && (offset != computer.C64PickerCommand || value < 1 || value > 3)) {
 		return errors.New("DE25: write outside the C64 picker scope")
 	}
 	p.writes++

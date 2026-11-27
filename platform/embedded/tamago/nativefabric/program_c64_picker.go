@@ -16,9 +16,6 @@ import (
 const (
 	pickerWidth   = 48
 	pickerHeight  = 16
-	pickerID      = 0x43504931
-	pickerStatus  = 0x7c
-	pickerData    = 0x78
 	pickerShowing = 1
 	pickerPending = 2
 	pickerFault   = 4
@@ -133,30 +130,26 @@ func (c *computerIO) publishC64Picker(ctx context.Context, show bool, frame *c64
 		if err != nil || guardID != pickerGuardID {
 			return errors.Join(err, errors.New("native C64 picker: scanout guard identity absent"))
 		}
-		tag, err := io.Read32(0x74)
-		if err != nil || tag != pickerID {
-			return errors.Join(err, errors.New("native C64 picker: FPGA overlay identity absent"))
-		}
 		initial, err := readC64PickerStatus(io)
 		if err != nil || initial&pickerPending != 0 {
 			return errors.Join(err, errors.New("native C64 picker: previous frame still pending"))
 		}
 		expected = uint16(initial>>16) + 1
 		if !show {
-			return io.Write32(pickerStatus, 3)
+			return io.Write32(computer.C64PickerCommand, 3)
 		}
-		if err := io.Write32(pickerStatus, 1); err != nil {
+		if err := io.Write32(computer.C64PickerCommand, 1); err != nil {
 			return err
 		}
 		for i := 0; i < len(frame); i += 4 {
 			if err := bounded.Err(); err != nil {
 				return err
 			}
-			if err := io.Write32(pickerData, binary.LittleEndian.Uint32(frame[i:i+4])); err != nil {
+			if err := io.Write32(computer.C64PickerData, binary.LittleEndian.Uint32(frame[i:i+4])); err != nil {
 				return err
 			}
 		}
-		return io.Write32(pickerStatus, 2)
+		return io.Write32(computer.C64PickerCommand, 2)
 	}, cpu.WithC64PickerBatch); err != nil {
 		return err
 	}
@@ -182,9 +175,12 @@ func (c *computerIO) publishC64Picker(ctx context.Context, show bool, frame *c64
 }
 
 func readC64PickerStatus(io computer.IO) (uint32, error) {
-	status, err := io.Read32(pickerStatus)
+	status, err := io.Read32(computer.C64PickerStatus)
 	if err != nil {
 		return 0, err
+	}
+	if status&computer.C64PickerTagMask != computer.C64PickerTag {
+		return 0, errors.New("native C64 picker: FPGA overlay identity absent")
 	}
 	guard, err := io.Read32(0x88)
 	if err != nil || guard&7 != 0 || status&pickerFault != 0 {

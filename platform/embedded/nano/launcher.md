@@ -136,6 +136,13 @@ one M20K for two text buffers and switches between them at vertical blanking.
 The CPU writes through the existing control bridge, so the panel requires no
 FPGA DDR access.
 
+The native C64 picker extends the scanout control aperture in previously
+unused access directions. It reads tagged picker status at `0x0c` and
+writes picker data and commands at `0x64` and `0x68`. Scanout command
+writes, build ID reads and first-fault reads still use the scanout endpoint.
+The runtime requires the tagged picker status before it writes any overlay
+data.
+
 The host test exercises Tenfoot and its keyboard controls with a regular
 FAT32 image and a modeled mailbox. The native C64 RTL simulation checks the
 panel on the active video stream, both disk commits, and continuing

@@ -18,10 +18,8 @@ type fixtureC64Picker struct {
 
 func (p *fixtureC64Picker) Read32(offset uint32) (uint32, error) {
 	switch offset {
-	case 0x74:
-		return pickerID, nil
-	case pickerStatus:
-		return p.status, nil
+	case computer.C64PickerStatus:
+		return p.status | computer.C64PickerTag, nil
 	case 0x80:
 		return pickerGuardID, nil
 	case 0x88:
@@ -33,12 +31,12 @@ func (p *fixtureC64Picker) Read32(offset uint32) (uint32, error) {
 
 func (p *fixtureC64Picker) Write32(offset, value uint32) error {
 	switch {
-	case offset == pickerData && p.length >= 0 && p.length+4 <= len(p.frame):
+	case offset == computer.C64PickerData && p.length >= 0 && p.length+4 <= len(p.frame):
 		binary.LittleEndian.PutUint32(p.frame[p.length:], value)
 		p.length += 4
-	case offset == pickerStatus && value == 1 && p.length == -1:
+	case offset == computer.C64PickerCommand && value == 1 && p.length == -1:
 		p.length = 0
-	case offset == pickerStatus && (value == 2 && p.length == len(p.frame) || value == 3 && p.length == -1):
+	case offset == computer.C64PickerCommand && (value == 2 && p.length == len(p.frame) || value == 3 && p.length == -1):
 		p.length = -1
 		p.status = (p.status & 0xffff0000) + 0x10000
 		p.commits = append(p.commits, value == 2)

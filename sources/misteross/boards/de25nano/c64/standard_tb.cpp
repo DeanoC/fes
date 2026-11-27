@@ -306,22 +306,54 @@ void upload_disk(Board& board, const std::vector<uint8_t>& disk) {
 }
 
 #ifdef C64_NATIVE
+void verify_scanout_fault_registers() {
+    Board board;
+    require(board.scanout(0x74, false) == 0 &&
+            board.scanout(0x78, false) == 0 &&
+            board.scanout(0x7c, false) == 0, "new scanout must report an empty first-fault record");
+
+    // Start the real scanout and leave its accepted DDR requests unanswered.
+    board.scanout(0x10, true, 0x95000000);
+    board.scanout(0x18, true, 0x800000);
+    board.scanout(0x1c, true, 1);
+    board.scanout(0x24, true, 1);
+    board.scanout(0x28, true, 1);
+    board.scanout(0x0c, true, 1);
+    auto& root = board.root;
+    const auto& state = root.fes_de25_c64_standard__DOT__display__DOT__memory__DOT__first_fault_state;
+    for (unsigned i = 0; i < 2000000 && !(state & 0x80000000u); ++i)
+        board.run_clocks(1);
+    require(board.display_pending && (state & 0x80000000u),
+            "withheld scanout response did not trigger a first fault");
+    require(board.scanout(0x74, false) == state &&
+            board.scanout(0x78, false) ==
+                root.fes_de25_c64_standard__DOT__display__DOT__memory__DOT__first_fault_occupancy &&
+            board.scanout(0x7c, false) ==
+                root.fes_de25_c64_standard__DOT__display__DOT__memory__DOT__first_fault_gaps,
+            "native picker hid the retained scanout first-fault record");
+}
+
 void verify_picker_live_swap(Board& board, const std::vector<uint8_t>& original) {
-    constexpr uint32_t picker_command = 0x7c;
+    constexpr uint32_t picker_status = 0x0c;
+    constexpr uint32_t picker_data = 0x64;
+    constexpr uint32_t picker_command = 0x68;
+    constexpr uint32_t picker_tag = 0x4788;
     constexpr uint32_t overlay_color = 0x3c5991;
-    require(board.scanout(0x74, false) == 0x43504931, "native picker aperture missing");
+    require(board.scanout(picker_status, false) == picker_tag, "native picker aperture missing");
     const auto before = board.read(0x18);
     board.scanout(picker_command, true, 1);
     for (unsigned i = 0; i < 192; ++i)
-        board.scanout(0x78, true, 0xa0a0a0a0);
+        board.scanout(picker_data, true, 0xa0a0a0a0);
     board.scanout(picker_command, true, 2);
     bool visible = false;
     for (uint32_t cycles = 0; cycles < 2000000 && !visible; ++cycles) {
         board.run_clocks(1);
         visible = (board.dut.video & 0x1ffffff) == (0x1000000 | overlay_color);
     }
-    require(visible && board.scanout(picker_command, false) == 0x10001,
+    require(visible && board.scanout(picker_status, false) == (0x10001 | picker_tag),
             "picker did not appear on active HDMI");
+    require(board.scanout(picker_data, false) == 0xccddeeff &&
+            board.scanout(picker_command, false) == 0x8899aabb, "picker replaced the scanout build ID");
     require(board.read(0x18) > before && !board.dut.exec_reset && board.display_pending == 0,
             "picker held C64 or used FPGA DDR");
 
@@ -338,9 +370,9 @@ void verify_picker_live_swap(Board& board, const std::vector<uint8_t>& original)
         last_fetch = current_fetch;
     }
     board.scanout(picker_command, true, 3);
-    for (unsigned checks = 0; checks < 25 && (board.scanout(picker_command, false) & 2); ++checks)
+    for (unsigned checks = 0; checks < 25 && (board.scanout(picker_status, false) & 2); ++checks)
         board.run_clocks(50000);
-    require(board.scanout(picker_command, false) == 0x20000 && board.read(0x18) > last_fetch,
+    require(board.scanout(picker_status, false) == (0x20000 | picker_tag) && board.read(0x18) > last_fetch,
             "picker did not disappear with C64 still running");
     std::cout << "de25 c64 native: live HDMI selector and both D64 commits passed" << std::endl;
 }
@@ -359,6 +391,7 @@ int main(int argc, char** argv) {
 #ifdef C64_NATIVE
     SecureStop{}.run(false);
     SecureStop{}.run(true);
+    verify_scanout_fault_registers();
     std::cout << "de25 c64 native: secure scanout ready, drain and wedge checks passed" << std::endl;
 #endif
     Board board;

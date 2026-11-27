@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // A CPU-written text plane for a running native C64. The 48x16 character
 // cells use RGB palette colors and do not start an FPGA DDR master.
+`include "generated/fes_de25_scanout.vh"
 module fes_de25_c64_picker (
     input wire clk, reset_n,
     input wire [6:0] address,
@@ -10,11 +11,21 @@ module fes_de25_c64_picker (
     output reg [31:0] readdata,
     output reg readdatavalid, writeresponsevalid,
     output wire [1:0] response,
+    output wire selected,
     input wire [27:0] machine,
     output reg [27:0] video
 );
     localparam [8:0] WORDS = 9'd192;
-    localparam [6:0] STATUS = 7'h74, DATA = 7'h78, COMMAND = 7'h7c;
+    // Native C64 extension of the scanout control aperture. The original
+    // command write and all scanout register reads keep their meanings.
+    // The picker uses the unused read of COMMAND and the unused writes to
+    // BUILD_ID0 and BUILD_ID1. First-fault addresses are always scanout.
+    localparam [6:0] STATUS = 7'(`FES_DE25_SCANOUT_COMMAND_OFFSET);
+    localparam [6:0] DATA = 7'(`FES_DE25_SCANOUT_BUILD_ID0_OFFSET);
+    localparam [6:0] COMMAND = 7'(`FES_DE25_SCANOUT_BUILD_ID1_OFFSET);
+    localparam [12:0] STATUS_TAG = 13'h08f1;
+    assign selected = (read && !write && address == STATUS) ||
+                      (write && !read && (address == DATA || address == COMMAND));
     // Pixel clock is also the Avalon slave clock. Two banks share a single
     // dual-port 32-bit RAM; an incomplete bank is never selected.
     (* ramstyle = "M20K" *) reg [31:0] cells [0:511];
@@ -40,7 +51,7 @@ module fes_de25_c64_picker (
     reg [2:0] bit_x, bit_y;
     reg plane;
     wire [7:0] character = glyphs[{lane, 3'b000} +: 8];
-    wire store = write && !read && byteenable == 4'hf &&
+    wire store = selected && write && byteenable == 4'hf &&
                  address == DATA && writing && !pending && !fault && count < WORDS;
     assign response = 2'b00;
 
@@ -162,15 +173,10 @@ module fes_de25_c64_picker (
         d2 <= {d1[27:24], plane ? (ink ? 24'hffffff :
                                      character[7] ? 24'h3c5991 : 24'h151f32) : d1[23:0]};
         video <= d2;
-        readdatavalid <= read && !write;
-        writeresponsevalid <= write && !read;
-        if (read) begin
-            case (address)
-                STATUS: readdata <= 32'h43504931; // CPI1
-                COMMAND: readdata <= {published, 13'd0, fault, pending, showing};
-                default: readdata <= 0;
-            endcase
-        end
+        readdatavalid <= selected && read;
+        writeresponsevalid <= selected && write;
+        if (selected && read)
+            readdata <= {published, STATUS_TAG, fault, pending, showing};
         if (!reset_n) begin
             h <= 11'd1649; v <= 10'd749; seen_vs <= 0;
             d1 <= 0; d2 <= 0; video <= 0; plane <= 0;
@@ -187,7 +193,7 @@ module fes_de25_c64_picker (
                     published <= published + 1'b1;
                 end
             end
-            if (write && !read && !fault) begin
+            if (selected && write && !fault) begin
                 if (store) count <= count + 1'b1;
                 else if (address == COMMAND && byteenable == 4'hf && !pending) begin
                     case (writedata)
