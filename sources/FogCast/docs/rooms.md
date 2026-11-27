@@ -384,13 +384,13 @@ destination.set{
   status = "38 games",      -- the hero headline
   explain = "Open it to choose a model and a game.",
   models = "4 models: ZX81, ZX80, TS1000, TS1500",
-  needs = "",               -- "firmware" makes the primary "Add firmware"
+  needs = "",               -- "firmware" describes a missing firmware need
   details = { "ZX81: Ready", "ZX80: Needs firmware" },
 }
 ```
 
 The hero shows kicker "Computer", the models line, the state chip with the
-headline, the explanation, and Open (or Add firmware) and Details. Details
+headline, the explanation, and Open and Details. Details
 shows the `details` lines inside the hero. Checking waits on Confirm; every
 other state opens that room, where a missing firmware is added.
 

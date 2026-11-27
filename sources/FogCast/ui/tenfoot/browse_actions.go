@@ -89,8 +89,6 @@ func browseActionLabels(d rooms.Destination) (primary string, secondary bool) {
 		switch {
 		case d.Confirm() != rooms.ConfirmEnterRoom:
 			return "", false
-		case d.FamilyNeeds == "firmware":
-			return "Add firmware", true
 		}
 		return "Open", true
 	}

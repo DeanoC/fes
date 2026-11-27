@@ -135,7 +135,18 @@ end
 -- A family's state ("checking", "ready", "firmware", "missing", "blocked"),
 -- with the reason for "blocked" and the model Open starts on.
 function M.state(f)
-  if not M.settled() then return "checking", nil, f.variants[1].id end
+  if not M.settled() then
+    -- A ready host machine has already passed admission. It can be opened
+    -- while the independent kit shelf is warming; absence or a blocked host
+    -- entry must still wait for the shelf, which could provide another model.
+    if not M.waiting() and hardware_loaded and (titles ~= nil or library_err ~= nil) and kit_rows == nil and not overfull[f.id] then
+      for _, v in ipairs(f.variants) do
+        local machine = machines and machines[v.id]
+        if machine and machine.ready then return "ready", nil, v.id end
+      end
+    end
+    return "checking", nil, f.variants[1].id
+  end
   if overfull[f.id] then return "blocked", "Too many systems to check", f.variants[1].id end
   local firmware, blocked, reason, any = nil, nil, nil, nil
   for _, v in ipairs(f.variants) do
@@ -193,9 +204,12 @@ local STATE_WORDS = {
 function M.details(f)
   local lines, order, models = {}, {}, {}
   local settled = M.settled()
+  local family_state = M.state(f)
   for _, v in ipairs(f.variants) do
     local state, why = model_state(v.id)
-    if not settled then state, why = "checking", nil end
+    if not settled and not (family_state == "ready" and machines and machines[v.id] and machines[v.id].ready) then
+      state, why = "checking", nil
+    end
     if overfull[f.id] then state, why = "blocked", "Too many systems to check" end
     local word = why or STATE_WORDS[state] or "Can't start here"
     if not models[word] then
@@ -235,7 +249,7 @@ function M.publish(f)
     explain = headline == "No games yet" and "Open it to choose a model." or "Open it to choose a model and a game."
   elseif state == "firmware" then
     headline = "Add your " .. f.label .. " ROM files to play"
-    explain = "Open it to see which files it needs and where they go."
+    explain = "Open it to set up its firmware."
     needs = "firmware"
   elseif state == "missing" then
     headline = "Not installed on this kit"

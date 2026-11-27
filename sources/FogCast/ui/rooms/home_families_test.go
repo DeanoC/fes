@@ -450,6 +450,38 @@ func TestHomeChecksUntilTheLibraryAnswers(t *testing.T) {
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 }
 
+func TestHomeCanOpenAdmittedMachineWhileKitShelfWarms(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.spectrum", Launchable: true}}}, release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-held.release:
+		default:
+			close(held.release)
+		}
+	})
+	svc := &homeServices{
+		computers:    []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
+		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+	}
+	r := loadHome(t, Options{Services: svc, Local: held, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "Sinclair ZX81" && d.Availability == AvailReady
+	})
+	if d := r.Destination(); d.GameID != "zx81" || d.Confirm() != ConfirmEnterRoom || !strings.Contains(strings.Join(d.Details, " "), "Ready: ZX81") {
+		t.Fatalf("admitted machine while kit warms: %+v", d)
+	}
+	r.Input("right")
+	if d := r.Destination(); d.Label != "ZX Spectrum" || d.Availability != AvailChecking || d.Confirm() != ConfirmWait {
+		t.Fatalf("unknown kit model while warming: %+v", d)
+	}
+	close(held.release)
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "ZX Spectrum" && d.Availability == AvailReady
+	})
+}
+
 func TestHomeRestoresTheSavedFamily(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "home.state.json")
 	if err := os.WriteFile(storePath, []byte(`{"focus":"family:fes.atari-st"}`), 0o644); err != nil {

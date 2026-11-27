@@ -7,8 +7,8 @@
 -- machine entries (platform "fpga" rows without media) for its models, and
 -- its game count from that library's titles with media. When the library
 -- can't be read, kit.cores still says which models are installed and which
--- need firmware. Open goes to the family's workbench, where the model is
--- chosen; FES draws the selected family's or title's copy in the hero text
+-- need firmware. Open goes to the family's core screen or workbench; FES
+-- draws the selected family's or title's copy in the hero text
 -- column (room.toml destination_panel = "hero").
 --
 -- Recently played is the library's recents collection, hidden until
