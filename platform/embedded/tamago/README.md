@@ -139,4 +139,4 @@ HOST_GO` to derive content-bound ROM receipts and export `FIRMWARE.BIN`,
 | Storage & packages | [packagestore](packagestore/README.md), [storagepolicy](storagepolicy/README.md), [ota](ota/README.md), [fat](fat/README.md), [fatcheck](fatcheck/README.md), [block](block/README.md), [sdcontrol](sdcontrol/README.md), [sdhci](sdhci/README.md) |
 | Input & USB | [input](input/README.md), [usb](usb/README.md), [usbcontrol](usbcontrol/README.md), [dwc2](dwc2/README.md), [cmd/usbcheck](cmd/usbcheck/README.md) |
 | Networking | [network](network/README.md), [xgmac](xgmac/README.md), [maccontrol](maccontrol/README.md) |
-| Board & core services | [board](board/README.md), [board/arm64map](board/arm64map/README.md), [gic](gic/README.md), [dmaops](dmaops/README.md), [display](display/README.md), [psci](psci/README.md), [rtc](rtc/README.md), [wdt](wdt/README.md) |
+| Board & core services | [board](board/README.md), [board/arm64map](board/arm64map/README.md), [gic](gic/README.md), [dmaops](dmaops/README.md), [display](display/README.md), [i2c](i2c/README.md), [adv7513](adv7513/README.md), [psci](psci/README.md), [rtc](rtc/README.md), [wdt](wdt/README.md) |
