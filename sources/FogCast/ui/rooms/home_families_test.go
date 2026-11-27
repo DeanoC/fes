@@ -159,6 +159,15 @@ func homeSettled(r *Instance) bool {
 	if (d.Kind != KindFamily && d.Kind != KindGame) || d.Availability == AvailChecking || d.Availability == "" {
 		return false
 	}
+	// An admitted family can now be usable before the kit shelf finishes.
+	// Tests waiting for the fully settled picture must wait for every source.
+	work := r.work
+	r.work = nil
+	err := r.CheckGlobal(`require("families").settled()`)
+	r.work = work
+	if err != nil {
+		return false
+	}
 	// Home's family row: as many 140-wide tiles as the shelf holds, six at
 	// most. Every Home here has at least the six default families.
 	want := 1
