@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -95,6 +96,15 @@ func (h *otaHandler) handleStage(w http.ResponseWriter, r *http.Request) {
 	}
 	target := strings.TrimSpace(r.Header.Get("X-OTA-Target"))
 	expectedSHA := strings.TrimSpace(r.Header.Get("X-OTA-SHA256"))
+	var signature []byte
+	if encoded := strings.TrimSpace(r.Header.Get("X-OTA-Signature")); encoded != "" {
+		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "invalid_request", "invalid X-OTA-Signature header")
+			return
+		}
+		signature = decoded
+	}
 
 	var epoch uint64
 	if rawEpoch := strings.TrimSpace(r.Header.Get("X-OTA-Rollback-Epoch")); rawEpoch != "" {
@@ -128,6 +138,7 @@ func (h *otaHandler) handleStage(w http.ResponseWriter, r *http.Request) {
 		Payload:        payload,
 		ExpectedSHA256: expectedSHA,
 		RollbackEpoch:  epoch,
+		Signature:      signature,
 	})
 	if err != nil {
 		writeOTAError(w, err)

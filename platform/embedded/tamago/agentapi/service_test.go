@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -425,12 +426,22 @@ func TestServiceOTAHTTPLifecycleOverLneto(t *testing.T) {
 	defer cleanup()
 
 	vol := newMemFATVolume(t)
-	mgr, err := ota.Open(ctx, vol, ota.Config{Board: "de25-nano", MaxImageBytes: 64 << 10})
+	const testSignature = "valid test signature"
+	mgr, err := ota.Open(ctx, vol, ota.Config{
+		Board:         "de25-nano",
+		MaxImageBytes: 64 << 10,
+		VerifySignature: func(_ ota.SlotManifest, _ [32]byte, signature []byte) error {
+			if !bytes.Equal(signature, []byte(testSignature)) {
+				return errors.New("invalid test signature")
+			}
+			return nil
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	v1 := bytes.Repeat([]byte("SLOT-A-V1"), 256)
-	if _, err := mgr.SeedActiveSlot(ctx, ota.StageRequest{Version: "1.0.0", Target: "de25-nano", Payload: v1}); err != nil {
+	if _, err := mgr.SeedActiveSlot(ctx, ota.StageRequest{Version: "1.0.0", Target: "de25-nano", Payload: v1, Signature: []byte(testSignature)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -514,6 +525,23 @@ func TestServiceOTAHTTPLifecycleOverLneto(t *testing.T) {
 	}
 	v2 := bytes.Repeat([]byte("SLOT-B-V2"), 256)
 	v2SHA := fmt.Sprintf("%x", sha256.Sum256(v2))
+	stageHeaders := map[string]string{
+		"X-OTA-Version":        "2.0.0",
+		"X-OTA-Target":         "de25-nano",
+		"X-OTA-SHA256":         v2SHA,
+		"X-OTA-Rollback-Epoch": "2",
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, stageHeaders, secret); resp.StatusCode != http.StatusBadRequest || !bytes.Contains(body, []byte("invalid test signature")) {
+		t.Fatalf("unsigned stage status=%d body=%s, want signature rejection with 400", resp.StatusCode, body)
+	}
+	if got := mgr.Status().Phase; got != ota.PhaseIdle {
+		t.Fatalf("phase after unsigned stage = %s, want idle", got)
+	}
+	signedStageHeaders := make(map[string]string, len(stageHeaders)+1)
+	for key, value := range stageHeaders {
+		signedStageHeaders[key] = value
+	}
+	signedStageHeaders["X-OTA-Signature"] = base64.StdEncoding.EncodeToString([]byte(testSignature))
 	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", v2, map[string]string{
 		"X-OTA-Version": "2.0.0",
 		"X-OTA-Target":  "qemu",
@@ -523,23 +551,13 @@ func TestServiceOTAHTTPLifecycleOverLneto(t *testing.T) {
 	}
 
 	// Stage -> Cancel -> Re-stage -> Activate -> Conflict on stage during Pending -> SelectBoot -> Confirm -> Rollback.
-	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, map[string]string{
-		"X-OTA-Version":        "2.0.0",
-		"X-OTA-Target":         "de25-nano",
-		"X-OTA-SHA256":         v2SHA,
-		"X-OTA-Rollback-Epoch": "2",
-	}, secret); resp.StatusCode != http.StatusOK {
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, signedStageHeaders, secret); resp.StatusCode != http.StatusOK {
 		t.Fatalf("stage v2 status=%d body=%s", resp.StatusCode, body)
 	}
 	if resp, body := doReq(http.MethodPost, "/v1/ota/cancel", nil, nil, secret); resp.StatusCode != http.StatusOK {
 		t.Fatalf("cancel status=%d body=%s", resp.StatusCode, body)
 	}
-	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, map[string]string{
-		"X-OTA-Version":        "2.0.0",
-		"X-OTA-Target":         "de25-nano",
-		"X-OTA-SHA256":         v2SHA,
-		"X-OTA-Rollback-Epoch": "2",
-	}, secret); resp.StatusCode != http.StatusOK {
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, signedStageHeaders, secret); resp.StatusCode != http.StatusOK {
 		t.Fatalf("restage v2 status=%d body=%s", resp.StatusCode, body)
 	}
 	if resp, body := doReq(http.MethodPost, "/v1/ota/activate", nil, nil, secret); resp.StatusCode != http.StatusOK {
