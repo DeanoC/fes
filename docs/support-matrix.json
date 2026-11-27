@@ -2309,7 +2309,7 @@
   "de25_tier1": {
     "note": [
       "Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).",
-      "A cell is sealed only when its exact package SHA-256 is recorded with an in-repo JSON smoke receipt for that core and package on Kit D25 (`kit_serial`, `core_id`, `package_sha256`, `verdict` PASS), so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate those receipts, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open."
+      "A cell is sealed only when its exact package SHA-256 is recorded with an in-repo JSON smoke receipt for that core and package on Kit D25 (`kit_serial`, `core_id`, `package_sha256`, `verdict` PASS), so a rebuilt or resealed package starts again at builds. Earlier kit runs listed under other machines predate those receipts; only cells with a recorded package SHA-256 and JSON receipt are sealed. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open."
     ],
     "states": [
       {
@@ -2401,14 +2401,21 @@
       {
         "label": "pc386",
         "cells": {
-          "fes.pc386": "builds"
+          "fes.pc386": "sealed"
+        },
+        "packages": {
+          "fes.pc386": {
+            "sha256": "b65142be48cc92c5b6907ba2f2ec540e097ef8b4a2a34c917cca2ca44c6fed5a",
+            "evidence": "docs/validation/2026-11-27-de25-pc386-sealed/smoke-receipt.json"
+          }
         },
         "issues": [
           2029,
-          2245
+          2245,
+          2353
         ],
-        "proven": "nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run.",
-        "missing": "the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip."
+        "proven": "warm-reset SMMU fix (#2246); HDMI scanline display-priority/write-credit fix (#2344); registered DE25 Quartus Pro 26.3 recipe; exact-package 486SX Kit D25 lifecycle smoke receipt (`docs/validation/2026-11-27-de25-pc386-sealed/smoke-receipt.json`: FreeDOS boot, HID keyboard, DOOM E1M1 with 0 scanline dropouts, HDMI audio, 0 new SMMU faults, verified restore).",
+        "missing": "in-session relaunch black HDMI fix (#2353); the pc386 acceptance corpus on Kit D25; conformance; the `fes.persistence.words` save round-trip."
       }
     ]
   }
