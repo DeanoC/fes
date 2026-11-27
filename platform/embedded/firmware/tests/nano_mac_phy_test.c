@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef FES_NANO_MAC_JOINED_TEST
+#include "nano_mac_joined_fixture.h"
+#endif
 
 #define MAC 0x10810000U
 #define CLOCK 0x10d10000U
@@ -25,13 +28,25 @@ static struct fixture {
 
 uint64_t phy_us(void)
 {
+#ifdef FES_NANO_MAC_JOINED_TEST
+    return channel_time();
+#else
     if (f.backward && f.us > 50000) return 0;
     return f.us += f.step;
+#endif
 }
-int phy_clock_valid(void) { return (int)f.timer_ok; }
+int phy_clock_valid(void) {
+#ifdef FES_NANO_MAC_JOINED_TEST
+    return channel_frequency();
+#else
+    return (int)f.timer_ok;
+#endif
+}
+#ifndef FES_NANO_MAC_JOINED_TEST
 static int owned(void *unused) { (void)unused; return f.owns; }
 static int drained(void *unused) { (void)unused; return f.idle; }
 static const struct fes_nano_mac_phy_guards guards = {0, owned, drained};
+#endif
 
 uint32_t phy_read(uint32_t a)
 {
@@ -40,6 +55,9 @@ uint32_t phy_read(uint32_t a)
     if (a == PER0) return f.reset;
     if (a == MODE) return f.mode;
     assert(!(f.reset & 0x101));
+#ifdef FES_NANO_MAC_JOINED_TEST
+    if (a != MAC+0x200 && a != MAC+0x204 && a != MAC+0x220) return channel_mmio(a);
+#endif
     if (a == MAC || a == MAC+4) return 0;
     if (a == MAC+0x3000) return f.omit_swr;
     if (a == MAC+0x110) return f.wrong_mac ? 0 : 0x107631;
@@ -75,6 +93,9 @@ static uint16_t reg_read(unsigned r)
 }
 static void reg_write(unsigned r, uint16_t value)
 {
+#ifdef FES_NANO_MAC_JOINED_TEST
+    assert(!fes_mac_fixture_engines_live());
+#endif
     f.phy_writes++;
     uint16_t sel=f.reg[13];
     if (r == 13) f.reg[13] = value;
@@ -100,10 +121,18 @@ void phy_write(uint32_t a, uint32_t v)
     else if (a == PER0) {
         assert(((f.reset ^ v) & ~0x101U) == 0);
         f.reset = v;
+#ifdef FES_NANO_MAC_JOINED_TEST
+        fes_mac_fixture_set_reset(v);
+#endif
     } else {
         assert(!(f.reset & 0x101));
         switch (a-MAC) {
-        case 0x3000: assert(v == 1 && !f.running); break;
+        case 0x3000:
+            assert(v == 1 && !f.running);
+#ifdef FES_NANO_MAC_JOINED_TEST
+            fes_mac_fixture_core_reset();
+#endif
+            break;
         case 0x220: assert(v==2); f.c22=v; break;
         case 0x200: assert((v>>16)==1 && (uint16_t)v<32); f.addr=v; break;
         case 0x204:
@@ -136,6 +165,19 @@ static struct fes_nano_mac_phy reset_fixture(void)
     f.hi=3; f.lo=0x4000;
     return (struct fes_nano_mac_phy){0};
 }
+#ifdef FES_NANO_MAC_JOINED_TEST
+void fes_mac_fixture_boot(void)
+{
+    (void)reset_fixture();
+    fes_mac_fixture_channel_boot();
+    fes_mac_fixture_set_reset(f.reset);
+}
+unsigned fes_mac_fixture_restored(void)
+{
+    return f.reset == RESTORE && f.mode == 3 && f.hi == 3 && f.lo == 0x4000 &&
+           f.reg[13] == 0xc003 && f.mmd[0] == 0x5a5a && f.mmd[3] == 0xbeef;
+}
+#else
 static void verify_cycles(void)
 {
     struct fes_nano_mac_phy p=reset_fixture();
@@ -236,3 +278,4 @@ int main(void)
     puts("PASS matched CBL MAC/PHY training, deadlines, ownership and restoration");
     return 0;
 }
+#endif
