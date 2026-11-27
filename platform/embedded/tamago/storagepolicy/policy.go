@@ -208,6 +208,46 @@ type confined struct {
 	first, end, backup uint64
 }
 
+// partitionView presents the selected partition as a standalone block device.
+// The FAT driver therefore sees the selected partition's boot sector at LBA 0
+// and cannot mistake the card's MBR for a superfloppy boot sector.
+type partitionView struct {
+	*confined
+}
+
+func (d *partitionView) SectorCount() uint64 {
+	if d == nil || d.confined == nil || d.end < d.first {
+		return 0
+	}
+	return d.end - d.first
+}
+
+func (d *partitionView) ReadSectors(lba uint64, dst []byte) error {
+	if d == nil || d.confined == nil || d.Device == nil {
+		return fmt.Errorf("storage policy: missing partition device")
+	}
+	if err := block.CheckRange(d.SectorCount(), lba, len(dst)); err != nil {
+		return err
+	}
+	if len(dst) == 0 {
+		return nil
+	}
+	return d.Device.ReadSectors(d.first+lba, dst)
+}
+
+func (d *partitionView) WriteSectors(lba uint64, src []byte) error {
+	if d == nil || d.confined == nil || d.Device == nil {
+		return fmt.Errorf("storage policy: missing partition device")
+	}
+	if err := block.CheckRange(d.SectorCount(), lba, len(src)); err != nil {
+		return err
+	}
+	if len(src) == 0 {
+		return nil
+	}
+	return d.confined.WriteSectors(d.first+lba, src)
+}
+
 func (d *confined) WriteSectors(lba uint64, data []byte) error {
 	count := uint64(len(data) / 512)
 	touchesBackup := d.backup != 0 && lba <= d.backup && d.backup-lba < count
@@ -392,7 +432,7 @@ func Mount(ctx context.Context, media Device, p Plan) (*Volume, error) {
 	if err != nil {
 		return nil, err
 	}
-	fs, err := fat.Mount(disk)
+	fs, err := fat.Mount(&partitionView{confined: disk})
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +482,7 @@ func MountAppliance(ctx context.Context, media Device, policy AppliancePolicy) (
 	if err != nil {
 		return nil, err
 	}
-	fs, err := fat.Mount(disk)
+	fs, err := fat.Mount(&partitionView{confined: disk})
 	if err != nil {
 		return nil, err
 	}

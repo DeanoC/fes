@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"maps"
 	"sync"
 	"testing"
@@ -663,4 +665,160 @@ func TestManagerConcurrentStatusAndVerifyUnderRace(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+type boundedReadFixture struct {
+	data []byte
+	size int64
+}
+
+type boundedReadFixtureFS struct {
+	files map[string]boundedReadFixture
+	opens map[string]int
+	reads map[string]int
+}
+
+func (f *boundedReadFixtureFS) Open(name string) (fs.File, error) {
+	fixture, ok := f.files[name]
+	if !ok {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	f.opens[name]++
+	return &boundedReadFixtureFile{name: name, fixture: fixture, reads: f.reads}, nil
+}
+
+func (*boundedReadFixtureFS) CreateFile(context.Context, string, []byte) error {
+	return errors.New("unexpected CreateFile")
+}
+
+func (*boundedReadFixtureFS) ReplaceFile(context.Context, string, []byte) error {
+	return errors.New("unexpected ReplaceFile")
+}
+
+func (*boundedReadFixtureFS) RemoveFile(context.Context, string) error {
+	return errors.New("unexpected RemoveFile")
+}
+
+func (*boundedReadFixtureFS) MkdirAll(context.Context, string) error {
+	return errors.New("unexpected MkdirAll")
+}
+
+type boundedReadFixtureFile struct {
+	name    string
+	fixture boundedReadFixture
+	offset  int
+	reads   map[string]int
+}
+
+func (f *boundedReadFixtureFile) Stat() (fs.FileInfo, error) {
+	return boundedReadFixtureInfo{name: f.name, size: f.fixture.size}, nil
+}
+
+func (*boundedReadFixtureFile) Close() error { return nil }
+
+func (f *boundedReadFixtureFile) Read(dst []byte) (int, error) {
+	f.reads[f.name]++
+	if f.offset >= len(f.fixture.data) {
+		return 0, io.EOF
+	}
+	n := copy(dst, f.fixture.data[f.offset:])
+	f.offset += n
+	return n, nil
+}
+
+type boundedReadFixtureInfo struct {
+	name string
+	size int64
+}
+
+func (i boundedReadFixtureInfo) Name() string     { return i.name }
+func (i boundedReadFixtureInfo) Size() int64      { return i.size }
+func (boundedReadFixtureInfo) Mode() fs.FileMode  { return 0 }
+func (boundedReadFixtureInfo) ModTime() time.Time { return time.Time{} }
+func (boundedReadFixtureInfo) IsDir() bool        { return false }
+func (boundedReadFixtureInfo) Sys() any           { return nil }
+
+func newBoundedReadFixture(imageSize int, metaSize int64) *boundedReadFixtureFS {
+	digest := shaHex([]byte("manifest digest placeholder"))
+	state := ota.State{
+		Format:     ota.FormatVersion,
+		Generation: 1,
+		ActiveSlot: ota.SlotA,
+		Phase:      ota.PhaseIdle,
+		SlotA: &ota.SlotRecord{
+			Version: "1.0.0", Target: "de25-nano", Size: imageSize,
+			SHA256: digest, Healthy: true,
+		},
+	}
+	stateBytes, _ := json.Marshal(state)
+	manifest := ota.SlotManifest{
+		Format: ota.FormatVersion, Slot: ota.SlotA, Version: "1.0.0",
+		Target: "de25-nano", Size: imageSize, SHA256: digest,
+	}
+	manifestBytes, _ := json.Marshal(manifest)
+	if metaSize == 0 {
+		metaSize = int64(len(manifestBytes))
+	}
+	statePath := ota.DefaultRootDir + "/STATE.JSN"
+	manifestPath := ota.SlotA.ManifestPath(ota.DefaultRootDir)
+	imagePath := ota.SlotA.ImagePath(ota.DefaultRootDir)
+	return &boundedReadFixtureFS{
+		files: map[string]boundedReadFixture{
+			statePath:    {data: stateBytes, size: int64(len(stateBytes))},
+			manifestPath: {data: manifestBytes, size: metaSize},
+			imagePath:    {data: []byte("fixture payload"), size: int64(imageSize + 1)},
+		},
+		opens: make(map[string]int),
+		reads: make(map[string]int),
+	}
+}
+
+func TestOTARejectsOversizedFilesBeforeReadingContents(t *testing.T) {
+	ctx := context.Background()
+	statePath := ota.DefaultRootDir + "/STATE.JSN"
+	manifestPath := ota.SlotA.ManifestPath(ota.DefaultRootDir)
+	imagePath := ota.SlotA.ImagePath(ota.DefaultRootDir)
+
+	t.Run("state", func(t *testing.T) {
+		fsys := &boundedReadFixtureFS{
+			files: map[string]boundedReadFixture{
+				statePath: {data: []byte("unread"), size: int64((16 << 10) + 1)},
+			},
+			opens: make(map[string]int), reads: make(map[string]int),
+		}
+		if _, err := ota.Open(ctx, fsys, ota.Config{}); !errors.Is(err, ota.ErrCorruptState) {
+			t.Fatalf("Open oversized state error = %v, want ErrCorruptState", err)
+		}
+		if fsys.reads[statePath] != 0 {
+			t.Fatalf("oversized state was read %d times", fsys.reads[statePath])
+		}
+	})
+
+	t.Run("manifest", func(t *testing.T) {
+		fsys := newBoundedReadFixture(512, int64((8<<10)+1))
+		mgr, err := ota.Open(ctx, fsys, ota.Config{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := mgr.VerifySlot(ctx, ota.SlotA); !errors.Is(err, ota.ErrCorruptState) {
+			t.Fatalf("VerifySlot oversized manifest error = %v, want ErrCorruptState", err)
+		}
+		if fsys.reads[manifestPath] != 0 || fsys.opens[imagePath] != 0 {
+			t.Fatalf("oversized manifest reads=%d image opens=%d", fsys.reads[manifestPath], fsys.opens[imagePath])
+		}
+	})
+
+	t.Run("image", func(t *testing.T) {
+		fsys := newBoundedReadFixture(ota.DefaultMaxImageBytes, 0)
+		mgr, err := ota.Open(ctx, fsys, ota.Config{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := mgr.VerifySlot(ctx, ota.SlotA); !errors.Is(err, ota.ErrCorruptState) {
+			t.Fatalf("VerifySlot oversized image error = %v, want ErrCorruptState", err)
+		}
+		if fsys.reads[imagePath] != 0 {
+			t.Fatalf("oversized image was read %d times", fsys.reads[imagePath])
+		}
+	})
 }

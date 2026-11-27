@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 	"sync"
@@ -21,10 +22,11 @@ import (
 
 const minFreeHeadroomBytes = 64 << 10
 
-// FileSystem is the minimal durable FAT interface needed by Manager.
+// FileSystem is the minimal durable FAT interface needed by Manager. It exposes
+// opened files so OTA can enforce read limits before allocating file contents.
 // *fat.Volume and *storagepolicy.Volume both satisfy it directly.
 type FileSystem interface {
-	ReadFile(name string) ([]byte, error)
+	Open(name string) (fs.File, error)
 	CreateFile(ctx context.Context, name string, data []byte) error
 	ReplaceFile(ctx context.Context, name string, data []byte) error
 	RemoveFile(ctx context.Context, name string) error
@@ -39,6 +41,63 @@ type StatFSProvider interface {
 // Flusher optionally flushes durable state writes to the backing media.
 type Flusher interface {
 	Flush() error
+}
+
+type contextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r contextReader) Read(dst []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(dst) > 4096 {
+		dst = dst[:4096]
+	}
+	return r.r.Read(dst)
+}
+
+// readBoundedFile checks the directory entry size before allocating its data
+// buffer, then reads only that many bytes and rejects a stream longer than the
+// reported size. FAT's general ReadFile limit is intentionally larger than the
+// metadata and image limits enforced by OTA.
+func readBoundedFile(ctx context.Context, filesystem FileSystem, name string, max int) ([]byte, error) {
+	if ctx == nil || filesystem == nil || max < 0 {
+		return nil, fmt.Errorf("ota: invalid bounded read inputs")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f, err := filesystem.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() || info.Size() < 0 {
+		return nil, fmt.Errorf("%w: %s is not a regular file", ErrCorruptState, name)
+	}
+	if info.Size() > int64(max) {
+		return nil, fmt.Errorf("%w: %s size %d exceeds limit %d", ErrCorruptState, name, info.Size(), max)
+	}
+	data := make([]byte, int(info.Size()))
+	reader := contextReader{ctx: ctx, r: f}
+	if _, err := io.ReadFull(reader, data); err != nil {
+		return nil, err
+	}
+	var extra [1]byte
+	n, err := io.ReadFull(reader, extra[:])
+	if n != 0 {
+		return nil, fmt.Errorf("%w: %s exceeds reported size %d", ErrCorruptState, name, info.Size())
+	}
+	if err != io.EOF {
+		return nil, err
+	}
+	return data, nil
 }
 
 // SignatureVerifier validates candidate payload digests before disk mutation.
@@ -125,7 +184,7 @@ func Open(ctx context.Context, filesystem FileSystem, cfg Config) (*Manager, err
 		return nil, err
 	}
 	m := &Manager{fs: filesystem, cfg: norm}
-	raw, err := filesystem.ReadFile(statePath(norm.RootDir))
+	raw, err := readBoundedFile(ctx, filesystem, statePath(norm.RootDir), maxStateBytes)
 	if errors.Is(err, fs.ErrNotExist) {
 		m.state = State{
 			Format:     FormatVersion,
@@ -644,7 +703,7 @@ func (m *Manager) writeAndVerifySlotLocked(ctx context.Context, slot Slot, paylo
 	if err := m.fs.ReplaceFile(ctx, imgPath, payload); err != nil {
 		return err
 	}
-	readback, err := m.fs.ReadFile(imgPath)
+	readback, err := readBoundedFile(ctx, m.fs, imgPath, len(payload))
 	if err != nil {
 		return err
 	}
@@ -669,7 +728,7 @@ func (m *Manager) verifySlotLocked(ctx context.Context, slot Slot) (SlotManifest
 	if rec == nil {
 		return SlotManifest{}, fmt.Errorf("%w: slot %s is empty", ErrSlotUnavailable, slot)
 	}
-	rawMeta, err := m.fs.ReadFile(slot.ManifestPath(m.cfg.RootDir))
+	rawMeta, err := readBoundedFile(ctx, m.fs, slot.ManifestPath(m.cfg.RootDir), maxManifestBytes)
 	if err != nil {
 		return SlotManifest{}, fmt.Errorf("%w: slot %s manifest: %v", ErrCorruptState, slot, err)
 	}
@@ -689,7 +748,7 @@ func (m *Manager) verifySlotLocked(ctx context.Context, slot Slot) (SlotManifest
 	if m.cfg.Board != "" && manifest.Target != m.cfg.Board {
 		return SlotManifest{}, fmt.Errorf("%w: slot %s target %q != %q", ErrTargetMismatch, slot, manifest.Target, m.cfg.Board)
 	}
-	payload, err := m.fs.ReadFile(slot.ImagePath(m.cfg.RootDir))
+	payload, err := readBoundedFile(ctx, m.fs, slot.ImagePath(m.cfg.RootDir), manifest.Size)
 	if err != nil {
 		return SlotManifest{}, fmt.Errorf("%w: slot %s image: %v", ErrCorruptState, slot, err)
 	}

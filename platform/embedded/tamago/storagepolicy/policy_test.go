@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdhci"
 )
 
@@ -242,6 +243,46 @@ func TestMountApplianceSupportsSwappableCardsAndPartitions(t *testing.T) {
 	}
 	if err := volB.Flush(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMountApplianceUsesSelectedPartitionBootSector(t *testing.T) {
+	ctx := context.Background()
+	card := newSyntheticFATCard(0x77, 131072, 2048, 66600, 0x0c, false)
+
+	initial, err := MountAppliance(ctx, card, AppliancePolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initial.CreateFile(ctx, "BOOT.TXT", []byte("selected partition")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Keep the MBR partition table and signature, but make sector 0 a valid
+	// superfloppy BPB too. The FAT driver must receive the selected partition's
+	// boot sector as LBA 0 instead of interpreting this MBR as a second volume.
+	mbr := card.data[0]
+	binary.LittleEndian.PutUint16(mbr[11:], block.SectorSize)
+	mbr[13] = 1
+	binary.LittleEndian.PutUint16(mbr[14:], 32)
+	mbr[16] = 2
+	binary.LittleEndian.PutUint32(mbr[32:], uint32(card.sectors))
+	binary.LittleEndian.PutUint32(mbr[36:], 1024)
+	binary.LittleEndian.PutUint32(mbr[44:], 2)
+	binary.LittleEndian.PutUint16(mbr[48:], 1)
+	binary.LittleEndian.PutUint16(mbr[50:], 6)
+	card.data[0] = mbr
+	if _, err := fat.Mount(card); err != nil {
+		t.Fatalf("crafted MBR is not accepted as a superfloppy BPB: %v", err)
+	}
+
+	mounted, err := MountAppliance(ctx, card, AppliancePolicy{ProtectedFiles: []string{"BOOT.TXT"}})
+	if err != nil {
+		t.Fatalf("MountAppliance with dual-purpose sector 0: %v", err)
+	}
+	got, err := mounted.ReadFile("BOOT.TXT")
+	if err != nil || string(got) != "selected partition" {
+		t.Fatalf("BOOT.TXT read = %q, err = %v", got, err)
 	}
 }
 
