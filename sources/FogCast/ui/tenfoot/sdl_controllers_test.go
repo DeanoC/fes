@@ -140,6 +140,36 @@ func TestSDLControllersVirtualGamepadUIAndSwapAB(t *testing.T) {
 	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonA, false)
 	pollGamepads(app, pads, held, &stick, now.Add(140*time.Millisecond))
 
+	// Enabling the Settings chord in Controllers lets Select+Start open Settings
+	// from any menu without quitting.
+	app.mu.Lock()
+	if _, ok := app.togglePadSettingsComboLocked(int(id)); !ok {
+		app.mu.Unlock()
+		t.Fatal("togglePadSettingsComboLocked failed")
+	}
+	app.closeSettingsLocked()
+	app.mu.Unlock()
+
+	pollGamepads(app, pads, held, &stick, now.Add(160*time.Millisecond))
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, true); err != nil {
+		t.Fatal(err)
+	}
+	if pollGamepads(app, pads, held, &stick, now.Add(180*time.Millisecond)) {
+		t.Fatal("lone Start quit with Settings chord enabled")
+	}
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, true); err != nil {
+		t.Fatal(err)
+	}
+	if pollGamepads(app, pads, held, &stick, now.Add(200*time.Millisecond)) {
+		t.Fatal("Select+Start quit instead of opening Settings")
+	}
+	if !app.SettingsOpen() {
+		t.Fatal("Select+Start did not open Settings on SDL pad")
+	}
+	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, false)
+	_ = setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonSelect, false)
+	pollGamepads(app, pads, held, &stick, now.Add(220*time.Millisecond))
+
 	// Detach clears Settings › Controllers.
 	cleanupPad()
 	if pads.len() != 0 {

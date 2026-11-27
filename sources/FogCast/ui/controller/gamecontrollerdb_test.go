@@ -202,3 +202,23 @@ func TestGuideBindingOnAForwardedButtonLeavesItToTheCore(t *testing.T) {
 		t.Fatalf("BTN_START = %v, want Start", got)
 	}
 }
+
+func TestHasGuideDetectsPadsWithoutBTNMode(t *testing.T) {
+	// Kit Super Famicom / SNES fixture (081f:e401) exposes only keys 288..297
+	// and has no BTN_MODE (316) key.
+	snes := NewMapper(Device{
+		Name: "USB gamepad", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+		Keys: bits(288, 289, 290, 291, 292, 293, 296, 297),
+	})
+	if snes.HasGuide() {
+		t.Fatal("081f:e401 without BTN_MODE reported HasGuide=true")
+	}
+
+	ds := NewMapper(Device{
+		Name: "DualSense Wireless Controller", Bus: 5, Vendor: 0x054c, Product: 0x0ce6, Version: 0x8100,
+		Keys: bits(304, 305, 307, 308, 310, 311, 314, 315, 316),
+	})
+	if !ds.HasGuide() {
+		t.Fatal("DualSense with BTN_MODE reported HasGuide=false")
+	}
+}

@@ -28,10 +28,12 @@ type stickTracker struct {
 }
 
 type sdlPad struct {
-	handle     *C.SDL_Gamepad
-	info       PadInfo
-	remap      *inputmap.Remapper
-	profileGen uint64
+	handle        *C.SDL_Gamepad
+	info          PadInfo
+	remap         *inputmap.Remapper
+	profileGen    uint64
+	settingsCombo bool
+	chordFired    bool
 	// sent remembers the remapped code pressed while a physical button is down so
 	// profile reloads release the same logical code that went down.
 	sent map[C.int]remoteinput.Code
@@ -109,20 +111,23 @@ func (s *sdlPadSet) attach(app *App, id C.SDL_JoystickID, pad *C.SDL_Gamepad, se
 	player := s.freePlayer()
 	info := sdlPadInfo(id, pad, player)
 	var (
+		profile    inputmap.Profile
 		remap      *inputmap.Remapper
 		profileGen uint64
 	)
 	if app != nil {
-		if profile, err := app.padProfile(info.GUID); err == nil {
+		if p, err := app.padProfile(info.GUID); err == nil {
+			profile = p
 			remap, _ = profileRemap(profile)
 		}
 		profileGen = app.PadProfileGeneration()
 	}
 	s.pads[id] = &sdlPad{
-		handle:     pad,
-		info:       info,
-		remap:      remap,
-		profileGen: profileGen,
+		handle:        pad,
+		info:          info,
+		remap:         remap,
+		profileGen:    profileGen,
+		settingsCombo: padSettingsComboEnabled(info, profile),
 	}
 	if player >= 1 && player <= 4 {
 		C.SDL_SetGamepadPlayerIndex(pad, C.int(player-1))
@@ -183,6 +188,10 @@ func (s *sdlPadSet) syncProfiles(app *App) {
 			profile = inputmap.Profile{}
 		}
 		entry.remap, _ = profileRemap(profile)
+		entry.settingsCombo = padSettingsComboEnabled(entry.info, profile)
+		if !entry.settingsCombo {
+			entry.chordFired = false
+		}
 		entry.profileGen = gen
 	}
 	if !waiting {
@@ -253,6 +262,7 @@ func sdlPadInfo(id C.SDL_JoystickID, pad *C.SDL_Gamepad, player int) PadInfo {
 		Bluetooth:  dev.Bluetooth(),
 		Tested:     dev.Tested(),
 		NoLearn:    true,
+		NoGuide:    pad != nil && !bool(C.SDL_GamepadHasButton(pad, C.SDL_GAMEPAD_BUTTON_GUIDE)),
 		Player:     player,
 	}
 }
@@ -290,6 +300,12 @@ func pollGamepads(app *App, pads *sdlPadSet, held map[Command]bool, stick *stick
 		entry := pads.pads[id]
 		pad := entry.handle
 		used := false
+		var (
+			padBuf     [13]remoteinput.Code
+			padButtons = padBuf[:0]
+			selectDown bool
+			startDown  bool
+		)
 		for _, button := range []C.int{
 			C.SDL_GAMEPAD_BUTTON_DPAD_UP,
 			C.SDL_GAMEPAD_BUTTON_DPAD_DOWN,
@@ -340,12 +356,32 @@ func pollGamepads(app *App, pads *sdlPadSet, held map[Command]bool, stick *stick
 					}
 					entry.sent[button] = code
 				}
-				if cmd := CommandFromLogical(remoteinput.Event{Kind: remoteinput.KindButton, Code: code}); cmd != CmdNone {
-					pressed[cmd] = true
+				switch code {
+				case remoteinput.ButtonSelect:
+					selectDown = true
+				case remoteinput.ButtonStart:
+					startDown = true
 				}
+				padButtons = append(padButtons, code)
 				used = true
 			} else {
 				delete(entry.sent, button)
+			}
+		}
+		chordActive := entry.settingsCombo && selectDown && startDown
+		if chordActive {
+			entry.chordFired = true
+			pressed[CmdSettings] = true
+		} else if entry.chordFired && !selectDown && !startDown {
+			entry.chordFired = false
+		}
+		suppressSelect := entry.settingsCombo && (chordActive || entry.chordFired)
+		for _, code := range padButtons {
+			if entry.settingsCombo && (code == remoteinput.ButtonStart || (code == remoteinput.ButtonSelect && suppressSelect)) {
+				continue
+			}
+			if cmd := CommandFromLogical(remoteinput.Event{Kind: remoteinput.KindButton, Code: code}); cmd != CmdNone {
+				pressed[cmd] = true
 			}
 		}
 		x := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTX))
@@ -644,6 +680,10 @@ func setVirtualSDLButtonForTest(pads *sdlPadSet, id uint32, btn remoteinput.Code
 		sdlBtn = C.SDL_GAMEPAD_BUTTON_WEST
 	case remoteinput.ButtonY:
 		sdlBtn = C.SDL_GAMEPAD_BUTTON_NORTH
+	case remoteinput.ButtonSelect:
+		sdlBtn = C.SDL_GAMEPAD_BUTTON_BACK
+	case remoteinput.ButtonStart:
+		sdlBtn = C.SDL_GAMEPAD_BUTTON_START
 	default:
 		return fmt.Errorf("unsupported test button %v", btn)
 	}

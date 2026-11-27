@@ -347,3 +347,58 @@ func TestLearningStartsAfterTheStickComesHome(t *testing.T) {
 		t.Fatalf("not read raw after the stick came home: axes %v", in.axes)
 	}
 }
+
+func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 100)
+	pad := superFamicomPad(nil)
+	in := &nativeInput{
+		fd:            7,
+		kind:          InputGamepad,
+		player:        0,
+		device:        pad,
+		mapper:        controller.NewMapper(pad),
+		settingsCombo: true,
+		info:          PadInfo{Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000", NoGuide: true, Player: 1},
+	}
+	if !in.info.NoGuide {
+		t.Fatal("test fixture expected NoGuide=true")
+	}
+	ins := &nativeInputs{devices: []*nativeInput{in}, padProfile: app.padProfile}
+	ins.publishPads(app)
+	now := time.Now()
+
+	// Start then Select opens Settings cleanly without quitting.
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("lone Start must not quit when Select+Start Settings chord is enabled")
+	}
+	in.button(app, ButtonBack, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("Select+Start quit instead of opening Settings")
+	}
+	if !app.SettingsOpen() {
+		t.Fatal("Start -> Select did not open Settings")
+	}
+	in.button(app, ButtonStart, 0, now)
+	in.button(app, ButtonBack, 0, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("releasing chord quit")
+	}
+
+	// Select then Start closes Settings, leaving layout unchanged on full unwind.
+	in.button(app, ButtonBack, 1, now)
+	_ = ins.applyButtons(app, now)
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("Select -> Start quit instead of closing Settings")
+	}
+	if app.SettingsOpen() {
+		t.Fatal("Select -> Start did not close Settings")
+	}
+	in.button(app, ButtonBack, 0, now)
+	in.button(app, ButtonStart, 0, now)
+	_ = ins.applyButtons(app, now)
+	if in.menuChordFired || in.menuSelectDown || in.menuStartDown {
+		t.Fatalf("stale chord state remained after release: %+v", in)
+	}
+}

@@ -65,6 +65,12 @@ type nativeInput struct {
 	// ledSynced and ledPlayer track the last player-port LED state pushed to sysfs.
 	ledSynced bool
 	ledPlayer int
+	// settingsCombo enables Select+Start in menus to toggle Settings, and its
+	// menu* fields track chord/unwind state while the pad isn't owned by a core.
+	settingsCombo  bool
+	menuSelectDown bool
+	menuStartDown  bool
+	menuChordFired bool
 }
 
 type nativeInputs struct {
@@ -256,8 +262,18 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			if in.mapper != nil {
 				in.device = device
 				in.info = PadInfo{Name: strings.TrimSpace(device.Name), GUID: device.GUID(), Vendor: vendor, Product: product,
-					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth(), Tested: device.Tested()}
+					Family: promptFamily(device.Family()), Recognised: device.Recognised(), Bluetooth: device.Bluetooth(), Tested: device.Tested(),
+					NoGuide: !in.mapper.HasGuide()}
 				in.profileGen = app.PadProfileGeneration()
+				if ins.padProfile != nil {
+					if profile, err := ins.padProfile(in.info.GUID); err == nil {
+						in.settingsCombo = padSettingsComboEnabled(in.info, profile)
+					} else {
+						in.settingsCombo = in.info.NoGuide
+					}
+				} else {
+					in.settingsCombo = in.info.NoGuide
+				}
 			}
 		} else if ins.padID != nil {
 			vendor, product = ins.padID(fd)
@@ -351,10 +367,25 @@ func (ins *nativeInputs) syncProfiles(app *App) {
 		if err != nil {
 			profile = inputmap.Profile{}
 		}
+		noGuideChanged := false
 		if profile.Mapping != in.mapping {
 			in.mapper, in.mapping, _ = compilePadMapping(in.device, profile.Mapping)
+			noGuide := !in.mapper.HasGuide()
+			if noGuide != in.info.NoGuide {
+				in.info.NoGuide = noGuide
+				noGuideChanged = true
+			}
 		}
 		in.remap, _ = profileRemap(profile)
+		in.settingsCombo = padSettingsComboEnabled(in.info, profile)
+		if !in.settingsCombo {
+			in.menuSelectDown = false
+			in.menuStartDown = false
+			in.menuChordFired = false
+		}
+		if noGuideChanged && app != nil {
+			app.SetPadInfo(in.fd, in.info)
+		}
 		in.profileGen = gen
 	}
 	if !waiting {

@@ -1664,7 +1664,10 @@ highlights, and player LEDs): Linux evdev assigns the two local controller
 ports (`P1..P2`, menu-only above two) and syncs sysfs LED nodes on port
 attach/detach/yield while supporting step-by-step raw mapping, and desktop SDL3
 tracks open `SDL_Gamepad` handles (`P1..P4`) with SDL player index/LED updates
-and release-gated profile reloads (hiding raw step-by-step learning). It is another client of the public host API, not a second launch
+and release-gated profile reloads (hiding raw step-by-step learning); both
+expose a per-pad **Settings** (`Select+Start` / `Guide`) option in **Settings ›
+Controllers** that defaults to `Select+Start` in menus on pads with no Guide
+button (`SELECT+START settings` footer hints). It is another client of the public host API, not a second launch
 path:
 
 ```text

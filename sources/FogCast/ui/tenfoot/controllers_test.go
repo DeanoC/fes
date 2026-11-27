@@ -699,3 +699,66 @@ func TestControllersHidesLearnWhenPadSetsNoLearn(t *testing.T) {
 	}
 	drawFrame(dev, app.Snapshot(), map[string]gpuTexture{}, map[string]gpuTexture{})
 }
+
+func TestControllersSettingsChordDefaultToggleAndPrompts(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 100)
+	prefsPath := filepath.Join(t.TempDir(), "tenfoot.json")
+	app.SetPrefsPath(prefsPath)
+	const snesGUID = "0300cb231f08000001e4000010010000"
+	app.SetPadInfo(7, PadInfo{
+		Name: "USB gamepad", GUID: snesGUID,
+		Vendor: 0x081f, Product: 0xe401, Family: gfx.PromptGeneric, Recognised: true, Tested: true, NoGuide: true, Player: 1,
+	})
+	app.AttachInput(InputGamepad, 7)
+
+	// Pads without a Guide button default SettingsCombo to true and advertise
+	// SELECT+START in place of GUIDE in footer hints.
+	if got := app.Snapshot().Prompts.apply("A select  GUIDE settings"); got != "bottom button select  SELECT+START settings" {
+		t.Fatalf("guide-less footer hint = %q, want SELECT+START settings", got)
+	}
+
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	app.mu.Lock()
+	app.focusSettingsRowLocked(settingsSectionRowPrefix + settingsSectionControllers)
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+
+	if snap := app.Snapshot().Controllers; !snap.SettingsCombo {
+		t.Fatal("expected NoGuide pad to default SettingsCombo=true")
+	}
+
+	// Move down to Reset then right to the Settings shortcut toggle, and toggle off.
+	for _, cmd := range []Command{CmdDown, CmdDown, CmdDown, CmdRight} {
+		app.HandleCommand(cmd, now)
+	}
+	if got := app.Snapshot().Controllers.Focus; got != controllersFocusSettingsChord {
+		t.Fatalf("focus = %d, want Settings chord (%d)", got, controllersFocusSettingsChord)
+	}
+	app.HandleCommand(CmdSelect, now)
+	if snap := app.Snapshot().Controllers; snap.SettingsCombo {
+		t.Fatal("expected SettingsCombo=false after toggling")
+	}
+	if got := app.Snapshot().Prompts.apply("GUIDE settings"); got != "GUIDE settings" {
+		t.Fatalf("prompt after disabling SettingsCombo = %q, want GUIDE settings", got)
+	}
+	if p, ok := savedProfile(t, app); !ok || p.SettingsCombo != inputmap.SettingsComboOff {
+		t.Fatalf("saved SettingsCombo = (%+v, %v), want %q", p, ok, inputmap.SettingsComboOff)
+	}
+
+	// Resetting the pad removes the override and restores the NoGuide default.
+	app.HandleCommand(CmdLeft, now)
+	app.HandleCommand(CmdSelect, now)
+	if snap := app.Snapshot().Controllers; !snap.SettingsCombo {
+		t.Fatal("expected reset to restore SettingsCombo=true on NoGuide pad")
+	}
+	if _, ok := savedProfile(t, app); ok {
+		t.Fatal("expected reset of SettingsCombo-only override to clear saved profile")
+	}
+
+	dev, err := gfx.NewSoftware(1280, 720)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawFrame(dev, app.Snapshot(), map[string]gpuTexture{}, map[string]gpuTexture{})
+}
