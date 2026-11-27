@@ -211,7 +211,13 @@ else:
     import tempfile
     from scripts.functional_execution import execution_environment, execution_inputs
     with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
-        paths = {name: tool.path for name, tool in tools.items()}
+        if getattr(producer, "MACHINE", None) is not None:
+            # Machine.build() builds execution_environment/execution_inputs from
+            # Quartus paths only and authenticates Yosys separately outside it.
+            paths = {name: tool.path for name, tool in tools.items()
+                     if name in ("quartus", "qsys", "ipgenerate", "pfg")}
+        else:
+            paths = {name: tool.path for name, tool in tools.items()}
         if "--license-file" in sys.argv:
             license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
             environment = producer.execution_environment(Path(home), paths, license_file=license_file)

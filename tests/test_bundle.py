@@ -111,6 +111,112 @@ class BundleTest(unittest.TestCase):
             self.assertEqual(canon_cmd[canon_cmd.index("--gpu-router") + 1], "CUDA")
             self.assertIn("producer.MACHINE.authenticate", canon_cmd[2])
 
+    def test_de25_pc386_canonical_execution_uses_quartus_only_paths(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            scripts = source / "scripts"
+            scripts.mkdir()
+            (scripts / "__init__.py").write_text("", encoding="utf-8")
+            (scripts / "functional_execution.py").write_text(
+                "def execution_environment(home, tools):\n"
+                "    return {'HOME': str(home)}\n"
+                "def execution_inputs(paths, env, device=0):\n"
+                "    return {'toolchain': 'quartus'}\n",
+                encoding="utf-8",
+            )
+            (scripts / "de25_machine_fixture.py").write_text('''
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+
+class FakeMachine:
+    def authenticate(self, root, *, cache_root=None, gpu_router="HIP"):
+        return {
+            "quartus": SimpleNamespace(path=Path("/opt/quartus/bin/quartus_sh"), identity="q-id"),
+            "qsys": SimpleNamespace(path=Path("/opt/quartus/bin/qsys-generate"), identity="qsys-id"),
+            "ipgenerate": SimpleNamespace(path=Path("/opt/quartus/bin/qsys-generate"), identity="ip-id"),
+            "pfg": SimpleNamespace(path=Path("/opt/quartus/bin/quartus_pfg"), identity="pfg-id"),
+            "yosys": SimpleNamespace(path=Path("/opt/yosys-slot/bin/yosys"), identity=f"yosys-{gpu_router}"),
+        }
+
+
+MACHINE = FakeMachine()
+
+
+def _require_clean_source(root, **options):
+    return "https://github.com/DeanoC/fes.git", "a" * 40
+
+
+def _authenticate_tools(root, *, cache_root=None):
+    return MACHINE.authenticate(root, cache_root=cache_root)
+
+
+def execution_environment(home, tools, *, license_file=None):
+    return {"HOME": str(home), "PATH": ":".join(sorted({str(p.parent) for p in tools.values()}))}
+
+
+def execution_inputs(paths, env, _device=0):
+    return {"toolchain": "quartus", "path_keys": sorted(paths), "PATH": env["PATH"]}
+
+
+def create_build_record(root, repository, revision, tools, execution, **options):
+    return (json.dumps({
+        "format": 2,
+        "repository": repository,
+        "revision": revision,
+        "source_inputs": {"boards/de25nano/producers/build_pc386_package.py": "0" * 64},
+        "tools": tools,
+        "execution": execution,
+    }, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\\n").encode("utf-8")
+''', encoding="utf-8")
+            recipe = replace(
+                module.recipe_for("fes.pc386", board="de25-nano"),
+                producer_script="scripts/de25_machine_fixture.py",
+                producer_module="scripts.de25_machine_fixture",
+            )
+            quartus_only = {
+                "quartus": Path("/opt/quartus/bin/quartus_sh"),
+                "qsys": Path("/opt/quartus/bin/qsys-generate"),
+                "ipgenerate": Path("/opt/quartus/bin/qsys-generate"),
+                "pfg": Path("/opt/quartus/bin/quartus_pfg"),
+            }
+            for env, expected_router in (
+                ({"PATH": "/usr/bin"}, "HIP"),
+                ({"FES_GPU_ROUTER": "CUDA", "PATH": "/usr/bin"}, "CUDA"),
+            ):
+                with self.subTest(router=expected_router), \
+                     patch.object(module, "authenticate_misteross_origin"), \
+                     patch.object(module.artifact_cache, "functional_key", return_value="k"):
+                    record = module.canonical_package_record(source, env=env, recipe=recipe, selection_only=False)
+                parsed = json.loads(record)
+                self.assertEqual(set(parsed["tools"]), {"quartus", "qsys", "ipgenerate", "pfg", "yosys"})
+                self.assertEqual(parsed["tools"]["yosys"], f"yosys-{expected_router}")
+                self.assertEqual(parsed["execution"]["path_keys"], ["ipgenerate", "pfg", "qsys", "quartus"])
+                self.assertNotIn("/opt/yosys-slot/bin", parsed["execution"]["PATH"])
+                self.assertIn("/opt/quartus/bin", parsed["execution"]["PATH"])
+                expected_exec = {
+                    "toolchain": "quartus",
+                    "path_keys": sorted(quartus_only),
+                    "PATH": ":".join(sorted({str(p.parent) for p in quartus_only.values()})),
+                }
+                expected_record = (json.dumps({
+                    "format": 2,
+                    "repository": "https://github.com/DeanoC/fes.git",
+                    "revision": "a" * 40,
+                    "source_inputs": {"boards/de25nano/producers/build_pc386_package.py": "0" * 64},
+                    "tools": {
+                        "quartus": "q-id",
+                        "qsys": "qsys-id",
+                        "ipgenerate": "ip-id",
+                        "pfg": "pfg-id",
+                        "yosys": f"yosys-{expected_router}",
+                    },
+                    "execution": expected_exec,
+                }, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+                self.assertEqual(record, expected_record)
+
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
         from tests.committed_misteross_fixture import make_snapshot
