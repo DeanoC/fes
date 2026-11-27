@@ -42,7 +42,7 @@ type Service interface {
 type serverOptions struct {
 	storage            *storage.Manager
 	remoteInput        host.RemoteInputController
-	remoteInputFactory func(string) host.RemoteInputController
+	remoteInputFactory RemoteInputFactory
 	media              MediaSession
 	mediaPreview       http.Handler
 	metadata           metadata.Runtime
@@ -55,9 +55,14 @@ func WithRemoteInput(remoteInput host.RemoteInputController) ServerOption {
 	return func(options *serverOptions) { options.remoteInput = remoteInput }
 }
 
+// RemoteInputFactory builds the input bridge for one named target session. An
+// error means remote input is configured but that target's bridge could not be
+// built; the input routes report it instead of a disabled host.
+type RemoteInputFactory func(target string) (host.RemoteInputController, error)
+
 // WithRemoteInputFactory provides an independent input bridge for each named
 // target session. The factory must be concurrency-safe.
-func WithRemoteInputFactory(factory func(string) host.RemoteInputController) ServerOption {
+func WithRemoteInputFactory(factory RemoteInputFactory) ServerOption {
 	return func(options *serverOptions) { options.remoteInputFactory = factory }
 }
 
@@ -325,7 +330,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		result, err := coordinator.attachInput(r.Context())
 		if err != nil {
-			if writeRemoteInputDisabled(w, err) {
+			if writeRemoteInputMissing(w, err) {
 				return
 			}
 			writeSessionError(w, err)
@@ -341,7 +346,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		result, err := coordinator.detachInput(r.Context())
 		if err != nil {
-			if writeRemoteInputDisabled(w, err) {
+			if writeRemoteInputMissing(w, err) {
 				return
 			}
 			writeSessionError(w, err)
@@ -369,7 +374,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event, modifiers)
 		if err != nil {
-			if writeRemoteInputDisabled(w, err) {
+			if writeRemoteInputMissing(w, err) {
 				return
 			}
 			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
@@ -405,7 +410,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		if err := coordinator.sendCoreKey(r.Context(), *body.Event); err != nil {
-			if writeRemoteInputDisabled(w, err) {
+			if writeRemoteInputMissing(w, err) {
 				return
 			}
 			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {

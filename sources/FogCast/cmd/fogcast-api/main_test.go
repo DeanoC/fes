@@ -917,3 +917,42 @@ func TestComposeAPIMetadataCleanupOnRemoteInputSuccess(t *testing.T) {
 		t.Fatalf("metadata opener config = %#v", gotConfig)
 	}
 }
+
+// bridgeFailTargetService sends unscoped requests to one configured target.
+type bridgeFailTargetService struct {
+	targetBridgeTestService
+	target string
+}
+
+func (s *bridgeFailTargetService) SessionTargetName() string { return s.target }
+
+func TestComposeAPIReportsTargetBridgeBuildFailure(t *testing.T) {
+	// The host bridge builds, but kit-b's per-target starter does not. Input
+	// must report that failure instead of "remote input is not enabled".
+	service := &bridgeFailTargetService{
+		targetBridgeTestService: targetBridgeTestService{configs: map[string]fogcast.TargetConfig{
+			"kit-b": {Name: "kit-b", Address: "http://kit-b.invalid:8182", Agent: "kit-b-token"},
+		}},
+		target: "kit-b",
+	}
+	handler, closeRemote, err := composeAPI(service, fogcast.Config{BaseURL: "http://127.0.0.1:8182", Token: "test-token", RemoteInput: fogcast.RemoteInputConfig{Enabled: true}}, func(config fogcast.Config) (host.BridgeStarter, error) {
+		if config.BaseURL == "http://kit-b.invalid:8182" {
+			return nil, host.ErrRemoteInputInvalid
+		}
+		return host.BridgeStarterFunc(func(context.Context, host.BridgeSpec) (host.BridgeHandle, error) {
+			return nil, errors.New("unused")
+		}), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = closeRemote() }()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/attach", nil)
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"INPUT_BRIDGE_FAILED"`) ||
+		!strings.Contains(response.Body.String(), host.ErrRemoteInputInvalid.Error()) || strings.Contains(response.Body.String(), "not enabled") {
+		t.Fatalf("attach = %d %s", response.Code, response.Body.String())
+	}
+}
