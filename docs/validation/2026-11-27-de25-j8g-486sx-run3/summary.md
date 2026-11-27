@@ -9,7 +9,7 @@ The pass rules were written before the kit was touched: [PASS-RULE.md](PASS-RULE
 | 1b. Relaunch in the same session (recorded only, not a gate) | **FAIL**, reproduced for the third time today: [#2353](https://github.com/DeanoC/fes/issues/2353) |
 | 2. Warm reset with a window machine loaded (#2246) | **PASS for an orderly `reboot`**: recovered in about 31 s, no SMMU events, owner probed, network and agent up, MENU on HDMI. **Not measured** for the #2245 case: an abrupt reset while the fabric is still mastering. The orderly shutdown stopped the machine first, so #2246's fabric reset was never exercised under mastering. |
 | 3. HPS-window path (#2214, #2215, #2226) | **PASS**: reserved-pool window, ABI 1.1 admission, FreeDOS from ATA, Stop releases the window |
-| Restore | Baseline bundle and image are back and every check passes except `boot_id`, which the warm reset changes by design. FREE has not been logged yet; it needs Deano's call. |
+| Restore | **Pass.** The baseline bundle and image are back. The baseline `boot_id` was rebased with Deano's OK, `de25_restore.py` passes, and `KIT D25 FREE (baseline verified)` was logged at 14:33:07+02:00. |
 
 ## Exactly what ran
 
@@ -84,6 +84,8 @@ Recovery from the orderly reset:
 - **Baseline bundle reactivated:** bundle `cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6` is selected and active, with nothing pending (generation 573). The image `a1c51ac3…` is unchanged.
 - **Restore verifier:** `scripts/de25_restore.py` against `current-restore-de25.json` ([kit/restore-verification.json](kit/restore-verification.json)) passes every check except `after_boot_id` and the native-state hash. The native read-only diff is exactly one line, the `boot_id` ([kit/native-diff.txt](kit/native-diff.txt)). The warm reset in item 2 changes this by design, and there is no serial receipt because the reset was not a serial reboot.
 - **MENU:** the MENU on HDMI matches the pre-run frame (luma 230.92 both; [frame](frames/hdmi-after-restore.png)).
-- **Not yet done:** the baseline record's `boot_id` rebase, and the FREE ledger line. Both need Deano's call.
+- **Baseline rebase:** with Deano's OK ("No: rebase and FREE"), `~/lander-hilq/de25_baseline_rebase.py --serial-recovery --pr j8g-run3-warm-reboot` rebased `current-restore-de25.json` from `boot_id` `2c4855a1…` to `7fe4f294…`. The backup is `current-restore-de25.before-boot-rebase-j8g-run3-warm-reboot-20261127T123236Z.json`. The tool's "serial SysRq" note is boilerplate: this was an ssh `reboot`.
+- **Restore verifier after the rebase:** `de25_restore.py` with the rebased record and two fresh snapshots on the new boot gives `passed: true` with no failed checks ([kit/restore-verification-rebased.json](kit/restore-verification-rebased.json)). The final MENU frame matches the pre-run frame (identical metrics; OCR "FES Home"; [frame](frames/hdmi-final.png)).
+- **FREE:** logged 2026-11-27T14:33:07+02:00. The claim holder, UART recorder and private host were stopped, and all three J8G locks were checked free with `flock -n`.
 
 The full Powerboat evidence, including full-size frames, is in `/data/de25-run3`.
