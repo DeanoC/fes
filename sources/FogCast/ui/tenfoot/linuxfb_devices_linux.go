@@ -62,6 +62,9 @@ type nativeInput struct {
 	info PadInfo
 	// profileGen is the App profile generation remap was read at.
 	profileGen uint64
+	// ledSynced and ledPlayer track the last player-port LED state pushed to sysfs.
+	ledSynced bool
+	ledPlayer int
 }
 
 type nativeInputs struct {
@@ -87,6 +90,8 @@ type nativeInputs struct {
 	// padID stands in for EVIOCGID where kindOf does: it gives a test pad's
 	// vendor and product. Nil reads every test pad as 0000:0000.
 	padID func(fd int) (vendor, product uint16)
+	// sysClassInput overrides /sys/class/input in tests for deterministic LED checks.
+	sysClassInput string
 	// Nil in production until a reviewed authority/snapshot integration
 	// explicitly installs the gate. A keyboard never falls back if installed.
 	localKeyboardGate  *nativeKeyboardGate
@@ -300,19 +305,29 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 	return nil
 }
 
-// publishPads tells the app each real pad's identity and controller port.
-// A port can change hands when a pad attaches or leaves.
+// publishPads tells the app each real pad's identity and controller port
+// and keeps hardware player-port LEDs synchronized with assigned ports.
 func (ins *nativeInputs) publishPads(app *App) {
 	for _, in := range ins.devices {
+		player := 0
+		if in.player != noLocalPlayer {
+			player = int(in.player) + 1
+		}
+		if in.kind == InputGamepad && (!in.ledSynced || in.ledPlayer != player) {
+			ins.syncPadLED(in, player)
+			in.ledSynced = true
+			in.ledPlayer = player
+		}
 		if in.info.GUID == "" {
 			continue
 		}
-		in.info.Player = 0
-		if in.player != noLocalPlayer {
-			in.info.Player = int(in.player) + 1
-		}
+		in.info.Player = player
 		app.SetPadInfo(in.fd, in.info)
 	}
+}
+
+func (ins *nativeInputs) syncPadLED(in *nativeInput, player int) {
+	syncEvdevPlayerLEDs(ins.sysClassInput, in.path, player)
 }
 
 // syncProfiles reloads the pads' saved profiles after Settings › Controllers
@@ -638,20 +653,6 @@ func compilePadMapping(device controller.Device, mapping string) (*controller.Ma
 		return controller.NewMapper(device), "", err
 	}
 	return mapper, mapping, nil
-}
-
-// promptFamily is the glyph set for a pad's family.
-func promptFamily(family controller.Family) gfx.PromptFamily {
-	switch family {
-	case controller.FamilyXbox:
-		return gfx.PromptXbox
-	case controller.FamilyPlayStation:
-		return gfx.PromptPlayStation
-	case controller.FamilyNintendo:
-		return gfx.PromptNintendo
-	default:
-		return gfx.PromptGeneric
-	}
 }
 
 func nativeKindFromKeys(keys []byte) InputKind {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -829,4 +830,26 @@ func (a *App) setupSwapABLocked() {
 	}
 	status, _ := a.togglePadSwapLocked(ids[0])
 	a.status = status
+}
+
+// playerLEDColors matches TamaGo's DualSense/DS4 P1..P4 lightbar palette.
+var playerLEDColors = [4][3]uint8{
+	{0x00, 0x20, 0x80}, // Player 1: blue
+	{0x80, 0x10, 0x10}, // Player 2: red
+	{0x10, 0x70, 0x10}, // Player 3: green
+	{0x70, 0x10, 0x70}, // Player 4: magenta
+}
+
+// promptFamily is the glyph set for a pad's family.
+func promptFamily(family controller.Family) gfx.PromptFamily {
+	switch family {
+	case controller.FamilyXbox:
+		return gfx.PromptXbox
+	case controller.FamilyPlayStation:
+		return gfx.PromptPlayStation
+	case controller.FamilyNintendo:
+		return gfx.PromptNintendo
+	default:
+		return gfx.PromptGeneric
+	}
 }

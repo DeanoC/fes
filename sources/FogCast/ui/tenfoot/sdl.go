@@ -279,13 +279,8 @@ func runWindow(ctx context.Context, opts Options) (resultErr error) {
 		}()
 	}
 
-	pads := map[C.SDL_JoystickID]*C.SDL_Gamepad{}
-	defer func() {
-		for id, pad := range pads {
-			C.SDL_CloseGamepad(pad)
-			delete(pads, id)
-		}
-	}()
+	pads := newSDLPadSet()
+	defer pads.close()
 	openExistingGamepads(pads, app)
 	seedSDLKeyboards(app)
 	seedSDLMice(app)
