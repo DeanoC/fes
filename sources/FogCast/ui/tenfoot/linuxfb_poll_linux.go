@@ -438,43 +438,30 @@ func (in *nativeInput) handleMenuSettingsChord(app *App, e remoteinput.Event, do
 	if !in.settingsCombo || e.Kind != remoteinput.KindButton {
 		return false
 	}
-	var releaseTap bool
+	var downState, pendingState *bool
+	var otherDown bool
 	switch e.Code {
 	case remoteinput.ButtonSelect:
-		if down {
-			if !in.menuSelectDown && !in.menuStartDown && !in.menuChordFired && app.localPadCommand(e) == CmdSelect {
-				return false
-			}
-			in.menuSelectDown = true
-			if !in.menuStartDown && !in.menuChordFired {
-				in.menuSelectPending = true
-			}
-		} else {
-			if !in.menuSelectDown && !in.menuSelectPending && !in.menuChordFired {
-				return false
-			}
-			wasPending := in.menuSelectPending
-			in.menuSelectDown = false
-			in.menuSelectPending = false
-			releaseTap = wasPending && !in.menuChordFired
-		}
+		downState, pendingState, otherDown = &in.menuSelectDown, &in.menuSelectPending, in.menuStartDown
 	case remoteinput.ButtonStart:
-		if down {
-			in.menuStartDown = true
-			if !in.menuSelectDown && !in.menuChordFired {
-				in.menuStartPending = true
-			}
-		} else {
-			if !in.menuStartDown && !in.menuStartPending && !in.menuChordFired {
-				return false
-			}
-			wasPending := in.menuStartPending
-			in.menuStartDown = false
-			in.menuStartPending = false
-			releaseTap = wasPending && !in.menuChordFired
-		}
+		downState, pendingState, otherDown = &in.menuStartDown, &in.menuStartPending, in.menuSelectDown
 	default:
 		return false
+	}
+	var releaseTap bool
+	if down {
+		*downState = true
+		if !otherDown && !in.menuChordFired {
+			*pendingState = true
+		}
+	} else {
+		if !*downState && !*pendingState && !in.menuChordFired {
+			return false
+		}
+		wasPending := *pendingState
+		*downState = false
+		*pendingState = false
+		releaseTap = wasPending && !in.menuChordFired
 	}
 	if in.menuSelectDown && in.menuStartDown {
 		for k, cmd := range in.controls {
