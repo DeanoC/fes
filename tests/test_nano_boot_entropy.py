@@ -1,4 +1,4 @@
-"""Execute the production boot-entropy backend against SDM reply and custody faults."""
+"""Execute the production boot-entropy backend against SDM and CPU jitter source failures."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -21,8 +21,9 @@ typedef struct { uint8_t time_low[4], rest[12]; } uuid_t;
 #define DEFINE_SVC_UUID2(name, ...) static const uuid_t name = {{1}, {0}}
 ''',
                 "lib/mmio.h": "uint32_t mmio_read_32(uintptr_t);\n",
-                "lib/utils.h": "#define zeromem(p,n) memset((p),0,(n))\n",
+                "lib/utils.h": "#define zeromem(p,n) memset((p),0,(n))\n#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))\n",
                 "plat/common/plat_trng.h": "",
+                "drivers/console.h": "void console_flush(void);\n",
                 "socfpga_fcs.h": "#define FCS_RANDOM_WORD_SIZE 8U\n#define FCS_CS_FIELD_FLAG_OFFSET 24U\n#define FCS_CS_FIELD_FLAG_INIT 1U\n#define FCS_CS_FIELD_FLAG_FINALIZE 4U\n",
                 "socfpga_mailbox.h": '''#define MBOX_OFFSET 0
 #define MBOX_CIN 0
@@ -43,7 +44,8 @@ int mailbox_send_cmd(uint32_t,uint32_t,uint32_t *,unsigned,uint32_t,uint32_t *,u
                 path = tmp / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(contents)
-            output = tmp / "boot-entropy"
-            subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(tmp),
-                            str(FW / "tests/nano_trng_test.c"), "-o", str(output)], check=True)
-            subprocess.run([output], check=True)
+            for source in ("nano_trng_test.c", "nano_boot_jitter_test.c"):
+                output = tmp / "boot-entropy"
+                subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(tmp),
+                                str(FW / "tests" / source), "-o", str(output)], check=True)
+                subprocess.run([output], check=True)

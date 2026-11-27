@@ -117,6 +117,17 @@ A busy mailbox or a rejected, short, zero or repeated response leaves the
 entropy service unavailable. A dispatched transaction with uncertain completion
 halts EL3 before subsequent mailbox users can run.
 
+For a board whose SDM denies crypto sessions, the experimental producer also
+accepts `--nano-jitter capture` or `--nano-jitter seed` on both BL31 and
+U-Boot builds. Both run on the primary Cortex-A55 after EL3 has verified the
+private write-back mapping and restored its exception vectors. The capture
+image records two million raw, preconditioning timing observations in private
+DDR and sends them over the diagnostic UART. It stops before the launcher.
+The serving image collects 128 conditioned bytes using the pinned Jitter RNG
+library. It enables the finite ARM TRNG provider only after startup and
+continuous health checks pass. Qualify the capture on the target before
+deploying the serving image. Each mode has a separate linked-image receipt.
+
 ## Adapter and endpoint
 
 `control.hpp` / `control.cpp` provide an allocation-free, exception/RTTI-free

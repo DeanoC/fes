@@ -105,6 +105,10 @@ static void report(const char *phase)
         (unsigned long long)r.sctlr,(unsigned long long)r.tcr,(unsigned long long)r.root,
         (unsigned long long)r.mair,(unsigned long long)(uintptr_t)fes_nano_mmu_witness,mmu.writes,mmu.memory_verified);
 }
+#ifdef FES_NANO_CPU_JITTER
+int fes_nano_boot_jitter(void);
+#endif
+
 int fes_nano_mmu_platform_boot(void)
 {
     report("before");
@@ -120,5 +124,9 @@ int fes_nano_mmu_platform_boot(void)
         return -1;
     }
     report("after");
+#ifdef FES_NANO_CPU_JITTER
+    return fes_nano_boot_jitter();
+#else
     return 0;
+#endif
 }

@@ -101,7 +101,10 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
-    parser.add_argument("--nano-sdm-trng", action="store_true", help="fill a finite hardware-entropy pool before entering the matched native launcher")
+    entropy = parser.add_mutually_exclusive_group()
+    entropy.add_argument("--nano-sdm-trng", action="store_true", help="fill a finite hardware-entropy pool before entering the matched native launcher")
+    entropy.add_argument("--nano-jitter", choices=("capture", "seed"),
+                         help="measure CPU timing jitter or supply conditioned bytes at the verified EL3 handoff")
     parser.add_argument("--nano-cold-serial-entry", type=Path, help="opt-in actual SPL/BL31 cold serial producer, bound to this native entry build")
     parser.add_argument("--nano-firmware-ocram", action="store_true", help="experimental matched shared-ROM SPL/EL3/native OCRAM reservation")
     parser.add_argument("--nano-firmware-mmu", action="store_true", help="selected late EL3 private-cache profile and writeback diagnostic")
@@ -118,6 +121,8 @@ def main():
     parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_jitter and not (args.nano_firmware_mmu and args.nano_sdm_input_transfer):
+        parser.error("CPU jitter requires the matched secure MMU and launcher handoff")
     if args.nano_mac_table_trial and not args.nano_mac_handoff:parser.error("table trial requires explicit MAC handoff")
     if args.nano_mac_coexistence_trial and not args.nano_mac_table_trial:parser.error("coexistence trial requires explicit MAC table trial")
     if args.nano_mac_c64_scope_supplier and not args.nano_mac_menu_supplier:
@@ -201,6 +206,9 @@ def main():
     if args.nano_sdm_trng:
         import nano_trng
         producer_inputs += (Path(nano_trng.__file__), nano_trng.SOURCE)
+    if args.nano_jitter:
+        import nano_boot_jitter
+        producer_inputs += tuple(nano_boot_jitter.inputs(args.nano_jitter))
     if cold is not None:
         producer_inputs += tuple(cold.sources())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
@@ -228,6 +236,10 @@ def main():
     if args.nano_sdm_trng:
         trng_install = nano_trng.install(source)
         command.append("TRNG_SUPPORT=1")
+    if args.nano_jitter:
+        jitter_install = nano_boot_jitter.install(source, args.nano_jitter)
+        if args.nano_jitter == "seed":
+            command.append("TRNG_SUPPORT=1")
     if args.nano_firmware_ocram:command.append('SEPARATE_NOBITS_REGION=1')
     with (output / "build.log").open("wb") as log:
         subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -300,6 +312,8 @@ def main():
     report['firmware_mmu_proof']=mmu_proof
     if args.nano_sdm_trng:
         report['boot_entropy'] = nano_trng.verify(image_elf, source, trng_install)
+    if args.nano_jitter:
+        report["cpu_jitter"] = nano_boot_jitter.verify(source, image_elf, args.nano_jitter, jitter_install)
     if owned:
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"

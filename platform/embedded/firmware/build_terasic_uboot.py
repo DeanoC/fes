@@ -44,7 +44,7 @@ def private_path(path):
             not any(p.is_symlink() for p in (path, *path.parents)))
 
 
-def checked_bl31(bl31_build, cold_profile=None, *, require_sdm_trng=False):
+def checked_bl31(bl31_build, cold_profile=None, *, require_sdm_trng=False, jitter_mode=None):
     receipt_path = bl31_build / "result.json"
     component = bl31_build / "source/build/agilex5/release/bl31.bin"
     elf = bl31_build / "source/build/agilex5/release/bl31/bl31.elf"
@@ -67,6 +67,13 @@ def checked_bl31(bl31_build, cold_profile=None, *, require_sdm_trng=False):
             receipt.get("bl31_bin_size") != len(blob) or receipt.get("bl31_bin_sha256") != hashlib.sha256(blob).hexdigest() or
             receipt.get("bl31_elf_sha256") != hashlib.sha256(image_elf).hexdigest()):
         raise ValueError("BL31 component differs from its pinned vendor build receipt")
+    if jitter_mode or "cpu_jitter" in receipt:
+        import nano_boot_jitter
+        binding = receipt.get("cpu_jitter")
+        if (require_sdm_trng or "boot_entropy" in receipt or not isinstance(binding, dict) or
+                jitter_mode != binding.get("mode") or not cold_profile or not cold_profile.get("firmware_mmu") or
+                binding != nano_boot_jitter.verify(bl31_build / "source", image_elf, jitter_mode, binding.get("installed"))):
+            raise ValueError("matched CPU jitter firmware and explicit mode required")
     if require_sdm_trng or "boot_entropy" in receipt:
         import nano_trng
         binding = receipt.get("boot_entropy")
@@ -141,7 +148,10 @@ def main():
     parser.add_argument("--cross-prefix", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
-    parser.add_argument("--nano-sdm-trng", action="store_true", help="require the linked hardware boot entropy service in the selected BL31")
+    entropy = parser.add_mutually_exclusive_group()
+    entropy.add_argument("--nano-sdm-trng", action="store_true", help="require the linked hardware boot entropy service in the selected BL31")
+    entropy.add_argument("--nano-jitter", choices=("capture", "seed"),
+                         help="measure CPU timing jitter or supply conditioned bytes at the verified EL3 handoff")
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
     parser.add_argument("--native-autoboot", action="store_true",
@@ -168,6 +178,8 @@ def main():
     parser.add_argument("--nano-mac-handoff",action="store_true",help="verify retained SDM boundaries for a prospective MAC domain; requires source rearm and PIO SD")
     parser.add_argument("--nano-sdm-source-recovery",action="store_true",help="explicit completed-source terminal cold-reset diagnostic; requires source rearm")
     args = parser.parse_args()
+    if args.nano_jitter and not (args.nano_firmware_mmu and args.nano_sdm_input_transfer):
+        parser.error("CPU jitter requires the matched secure MMU and launcher handoff")
     if args.nano_mac_table_trial and not args.nano_mac_handoff:parser.error("table trial requires explicit MAC handoff")
     if args.nano_mac_coexistence_trial and not args.nano_mac_table_trial:parser.error("coexistence trial requires explicit MAC table trial")
     if args.nano_mac_c64_scope_supplier and not args.nano_mac_menu_supplier:
@@ -215,7 +227,7 @@ def main():
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
         cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm,sdm_source_recovery=args.nano_sdm_source_recovery,mac_handoff=args.nano_mac_handoff,mac_table_trial=args.nano_mac_table_trial,mac_coexistence_trial=args.nano_mac_coexistence_trial,mac_menu_supplier=args.nano_mac_menu_supplier,mac_c64_scope_supplier=args.nano_mac_c64_scope_supplier)
-    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile,require_sdm_trng=args.nano_sdm_trng)
+    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile,require_sdm_trng=args.nano_sdm_trng, jitter_mode=args.nano_jitter)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Terasic U-Boot checkout must be clean and at the pinned revision")
