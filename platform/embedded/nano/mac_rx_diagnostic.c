@@ -105,7 +105,7 @@ static int derive_reply(const uint8_t *request, uint8_t *reply)
 int fes_rx_arm(const struct fes_rx_path *p, struct fes_rx_result *r, const uint8_t request[FES_RX_BYTES])
 {
     if (!p || !p->io || !p->guard || !r || !request || r->arm_attempted || !p->io->read || !p->io->write ||
-        !p->io->store || !p->io->load || !p->io->sync_memory)
+        !p->io->store || !p->io->load || !p->io->sync_memory || !p->io->time_us)
         return -1;
     r->arm_attempted = 1;
     if (!derive_reply(request, r->expected) || p->guard(p->trial) || rd(p, RX_CFG) & 1 ||
@@ -139,27 +139,47 @@ int fes_rx_arm(const struct fes_rx_path *p, struct fes_rx_result *r, const uint8
  * Check them a second time after stop and again under the outer revoked guard. */
 static int payload(const struct fes_rx_path *p, const struct fes_rx_result *r, uint8_t *capture)
 {
+    unsigned diff = 0;
     for (unsigned i = 0; i < FES_RX_BYTES; i += 8) {
         uint64_t word = mem(p, FES_RX_DATA + FES_RX_OFFSET + i);
         for (unsigned j = 0; j < 8 && i + j < FES_RX_BYTES; j++) {
             uint8_t actual = (uint8_t)(word >> (j * 8));
             if (capture)
                 capture[i + j] = actual;
-            if (actual != r->expected[i + j])
-                return -1;
+            diff |= actual ^ r->expected[i + j];
         }
     }
-    return 0;
+    return diff ? -1 : 0;
 }
 static int retained(const struct fes_rx_path *p, const struct fes_rx_result *r)
 {
     if (p->guard(p->trial))
         return -1;
     p->io->sync_memory(p->io->ctx);
-    return (uint32_t)(mem(p, FES_RX_DESC + 8) >> 32) != r->desc_status || payload(p, r, 0) ||
-                   memory_unchanged(p) || p->guard(p->trial)
-               ? -1
-               : 0;
+    for (unsigned i = 0; i < 2; i++)
+        if (mem(p, FES_RX_DESC + 8 * i) != r->retired_desc[i])
+            return -1;
+    for (unsigned i = 0; i < FES_RX_CAPACITY / 8; i++)
+        if ((i % 32 == 0 && p->guard(p->trial)) ||
+            mem(p, FES_RX_DATA + FES_RX_OFFSET + 8 * i) != r->retired_buffer[i])
+            return -1;
+    return memory_unchanged(p) || p->guard(p->trial) ? -1 : 0;
+}
+static int save_retirement(const struct fes_rx_path *p, struct fes_rx_result *r)
+{
+    if (p->guard(p->trial))
+        return -1;
+    p->io->sync_memory(p->io->ctx);
+    for (unsigned i = 0; i < 2; i++)
+        r->retired_desc[i] = mem(p, FES_RX_DESC + 8 * i);
+    for (unsigned i = 0; i < FES_RX_CAPACITY / 8; i++) {
+        if (i % 32 == 0 && p->guard(p->trial))
+            return -1;
+        r->retired_buffer[i] = mem(p, FES_RX_DATA + FES_RX_OFFSET + 8 * i);
+    }
+    if (r->matched && ((uint32_t)(r->retired_desc[1] >> 32) != r->desc_status || payload(p, r, 0)))
+        return -1;
+    return retained(p, r);
 }
 int fes_rx_retained(const struct fes_rx_path *p, const struct fes_rx_result *r)
 {
@@ -170,6 +190,7 @@ int fes_rx_wait(const struct fes_rx_path *p, struct fes_rx_result *r)
     if (!p || !r || !r->armed || r->wait_attempted)
         return -1;
     r->wait_attempted = 1;
+    uint64_t first = p->io->time_us(p->io->ctx);
     for (unsigned n = 0; n < SYNC_LIMIT; n++) {
         if (p->guard(p->trial))
             return -1;
@@ -177,12 +198,28 @@ int fes_rx_wait(const struct fes_rx_path *p, struct fes_rx_result *r)
         if (r->channel_status & (FAULTS | RX_STOPPED))
             return -1;
         r->desc_status = (uint32_t)(mem(p, FES_RX_DESC + 8) >> 32);
+        uint64_t now = p->io->time_us(p->io->ctx);
+        if (now < first)
+            return -1;
+        if (now - first >= 2000000U) {
+            if (!memory_unchanged(p) && !p->guard(p->trial))
+                r->failure = FES_RX_TIMED_OUT;
+            return -1;
+        }
         if (r->desc_status & OWN)
             continue;
         p->io->sync_memory(p->io->ctx); /* acquire device writeback before payload */
-        if ((r->desc_status & (CTXT | FD_LD | ES | PL)) != (FD_LD | FES_RX_BYTES))
+        if (memory_unchanged(p) || p->guard(p->trial))
             return -1;
-        if (payload(p, r, r->bytes) || memory_unchanged(p) || p->guard(p->trial))
+        if ((r->desc_status & (CTXT | FD_LD | ES | PL)) != (FD_LD | FES_RX_BYTES)) {
+            r->failure = FES_RX_BAD_DESCRIPTOR;
+            return -1;
+        }
+        if (payload(p, r, r->bytes)) {
+            r->failure = FES_RX_WRONG_FRAME;
+            return -1;
+        }
+        if (p->guard(p->trial))
             return -1;
         r->matched = 1;
         return 0;
@@ -191,7 +228,7 @@ int fes_rx_wait(const struct fes_rx_path *p, struct fes_rx_result *r)
 }
 int fes_rx_stop(const struct fes_rx_path *p, struct fes_rx_result *r)
 {
-    if (!p || !r || !r->armed || !r->matched || r->stop_attempted)
+    if (!p || !r || !r->armed || (!r->matched && r->failure == FES_RX_NO_FAILURE) || r->stop_attempted)
         return -1;
     r->stop_attempted = 1;
     if (p->guard(p->trial) || rd(p, RX_CTRL) != (RX_BUFFER_CTRL | 1) || rd(p, RX_CFG) != ((1U << 2) | 1) ||
@@ -212,6 +249,7 @@ int fes_rx_stop(const struct fes_rx_path *p, struct fes_rx_result *r)
     }
     if (n == SYNC_LIMIT || wr(p, RX_CTRL, RX_BUFFER_CTRL))
         return -1;
+    unsigned idle_samples = 0;
     for (n = 0; n < SYNC_LIMIT; n++) {
         if (p->guard(p->trial))
             return -1;
@@ -224,11 +262,20 @@ int fes_rx_stop(const struct fes_rx_path *p, struct fes_rx_result *r)
         r->mtl_debug = rd(p, MTL_RX_DEBUG);
         if ((r->channel_status & RX_STOPPED) && !(r->ch_debug & 0x7fff0000U) && !(r->dma_debug & 0xf03U) &&
             !(r->mac_debug & 7) && !(r->mtl_debug & 0x3fff0037U)) {
+            if (idle_samples == 0) {
+                if (save_retirement(p, r))
+                    return -1;
+                idle_samples++;
+                continue;
+            }
             if (retained(p, r))
                 return -1;
             r->stopped = 1;
             return 0;
         }
+        /* Once we observed a stopped engine, renewed activity is ambiguous. */
+        if (idle_samples)
+            return -1;
     }
     return -1;
 }

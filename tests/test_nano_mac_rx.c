@@ -78,6 +78,10 @@ static void store(void *ctx, uint32_t a, uint64_t v)
     m->stores++;
     m->pending_sync = 1;
 }
+static uint64_t clock_us(void *ctx)
+{
+    return ((struct model *)ctx)->cycles * 5000ULL;
+}
 static void barrier(void *ctx)
 {
     ((struct model *)ctx)->pending_sync = 0;
@@ -112,7 +116,8 @@ int main(void)
                                  .write = write_reg,
                                  .load = load,
                                  .store = store,
-                                 .sync_memory = barrier};
+                                 .sync_memory = barrier,
+                                 .time_us = clock_us};
     const struct fes_rx_path p = {.io = &io, .trial = &m, .guard = guard};
     struct fes_rx_result r;
     uint8_t request[60];
@@ -148,6 +153,31 @@ int main(void)
     assert(fes_rx_stop(&p, &r) && !r.stopped);
     MATCH();
     m.data[FES_RX_OFFSET / 8]++;
+    assert(fes_rx_stop(&p, &r) && !r.stopped);
+    ARM();
+    assert(fes_rx_wait(&p, &r) && r.failure == FES_RX_TIMED_OUT && !r.matched);
+    assert(!fes_rx_stop(&p, &r) && r.stopped && !r.matched && !fes_rx_retained(&p, &r));
+    m.data[FES_RX_OFFSET / 8 + 191] ^= 1;
+    assert(fes_rx_retained(&p, &r));
+    ARM();
+    receive(&m, DONE + 4);
+    assert(fes_rx_wait(&p, &r) && r.failure == FES_RX_BAD_DESCRIPTOR);
+    assert(!fes_rx_stop(&p, &r) && !r.matched && !fes_rx_retained(&p, &r));
+    m.desc[0] ^= 1;
+    assert(fes_rx_retained(&p, &r));
+    ARM();
+    receive(&m, DONE);
+    m.data[FES_RX_OFFSET / 8] ^= 4;
+    assert(fes_rx_wait(&p, &r) && r.failure == FES_RX_WRONG_FRAME);
+    assert(!fes_rx_stop(&p, &r) && !r.matched && !fes_rx_retained(&p, &r));
+    ARM();
+    receive(&m, DONE + 4);
+    assert(fes_rx_wait(&p, &r));
+    m.data[2]++;
+    assert(fes_rx_stop(&p, &r) && !r.stopped);
+    ARM();
+    m.cutoff = m.cycles;
+    assert(fes_rx_wait(&p, &r) && !r.failure);
     assert(fes_rx_stop(&p, &r) && !r.stopped);
     const uint32_t bad[] = {DONE ^ (1U << 29), DONE ^ (1U << 28), DONE | (1U << 30), DONE | (1U << 15),
                             DONE + 4,          DONE - 1,          DONE | OWN};

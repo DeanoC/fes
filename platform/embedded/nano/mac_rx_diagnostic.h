@@ -23,7 +23,12 @@ struct fes_rx_path {
      * checks. This module has no independent hardware grant. */
     int (*guard)(void *trial);
 };
+enum fes_rx_failure { FES_RX_NO_FAILURE, FES_RX_TIMED_OUT, FES_RX_BAD_DESCRIPTOR, FES_RX_WRONG_FRAME };
+/* Reserve this structure in CPU-only SPL storage outside every translated
+ * page. It preserves an exact image, even of unexpected input, across revoke. */
 struct fes_rx_result {
+    uint64_t retired_desc[2], retired_buffer[FES_RX_CAPACITY / 8];
+    enum fes_rx_failure failure;
     unsigned arm_attempted, dma_possible, armed, wait_attempted, matched, stop_attempted, stopped;
     uint32_t desc_status, channel_status, mac_debug, mtl_debug, dma_debug, ch_debug;
     uint8_t expected[FES_RX_BYTES], bytes[FES_RX_BYTES];
@@ -34,7 +39,8 @@ struct fes_rx_result {
  * final revoke. Treat any error after dma_possible as uncertain until closed. */
 int fes_rx_arm(const struct fes_rx_path *, struct fes_rx_result *, const uint8_t request[FES_RX_BYTES]);
 int fes_rx_wait(const struct fes_rx_path *, struct fes_rx_result *);
-/* Stop TX first so the shared AXI channel can independently go idle. */
+/* Stop TX first so the shared AXI channel can independently go idle.
+ * A stopped failed observation remains failed and cannot establish delivery. */
 int fes_rx_stop(const struct fes_rx_path *, struct fes_rx_result *);
 /* The outer owner can repeat this memory-only observation after its verified
  * abort STE, invalidation, reset and dwell. Supply that terminal guard. */
