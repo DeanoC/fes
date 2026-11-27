@@ -42,6 +42,12 @@ var ownedNetworkController *network.Controller
 // firmware MAC/DMA contract; disabled profiles must never invoke it.
 func NetworkEnabled() bool { return profileNetworkEnabled }
 
+// NetworkStartupTimeout includes the selected physical device open and, when
+// requested, the subsequent DHCP acquisition. It does not bound stack lifetime.
+func NetworkStartupTimeout(dhcp bool) time.Duration {
+	return networkStartupTimeout(profileNetworkBase, profileNetworkPHY, profileNetworkPHYID, dhcp)
+}
+
 // NetworkOptions configures opt-in XGMAC link speed and link-flap recovery
 // behaviors forwarded from trusted board startup. Zero values preserve strict
 // 1000BASE-T full-duplex, fail-closed carrier enforcement.
@@ -84,6 +90,10 @@ func OpenNetworkWithControlDHCPOptions(ctx, lifetime context.Context, bootOwner 
 	if err := network.ValidateDHCPConfig(dhcpCfg); err != nil {
 		return nil, nil, err
 	}
+	// The matched profile starts DHCP's own ten-second window after training.
+	if NetworkStartupTimeout(false) > defaultDeviceTimeout && (dhcpCfg.Timeout == 0 || dhcpCfg.Timeout > dhcpStartupBudget) {
+		dhcpCfg.Timeout = dhcpStartupBudget
+	}
 	return openControlledNetwork(ctx, lifetime, bootOwner, opts, func(factory func() (network.Device, error)) (*network.Interface, error) {
 		return network.OpenDeviceDHCPWithStartup(ctx, lifetime, factory, dhcpCfg)
 	})
@@ -97,6 +107,13 @@ func openControlledNetwork(
 ) (*network.Interface, *network.Controller, error) {
 	if !profileNetworkEnabled || ctx == nil || lifetime == nil || bootOwner == 0 {
 		return nil, nil, fmt.Errorf("de25-nano: controlled Ethernet profile and trusted boot owner required")
+	}
+	// The device open has its own deadline even when the outer startup
+	// context also reserves time for subsequent DHCP acquisition.
+	if timeout := NetworkStartupTimeout(false); timeout > defaultDeviceTimeout {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
@@ -148,6 +165,7 @@ func openControlledNetwork(
 	if err != nil {
 		return nil, nil, err
 	}
+	control.ResumeTimeout = NetworkStartupTimeout(false)
 	ownedNetworkController, err = ownedNetworkInterface.BindControl(control)
 	if err != nil {
 		return nil, nil, err

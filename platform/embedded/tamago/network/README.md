@@ -111,6 +111,14 @@ The native R1 cold-boot capture (SHA-256
 records MAC control `3`, read/write stream ID `1`
 (`mac_ids=10001`), and secure and nonsecure SMMU CR0/CR0ACK all zero at
 cold admission. The same observation explicitly reports `access=unqualified`.
+The matched MAC0/KSZ9031 profile reserves 25 seconds for PHY training and
+five seconds for the rest of device startup. DHCP adds its own ten-second
+acquisition window. The same 30-second device deadline covers fresh grants
+when returning to MENU or launching a core. CBL needed up to 9.85 seconds in
+a standalone diagnostic before both gigabit receivers were ready. Each DMA
+stop retains its five-second bound. A failed restart retires the controller.
+These budgets leave PHY configuration and training with the secure supplier.
+
 A native supplier still needs to establish exclusive EMAC clock/reset and
 SMMU/firewall ownership, contain descriptor and buffer DMA within the
 pinned window, and prove outstanding MAC transactions have drained before

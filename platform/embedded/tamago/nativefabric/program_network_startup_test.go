@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
@@ -204,4 +205,54 @@ func TestProgramNetworkStartupFailureRetainsAndDoesNotCleanFabric(t *testing.T) 
 			}
 		})
 	}
+}
+
+func TestProgramNetworkColdAndWarmPHYTraining(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const window = 30 * time.Second
+		train := func(ctx context.Context) error {
+			if end, ok := ctx.Deadline(); !ok || time.Until(end) != window {
+				t.Fatalf("training deadline %v, want %v", end, time.Now().Add(window))
+			}
+			time.Sleep(9845 * time.Millisecond)
+			return ctx.Err()
+		}
+		f, backend, _ := backendFixture(t, func(f *serviceFixture) {
+			err := f.s.StartNetworkWithTimeout(context.Background(), window, f.s.Status().Owner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+				if err := train(ctx); err != nil {
+					return nil, err
+				}
+				link, err := network.NewLink(nil, &programNetwork{}, "192.0.2.2/24", "02:00:00:00:00:02", "")
+				if err != nil {
+					return nil, err
+				}
+				t.Cleanup(func() {
+					stopped, cancel := context.WithCancel(lifetime)
+					cancel()
+					_ = link.Start(stopped) // Stop the stack workers created by NewLink.
+				})
+				return network.NewController(link, network.DMAControl{ResumeTimeout: window, Start: train, Stop: func(ctx context.Context) error {
+					end, ok := ctx.Deadline()
+					if !ok || time.Until(end) != 5*time.Second {
+						t.Fatal("extended MAC stop deadline")
+					}
+					return nil
+				}})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+		begin := time.Now()
+		session, err := f.s.Launch(context.Background(), 0, backend.entries[0].Request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.s.Return(context.Background(), session); err != nil {
+			t.Fatal(err)
+		}
+		if time.Since(begin) < 2*9845*time.Millisecond {
+			t.Fatal("both warm restarts must complete training")
+		}
+	})
 }

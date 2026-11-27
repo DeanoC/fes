@@ -101,11 +101,6 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 			provision = nil
 		}
 	}
-	startupTimeout := 5 * time.Second
-	if spec.DHCP {
-		// Give AcquireDHCP its full 10-second retry budget plus XGMAC open margin.
-		startupTimeout = 15 * time.Second
-	}
 	var activeRenewer atomic.Pointer[network.LeaseRenewer]
 	netOpts := de25nano.NetworkOptions{
 		Allow100Full:    spec.Allow100Full,
@@ -122,7 +117,7 @@ func startProgramNetwork(g *gic.Controller, provision *agentapi.Provisioning) (f
 	}
 	var iface *network.Interface
 	var networkLifetime context.Context
-	err = programService.StartNetworkWithTimeout(context.Background(), startupTimeout, programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
+	err = programService.StartNetworkWithTimeout(context.Background(), de25nano.NetworkStartupTimeout(spec.DHCP), programNetworkBootOwner, func(ctx, lifetime context.Context, owner uint64) (*network.Controller, error) {
 		networkLifetime = lifetime
 		var control *network.Controller
 		var err error

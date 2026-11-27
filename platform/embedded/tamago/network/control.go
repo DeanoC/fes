@@ -24,6 +24,10 @@ var (
 type DMAControl struct {
 	Stop  func(context.Context) error
 	Start func(context.Context) error
+	// ResumeTimeout bounds the complete trusted restart, including any PHY
+	// training. A zero value keeps the five-second default. Stop always has
+	// its separate five-second drain bound.
+	ResumeTimeout time.Duration
 	// Confirm is an optional platform-stage check after driver initialization.
 	// The driver must consume it before exposing its final Stop/Start controls;
 	// NewController rejects an unconsumed hook instead of reopening traffic.
@@ -69,7 +73,7 @@ func (c *Controller) Claim() error {
 // cannot turn software cancellation into a DMA fence. Failed control retains
 // this claim and the gate permanently; no replacement or retry is permitted.
 func NewController(link *Link, dma DMAControl) (*Controller, error) {
-	if link == nil || link.state == nil || link.device == nil || link.stack == nil || dma.Stop == nil || dma.Start == nil || dma.Confirm != nil {
+	if link == nil || link.state == nil || link.device == nil || link.stack == nil || dma.Stop == nil || dma.Start == nil || dma.Confirm != nil || dma.ResumeTimeout < 0 {
 		return nil, ErrControl
 	}
 	if err := link.Err(); err != nil {
@@ -77,6 +81,9 @@ func NewController(link *Link, dma DMAControl) (*Controller, error) {
 	}
 	if !link.state.claimed.CompareAndSwap(false, true) {
 		return nil, ErrControl
+	}
+	if dma.ResumeTimeout == 0 {
+		dma.ResumeTimeout = 5 * time.Second
 	}
 	return &Controller{state: &linkController{link: link, dma: dma}}, nil
 }
@@ -187,7 +194,7 @@ func (c *linkController) resume(parent context.Context) error {
 	if !c.paused {
 		return ErrControl
 	}
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, c.dma.ResumeTimeout)
 	defer cancel()
 	if err := c.dma.Start(ctx); err != nil {
 		return c.fail(err)

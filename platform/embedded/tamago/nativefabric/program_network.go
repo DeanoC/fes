@@ -130,9 +130,9 @@ func (p *programService) finishNetwork(result *error) {
 		}
 		return
 	}
-	cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := p.network.ResumeNetwork(cleanup); err != nil {
+	// Resume has its own bounded platform deadline independent of the
+	// completed program transition, which may already have timed out.
+	if err := p.network.ResumeNetwork(context.Background()); err != nil {
 		*result = errors.Join(*result, p.networkFailure(err))
 	}
 }
