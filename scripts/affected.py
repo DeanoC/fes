@@ -48,8 +48,8 @@ def tamago_input(path):
 # Application, z80, pc386 and the DE25 x87 backend are simulation-only
 # families; PC/XT also has a package producer.
 CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
-         'pc386', 'de25-x87')
-SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386', 'de25-x87'})
+         'pc386', 'de25-x87', 'de25-ramtest')
+SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386', 'de25-x87', 'de25-ramtest'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
@@ -322,6 +322,13 @@ def fpga_cores(path):
     if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        if parts[2] == 'ramtest_managed' or (parts[2] == 'ramtest' and len(parts) >= 4 and
+                (parts[3] == 'managed' or parts[3] == 'scan.v')):
+            return ('de25-ramtest',), 'DE25 managed SDRAM tester'
+        if parts[2:4] == ('ramtest', 'sdram.v'):
+            return ('de25-ramtest', 'spectrum', 'atari-st', 'pcxt'), 'shared DE25 board SDRAM controller'
+        if parts[2:4] == ('producers', 'build_ramtest_package.py'):
+            return ('de25-ramtest',), 'DE25 managed RAM tester producer'
         if parts[2] == 'x87':
             return ('de25-x87',), 'standalone DE25 x87 arithmetic simulation'
         if len(parts) >= 4 and parts[2] == 'producers':
@@ -440,6 +447,8 @@ def fpga_cores(path):
             # pc386 uses the plane's RTL with its own DDR model.
             pc386 = ('pc386',) if parts[2] == 'rtl' else ()
             return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', *pc386), 'idle and running-session display consumers'
+        if parts[1:4] == ('fes-pcxt', 'rtl', 'pcxt_machine_settings.sv'):
+            return ('pcxt', 'pc386'), 'PC/XT machine settings RTL and shared storage exchange suite'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):

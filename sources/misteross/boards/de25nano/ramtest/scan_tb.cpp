@@ -1,5 +1,6 @@
 #include "Vfes_de25_ram_scan.h"
 #include "verilated.h"
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -10,9 +11,26 @@
 #ifndef DATA_W
 #define DATA_W 128
 #endif
+#ifndef CHECK_ADDR_HIGH
+#define CHECK_ADDR_HIGH 0
+#endif
 static constexpr unsigned bytes=DATA_W/8;
 using Word=std::array<uint8_t,bytes>;
 static void check(bool ok,const char *what){if(!ok)throw std::runtime_error(what);}
+static Word walking_word(uint32_t address){
+ Word result{};
+ if(DATA_W<=64){
+  const unsigned bit=(address/bytes)%DATA_W;
+  result[bit/8]=uint8_t(1u<<(bit%8));
+ }else{
+  for(unsigned i=0;i<bytes;i++){
+   const uint32_t lane=(address&~uint32_t(7))+((i/8)*8);
+   const uint64_t pattern=uint64_t(1)<<((lane>>3)&63);
+   result[i]=uint8_t(pattern>>((i%8)*8));
+  }
+ }
+ return result;
+}
 struct Rig {
  Vfes_de25_ram_scan d;
  std::map<uint32_t,uint8_t> memory;
@@ -21,7 +39,11 @@ struct Rig {
  uint32_t write_base=0; bool b_pending=false,hold_read=false,force_stall=false;
  bool zero=false,inject_data=false,inject_r=false,inject_b=false,ignore_mask=false,lose_cal_on_read=false,stray_b=false;
  uint32_t address_mask=0xffffffff;
+ uint32_t walk_window_base=0xffffffff;
+ std::array<bool,512/bytes> walk_window_seen{};
  unsigned reads=0,writes=0;
+ std::array<Word,8> first_pattern{};
+ std::array<bool,8> seen_pattern{};
  Word get_write(){Word w{};for(unsigned i=0;i<bytes;i++){
 #if DATA_W == 128
   w[i]=d.writedata[i/4]>>((i%4)*8);
@@ -44,8 +66,18 @@ struct Rig {
   check(!rd||(!b_pending&&!write_index&&returned.empty()),"read before write completion or previous drain");
   check(!wr||returned.empty(),"write while read outstanding");
   if(wr){
+   if (!seen_pattern[d.pattern]) { first_pattern[d.pattern]=data; seen_pattern[d.pattern]=true; }
    if(!write_index){write_base=addr;write_count=count;check(count&&count<=16,"bad write burst");check((addr&4095)+count*bytes<=4096,"write crosses 4KiB");}
    else check(addr==write_base&&count==write_count,"write burst changed");
+   const uint32_t data_address=write_base+write_index*bytes;
+   if(d.pattern==3){
+    check(data==walking_word(data_address),"walking-bit pattern did not traverse DATA_W correctly");
+    if(walk_window_base==0xffffffff)walk_window_base=data_address&~uint32_t(511);
+    if((data_address&~uint32_t(511))==walk_window_base){
+     const unsigned location=(data_address-walk_window_base)/bytes;
+     walk_window_seen[location]=true;
+    }
+   }
    for(unsigned i=0;i<bytes;i++)if(ignore_mask||(enable&(1u<<i)))memory[(write_base+write_index*bytes+i)&address_mask]=data[i];
    ++writes;
    if(++write_index==write_count){write_index=0;b_pending=true;b_wait=zero?0:3;}
@@ -65,12 +97,13 @@ struct Rig {
   }else if(read_wait)--read_wait;
   d.eval();d.clk=1;d.eval();++tick;
  }
- Rig(){d.reset_n=0;d.start=0;d.stop=0;d.clear=0;d.calibrated=1;cycle();d.reset_n=1;cycle();cycle();}
+ Rig(unsigned release_cycles=2){d.reset_n=0;d.start=0;d.stop=0;d.clear=0;d.calibrated=1;cycle();d.reset_n=1;for(unsigned i=0;i<release_cycles;++i)cycle();}
  void start(uint32_t base=0x3fffe000,uint32_t size=8192){d.base=base;d.length=size;d.start=1;cycle();d.start=0;}
  void finish(unsigned limit=200000){for(unsigned n=0;n<limit&&d.busy;n++)cycle();check(!d.busy,"scan did not finish");}
+ bool full_walk_window_seen()const{return std::all_of(walk_window_seen.begin(),walk_window_seen.end(),[](bool seen){return seen;});}
 };
 int main(int argc,char **argv){Verilated::commandArgs(argc,argv);try{
- for(bool immediate:{false,true}){Rig r;r.zero=immediate;r.start(immediate?0xffffe000:0x3fffe000);r.finish();check(r.d.done&&!r.d.stopped&&!r.d.errors&&!r.d.faults,"good scan failed");check(r.d.samples==16,"missing latency samples");check(r.d.written_bytes==uint64_t(8192)*7,"write byte count");check(r.d.read_bytes==uint64_t(8192)*7+16*32,"read byte count");check(r.d.last_min>=r.d.first_min,"latency ordering");}
+ for(bool immediate:{false,true}){Rig r;r.zero=immediate;r.start(immediate?0xffffe000:0x3fffe000);r.finish();check(r.d.done&&!r.d.stopped&&!r.d.errors&&!r.d.faults,"good scan failed");check(r.d.samples==16,"missing latency samples");check(r.d.written_bytes==uint64_t(8192)*(CHECK_ADDR_HIGH?8:7),"write byte count");check(r.d.read_bytes==uint64_t(8192)*(CHECK_ADDR_HIGH?8:7)+16*32,"read byte count");check(r.d.last_min>=r.d.first_min,"latency ordering");check(r.full_walk_window_seen(),"walking-bit scan skipped a word in the first 512-byte window");}
  {Rig r;r.inject_data=true;r.start();r.finish();check(r.d.done&&r.d.errors==1,"data mismatch not retained");check(r.d.first_addr==0x3fffe000,"wrong first failing address");}
  {Rig r;r.address_mask=~uint32_t(4096);r.start();r.finish();check(r.d.done&&r.d.errors,"address alias not detected");}
  {Rig r;r.ignore_mask=true;r.start();r.finish();check(r.d.done&&r.d.errors,"ignored byte masks not detected");}
@@ -82,7 +115,15 @@ int main(int argc,char **argv){Verilated::commandArgs(argc,argv);try{
  {Rig r;r.d.calibrated=0;r.start();check(!r.d.busy&&r.d.faults&&r.writes==0,"uncalibrated memory accessed");}
  for(auto size:{0u,16u,96u}){Rig r;r.start(0,size);check(!r.d.busy&&r.d.faults,"invalid length accepted");}
  {Rig r;r.start(0xffffffe0,64);check(!r.d.busy&&r.d.faults,"32-bit range overflow accepted");}
+ {Rig r(0);r.cycle();r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<4;i++)r.cycle();check(!r.d.faults&&!r.d.busy,"early startup reset invented a fault");}
+ {Rig r(0);r.cycle();r.start();check(r.d.busy,"earliest scan start was not accepted");r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<10;i++)r.cycle();check((r.d.faults&32)&&!r.d.done&&!r.d.read&&!r.d.write,"reset after earliest scan start restored authority");}
  {Rig r;r.start();r.cycle();r.d.reset_n=0;r.cycle();r.d.reset_n=1;for(unsigned i=0;i<10;i++)r.cycle();check((r.d.faults&32)&&!r.d.done&&!r.d.read&&!r.d.write,"reset restored authority");}
+ if(CHECK_ADDR_HIGH) {
+  Rig a,b;a.start(0,8192);b.start((1u<<25)|(1u<<9),8192);a.finish();b.finish();
+  for(unsigned p=0;p<8;++p)check(a.seen_pattern[p]&&b.seen_pattern[p],"pattern not run");
+  for(unsigned p=0;p<7;++p)check(a.first_pattern[p]==b.first_pattern[p],"prior patterns unexpectedly distinguished coupled address alias");
+  check(a.first_pattern[7]!=b.first_pattern[7],"high-address pattern did not distinguish A9/A25 alias");
+ }
  std::cout<<"PASS DE25 RAM scan "<<DATA_W<<": all patterns/byte enables, latency, 4KiB/4GiB bounds, zero-latency responses, errors, stop/drain, timeout and reset containment\n";
  return 0;
  }catch(const std::exception &e){std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}}

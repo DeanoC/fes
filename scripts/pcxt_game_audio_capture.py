@@ -18,6 +18,11 @@ KIT_CAPTURE = {
     'B': {'card': 'D4KPRO', 'raw': 'usb-ASUS_4KPRO_802B003090700329-video-index0',
           'loop': 'fes-4kpro-hil', 'service': 'fes-4kpro-fanout.service',
           'usb': ('0b05', '1ab9', '802B003090700329')},
+    # Kit D25's MacroSilicon MS2109 reports no USB serial, so it is bound by
+    # the Powerboat USB port it is plugged into as well as its vendor/product.
+    'D25': {'card': 'MS2109', 'raw': 'usb-MACROSILICON_2109-video-index0',
+            'loop': 'fes-ms2109-hil', 'service': 'fes-ms2109-fanout.service',
+            'usb': ('534d', '2109', None), 'port': '3-6'},
 }
 
 
@@ -32,12 +37,21 @@ def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devro
     expected = kit_capture(kit)
     raw = devroot/'v4l/by-id'/expected['raw']
     loop = devroot/'v4l/by-id'/expected['loop']
+    port = expected.get('port')
     def usb(node):
         node=node.resolve(strict=True)
         for parent in (node,*node.parents):
-            if (parent/'idVendor').is_file() and (parent/'idProduct').is_file() and (parent/'serial').is_file():
-                return {'path':str(parent),'vendor':(parent/'idVendor').read_text().strip().lower(),
-                        'product':(parent/'idProduct').read_text().strip().lower(),'serial':(parent/'serial').read_text().strip()}
+            if not ((parent/'idVendor').is_file() and (parent/'idProduct').is_file()):
+                continue
+            if port is not None:
+                if parent.name != port: raise AudioError('USB capture is not on its expected port')
+                serial=None
+            elif (parent/'serial').is_file():
+                serial=(parent/'serial').read_text().strip()
+            else:
+                continue
+            return {'path':str(parent),'vendor':(parent/'idVendor').read_text().strip().lower(),
+                    'product':(parent/'idProduct').read_text().strip().lower(),'serial':serial}
         raise AudioError('USB capture identity unavailable')
     try:
         card=(procroot/'asound'/expected['card']).resolve(strict=True).name

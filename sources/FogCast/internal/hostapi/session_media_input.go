@@ -3,6 +3,7 @@ package hostapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -192,7 +193,7 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 	// A host without remote input can mutate nothing; say so before any
 	// lease or connection check can report a different reason.
 	if s.remoteInput == nil {
-		return errRemoteInputDisabled
+		return s.missingRemoteInput()
 	}
 	if s.playHIDForeign() {
 		return playHIDLeaseError()
@@ -212,7 +213,7 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 
 func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event, modifiers uint8) (time.Duration, error) {
 	if s.remoteInput == nil {
-		return 0, errRemoteInputDisabled
+		return 0, s.missingRemoteInput()
 	}
 	if s.tapHIDForeign() {
 		return 0, playHIDLeaseError()
@@ -320,7 +321,7 @@ func playHIDLeaseError() error {
 func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, error) {
 	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
-		return sessionResult{}, errRemoteInputDisabled
+		return sessionResult{}, s.missingRemoteInput()
 	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
@@ -364,7 +365,7 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, error) {
 	ctx = s.scoped(ctx)
 	if s.remoteInput == nil {
-		return sessionResult{}, errRemoteInputDisabled
+		return sessionResult{}, s.missingRemoteInput()
 	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
@@ -399,9 +400,38 @@ func remoteInputReconcileError(err error) error {
 // MISTER_UNAVAILABLE or as a dropped stream.
 var errRemoteInputDisabled = errors.New("remote input is not enabled in this host's configuration")
 
-// writeRemoteInputDisabled reports whether err was errRemoteInputDisabled and,
-// if so, writes its 503 INPUT_UNAVAILABLE response.
-func writeRemoteInputDisabled(w http.ResponseWriter, err error) bool {
+// remoteInputBuildError reports a target whose input bridge could not be built
+// although this host has remote input enabled. It is distinct from
+// errRemoteInputDisabled so a failed bridge never reads as a config problem.
+type remoteInputBuildError struct {
+	target string
+	err    error
+}
+
+func (e *remoteInputBuildError) Error() string {
+	return fmt.Sprintf("remote input bridge for target %q could not be built: %v", e.target, e.err)
+}
+
+func (e *remoteInputBuildError) Unwrap() error { return e.err }
+
+// missingRemoteInput explains a coordinator with no input controller: either
+// the factory failed for this target, or remote input is not enabled.
+func (s *sessionCoordinator) missingRemoteInput() error {
+	if s.remoteInputErr != nil {
+		return &remoteInputBuildError{target: s.target, err: s.remoteInputErr}
+	}
+	return errRemoteInputDisabled
+}
+
+// writeRemoteInputMissing reports whether err came from missingRemoteInput
+// and, if so, writes its 503 response: INPUT_UNAVAILABLE for a disabled host,
+// INPUT_BRIDGE_FAILED for a target whose bridge could not be built.
+func writeRemoteInputMissing(w http.ResponseWriter, err error) bool {
+	var buildErr *remoteInputBuildError
+	if errors.As(err, &buildErr) {
+		writeError(w, http.StatusServiceUnavailable, "INPUT_BRIDGE_FAILED", buildErr.Error())
+		return true
+	}
 	if !errors.Is(err, errRemoteInputDisabled) {
 		return false
 	}

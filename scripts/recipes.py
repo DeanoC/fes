@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import os
 import keyword
 import re
+import shutil
 import tomllib
 import subprocess
 from pathlib import Path
@@ -54,7 +55,9 @@ def require_private_audit_cache(env=None):
 
 
 HIP_ROUTER = "HIP"
+CUDA_ROUTER = "CUDA"
 HIP_ARCHITECTURES = "gfx1100;gfx1201"
+CUDA_ARCHITECTURES = "86"
 DEFAULT_BOARD = "de10-nano"
 BOARDS = (DEFAULT_BOARD, "de25-nano")
 
@@ -318,8 +321,8 @@ def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
         if not re.fullmatch(_IDENTIFIER, auth) or keyword.iskeyword(auth):
             raise ValueError("invalid authenticate identifier")
         if lane == "oss":
-            if entry["gpu_router"] != HIP_ROUTER:
-                raise ValueError("only the HIP production route is supported")
+            if entry["gpu_router"] not in (HIP_ROUTER, CUDA_ROUTER):
+                raise ValueError("OSS gpu_router must be HIP or CUDA")
             if not re.fullmatch(r"gfx[0-9a-f]+(?:;gfx[0-9a-f]+)*", entry["hip_architectures"]):
                 raise ValueError("invalid HIP architectures")
         selection = entry["selection_filename"]
@@ -361,8 +364,24 @@ def recipe_for(core_id, *, board=DEFAULT_BOARD):
         ) from error
 
 
+def selected_gpu_router(recipe, *, which=None, path=None):
+    """Resolve the authenticated OSS route, preferring the recipe's HIP default."""
+    if recipe.toolchain != "oss":
+        return None
+    if recipe.gpu_router == CUDA_ROUTER:
+        return CUDA_ROUTER
+    which = shutil.which if which is None else which
+    if which("hipcc", path=path):
+        return HIP_ROUTER
+    if which("nvcc", path=path):
+        return CUDA_ROUTER
+    # Keep HIP when no accelerator compiler exists so authentication reports
+    # the existing missing-hipcc error instead of silently using another lane.
+    return HIP_ROUTER
+
+
 def producer_environment(env=None, recipe=None):
-    """Scrub caller overrides and apply HIP identity without selecting cache mode."""
+    """Scrub caller overrides and apply the selected authenticated GPU identity."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     mapped = os.environ.copy() if env is None else dict(env)
     require_private_audit_cache(mapped)
@@ -375,7 +394,19 @@ def producer_environment(env=None, recipe=None):
     mapped.pop("FES_TOOLCHAIN_ROOT", None)
     mapped.pop("FES_TOOLCHAIN_GPU_ROUTER", None)
     mapped.pop("FES_TOOLCHAIN_HIP_ARCHITECTURES", None)
+    mapped.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
     if recipe.toolchain == "oss":
-        mapped["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
-        mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+        router = selected_gpu_router(recipe, path=mapped.get("PATH"))
+        mapped["FES_TOOLCHAIN_GPU_ROUTER"] = router
+        if router == CUDA_ROUTER:
+            # The HIP list is not an input to a CUDA build; producers record it
+            # as unused and take CUDA's canonical default architecture.
+            mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = "unused"
+            mapped["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = CUDA_ARCHITECTURES
+        else:
+            mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+    elif recipe.toolchain == "quartus":
+        edition_root = mapped.get(f"FES_QUARTUS_{recipe.quartus['edition'].upper()}_ROOTDIR")
+        if edition_root:
+            mapped["QUARTUS_ROOTDIR"] = edition_root
     return mapped

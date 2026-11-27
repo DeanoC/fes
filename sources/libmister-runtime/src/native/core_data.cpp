@@ -16,6 +16,11 @@ namespace native {
 namespace {
 const std::string kLayout = "fes.pong.progress";
 const std::string kMachineLayout = generated::FesComputerInterfacePc386MachineID;
+const std::string kPcxtMachineLayout = generated::FesComputerInterfacePcxtMachineID;
+bool ValidGameMachine(const std::string& layout, const std::vector<std::uint16_t>& words)
+{
+	return layout == kPcxtMachineLayout ? ValidPcxtMachine(words) : ValidPc386Machine(words);
+}
 Error Bad(const char* text)
 {
 	return {ErrorCode::corrupt_data, text, "core_data"};
@@ -93,20 +98,21 @@ Error EncodeGameData(const CoreData& data, std::vector<unsigned char>* output)
 {
 	if (!ID(data.core_id) || !ValidLibraryGameID(data.game_id))
 		return Bad("invalid core-data identity");
-	if (data.layout.id != kMachineLayout || data.layout.major != 1 || data.layout.minor != 0)
+	if ((data.layout.id != kMachineLayout && data.layout.id != kPcxtMachineLayout) ||
+		data.layout.major != 1 || data.layout.minor != 0)
 		return Incompatible("unsupported core-data layout");
-	if (!ValidPc386Machine(data.words))
-		return Bad("invalid pc386 machine record");
+	if (!ValidGameMachine(data.layout.id, data.words))
+		return Bad("invalid machine record");
 	std::vector<unsigned char> bytes = {'F', 'E', 'S', 'G', 'A', 'M', 'E', '1'};
 	auto core = Hash(data.core_id.data(), data.core_id.size());
 	auto game = Hash(data.game_id.data(), data.game_id.size());
 	bytes.insert(bytes.end(), core.begin(), core.end());
 	bytes.insert(bytes.end(), game.begin(), game.end());
-	Word(&bytes, static_cast<std::uint16_t>(kMachineLayout.size()));
+	Word(&bytes, static_cast<std::uint16_t>(data.layout.id.size()));
 	Word(&bytes, 1);
 	Word(&bytes, 0);
 	Word(&bytes, static_cast<std::uint16_t>(data.words.size()));
-	bytes.insert(bytes.end(), kMachineLayout.begin(), kMachineLayout.end());
+	bytes.insert(bytes.end(), data.layout.id.begin(), data.layout.id.end());
 	for (std::uint16_t word : data.words) Word(&bytes, word);
 	auto checksum = Hash(bytes.data(), bytes.size());
 	bytes.insert(bytes.end(), checksum.begin(), checksum.end());
@@ -136,8 +142,10 @@ Error DecodeGameData(const std::vector<unsigned char>& bytes, const std::string&
 	const std::string layout(bytes.begin() + 80, bytes.begin() + 80 + length);
 	if (!ID(layout))
 		return Bad("invalid core-data layout identity");
-	if (layout != kMachineLayout || Word(bytes, 74) != 1 || Word(bytes, 76) != 0 ||
-		count != generated::FesComputerPc386MachineWordCount)
+	const std::size_t expected = layout == kPcxtMachineLayout ?
+		generated::FesComputerPcxtMachineWordCount : generated::FesComputerPc386MachineWordCount;
+	if ((layout != kMachineLayout && layout != kPcxtMachineLayout) ||
+		Word(bytes, 74) != 1 || Word(bytes, 76) != 0 || count != expected)
 		return Incompatible("core-data layout mismatch");
 	CoreData data;
 	data.core_id = core;
@@ -146,8 +154,8 @@ Error DecodeGameData(const std::vector<unsigned char>& bytes, const std::string&
 	data.mode = "persistent";
 	for (std::size_t index = 0; index < count; ++index)
 		data.words.push_back(Word(bytes, 80 + length + 2 * index));
-	if (!ValidPc386Machine(data.words))
-		return Bad("invalid pc386 machine record");
+	if (!ValidGameMachine(layout, data.words))
+		return Bad("invalid machine record");
 	data.revision = Sha256Hex(Hash(bytes.data(), bytes.size()));
 	*output = std::move(data);
 	return {};
@@ -212,8 +220,10 @@ Error DecodeCoreData(
 	*output = std::move(data);
 	return {};
 }
-CoreDataFile::CoreDataFile(int directory, std::string id, std::string game)
-	: directory_(directory), core_id_(std::move(id)), game_id_(std::move(game))
+CoreDataFile::CoreDataFile(
+	int directory, std::string id, std::string game, std::string layout_id)
+	: directory_(directory), core_id_(std::move(id)), game_id_(std::move(game)),
+	  layout_id_(std::move(layout_id))
 {
 }
 CoreDataFile::~CoreDataFile()
@@ -232,14 +242,15 @@ Error CoreDataFile::Open(
 	return error;
 }
 Error CoreDataFile::OpenGame(const std::string& root, const std::string& id,
-	const std::string& game, std::unique_ptr<CoreDataFile>* output)
+	const std::string& game, std::unique_ptr<CoreDataFile>* output, const std::string& layout_id)
 {
-	if (!output || !ID(id) || !ValidLibraryGameID(game))
+	if (!output || !ID(id) || !ValidLibraryGameID(game) ||
+		(layout_id != kMachineLayout && layout_id != kPcxtMachineLayout))
 		return Bad("invalid core-data root or identity");
 	int directory = -1;
 	const Error error = OpenNamespace(root, "games", GameDataNamespace(id, game), &directory);
 	if (error.ok())
-		output->reset(new CoreDataFile(directory, id, game));
+		output->reset(new CoreDataFile(directory, id, game, layout_id));
 	return error;
 }
 Error CoreDataFile::OpenNamespace(const std::string& root, const char* parent_name,
@@ -295,8 +306,11 @@ Error CoreDataFile::OpenNamespace(const std::string& root, const char* parent_na
 }
 Error CoreDataFile::Decode(const std::vector<unsigned char>& bytes, CoreData* output) const
 {
-	return game_id_.empty() ? DecodeCoreData(bytes, core_id_, output) :
+	Error error = game_id_.empty() ? DecodeCoreData(bytes, core_id_, output) :
 		DecodeGameData(bytes, core_id_, game_id_, output);
+	if (error.ok() && !game_id_.empty() && !layout_id_.empty() && output->layout.id != layout_id_)
+		return Incompatible("core-data layout mismatch");
+	return error;
 }
 Error CoreDataFile::ReadLocked(CoreData* output) const
 {
@@ -311,9 +325,10 @@ Error CoreDataFile::ReadLocked(CoreData* output) const
 		data.layout = {kLayout, 1, 0};
 		data.mode = "persistent";
 		if (!game_id_.empty()) {
+			const std::string& target = layout_id_.empty() ? kMachineLayout : layout_id_;
 			data.game_id = game_id_;
-			data.layout = {kMachineLayout, 1, 0};
-			data.words = Pc386MachineDefaults();
+			data.layout = {target, 1, 0};
+			data.words = target == kPcxtMachineLayout ? PcxtMachineDefaults() : Pc386MachineDefaults();
 		}
 		*output = std::move(data);
 		return {};

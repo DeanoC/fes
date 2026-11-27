@@ -550,10 +550,10 @@ func TestExplicitTargetLaunchKeepsOtherTargetsInputAndMedia(t *testing.T) {
 	inputs := map[string]*fakeRemoteInput{}
 	media := &fakeMediaSession{}
 	handler := hostapi.New(service,
-		hostapi.WithRemoteInputFactory(func(target string) host.RemoteInputController {
+		hostapi.WithRemoteInputFactory(func(target string) (host.RemoteInputController, error) {
 			input := &fakeRemoteInput{}
 			inputs[target] = input
-			return input
+			return input, nil
 		}),
 		hostapi.WithMediaSession(media))
 	for _, target := range []string{"kit-a", "kit-b"} {

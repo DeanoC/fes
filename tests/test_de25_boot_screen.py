@@ -107,6 +107,72 @@ class GemDesktopTests(unittest.TestCase):
         self.assertEqual(luma((0, 0, 0)), 0)
 
 
+class RamtestScreenTests(unittest.TestCase):
+    @staticmethod
+    def result_frame(status=(0, 224, 0), missing=None):
+        raw = bytearray(WIDTH * HEIGHT * 3)
+        for index, (y, color) in enumerate(zip((28, 36, 76, 116, 156),
+                ((208, 32, 208), (32, 208, 208), status, (96, 96, 96), (96, 96, 96)))):
+            if index == missing:
+                continue
+            cx = round((160 + 3*276) * WIDTH / 1280)
+            cy = round(3*y * HEIGHT / 720)
+            for yy in range(cy-3, cy+4):
+                for xx in range(cx-3, cx+4):
+                    offset = (yy * WIDTH + xx)*3
+                    raw[offset:offset+3] = bytes(color)
+        return bytes(raw)
+
+    def test_only_pass_is_accepted_and_reports_scope(self):
+        ok, detail = boot.ramtest_screen(self.result_frame())
+        self.assertTrue(ok, detail)
+        self.assertIn("FPGA LPDDR and HPS LPDDR not tested", detail)
+        for color in ((32, 32, 224), (224, 160, 0), (224, 0, 0), (224, 224, 224), (0, 0, 0)):
+            with self.subTest(color=color):
+                self.assertFalse(boot.ramtest_screen(self.result_frame(color))[0])
+
+    def test_stale_pass_and_discontinuous_results_are_refused(self):
+        advance = boot.ramtest_transition
+        run = "SDRAM 128 MiB running; FPGA LPDDR and HPS LPDDR not tested"
+        ok = "SDRAM 128 MiB pass; FPGA LPDDR and HPS LPDDR not tested"
+        state = advance(False, 0, True, ok)
+        self.assertEqual(advance(*state, True, ok), (False, 0))
+        state = advance(False, 0, False, run)
+        state = advance(*state, True, ok)
+        self.assertEqual(state, (True, 1))
+        self.assertEqual(advance(*state, True, ok), (True, 2))
+        self.assertEqual(advance(*state, False, "unknown"), (True, 0))
+
+    def test_package_session_and_runtime_incarnation_must_remain_bound(self):
+        status = {"id": "session", "flight_id": "flight", "target": "de25", "target_id": "kit-id",
+                  "state": "active", "game_id": "game", "core_package":
+                  {"package_id": "pkg", "generation": 9, "build_id": "build"},
+                  "runtime_input": {"kind": "described", "runtime_instance": "1"*32,
+                                    "package_id": "pkg", "generation": 9},
+                  "connection": {"target_id": "kit-id", "boot_id": "boot"}}
+        self.assertTrue(boot.ramtest_session_bound(status, status, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, status, "game", "pkg", "de25", "different-kit"))
+        for field in ("id", "flight_id", "target", "target_id", "game_id"):
+            with self.subTest(field=field):
+                self.assertFalse(boot.ramtest_session_bound(status, {**status, field: "changed"}, "game", "pkg", "de25", "kit-id"))
+        for field, value in (("generation", 10), ("generation", 0),
+                             ("build_id", "other"), ("package_id", "other")):
+            end = {**status, "core_package": {**status["core_package"], field: value}}
+            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg", "de25", "kit-id"))
+        for field, value in (("runtime_instance", "2"*32), ("runtime_instance", ""),
+                             ("generation", 10), ("package_id", "other"), ("kind", "development")):
+            end = {**status, "runtime_input": {**status["runtime_input"], field: value}}
+            self.assertFalse(boot.ramtest_session_bound(status, end, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, {**status, "runtime_input": None}, "game", "pkg", "de25", "kit-id"))
+        self.assertFalse(boot.ramtest_session_bound(status, {**status, "state": "idle"}, "game", "pkg", "de25", "kit-id"))
+
+    def test_missing_identity_or_untested_bank_is_not_a_pass(self):
+        for missing in (0, 1, 3, 4):
+            with self.subTest(missing=missing):
+                self.assertFalse(boot.ramtest_screen(self.result_frame(missing=missing))[0])
+        self.assertFalse(boot.ramtest_screen(bytes(WIDTH * HEIGHT * 3))[0])
+
+
 FRAMES = {
     "fes.zx81": "zx81-k-cursor",
     "fes.spectrum": "spectrum-48k",
@@ -121,11 +187,14 @@ class BootScreenTests(unittest.TestCase):
     """The J8G boot frame of each core, against every core's check."""
 
     def test_each_check_accepts_its_own_core_and_refuses_every_other_screen(self):
-        self.assertEqual(set(FRAMES), set(boot.CHECKS))
+        frames = {core: frame(name) for core, name in FRAMES.items()}
+        frames["fes.ramtest"] = RamtestScreenTests.result_frame()
+        self.assertEqual(set(frames), set(boot.CHECKS))
+        frames["home"] = frame("home")
         for core, check in boot.CHECKS.items():
-            for other, name in [*FRAMES.items(), ("home", "home")]:
-                with self.subTest(core=core, frame=name):
-                    ok, detail = check(frame(name))
+            for other, raw in frames.items():
+                with self.subTest(core=core, frame=other):
+                    ok, detail = check(raw)
                     self.assertEqual(ok, other == core, detail)
 
     def test_a_smaller_centred_picture_is_still_recognised(self):
@@ -199,13 +268,27 @@ class BootScreenTests(unittest.TestCase):
                 ok, detail = boot.pcxt_glabios_post(moved)
                 self.assertTrue(ok, detail)
 
-    def test_pcxt_refuses_a_screenful_of_grey_text(self):
-        # A DOS listing filling the screen: grey text drowns the POST colours.
+    def test_pcxt_post_with_freedos_booting_below_it(self):
+        # A host with its bundled FreeDOS disk boots on past the POST table.
+        ok, detail = boot.pcxt_glabios_post(frame("pcxt-glabios-freedos"))
+        self.assertTrue(ok, detail)
+
+    def test_pcxt_refuses_grey_text_drowning_the_table(self):
+        # Grey text through the table's own rows drowns the POST colours.
         def fill(x, y, p):
-            return (200, 200, 200) if x % 4 == 0 and y % 6 == 0 else p
+            return (200, 200, 200) if x % 2 == 0 and y % 2 == 0 and y < 100 and 70 <= x <= 300 else p
         ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-post"), fill))
         self.assertFalse(ok)
         self.assertIn("too little", detail)
+
+    def test_pcxt_refuses_a_screenful_of_dos_text(self):
+        # A DOS screen with no POST table left on it: grey text, no colours.
+        def dos(x, y, p):
+            level = luma(p)
+            return (level, level, level) if level >= 50 else ((200, 200, 200) if x % 4 == 0 and y % 6 == 0 else p)
+        ok, detail = boot.pcxt_glabios_post(edit(frame("pcxt-glabios-freedos"), dos))
+        self.assertFalse(ok)
+        self.assertIn("no colour", detail)
 
     def test_pcxt_refuses_a_solid_text_block(self):
         def block(x, y, p):

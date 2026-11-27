@@ -79,6 +79,10 @@ existing BRAM profile remains separate; there is no automatic fallback.
 Software admission does not establish a sealed standard package or hardware
 acceptance.
 
+The same profile also admits the ROM-less DE25 `fes.ramtest` board-SDRAM
+test with the standard shell interfaces. This admission does not imply a
+sealed package, LPDDR coverage or hardware acceptance.
+
 The same profile admits seven firmware machines from a per-core contract table
 (`src/native/de25_core_contract.hpp`): `fes.spectrum` and `fes.spectrum128`
 (the shell plus `fes.media.spectrum-tape` 2.0), `fes.spectrum-plus3` and
@@ -87,15 +91,16 @@ the controller that names the disk format: `fes.media.spectrum-disk-plus3` 1.0 o
 `fes.media.spectrum-disk-trdos` 1.0), `fes.atari-st` (the shell
 plus relative mouse and the floppy with its write and geometry interfaces),
 `fes.c64` (the shell plus the read-only `fes.media.c64-disk` 1.0) and
-`fes.pcxt-dos` (the shell plus `fes.media.pcxt-floppy` 1.0 and its writable
-`fes.media.pcxt-floppy-write` 1.0, on `fes.computer` 1.1; the other machines
+`fes.pcxt-dos` (the shell plus `fes.media.pcxt-floppy` 1.0, its writable
+`fes.media.pcxt-floppy-write` 1.0, `fes.persistence.words` 1.0 and
+`fes.pcxt.machine` 1.0, on `fes.computer` 1.1; the other machines
 declare 1.0).
 Each adds `fes.fabric.firmware-upload` 1.0 and uses format 3: an Agilex
 bitstream is programmed unchanged and the sealed ROM requirement names the
 image its upload endpoint takes (`fes.spectrum`: 16384 or 32768 bytes,
 `fes.spectrum128`: 32768 bytes, `fes.spectrum-plus3`: 65536, `fes.pentagon`:
-49152, Atari ST: 196608, C64: 36864, PC/XT: 69632, the 64 KiB system ROM window
-then the 4 KiB CGA font). Any other interface set, `fes.computer` minor,
+49152, Atari ST: 196608, C64: 36864, PC/XT: 73728, the 64 KiB system ROM window,
+4 KiB CGA font, and 4 KiB MDA font). Any other interface set, `fes.computer` minor,
 size, format or version is refused before programming. The DE25 PC/XT's
 writable floppy restores its bound library disk before CPU release and saves
 it like the DE10 one; its active capabilities report the binding.

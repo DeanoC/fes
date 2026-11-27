@@ -758,6 +758,11 @@ class HilPlanTest(unittest.TestCase):
     def test_de25_deployed_sources_select_board_specific_packages(self):
         planner = hil_module()
         for name, component in (
+                ('ramtest/managed/scan_control.v', 'core:de25-ramtest'),
+                ('ramtest/scan.v', 'core:de25-ramtest'),
+                ('ramtest/sdram.v', 'core:de25-ALL'),
+                ('ramtest_managed/build.py', 'core:de25-ramtest'),
+                ('producers/build_ramtest_package.py', 'core:de25-ramtest'),
                 ('zx81-hps/fes_de25_zx81_standard.v', 'core:de25-zx81'),
                 ('zx81-hps/standard-clocks.sdc', 'core:de25-zx81'),
                 ('zx81/build.py', 'core:de25-zx81'),

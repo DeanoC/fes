@@ -1411,3 +1411,8 @@ allocated overlay. The nine required interfaces admit only the current format2
 ZX81 base, including cassette SAVE, controllers and fixed PCM; reserved-window,
 foreign-core and incomplete contracts are refused before programming. Canonical
 sealed package production and native standard-core acceptance remain unfinished.
+
+The DE25 `fes.ramtest` descriptor uses the ordinary computer shell and its
+existing allocation and lifecycle. It adds no HPS memory or window authority;
+its scoped SDRAM result is displayed by the package rather than a new runtime
+ABI. A descriptor match does not establish hardware acceptance.

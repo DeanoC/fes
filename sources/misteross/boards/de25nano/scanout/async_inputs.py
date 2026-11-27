@@ -172,6 +172,7 @@ def bindings(directory):
                  'fes.pc386': ('computer', 'boards/de25nano/producers/build_pc386_package.py'),
                  'fes.c64': ('computer', 'boards/de25nano/producers/build_c64_package.py'),
                  'fes.pcxt-dos': ('computer', 'boards/de25nano/producers/build_pcxt_package.py'),
+                 'fes.ramtest': ('computer', 'boards/de25nano/producers/build_ramtest_package.py'),
                  }.get(fields['parameters']['core_id'])
     require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
     profile = 'standard_zx81' if fields['parameters'].get('standard_core') is True else selection[0]

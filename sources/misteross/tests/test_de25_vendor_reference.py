@@ -68,7 +68,7 @@ class VendorReferenceTests(unittest.TestCase):
             self.assertFalse(result['hardware_acceptance'])
 
     def test_standard_computer_selects_the_same_checked_board_clock_shell(self):
-        for core in ('fes.zx81', 'fes.spectrum128'):
+        for core in ('fes.zx81', 'fes.spectrum128', 'fes.ramtest'):
             result=reference.validate_project(self.project,self.expected,core,standard_core=True)
             self.assertEqual(len(result['pins']),37)
             self.assertFalse(result['hardware_acceptance'])

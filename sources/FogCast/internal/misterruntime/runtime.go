@@ -105,7 +105,7 @@ type protocol2ROMLinkControl interface {
 }
 
 type protocol2FirmwareControl interface {
-	LoadFirmwareCore(context.Context, string, string, string, string, corepackage.ROMLinkIdentity, *InitialMediaRequest) (Protocol2Response, error)
+	LoadFirmwareCore(context.Context, string, string, string, string, corepackage.ROMLinkIdentity, *InitialMediaRequest, string) (Protocol2Response, error)
 }
 
 type protocol2ROMLinksControl interface {

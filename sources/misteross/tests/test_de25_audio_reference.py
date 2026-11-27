@@ -74,7 +74,7 @@ class AudioReferenceTests(unittest.TestCase):
           .left_sample(standard_audio_sample), .right_sample(standard_audio_sample),
           .HDMI_MCLK(HDMI_MCLK), .HDMI_SCLK(HDMI_SCLK),
           .HDMI_LRCLK(HDMI_LRCLK), .HDMI_I2S(HDMI_I2S) );'''
-        for core in ('fes.spectrum128', 'fes.pcxt-dos', 'fes.pc386'):
+        for core in ('fes.spectrum128', 'fes.pcxt-dos', 'fes.pc386', 'fes.ramtest'):
             with self.subTest(core=core):
                 self.record['parameters'].update(core_id=core, audio_clock_reference_policy=audio.MACHINE_POLICY,
                                                  model='486sx' if core == 'fes.pc386' else 'fixture')
@@ -100,7 +100,7 @@ class AudioReferenceTests(unittest.TestCase):
                     audio.eligible_machine(self.fit, self.record)
                 (self.project / 'golden_top.v').write_text(self.top)
                 # Another machine with the same wiring has another PLL: its bytes are not this one's.
-                other = 'fes.pc386' if core == 'fes.spectrum128' else 'fes.spectrum128'
+                other = 'fes.pc386' if core in ('fes.spectrum128', 'fes.ramtest') else 'fes.spectrum128'
                 if audio.MACHINE_PLL_OUTPUTS.get(other, '') == audio.MACHINE_PLL_OUTPUTS.get(core, ''):
                     self.record['parameters']['core_id'] = other
                     self.write_record()

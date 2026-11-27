@@ -2,6 +2,7 @@ package hostapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -129,7 +130,11 @@ type sessionCoordinator struct {
 	target             string
 	targetSessions     map[string]*sessionCoordinator
 	targetSessionsMu   sync.Mutex
-	remoteInputFactory func(string) host.RemoteInputController
+	remoteInputFactory RemoteInputFactory
+	// remoteInputErr is why a target child has no remoteInput although the
+	// host has a remote-input factory. Nil with a nil remoteInput means remote
+	// input is not enabled on this host.
+	remoteInputErr error
 }
 
 type sessionInputBinding struct {
@@ -193,10 +198,18 @@ func (s *sessionCoordinator) forTarget(target string) *sessionCoordinator {
 	// A target child must never detach a different target's singleton bridge.
 	// Deployments that support multiple live kits supply a factory below.
 	var input host.RemoteInputController
+	var inputErr error
 	if root.remoteInputFactory != nil {
-		input = root.remoteInputFactory(target)
+		input, inputErr = root.remoteInputFactory(target)
+		if inputErr == nil && input == nil {
+			inputErr = errors.New("remote input factory returned no bridge")
+		}
+		if inputErr != nil {
+			input = nil
+		}
 	}
 	child := newSessionCoordinator(root.service, input, root.media)
+	child.remoteInputErr = inputErr
 	child.root = root
 	child.target = target
 	root.targetSessions[target] = child

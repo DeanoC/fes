@@ -1,0 +1,23 @@
+2026-11-27 14:21:45 agent idle lease free
+2026-11-27 14:21:45 lease held 8edb624620d16b15d59ec2c9bb048601d6a13fbaf5506892708dc60979a76766
+2026-11-27 14:21:45 run 1 {"op": "grab", "name": "00-before-load"}
+2026-11-27 14:21:46 grab 00-before-load 327195
+2026-11-27 14:21:46 done 1 {"ok": true}
+2026-11-27 14:21:46 run 2 {"op": "load"}
+2026-11-27 14:21:54 done 2 {"load": {"state": "active"}, "seconds": 8.16, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}
+2026-11-27 14:21:54 run 3 {"op": "sleep", "s": 15}
+2026-11-27 14:22:09 done 3 {}
+2026-11-27 14:22:09 run 4 {"op": "grab", "name": "t15"}
+2026-11-27 14:22:09 grab t15 421062
+2026-11-27 14:22:09 done 4 {"ok": true}
+2026-11-27 14:22:09 run 5 {"op": "type", "text": "ver\n"}
+2026-11-27 14:22:09 input attached
+2026-11-27 14:22:10 done 5 {}
+2026-11-27 14:22:10 run 6 {"op": "sleep", "s": 2}
+2026-11-27 14:22:12 done 6 {}
+2026-11-27 14:22:12 run 7 {"op": "grab", "name": "t-ver"}
+2026-11-27 14:22:12 grab t-ver 398942
+2026-11-27 14:22:12 done 7 {"ok": true}
+2026-11-27 14:23:59 cleanup detach FAILED /v1/input/detach: HTTP 403 {"code": "KIT_LEASE_REQUIRED", "message": "KIT_LEASE_REQUIRED"}
+2026-11-27 14:23:59 session stop/close FAILED target rejected request (HTTP 403)
+2026-11-27 14:23:59 after {"agent": "idle", "lease": "free"}

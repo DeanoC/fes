@@ -40,13 +40,16 @@ module fes_pcxt_firmware (
     // card reads its own copy, a memory with one write and one asynchronous
     // read port, which the device builds from MLABs. A pair is one 16-bit
     // word: both bytes are written together.
+    // The image carries the 64 KiB BIOS window (0x00000..0x0FFFF), the 4 KiB
+    // CGA font (0x10000..0x10FFF), and the 4 KiB MDA font (0x11000..0x11FFF).
     wire font = write_addr[16];
-    wire font_write = state == IDLE && write_enable[0] && font;
+    wire cga_font_write = state == IDLE && write_enable[0] && font && !write_addr[12];
+    wire mda_font_write = state == IDLE && write_enable[0] && font && write_addr[12];
     wire [15:0] glyph_pair = {write_enable[1] ? write_data[15:8] : 8'hff, write_data[7:0]};
     (* ramstyle = "MLAB, no_rw_check" *) reg [15:0] cga_glyphs [0:2047];
     (* ramstyle = "MLAB, no_rw_check" *) reg [15:0] mda_glyphs [0:2047];
-    always @(posedge clk) if (font_write) cga_glyphs[write_addr[11:1]] <= glyph_pair;
-    always @(posedge clk) if (font_write) mda_glyphs[write_addr[11:1]] <= glyph_pair;
+    always @(posedge clk) if (cga_font_write) cga_glyphs[write_addr[11:1]] <= glyph_pair;
+    always @(posedge clk) if (mda_font_write) mda_glyphs[write_addr[11:1]] <= glyph_pair;
     // The cards' addresses come straight from their VRAM read registers.
     // Kept nodes stop synthesis absorbing those registers into the MLABs as
     // a registered read address, which leaves the VRAM read asynchronous and

@@ -1,0 +1,84 @@
+{
+  "agent_health": {
+    "agent_version": "0.1.0",
+    "api_version": "v1",
+    "artifacts": {
+      "agent_revision": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+      "agent_sha256": "c962ac028eca746d1c92db2b88825de3e2e387c7416764b683a62ec79e415fa6",
+      "idle_sha256": "0d505c4ef19dc4d612ca33566e9e5405f79a8f911ea7b43040b4f20a03ec2c19",
+      "image_sha256": "a1c51ac341ea39a429d97300a71d57a10dfce8e980d221b3c786db583d65467d",
+      "kit_sha256": "b155f27efb6ad91034f06adbc40dc428d2c3a0b15c35e41b9c7bd1275377a917",
+      "record_sha256": "317e1a63a7e63ee805ee89454f541a12d55ef9e08a5a05fa2086a34c1a6d8480",
+      "runtime_commit": "73e154e0200a086996887c1802694fe4cab25c67"
+    },
+    "boot_id": "2c4855a1-cbe1-4235-a03b-8ed7e9a400b4",
+    "ready": true,
+    "software": {
+      "active_bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+      "base_identity": "a1c51ac341ea39a429d97300a71d57a10dfce8e980d221b3c786db583d65467d",
+      "generation": 571,
+      "selected": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6"
+    },
+    "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+  },
+  "agent_status": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  },
+  "boot_id": "2c4855a1-cbe1-4235-a03b-8ed7e9a400b4",
+  "host_health": {
+    "host": {
+      "arch": "amd64",
+      "os": "linux",
+      "revision": "unknown",
+      "version": "dev"
+    },
+    "mesh": {
+      "major": 1,
+      "minor": 0
+    },
+    "ready": true,
+    "target": {
+      "api_version": "v1",
+      "artifacts": {
+        "agent_revision": "19cca55559e39f68e3fbc9b8ec6b8f86504134b1",
+        "agent_sha256": "c962ac028eca746d1c92db2b88825de3e2e387c7416764b683a62ec79e415fa6",
+        "idle_sha256": "0d505c4ef19dc4d612ca33566e9e5405f79a8f911ea7b43040b4f20a03ec2c19",
+        "image_sha256": "a1c51ac341ea39a429d97300a71d57a10dfce8e980d221b3c786db583d65467d",
+        "kit_sha256": "b155f27efb6ad91034f06adbc40dc428d2c3a0b15c35e41b9c7bd1275377a917",
+        "record_sha256": "317e1a63a7e63ee805ee89454f541a12d55ef9e08a5a05fa2086a34c1a6d8480",
+        "runtime_commit": "73e154e0200a086996887c1802694fe4cab25c67"
+      },
+      "connection": {
+        "address": "http://192.168.10.119:8182",
+        "boot_id": "2c4855a1-cbe1-4235-a03b-8ed7e9a400b4",
+        "lease_generation": "7ffcc9fc5ec74dc9650b459f01ecf5ec569700c97c07c55dc002b04d5245b534",
+        "state": "ready",
+        "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+      },
+      "reachable": true,
+      "ready": true,
+      "software": {
+        "active_bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+        "base_identity": "a1c51ac341ea39a429d97300a71d57a10dfce8e980d221b3c786db583d65467d",
+        "generation": 571,
+        "selected": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6"
+      }
+    }
+  },
+  "kit": "de25-j8g",
+  "lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "7ffcc9fc5ec74dc9650b459f01ecf5ec569700c97c07c55dc002b04d5245b534",
+    "state": "free"
+  },
+  "native_readonly": "boot_id=2c4855a1-cbe1-4235-a03b-8ed7e9a400b4\n\nkernel=6.12.11-fes-de25-owner\n\nmac=02:8e:2a:b1:d3:bd\n\nmounts\n/dev/mmcblk0p1 /media/fat vfat rw,nosuid,nodev,noexec,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro 0 0\n/dev/loop0 / ext4 ro,noatime,norecovery 0 0\n/dev/mmcblk0p3 /run/fogcast/fesdata3 ext4 rw,noatime 0 0\n",
+  "native_sha256": "c88aa1ce48286de69bd894b4ae43e08fedf3b1230249b2b3e0713d427ec7073d",
+  "serial": "TRWU8J8G",
+  "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45"
+}

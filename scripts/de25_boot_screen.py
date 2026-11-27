@@ -15,6 +15,8 @@ picture:
 - `fes.pcxt-dos`: the GLaBIOS POST, a block of grey and coloured text on a
   black screen.
 - `fes.atari-st`: the GEM desktop.
+- `fes.ramtest`: the board SDRAM PASS markers. The runner also checks the
+  RUNNING-to-PASS sequence against the active session.
 
 Cores without a check (Spectrum +2A/+3, Pentagon, pc386 and the ZX81 family's
 other models) exit 3 and add no check. OCR cannot read the Atari ST desktop:
@@ -37,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -137,6 +140,72 @@ def gem_desktop(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[b
         return False, f"menu strip is {light:.2f} light with {ink:.2f} ink"
     return True, (f"GEM desktop: field {dwidth}x{dheight} colour {centre}, "
                   f"rule at row {rule}, menu strip {light:.2f} light {ink:.2f} ink")
+
+
+def ramtest_screen(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> tuple[bool, str]:
+    """Check the exact managed SDRAM result and both untested-bank markers.
+
+    Coordinates are in its 320x240 playfield, centred and scaled 3x in 720p.
+    A median over each flat marker tolerates capture scaling and colour drift.
+    A blank, stale, running, stopped or failed frame is never a pass.
+    """
+    px = _pixels(raw, width, height)
+
+    def marker(x, y):
+        cx = round((160 + 3*x) * width / 1280)
+        cy = round(3*y * height / 720)
+        samples = [px[yy][xx] for yy in range(cy-2, cy+3) for xx in range(cx-2, cx+3)]
+        return tuple(sorted(p[c] for p in samples)[len(samples)//2] for c in range(3))
+
+    def close(actual, expected, tolerance=60):
+        return all(abs(a-b) <= tolerance for a, b in zip(actual, expected))
+
+    samples = [marker(276, y) for y in (28, 36, 76, 116, 156)]
+    identity = ((208, 32, 208), (32, 208, 208))
+    if not all(close(samples[i], identity[i]) for i in range(2)):
+        return False, f"diagnostic identity marker missing: {samples[:2]}"
+    if not close(samples[3], (96, 96, 96)) or not close(samples[4], (96, 96, 96)):
+        return False, f"LPDDR untested markers missing: {samples[3:]}"
+    states = {"waiting": (32, 32, 224), "running": (224, 160, 0),
+              "pass": (0, 224, 0), "fail": (224, 0, 0), "stopped": (224, 224, 224)}
+    matches = [name for name, color in states.items() if close(samples[2], color)]
+    if len(matches) != 1:
+        return False, f"ambiguous SDRAM result: {samples[2]}"
+    return matches[0] == "pass", f"SDRAM 128 MiB {matches[0]}; FPGA LPDDR and HPS LPDDR not tested"
+
+
+def ramtest_transition(running_seen, stable, ok, detail):
+    """Require a RUNNING observation before two consecutive passing frames."""
+    if detail.startswith("SDRAM 128 MiB running;"):
+        return True, 0
+    return running_seen, stable + 1 if running_seen and ok else 0
+
+
+def ramtest_session_identity(status):
+    """Return one fully observed launch and runtime identity, or None."""
+    core = status.get("core_package") or {}
+    runtime = status.get("runtime_input") or {}
+    connection = status.get("connection") or {}
+    required = (status.get("id"), status.get("flight_id"), status.get("target"),
+                status.get("target_id"), status.get("game_id"), core.get("package_id"), core.get("build_id"))
+    generation = core.get("generation")
+    instance = runtime.get("runtime_instance")
+    if (status.get("state") != "active" or not all(isinstance(v, str) and v.strip() for v in required) or
+            type(generation) is not int or generation <= 0 or runtime.get("kind") != "described" or
+            not isinstance(instance, str) or not re.fullmatch(r"[0-9a-f]{32}", instance) or
+            instance == "0" * 32 or runtime.get("package_id") != core.get("package_id") or
+            runtime.get("generation") != generation or
+            (connection.get("target_id") and connection.get("target_id") != status.get("target_id"))):
+        return None
+    return (*required, generation, instance, status.get("input_agent_instance") or "",
+            connection.get("boot_id") or "")
+
+
+def ramtest_session_bound(before, after, game, package, target, target_id):
+    """Require the same active host flight, target and runtime incarnation."""
+    first, last = ramtest_session_identity(before), ramtest_session_identity(after)
+    return bool(first and first == last and first[4] == game and first[5] == package and
+                first[2] == target and first[3] == target_id and target and target_id)
 
 
 def _picture(px, width, height):
@@ -340,8 +409,16 @@ def pcxt_glabios_post(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> t
         if max(p) - min(p) < 30:
             return "grey"
         return "other"
-    counts = Counter(hue(p) for _, _, p in text)
-    share = {name: counts[name] / len(text) for name in ("grey", "cyan", "green", "yellow")}
+    # Measure the colours on the POST table: the text down to its last
+    # coloured row. A host with its bundled FreeDOS disk boots on into grey
+    # kernel text below the table, which is not part of the POST.
+    hues = [(y, hue(p)) for _, y, p in text]
+    coloured = [y for y, h in hues if h in ("cyan", "green", "yellow")]
+    if not coloured:
+        return False, "POST text has no colour"
+    table = [h for y, h in hues if y <= max(coloured)]
+    counts = Counter(table)
+    share = {name: counts[name] / len(table) for name in ("grey", "cyan", "green", "yellow")}
     low = [name for name, value in share.items() if value < 0.03]
     if low:
         return False, "POST text has too little " + ", ".join(low)
@@ -350,6 +427,7 @@ def pcxt_glabios_post(raw: bytes, width: int = WIDTH, height: int = HEIGHT) -> t
 
 CHECKS = {
     "fes.atari-st": gem_desktop,
+    "fes.ramtest": ramtest_screen,
     "fes.zx81": zx81_k_cursor,
     "fes.spectrum": spectrum_48k,
     "fes.spectrum128": spectrum_128k_menu,

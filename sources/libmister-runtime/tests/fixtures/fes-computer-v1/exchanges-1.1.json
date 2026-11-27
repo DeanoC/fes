@@ -3806,6 +3806,672 @@
   {
    "abi_minor": 1,
    "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 11665419,
+   "description": "Restore and Stop snapshot of the fes.pcxt.machine 1.0 record (video_card, mono_tint).",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 11,
+     "error": 0,
+     "gpi": 4110417931,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 178,
+     "error": 0,
+     "gpi": 4118806706,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4110417924,
+     "gpo": [
+      2600468480,
+      452984832
+     ],
+     "index": 0,
+     "name": "pcxt-data-info-0",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      453050368,
+      2600534016
+     ],
+     "index": 1,
+     "name": "pcxt-data-info-1",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2600599552,
+      453115904
+     ],
+     "index": 2,
+     "name": "pcxt-data-info-2",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      453181440,
+      2600665088
+     ],
+     "index": 3,
+     "name": "pcxt-data-info-3",
+     "opcode": 27
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136833,
+      402653185
+     ],
+     "index": 0,
+     "name": "pcxt-data-begin",
+     "opcode": 24
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436207618,
+      2583691266
+     ],
+     "index": 0,
+     "name": "pcxt-data-write-0",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583756802,
+      436273154
+     ],
+     "index": 1,
+     "name": "pcxt-data-write-1",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436338688,
+      2583822336
+     ],
+     "index": 2,
+     "name": "pcxt-data-write-2",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "pcxt-commit-incomplete",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436404224,
+      2583887872
+     ],
+     "index": 3,
+     "name": "pcxt-data-write-3",
+     "opcode": 26
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691267,
+      436207619
+     ],
+     "index": 0,
+     "name": "pcxt-stage-invalid-video-card",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "pcxt-commit-invalid-video-card",
+     "opcode": 24
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691266,
+      436207618
+     ],
+     "index": 0,
+     "name": "pcxt-restore-video-card",
+     "opcode": 26
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436273155,
+      2583756803
+     ],
+     "index": 1,
+     "name": "pcxt-stage-invalid-mono-tint",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "pcxt-commit-invalid-mono-tint",
+     "opcode": 24
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436273154,
+      2583756802
+     ],
+     "index": 1,
+     "name": "pcxt-restore-mono-tint",
+     "opcode": 26
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583822337,
+      436338689
+     ],
+     "index": 2,
+     "name": "pcxt-stage-invalid-reserved0",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "pcxt-commit-invalid-reserved0",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583822336,
+      436338688
+     ],
+     "index": 2,
+     "name": "pcxt-restore-reserved0",
+     "opcode": 26
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436404225,
+      2583887873
+     ],
+     "index": 3,
+     "name": "pcxt-stage-invalid-reserved1",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "pcxt-commit-invalid-reserved1",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436404224,
+      2583887872
+     ],
+     "index": 3,
+     "name": "pcxt-restore-reserved1",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "pcxt-data-commit",
+     "opcode": 24
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554433,
+      2181038081
+     ],
+     "index": 0,
+     "name": "pcxt-release",
+     "opcode": 2
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136832,
+      402653184
+     ],
+     "index": 0,
+     "name": "pcxt-data-freeze",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4118806530,
+     "gpo": [
+      419430400,
+      2566914048
+     ],
+     "index": 0,
+     "name": "pcxt-data-read-0",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4110417922,
+     "gpo": [
+      2566979584,
+      419495936
+     ],
+     "index": 1,
+     "name": "pcxt-data-read-1",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      419561472,
+      2567045120
+     ],
+     "index": 2,
+     "name": "pcxt-data-read-2",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2567110656,
+      419627008
+     ],
+     "index": 3,
+     "name": "pcxt-data-read-3",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554432,
+      2181038080
+     ],
+     "index": 0,
+     "name": "pcxt-hold",
+     "opcode": 2
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     2,
+     2,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [],
+   "name": "pcxt-persistence",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
    "capabilities": 995595,
    "description": "A 2 MiB image in the synthetic window: prepare, geometry and CRC, a failed and a matching commit with polling, guest writes, then freeze, dirty map and Saved.",
    "exchanges": [

@@ -55,7 +55,44 @@ def decode_game_record(data, core_id, game_id):
     return words
 
 
+def decode_pcxt_game_record(data, core_id, game_id):
+    """fes.computer record keyed by core and game, layout fes.pcxt.machine 1.0."""
+    if not 113 <= len(data) <= 720 or data[:8] != b"FESGAME1":
+        raise ValueError("invalid envelope")
+    if hashlib.sha256(data[:-32]).digest() != data[-32:]:
+        raise ValueError("checksum")
+    if data[8:40] != hashlib.sha256(core_id.encode()).digest():
+        raise ValueError("core identity")
+    if data[40:72] != hashlib.sha256(game_id.encode()).digest():
+        raise ValueError("game identity")
+    length, major, minor, count = struct.unpack_from("<HHHH", data, 72)
+    if not 1 <= length <= 96 or not 1 <= count <= 256 or len(data) != 112 + length + count * 2:
+        raise ValueError("length")
+    if data[80:80+length] != b"fes.pcxt.machine" or (major, minor, count) != (1, 0, 4):
+        raise ValueError("layout")
+    words = list(struct.unpack_from("<4H", data, 80 + length))
+    if words[0] > 2 or words[1] > 2 or words[2] or words[3]:
+        raise ValueError("setting")
+    return words
+
+
 class CorePersistenceFixtures(unittest.TestCase):
+    def test_pcxt_machine_records(self):
+        fixture = json.loads((FIXTURES / "pcxt-machine.json").read_text())
+        core, game = fixture["core_id"], fixture["game_id"]
+        self.assertEqual(fixture["namespace"], hashlib.sha256(
+            b"fes-core-game-data-v1\0" + core.encode() + b"\0" + game.encode()).hexdigest())
+        for row in fixture["valid"]:
+            data = bytes.fromhex(row["hex"])
+            with self.subTest(name=row["name"]):
+                self.assertEqual(decode_pcxt_game_record(data, core, game), row["words"])
+                self.assertEqual(hashlib.sha256(data).hexdigest(), row["revision"])
+        self.assertEqual(fixture["valid"][0]["words"], [0, 0, 0, 0])
+        for row in fixture["invalid"]:
+            with self.subTest(name=row["name"]), self.assertRaises(ValueError):
+                decode_pcxt_game_record(bytes.fromhex(row["hex"]), core, game)
+        self.assertGreaterEqual(len(fixture["invalid"]), 15)
+
     def test_pc386_machine_records(self):
         fixture = json.loads((FIXTURES / "pc386-machine.json").read_text())
         core, game = fixture["core_id"], fixture["game_id"]

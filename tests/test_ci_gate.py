@@ -259,7 +259,8 @@ class SimulationMatrixTests(unittest.TestCase):
         full = [row['target'] for row in simulation_matrix(['pcxt'], 'full')['include']]
         smoke = [row['target'] for row in simulation_matrix(['pcxt'], 'smoke')['include']]
         self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
-                                'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'])
+                                'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos',
+                                'sim-fes-pcxt-video'])
         self.assertEqual(smoke, ['sim-fes-pcxt-smoke', 'sim-fes-pcxt-machine', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
                                  'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'])
         self.assertNotIn('sim-fes-pcxt-dos', smoke)

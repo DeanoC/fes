@@ -35,7 +35,7 @@ constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 constexpr uint32_t kGpo = 0x0c, kGpi = 0x10, kFault = 0x14;
 constexpr uint32_t kInfo = 29, kBegin = 30, kData = 31, kCommit = 32;
 constexpr uint32_t kErrorState = 4;
-constexpr size_t kImage = 69632, kWindow = 65536, kDisk = 368640;
+constexpr size_t kImage = 73728, kWindow = 65536, kDisk = 368640;
 
 [[noreturn]] void fail(const std::string& message) {
     std::cerr << "de25 pcxt standard: " << message << '\n';
@@ -369,6 +369,27 @@ int main(int argc, char** argv) {
     const uint16_t capabilities = board.ok(1, 7, 0, "capabilities");
     const uint16_t capabilities_high = board.ok(1, 16, 0, "capabilities high");
     std::cout << "capabilities " << std::hex << capabilities_high << ' ' << capabilities << std::dec << '\n';
+    // Verify fes.pcxt.machine 1.0 capability bit 23 (high bit 7), persistence words bit 17 (high bit 1),
+    // DataInfo {4, 4, 1, 0}, invalid video_card rejection, and commit/restore round-trip back to CGA/white.
+    require((capabilities_high & 0x82u) == 0x82u, "pcxt machine capabilities missing");
+    require(board.ok(27, 0, 0, "data info words") == 4 &&
+            board.ok(27, 1, 0, "data info tag") == 4 &&
+            board.ok(27, 2, 0, "data info major") == 1 &&
+            board.ok(27, 3, 0, "data info minor") == 0, "data info mismatch");
+    board.ok(24, 0, 1, "data begin");
+    board.ok(26, 0, 3, "stage invalid video card");
+    board.ok(26, 1, 2, "stage amber tint");
+    board.ok(26, 2, 0, "stage reserved0");
+    board.ok(26, 3, 0, "stage reserved1");
+    board.refused(24, 0, 2, 3, "invalid video card rejected at commit");
+    board.ok(26, 0, 2, "stage hercules card");
+    board.ok(24, 0, 2, "commit hercules amber");
+    board.ok(24, 0, 1, "data begin restore cga");
+    board.ok(26, 0, 0, "stage cga card");
+    board.ok(26, 1, 0, "stage white tint");
+    board.ok(26, 2, 0, "stage reserved0");
+    board.ok(26, 3, 0, "stage reserved1");
+    board.ok(24, 0, 2, "commit cga white");
 
     require(board.ok(kInfo, 0, 0, "bytes") == (kImage & 0xffff), "firmware size");
     require(board.ok(kInfo, 1, 0, "bytes high") == (kImage >> 16), "firmware size high");

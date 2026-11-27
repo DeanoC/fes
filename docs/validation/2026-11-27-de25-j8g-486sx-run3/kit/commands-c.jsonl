@@ -1,0 +1,8 @@
+{"op":"grab","name":"00-before-load"}
+{"op":"load"}
+{"op":"sleep","s":15}
+{"op":"grab","name":"t15"}
+{"op":"type","text":"ver\n"}
+{"op":"sleep","s":2}
+{"op":"grab","name":"t-ver"}
+{"op":"quit"}
