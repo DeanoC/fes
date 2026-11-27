@@ -67,6 +67,7 @@ type aclConn struct {
 	kind              controllers.Kind
 	vendorID          uint16
 	productID         uint16
+	version           uint16
 	hostInitiated     bool
 	pairingConn       bool
 	pairingGeneration uint64

@@ -1,0 +1,228 @@
+{
+  "architecture": "armv7",
+  "artifacts": {
+    "bundle.tar": {
+      "sha256": "b134580b2eddeeee7ed7e12536a1e9b8da96a0fab0f5007ee2f71505a545d19f",
+      "size": 47706624
+    }
+  },
+  "base_contract": "fes-kit-base-v2-40d6e4a66418189a1fb3948097fd3435a57e9da6db25dd0a80bd070dc3b13dc2",
+  "base_factory_manifest_sha256": "4b71dd7d97b6a8f42231df528700895dd08e06dc0a362b3ded4cbe1577724211",
+  "base_image_sha256": "179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+  "board": "de10-nano",
+  "bundle": {
+    "id": "0dd6ff5801ccf19f540596c65600c65a287029e61a237499d415eac1ca5234a0",
+    "manifest": {
+      "architecture": "armv7",
+      "base_contract": "fes-kit-base-v2-40d6e4a66418189a1fb3948097fd3435a57e9da6db25dd0a80bd070dc3b13dc2",
+      "board": "de10-nano",
+      "files": [
+        {
+          "mode": 365,
+          "path": "bin/fogcast-kit",
+          "sha256": "6411d47ee363074ed1e54e741525376027a76b3571e5d1d0940acef81e886f1f",
+          "size": 18284706
+        },
+        {
+          "mode": 365,
+          "path": "bin/fogcast-tenfoot",
+          "sha256": "8d80b40058dbf096bee8c534b51621ac288418fe2b070f7332654df128f17f65",
+          "size": 16056482
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-agent",
+          "sha256": "2233a2a985af8a98d73726f9d19f96ce684f06611b117d5d80f85ea91050c379",
+          "size": 10813602
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-runtime",
+          "sha256": "fde575cdfe740f226c5394a53480f421a9973aedccba5da1e97a462350d30a4d",
+          "size": 1800584
+        },
+        {
+          "mode": 292,
+          "path": "share/fes-window/fes_window.ko",
+          "sha256": "eaf0810e4978aa41f051f4a9b145c0b8f5a76b5f4f9ee6f50fd541b4b1061561",
+          "size": 10012
+        },
+        {
+          "mode": 292,
+          "path": "share/fes-window/version",
+          "sha256": "d261f4e45c1f4d5baf2f619d33522c799a94bbdb4f536df83360d573e3643661",
+          "size": 17
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/config.toml",
+          "sha256": "ee8b24fc239e26841bd0130ea694ec23383efa15cf769913412d6c0dee9d944c",
+          "size": 488
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-128k/manifest.json",
+          "sha256": "aee1ddcedae17df5a63229d71e0673fe3ca6b222da1f0db21dc5bcd456aca2c6",
+          "size": 945
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-128k/spectrum-128k.rom",
+          "sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+          "size": 32768
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-48k/manifest.json",
+          "sha256": "d69598f82016c7b7a75f5affc72b4cd0e6beea43063665934c3786396ca664c2",
+          "size": 924
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-48k/spectrum-48k.rom",
+          "sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "size": 16384
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-plus3/manifest.json",
+          "sha256": "5fdccf033f87b184a09cf1326a7873a3a40072fd96ffd3eeee474b435655f947",
+          "size": 957
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/amstrad-spectrum-plus3/spectrum-plus3.rom",
+          "sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+          "size": 65536
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/emutos-192us/LICENSE.txt",
+          "sha256": "9f2e250993c6206fac643824e05e5a0d7d3e0895d9e09a5ce4b12bc2610afc11",
+          "size": 18326
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/emutos-192us/etos192us.img",
+          "sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+          "size": 196608
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/emutos-192us/manifest.json",
+          "sha256": "4cad75cd048c1aa632fa32eaf37109561af0dfbf625d5811d6ebca907200b4a0",
+          "size": 1111
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/freedos-xt-360/LICENSE.txt",
+          "sha256": "2ec21c4f10e9fc6bafbc619cf905424162a0b6443e482d599a6d0d7718e9ae58",
+          "size": 18330
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/freedos-xt-360/freedos-xt-360.img",
+          "sha256": "140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c",
+          "size": 368640
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/firmware/freedos-xt-360/manifest.json",
+          "sha256": "d8f0fb09e4edd0942e8a195608c05ddc4a41a146001048531162752593e22c01",
+          "size": 1551
+        }
+      ],
+      "format": 1,
+      "interfaces": {
+        "kit-host": "1.0",
+        "kit-launcher-host": "1.0",
+        "maintenance": "fes-kit-maintenance-v1",
+        "menu.fes.fabric.de25-scanout": "1.3",
+        "menu.fes.memory.hps-ddr": "1.0",
+        "menu.fes.video.fixed-720p60": "1.0",
+        "menu.fes.video.menu-blitter": "1.1",
+        "menu.fes.video.menu-display": "1.0",
+        "runtime-protocol": "2",
+        "software-admission": "fes-kit-software-v1"
+      },
+      "provenance": {
+        "fogcast": "518d313d27da10871bfc6d5985efc7b21227c9e0",
+        "runtime": "518d313d27da10871bfc6d5985efc7b21227c9e0"
+      },
+      "version": "f3-live-518d313d"
+    }
+  },
+  "bundled_firmware": [
+    {
+      "id": "amstrad-spectrum-48k",
+      "sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+      "size": 16384
+    },
+    {
+      "id": "amstrad-spectrum-128k",
+      "sha256": "c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72",
+      "size": 32768
+    },
+    {
+      "id": "amstrad-spectrum-plus3",
+      "sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+      "size": 65536
+    },
+    {
+      "id": "emutos-192us",
+      "sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+      "size": 196608
+    },
+    {
+      "id": "freedos-xt-360",
+      "sha256": "140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c",
+      "size": 368640
+    }
+  ],
+  "deployed": false,
+  "format": 1,
+  "go_toolchain": {
+    "compile_sha256": "10c67b9de41c1e546b9bf416ceef410e5e3dd87a76d129b08b74a9570db9c463",
+    "flags": [
+      "-buildvcs=false",
+      "-trimpath",
+      "-ldflags",
+      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=f3-live-518d313d -X github.com/DeanoC/FogCast/internal/version.Revision=518d313d27da10871bfc6d5985efc7b21227c9e0"
+    ],
+    "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+    "helper": "linux/amd64 CGO_ENABLED=0",
+    "target": "linux/arm GOARM=7 CGO_ENABLED=0",
+    "version": "go version go1.26.5 linux/amd64"
+  },
+  "runtime_make_variables": {
+    "ENABLE_DE25_STATIC": 0
+  },
+  "source_commit": "518d313d27da10871bfc6d5985efc7b21227c9e0",
+  "source_trees": {
+    "image": "bd529cd9b48d742e9ce493f20f7373a38f6eecdd",
+    "sources/FogCast": "574f598820a182fa32a2a8bf14f7c65accd6cdc3",
+    "sources/libmister-runtime": "693dd5b3c261dab2a43d1c3ac0ea0befb22e482c"
+  },
+  "toolchain": {
+    "archive_sha256": "8702b41b858e3e50d97bb57548b7db8b2719f7296a162071f7a69fb01c7d9875",
+    "container_base": {
+      "digest": "sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef",
+      "image": "docker.io/library/debian:12.11-slim",
+      "platform": "linux/amd64"
+    },
+    "container_context_sha256": "996fbce4333e5ff1b393891fe4a87e26ebbd596fe2e9f1e6ff6e03f660aa5a85",
+    "container_id": "sha256:a58c3939121c5871f55addcea2f6701163a71d0aa2e9df4a288abab397bcf5ec",
+    "key": "d76b0b1867badbe3584465ab989bedee79fb60a29e1d0fe3071e61bde28bbb32",
+    "runtime_make_variables": {
+      "ENABLE_DE25_STATIC": 0
+    }
+  },
+  "window_driver": {
+    "kernel_commit": "d7adb20b4ca595838289406c083fff78f004a8c3",
+    "kernel_release": "5.15.1-MiSTer",
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "sha256": "eaf0810e4978aa41f051f4a9b145c0b8f5a76b5f4f9ee6f50fd541b4b1061561",
+    "version": "c1abf21022cff994"
+  },
+  "workflow_sha256": "176731973cbc2a606993ed9e672c71b4cdb82ddbf5fbdb29280e6f6a6d9f6d7b"
+}

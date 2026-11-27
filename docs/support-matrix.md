@@ -50,6 +50,7 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | C64 (PAL) | Current | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | C64 (NTSC) | Bring-up (queued) | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | C64 (early NTSC) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
+| Drean C64 (PAL-N) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | C64C (PAL) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | C64C (NTSC) | Bring-up | OSS | — | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
 | Spectrum (48K, 128K, +2, +2A/+3, Pentagon) | Current | OSS | Quartus | tape, disk (some), keys, HDMI | [README](../sources/misteross/cores/fes-spectrum/README.md) |
@@ -71,7 +72,37 @@ The release classifications below remain v1, v2 and held back. Tenfoot Home, fir
 
 - **v1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`
 - **v2:** `fes.pcxt-dos`, `fes.pc386`
-- **Held back:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, C64 early NTSC, C64C PAL, C64C NTSC, Atari STE, `fes.riscv`
+- **Held back:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, C64 early NTSC, C64 PAL-N, C64C PAL, C64C NTSC, Atari STE, `fes.riscv`
+
+## DE25 tier 1 progress
+
+Forward-plan phase 4: DE25-Nano stays board tier 2 until its shell hosts every tier 1 machine and its image passes update and recovery on hardware. Each tier 1 core ID has its own DE25 state, separate from its DE10 tier. Tracker: [#2329](https://github.com/DeanoC/fes/issues/2329).
+
+A cell is sealed only when its exact package SHA-256 is recorded with an in-repo JSON smoke receipt for that core and package on Kit D25 (`kit_serial`, `core_id`, `package_sha256`, `verdict` PASS), so a rebuilt or resealed package starts again at builds. The kit runs listed under each machine predate those receipts, so no cell is sealed yet. A smoke is not conformance or a game corpus, and update and recovery on DE25 hardware is still open.
+
+| DE25 state | Meaning |
+| --- | --- |
+| none | No DE25 producer builds it. |
+| builds | A DE25 producer builds it, with no recorded smoke of its exact package on Kit D25. |
+| sealed | Registered Quartus Pro 26.3 recipe; its exact package (SHA-256) passed the lifecycle smoke on Kit D25, per an in-repo JSON receipt. |
+| kit-accepted | Conformance, the DE10 corpus and any declared save round-trip pass on Kit D25 for that package, per a per-core JSON receipt. |
+| released | In a DE25 release cut from the same tag as DE10, per a per-core JSON release receipt for that package. |
+
+| Machine | DE25 state | Issues |
+| --- | --- | --- |
+| ZX81 family | none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; builds: `fes.zx81` | #2262, #1568, #1875 |
+| Spectrum family | builds: `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon` | #2042, #2262 |
+| Atari ST | builds: `fes.atari-st` | #2042 |
+| C64 | builds: `fes.c64` | #2262 |
+| PC/XT | builds: `fes.pcxt-dos` | #2182 |
+| pc386 | builds: `fes.pc386` | #2029, #2245 |
+
+- **ZX81 family.** Proven on Kit D25: MENU and ZX81 baseline promotion; launch, F12 to the media selector, Stop and verified restore (`docs/validation/2026-11-16-de25-kit-parity/`). Missing for tier 1: ZX80, TS1000 and TS1500 models in the DE25 producer and `kDe25StandardCores`; typed keyboard input; conformance; a ZX81 game corpus, which DE10 does not have either. Zon X and 16K carts wait on expansions.
+- **Spectrum family.** Proven on Kit D25: 48K and 128K exact-head HILQ smoke 9/9 with the screens checked (#2042); +2A/+3 `.dsk` and Pentagon `.trd` boots with restore verified (#2046). Missing for tier 1: keyboard input on the +3 and Pentagon; the Pentagon ROM in the HILQ firmware table; tape and snapshot media on the board; the audio-clock review; conformance; the Fuse corpus.
+- **Atari ST.** Proven on Kit D25: smoke 10/10; TOS 1.04 UK and EmuTOS reach the GEM desktop (#1937, #2042). Missing for tier 1: the Hatari corpus (Xenon, Gomoku with the mouse, The Lurking Horror disk save, Terramex disk swap); a cycle comparison with DE10; a long board SDRAM run; the audio-clock review; conformance.
+- **C64.** Proven on Kit D25: HDMI frame and D64 mount (#2234). Missing for tier 1: typed keyboard input; conformance; the corpus from `docs/validation/2026-11-07-c64-game-acceptance/`; the audio-clock review.
+- **PC/XT.** Proven on Kit D25: smoke 9/9 with restore verified; FreeDOS reached `A:\>` only on the superseded +4.0 ns package (#2069). Missing for tier 1: a reproducible Quartus compile; a reseal after the SDRAM DQ capture/hold fix; FreeDOS on the new package; SDRAM at 100 MHz under load; the qualification set; conformance.
+- **pc386.** Proven on Kit D25: nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run. Missing for tier 1: the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip.
 
 ## Quality tier and checks
 
@@ -79,7 +110,9 @@ In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule 
 
 The [forward plan](plans/forward-plan.md) assigns quality tiers per machine and board. Coleco, SMS, SG-1000 and Apple II are tier 2 candidates pending their ports. The freshness tier is derived independently from dates.
 
-`check_level` says what a change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.
+Shared RTL consumed by multiple machines or board variants follows the [D12 shared RTL merge rule](../AGENTS.md#shared-rtl-under-d12). After the protected main nightly qualification has produced a first baseline, affected simulations and synthesis gate source merge, and the frozen nightly candidate carries timing, seal and applicable kit evidence for the combined changes. Until then, shared-RTL PRs need normal pre-merge exact-head kit HIL. Releases may select older compatible qualified artifacts. The same first-baseline gate applies to a D12 closure-only sweep: after that baseline exists, the PR records the netlist comparison pre-merge and defers the RBF reproduction, the timing and seal gate and the HIL to the nightly candidate; a failed netlist comparison keeps every pre-merge gate.
+
+`check_level` says what a closure-only change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included; after the first nightly baseline, a closure-only sweep (producer, lock or helper, no RTL change) records the netlist comparison pre-merge and defers the RBF reproduction, the timing and seal gate and the HIL to the nightly candidate, and a failed netlist comparison keeps every pre-merge gate. Until that baseline exists, all three conditions stay pre-merge. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.
 
 The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of 2026-11-15, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This rule is close to that call but not the same one: it drops the same two conditions for the same held-back cores by rule, while it keeps at full the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon). Whether the representative scoping should be a rule too is a separate question.
 
@@ -94,6 +127,7 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 | Checks | Expected evidence |
 | --- | --- |
 | Full | Every change that moves the core's `BUILD_ID` carries that core's own evidence. |
+|  | After the first nightly baseline, a closure-only sweep records the netlist comparison pre-merge and defers the RBF, seal and HIL to nightly. |
 | Reduced | On a sweep the core is not about, its netlist comparison still holds; the RBF repeat, seal gate and HIL do not. A moved netlist keeps every gate. |
 | Via consumer | Not a package. Evidence rides with the packages that embed it. |
 | None | No built artifact yet. |
@@ -102,7 +136,7 @@ The levels never lower a gate on work being done to a core: a netlist that is no
 - **Tier 2 pending:** `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`
 - **Outside the ladder:** `fes.pong`, `fes.ramtest`, `fes.riscv`
 
-- **Full checks:** `fes.menu`, splash / idle, `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, C64 early NTSC, C64C PAL, C64C NTSC, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`, `fes.pc386`
+- **Full checks:** `fes.menu`, splash / idle, `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, C64 early NTSC, C64 PAL-N, C64C PAL, C64C NTSC, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt-dos`, `fes.pc386`
 - **Reduced checks:** `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.riscv`
 - **Via consumer checks:** `fes_i386_cpu`, `fes_z80_nmos` / `fes_z80_fast`, `cpu6502`, `fx68k`, TV80
 - **None checks:** C64 NTSC, Atari STE, `cores/pong` simulation

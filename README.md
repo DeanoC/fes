@@ -21,6 +21,10 @@ dedicated CI host/QEMU regressions and ongoing hardware qualification under
 [#1867](https://github.com/DeanoC/fes/issues/1867); Linux build and image
 defaults are unchanged.
 
+Use `make de25-embedded-image` and `make verify-de25-embedded-image` for
+the native Tenfoot SD card. The [launcher guide](platform/embedded/nano/launcher.md#3-build-and-verify-the-sd-image)
+lists the matched boot, SDK, recovery and staging inputs.
+
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
 [Component boundaries](docs/component-boundaries.md) describe ownership.

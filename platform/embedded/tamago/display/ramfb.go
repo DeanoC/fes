@@ -145,6 +145,23 @@ func (fb *RAMFB) Present(frame *image.RGBA) error {
 	return fb.surface.Present(frame)
 }
 
+// PresentRect copies and publishes the bounded surface-coordinate rectangle rect
+// from frame into QEMU's XRGB8888 scanout window.
+func (fb *RAMFB) PresentRect(frame *image.RGBA, rect image.Rectangle) error {
+	if fb == nil || fb.surface == nil {
+		return errors.New("ramfb: missing owned surface")
+	}
+	return fb.surface.PresentRect(frame, rect)
+}
+
+// Stats returns cumulative scanout presentation counters and fault state.
+func (fb *RAMFB) Stats() scanout.SurfaceStats {
+	if fb == nil || fb.surface == nil {
+		return scanout.SurfaceStats{}
+	}
+	return fb.surface.Stats()
+}
+
 func selectItem(selector uint16) {
 	write16(fwBase+8, bits.ReverseBytes16(selector))
 	barrier()

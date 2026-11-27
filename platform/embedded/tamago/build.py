@@ -544,6 +544,9 @@ def build(args):
         raise ValueError('--selected-programs requires computer control, rearming, owned SD returns and --tenfoot-serial')
     if type(tenfoot_serial) is not bool or tenfoot_serial and not selected_programs:
         raise ValueError('--tenfoot-serial requires the selected native program service')
+    c64_disk_swap = getattr(args, 'c64_disk_swap', False)
+    if c64_disk_swap and not (getattr(args, 'shared_core_shell', False) and getattr(args, 'c64_d64', None) and tenfoot_serial):
+        raise ValueError('--c64-disk-swap requires shared-shell serial Tenfoot with an initial C64 D64')
     lifecycle_trace = getattr(args, 'lifecycle_trace', False)
     if lifecycle_trace and not (args.program == 'fpgaload' and tenfoot_serial):
         raise ValueError('--lifecycle-trace requires Nano fpgaload with --tenfoot-serial')
@@ -638,6 +641,8 @@ def build(args):
     spectrum_tape = getattr(args, 'spectrum48_tape', None)
     shared_shell = getattr(args, 'shared_core_shell', False)
     uart_only = getattr(args, 'tenfoot_uart_only', False)
+    if c64_disk_swap and (not usb_shared or usb_input != 'boot-keyboard' or uart_only):
+        raise ValueError('--c64-disk-swap requires the shared USB boot keyboard')
     if uart_only and not (usb_shared and shared_shell):
         raise ValueError('--tenfoot-uart-only requires the matched shared-shell USB boot profile')
     if shared_shell and (args.program != 'fpgaload' or not menu_program_map or
@@ -664,6 +669,8 @@ def build(args):
         worker = Path(hps.spectrum48.__file__)
         c64_proof = json.loads(subprocess.check_output(
             [sys.executable, str(worker), '--c64', str(producer), str(c64_archive)], timeout=180))
+    if c64_disk_swap and (menu_program_map is None or not c64_proof or not c64_proof.get('c64_picker')):
+        raise ValueError('--c64-disk-swap requires paired HDMI Tenfoot and a sealed C64 picker')
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -844,6 +851,7 @@ def build(args):
         link_flags+=' -X main.expectedMenuPresent=1'
         link_flags+=' -X main.expectedMenuReadMap='+base64.b64encode(hps.encode(menu_read_map)).decode()
     if tenfoot_serial:link_flags+=' -X main.expectedTenfootSerial=1'
+    if c64_disk_swap:link_flags+=' -X main.expectedC64DiskSwap=1'
     if lifecycle_trace:link_flags+=' -X main.expectedLifecycleTrace=1'
     if watchdog_timeout:
         link_flags += f' -X main.expectedWatchdogTimeout={watchdog_timeout} -X main.expectedWatchdogClockHz={watchdog_clock_hz}'
@@ -959,6 +967,7 @@ def build(args):
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
+              "c64_disk_swap":c64_disk_swap,
               "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
               **({"spectrum48_program": spectrum_program, "spectrum48_program_sha256": hps.digest(spectrum_program)}
                  if spectrum_program is not None and not shared_shell else {}),

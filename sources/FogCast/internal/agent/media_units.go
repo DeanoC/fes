@@ -61,7 +61,7 @@ func (c *Coordinator) EjectMedia(parent context.Context, b protocol.MediaUnitBin
 		return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
 	budget := c.stopTimeout
-	if protocol.MediaDataBound(c.Status().CorePackage) && budget < 135*time.Second {
+	if prior := c.Status().CorePackage; (protocol.MediaDataBound(prior) || protocol.PersistentMediaBound(prior)) && budget < 135*time.Second {
 		budget = 135 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(c.operationContext, budget)
@@ -81,11 +81,21 @@ func (c *Coordinator) setMediaUnits(b protocol.MediaUnitBinding, units []protoco
 		return
 	}
 	status.CorePackage.MediaUnits = protocol.CloneMediaUnits(units)
-	if protocol.MediaDataBound(status.CorePackage) {
+	switch {
+	case protocol.MediaWriteCapable(status.CorePackage):
+		if protocol.MediaDataBound(status.CorePackage) {
+			status.CorePackage.PersistenceMode = "persistent"
+		} else {
+			status.CorePackage.PersistenceMode = "volatile"
+		}
+	case protocol.PersistentMediaBound(status.CorePackage):
+		// As the runtime: a bound persistent unit (a pc386 floppy or disk)
+		// makes the package persistent.
 		status.CorePackage.PersistenceMode = "persistent"
-	} else {
-		status.CorePackage.PersistenceMode = "volatile"
 	}
+	// Otherwise the launch's mode stands: a pc386 machine record keeps the
+	// package persistent with its drives empty, and the next status read
+	// reports the runtime's own mode.
 	c.set(status)
 }
 

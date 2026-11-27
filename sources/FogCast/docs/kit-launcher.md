@@ -32,7 +32,7 @@ About & help › Run setup again starts from Welcome without clearing anything.
 Other launchers and backends start Home directly.
 
 Settings (GUIDE or `o`) opens on its sections, in the v1 order (#1349). A
-section is listed only when it has rows; Controllers waits for #980.
+section is listed only when it has rows; Controllers appears while at least one pad is attached.
 
 - **Games folders:** BIOS & media drives, and the host's library roots where
   the launcher edits them. #1346 replaces this with per-family folders.
@@ -42,6 +42,12 @@ section is listed only when it has rows; Controllers waits for #980.
 - **Display & sound:** Resolution (the menu display's fixed 1280×720, shown,
   not chosen), Safe area, Reduced motion and TV surround. The image has no
   volume control yet.
+- **Controllers:** shown while a pad is attached. Lists each attached pad as a
+  tab (with its live pressed highlight), draws its layout with its family's
+  glyphs and live button state, shows the `Tested` badge when hardware-verified
+  (#1348), and lets you Swap A / B, rebind individual buttons (including
+  directions and keypad keys), map an unfamiliar pad step by step (including
+  left stick), or reset its saved profile.
 - **Network:** on the kit, the wired link (`eth0`; the image has no Wi-Fi).
   A host launcher lists its kit targets here instead.
 - **Updates:** Cores (install cores and add games). #1350 adds the rest.
@@ -152,7 +158,12 @@ the DB does not list uses a fallback layout: Linux gamepad-API codes
 Tenfoot logs each pad's identity and the mapping it got. Axis ranges come
 from EVIOCGABS, including unsigned 0–255 axes. Left stick and D-pad share
 `left-x`/`left-y`; a D-pad on a hat or a full axis owns that axis until it
-returns to centre. Keyboard events carry the key's USB HID usage;
+returns to centre. `Device.Tested()` (`ui/controller/tested.go`) marks pads
+verified on FES hardware (#1348) by exact evdev identity (transport, VID:PID,
+version, name, and key/hat/axis capabilities). USB and Bluetooth transports are
+tracked separately; currently only the wired `"USB gamepad           "` (`081f:e401` `v0110`)
+SNES-style USB pad is marked `Tested`, while any other GameControllerDB or
+user-mapped pad still works without the badge. Keyboard events carry the key's USB HID usage;
 mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
 matrix or native gamepad keys for the other cores.
 
@@ -160,7 +171,7 @@ A pad can have a saved profile in `tenfoot.json`, under `controllers` and the
 pad's GUID. Tenfoot logs the GUID when the pad attaches:
 
 ```text
-tenfoot: gamepad "USB Gamepad " 081f:e401 v0110 bus 3 guid 0300e9f51f08000001e4000010010000: Super Famicom Controller
+tenfoot: gamepad "USB gamepad           " 081f:e401 v0110 bus 3 guid 0300cb231f08000001e4000010010000: Super Famicom Controller
 ```
 
 A profile remaps the pad's controls after its mapping. The `swap-ab` preset
@@ -175,7 +186,7 @@ are `a`, `b`, `c`, `x`, `y`, `l`, `r`, `start`, `select` and `dpad-up`,
 ```json
 {
   "controllers": {
-    "0300e9f51f08000001e4000010010000": {
+    "0300cb231f08000001e4000010010000": {
       "preset": "swap-ab",
       "bindings": { "x": "keypad-1", "y": "keypad-2" }
     }
@@ -184,11 +195,13 @@ are `a`, `b`, `c`, `x`, `y`, `l`, `r`, `start`, `select` and `dpad-up`,
 ```
 
 Pads with the same GUID, such as two of the same model, share a profile.
-Tenfoot reads it as a pad attaches, so after an edit unplug the pad and plug
-it back in. The pad's log line then ends `, saved profile`, or says why the
-profile was ignored. Check it: a `tenfoot.json` that does not parse is
+Changes made in **Settings › Controllers** apply live once the pad's held
+buttons are released. Tenfoot also reads the saved profile when a pad attaches,
+so manual edits to `tenfoot.json` take effect after unplugging the pad and
+plugging it back in. The pad's log line then ends `; saved profile`, or says
+why the profile was ignored. Check it: a `tenfoot.json` that does not parse is
 rewritten from defaults the next time a setting is saved from the menu.
-Guide is never remapped. There is no on-screen editor yet.
+Guide is never remapped.
 
 ## HOW_TO_RUN: LaunchBox covers on the kit host
 

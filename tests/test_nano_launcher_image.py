@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -68,7 +69,8 @@ class LauncherImageTests(unittest.TestCase):
         self.sdk = self.root/'sdk'; self.sdk.mkdir()
         self.native_fit = self.uboot/'native.itb'; self.native_fit.write_bytes(b'synthetic candidate FIT')
         self.boot = dict(fit_sha256=digest(self.native_fit.read_bytes()), native_handoff=dict(build_id='1234567890abcdef', startup=dict(mode='autoboot')))
-        self.loaded = dict(hps_menu_program={'synthetic': True}, payload_sha256='e'*64)
+        self.loaded = dict(hps_menu_program={'synthetic': True}, payload_sha256='e'*64,
+                           usb_shared=True, usb_input='boot-keyboard')
         self.selected = dict(status='cross-built', program='fpgaload', elf_sha256='e'*64,
             usb_shared=True, usb_input='boot-keyboard', hps_menu_program=self.loaded['hps_menu_program'],
             writable_storage_plan=dict(scope='nano-owned-fat-storage-v1', mbr_sha256=digest(mbr),
@@ -95,6 +97,16 @@ class LauncherImageTests(unittest.TestCase):
         # injects that boundary and uses the real recovery/media/mtools path.
         with patch.object(image, 'checked_native', return_value=(self.native_fit, None, None, self.boot, self.loaded, None)):
             return image.prepare(self.uboot, self.entry, self.sdk, self.recovery, self.staged, self.output)
+
+    def test_launcher_accepts_matched_single_pad_and_multi_input_builds(self):
+        for protocol in ('gamepad', 'multi'):
+            with self.subTest(protocol=protocol):
+                self.selected['usb_input'] = self.loaded['usb_input'] = protocol
+                self.bind_sdk()
+                self.output = self.root/'out'/protocol
+                result = self.prepare()
+                self.assertEqual(result['inputs'][str(self.sdk/'result.json')], self.loaded['native_build_sha256'])
+                self.assertEqual(result['image_sha256'], image.sha(self.output/'native-launcher-sd.img'))
 
     def test_image_preserves_recovery_and_reads_back_every_launcher_file(self):
         result = self.prepare()
@@ -169,13 +181,17 @@ class LauncherImageTests(unittest.TestCase):
             self.assertFalse(self.output.exists())
 
     def test_changed_native_binding_and_boot_policy_refuse_before_output(self):
-        for fault in ('sdk-binding', 'manual', 'gamepad', 'menu-assets', 'protected-plan', 'no-write-plan'):
+        for fault in ('sdk-binding', 'manual', 'input-mismatch', 'unknown-input', 'unshared',
+                      'uart-only', 'menu-assets', 'protected-plan', 'no-write-plan'):
             with self.subTest(fault=fault):
                 original_selected, original_loaded, original_boot = map(copy.deepcopy, (self.selected, self.loaded, self.boot))
                 try:
                     if fault == 'sdk-binding': self.loaded['native_build_sha256'] = '0'*64
                     elif fault == 'manual': self.boot['native_handoff']['startup']['mode'] = 'manual'
-                    elif fault == 'gamepad': self.selected['usb_input'] = 'gamepad'; self.bind_sdk()
+                    elif fault == 'input-mismatch': self.selected['usb_input'] = 'gamepad'; self.bind_sdk()
+                    elif fault == 'unknown-input': self.selected['usb_input'] = self.loaded['usb_input'] = 'mouse'; self.bind_sdk()
+                    elif fault == 'unshared': self.selected['usb_shared'] = False; self.bind_sdk()
+                    elif fault == 'uart-only': self.selected['tenfoot_uart_only'] = True; self.bind_sdk()
                     elif fault == 'menu-assets': self.selected['menu_assets']['MENU.FCP']['sha256'] = '0'*64; self.bind_sdk()
                     elif fault == 'protected-plan': self.selected['writable_storage_plan']['mbr_sha256'] = '0'*64; self.bind_sdk()
                     elif fault == 'no-write-plan': self.selected['writable_storage_plan'] = None; self.bind_sdk()
@@ -245,3 +261,58 @@ class LauncherImageTests(unittest.TestCase):
                 self.prepare()
         self.assertEqual(sum(argv[0] == 'mcopy' and not str(argv[-2]).startswith('::') for argv in calls), 1)
         self.assertFalse((self.output/'result.json').exists())
+
+    def verify_prepared(self):
+        import launcher_image_verify
+        with patch.object(image, 'checked_native', return_value=(self.native_fit, None, None, self.boot, self.loaded, None)):
+            return launcher_image_verify.verify(self.uboot, self.entry, self.sdk, self.recovery, self.staged, self.output)
+
+    def test_standalone_verify_is_read_only_and_rejects_mismatched_provenance(self):
+        # Keep the same provenance for a relative build invocation and for the
+        # verifier, which imports the producer by its absolute module path.
+        with patch.object(image, '__file__', os.path.relpath(image.__file__)):
+            receipt = self.prepare()
+        self.assertTrue(all(Path(name).is_absolute() for name in receipt['inputs']))
+        before = {p: p.stat().st_mtime_ns for p in self.output.rglob('*')}
+        self.assertEqual(self.verify_prepared(), receipt['image_sha256'])
+        self.assertEqual(before, {p: p.stat().st_mtime_ns for p in self.output.rglob('*')})
+        for field, changed in (('native_boot_id', '0'*16), ('inputs', {}), ('power_on_qualified', True)):
+            with self.subTest(field=field):
+                (self.output/'result.json').write_bytes(encoded(dict(receipt, **{field: changed})))
+                with self.assertRaisesRegex(ValueError, 'admitted build and recovery inputs'):
+                    self.verify_prepared()
+
+    def test_standalone_verify_detects_corrupt_disk_even_with_updated_receipt_digest(self):
+        receipt = self.prepare()
+        disk = self.output/'native-launcher-sd.img'
+        fat = str(disk)+'@@'+str(image.PREFIX_SIZE)
+        extra = self.root/'extra'
+        extra.write_bytes(b'undeclared')
+        subprocess.run(['mcopy', '-i', fat, extra, '::FES/EXTRA.BIN'], check=True)
+        with self.assertRaisesRegex(ValueError, 'differs from its receipt'):
+            self.verify_prepared()
+        receipt['image_sha256'] = image.sha(disk)
+        (self.output/'result.json').write_bytes(encoded(receipt))
+        with self.assertRaisesRegex(ValueError, 'extra or aliased FAT entries'):
+            self.verify_prepared()
+
+    def test_standalone_verify_rechecks_the_boot_chain_after_fat_readback(self):
+        import launcher_image_verify
+        self.prepare()
+        matched = (self.native_fit, None, None, self.boot, self.loaded, None)
+        with patch.object(image, 'checked_native', side_effect=[matched, ValueError('SPL changed')]):
+            with self.assertRaisesRegex(ValueError, 'SPL changed'):
+                launcher_image_verify.verify(self.uboot, self.entry, self.sdk, self.recovery, self.staged, self.output)
+
+    def test_standalone_verify_rejects_fsinfo_that_would_prevent_install(self):
+        receipt = self.prepare()
+        disk = self.output/'native-launcher-sd.img'
+        with disk.open('r+b') as stream:
+            stream.seek(image.PREFIX_SIZE + 48)
+            sector = int.from_bytes(stream.read(2), 'little')
+            stream.seek(image.PREFIX_SIZE + 512 * sector)
+            stream.write(bytes(4))
+        receipt['image_sha256'] = image.sha(disk)
+        (self.output/'result.json').write_bytes(encoded(receipt))
+        with self.assertRaisesRegex(ValueError, 'FAT FSInfo signatures'):
+            self.verify_prepared()

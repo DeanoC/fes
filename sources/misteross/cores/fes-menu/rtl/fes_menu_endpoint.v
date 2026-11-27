@@ -45,7 +45,7 @@ module fes_menu_endpoint (
         .run_valid(blit_run), .list_offset(blit_offset), .list_count(blit_count), .target_slot(blit_slot)
     );
     fes_menu_ddr #(.BLITTER(1)) scanout (
-        .clk(clk), .reset_hold(reset_hold || exec_reset), .enable(enable && !reset_hold), .quiesce(quiesce),
+        .clk(clk), .raster_reset(reset_hold), .reset_hold(reset_hold || exec_reset), .enable(enable && !reset_hold), .quiesce(quiesce),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .blit_valid(blit_run), .blit_slot(blit_slot), .blit_offset(blit_offset), .blit_count(blit_count),
         .blit_idle(blit_idle), .blit_faulted(blit_faulted), .blit_fault_code(blit_fault_code),

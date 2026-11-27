@@ -121,7 +121,7 @@ class ParentWorkflowTests(unittest.TestCase):
     def test_pcxt_com_nightly_is_main_only_and_reports_failure(self):
         repository = Path(__file__).resolve().parents[1]
         nightly = (repository / '.github/workflows/nightly.yml').read_text()
-        job = nightly.split('  pcxt-com:\n', 1)[1].split('  report:\n', 1)[0]
+        job = nightly.split('  pcxt-com:\n', 1)[1].split('  qualification:\n', 1)[0]
         report = nightly.split('  report:\n', 1)[1]
         self.assertEqual(workflow_events(repository / '.github/workflows/nightly.yml'),
                          {'schedule', 'workflow_dispatch'})
@@ -138,15 +138,28 @@ class ParentWorkflowTests(unittest.TestCase):
         self.assertIn('dos-com/result-pending.json', job)
         self.assertIn('name: pcxt-com-evidence-', job)
         self.assertNotIn('sudo ', job)
-        self.assertIn('needs: [regression, pcxt-com]', report)
+        self.assertIn('needs: [regression, pcxt-com, qualification]', report)
         self.assertIn("needs.regression.result == 'failure' || needs.pcxt-com.result == 'failure'", report)
         for tier in ('smoke', 'full'):
             self.assertNotIn('sim-fes-pcxt-com',
                              [row['target'] for row in simulation_matrix(['pcxt'], tier)['include']])
 
+    def test_qualification_requires_combined_simulations_and_frozen_main(self):
+        root = Path(__file__).resolve().parents[1] / '.github/workflows'
+        nightly = (root / 'nightly.yml').read_text()
+        job = nightly.split('  qualification:\n', 1)[1].split('  report:\n', 1)[0]
+        for text in ("github.ref == 'refs/heads/main'", "needs.regression.outputs.simulated_sha == github.sha",
+                     "needs.pcxt-com.result == 'success'", "ref: ${{ github.sha }}",
+                     "environment: pcxt-nightly-main", 'cancel-in-progress: false', '--sha "$GITHUB_SHA"'):
+            self.assertIn(text, job)
+        workflow = (root / 'check.yml').read_text()
+        for text in ("needs.plan.outputs.sim_tier == 'full'", "needs.fpga-simulation.result == 'success'",
+                     "needs.fpga-producer.result == 'success'"):
+            self.assertIn(text, workflow)
+
     def test_pcxt_com_preflight_and_cleanup_are_scoped(self):
         nightly = (Path(__file__).resolve().parents[1] / '.github/workflows/nightly.yml').read_text()
-        job = nightly.split('  pcxt-com:\n', 1)[1].split('  report:\n', 1)[0]
+        job = nightly.split('  pcxt-com:\n', 1)[1].split('  qualification:\n', 1)[0]
         def shell_step(name):
             step = job.split('      - name: ' + name + '\n', 1)[1].split('\n      - ', 1)[0]
             return textwrap.dedent(step.split('        run: |\n', 1)[1])

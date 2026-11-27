@@ -63,6 +63,8 @@ func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool
 		return FloppyWriteUnitCapable(p, unit)
 	case AtaDiskInterface():
 		return ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && unit.Unit == AtaDiskUnit && !unit.CanSave()
+	case PcFloppyInterface():
+		return ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && PcFloppyUnit(unit.Unit) && !unit.CanSave()
 	default:
 		return false
 	}
@@ -142,28 +144,44 @@ func (b MediaUnitBinding) MatchesSaveResult(before, after Status) bool {
 }
 
 // LibraryMediaBinding names an immutable base and a stable library entry.
-// Development InsertMedia deliberately carries no durable binding.
+// Development InsertMedia deliberately carries no durable binding. Unit 0 is
+// the ST or PC/XT drive; units 1 and 2 are pc386's A: and B:, which alone
+// take WriteProtected.
 type LibraryMediaBinding struct {
 	MediaUnitBinding
-	GameID      string
-	BaseMediaID string
+	GameID         string
+	BaseMediaID    string
+	WriteProtected bool
 }
 
 func (b LibraryMediaBinding) Valid() bool {
-	return b.MediaUnitBinding.Valid() && b.Unit == AtariStFloppyUnit && ValidMediaGameID(b.GameID) && ValidateDigest(b.BaseMediaID) == nil
+	return b.MediaUnitBinding.Valid() && (b.Unit == AtariStFloppyUnit || PcFloppyUnit(b.Unit)) &&
+		(!b.WriteProtected || PcFloppyUnit(b.Unit)) && ValidMediaGameID(b.GameID) && ValidateDigest(b.BaseMediaID) == nil
+}
+
+// AdmitsSize checks the image size against the binding's drive.
+func (b LibraryMediaBinding) AdmitsSize(size int64) bool {
+	if PcFloppyUnit(b.Unit) {
+		drive, ok := PcFloppyDrive(size)
+		return ok && drive == b.Unit
+	}
+	return AdmitLibraryFloppySize(size)
 }
 func (b LibraryMediaBinding) SetHeaders(h http.Header) {
 	b.MediaUnitBinding.SetHeaders(h)
 	h.Set(MediaGameHeader, b.GameID)
 	h.Set(MediaBaseHeader, b.BaseMediaID)
+	if b.WriteProtected {
+		h.Set(MediaWriteProtectHeader, "1")
+	}
 }
 func LibraryMediaHeaders(h http.Header) (LibraryMediaBinding, bool) {
 	unit, ok := MediaUnitHeaders(h)
-	games, bases := h.Values(MediaGameHeader), h.Values(MediaBaseHeader)
-	if !ok || len(games) != 1 || len(bases) != 1 {
+	games, bases, protect := h.Values(MediaGameHeader), h.Values(MediaBaseHeader), h.Values(MediaWriteProtectHeader)
+	if !ok || len(games) != 1 || len(bases) != 1 || len(protect) > 1 || (len(protect) == 1 && protect[0] != "1") {
 		return LibraryMediaBinding{}, false
 	}
-	b := LibraryMediaBinding{MediaUnitBinding: unit, GameID: games[0], BaseMediaID: bases[0]}
+	b := LibraryMediaBinding{MediaUnitBinding: unit, GameID: games[0], BaseMediaID: bases[0], WriteProtected: len(protect) == 1}
 	return b, b.Valid()
 }
 

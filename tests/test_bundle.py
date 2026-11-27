@@ -42,6 +42,18 @@ class BundleTest(unittest.TestCase):
                     self.assertEqual(record["parameters"]["sid_model"], "8580")
                     self.assertTrue(record["parameters"]["selection_only"])
 
+    def test_pcxt_selection_only_records_its_yosys_front_end(self):
+        from tests.committed_misteross_fixture import make_snapshot
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = make_snapshot(temporary)
+            subprocess.run(["git", "-C", source, "remote", "add", "origin",
+                            "https://github.com/DeanoC/fes.git"], check=True)
+            record = json.loads(module.canonical_package_record(
+                source, recipe=module.recipe_for("fes.pcxt-dos"), selection_only=True))
+            self.assertTrue(record["parameters"]["selection_only"])
+            self.assertEqual(record["tools"]["yosys"], "selection-only")
+
     def test_de25_cached_package_uses_its_source_closed_board_reader(self):
         module = self.module()
         from tests.committed_misteross_fixture import make_snapshot

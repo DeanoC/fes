@@ -6,9 +6,9 @@ system_tb (cores/fes-pc386/sim) on pc386_de25_sim: the derived pc386_system
 builds its CPU: the 486SX (I486, the default) or the i486DX (I486,
 X87_PRESENT and i486dx/derive.py's CPU),
 behind fes_de25_hps_window's guards, rebase and bounds and
-fes_de25_window_arbiter, built with FES_PC386_DE25. The suite, its
-checks and its report are sim_fes_pc386.py's system suite unchanged; only the
-testbench is this board's. Host-only: no kit, package or routed result.
+fes_de25_window_arbiter, built with FES_PC386_DE25. The system suite checks
+this board's ATA-only storage endpoint. Host-only: no kit, package or routed
+result.
 
     python3 boards/de25nano/pc386/sim.py [--download] [--jobs N]
 """
@@ -33,8 +33,9 @@ I486 = int(re.search(r'^I486 = (\d)$', (HERE / 'build.py').read_text(), re.M).gr
 i486dx = importlib.import_module('i486dx.derive')
 MODELS = ('486sx', '486dx')
 
+COMMON_GUARD = ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v'
 DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HERE / 'fes_de25_window_arbiter.v', HERE / 'fes_de25_window_unpack.v',
-            ROOT / 'cores/fes-common/rtl/fes_hps_ddr_guard.v', HERE / 'sim/pc386_de25_sim.sv')
+            HERE / 'fes_de25_pc386_standard.v', HERE / 'sim/pc386_de25_sim.sv')
 
 
 def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:
@@ -77,7 +78,10 @@ def system_testbench(args) -> Path:
     missing = set(swap) - set(sim.SYSTEM_RTL)
     if missing:
         raise sim.SimError(f'derived files are not in the system RTL: {sorted(map(str, missing))}')
-    rtl = tuple(swap.get(path, path) for path in sim.SYSTEM_RTL) + DE25_RTL
+    guard = COMMON_GUARD
+    derived_guard = sim.OUTPUT / 'derived' / 'rtl' / guard.name
+    derived_guard.write_bytes(derive.retarget_window_guard(guard.read_bytes())[0])
+    rtl = tuple(swap.get(path, path) for path in sim.SYSTEM_RTL) + DE25_RTL + (derived_guard,)
     sim.verilate(args.verilator, 'system', 'pc386_de25_sim', rtl, sim.CORE / 'sim/system_tb.cpp', [], args.jobs,
                  parameters, include=(HERE / 'generated',),
                  flags=('-Wno-TIMESCALEMOD', '--prefix', 'Vpc386_system', '-CFLAGS', '-DFES_PC386_DE25'),
@@ -114,7 +118,7 @@ def run_at_model_clock(args) -> dict:
     shared = producer.SYSTEM_CLOCK_HZ
     producer.SYSTEM_CLOCK_HZ = build.model_clock(args.model)['hz']
     try:
-        return sim.run_system(args)
+        return sim.run_system(args, expect_floppy=False)
     finally:
         producer.SYSTEM_CLOCK_HZ = shared
 

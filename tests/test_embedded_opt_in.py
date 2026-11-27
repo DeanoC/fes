@@ -2,6 +2,7 @@
 import importlib.util
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -64,3 +65,27 @@ class EmbeddedOptInTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn(message, result.stderr)
                 self.assertNotIn(experiment.VARIABLE, result.stderr)
+
+    def test_launcher_make_targets_forward_the_same_inputs_and_output(self):
+        inputs = ["--uboot-build", "/u-boot", "--entry-build", "/entry", "--native-build", "/sdk",
+                  "--recovery-kit", "/recovery", "--launcher-staging", "/launcher files",
+                  "--recovery-profile", "return-trace", "--recovery-source-root", "/source"]
+        for output in ("out/de25-nano-embedded", "out/custom image"):
+            for target, script in (("de25-embedded-image", "launcher_image.py"),
+                                   ("verify-de25-embedded-image", "launcher_image_verify.py")):
+                with self.subTest(target=target, output=output):
+                    command = ["make", "--no-print-directory", "--dry-run", target, "PYTHON=python3",
+                               "DE25_EMBEDDED_ARGS=" + shlex.join(inputs)]
+                    if output != "out/de25-nano-embedded":
+                        command.append("DE25_EMBEDDED_OUTPUT=" + output)
+                    run = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+                    self.assertEqual(shlex.split(run.stdout.splitlines()[-1]), [
+                        "python3", "platform/embedded/nano/" + script, *inputs, "--output", output,
+                    ])
+
+    def test_launcher_make_build_requires_opt_in_before_assembly(self):
+        run = subprocess.run(["make", "--no-print-directory", "de25-embedded-image",
+                              "BOARD=de25-nano", experiment.VARIABLE + "=0"],
+                             cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(experiment.VARIABLE + "=1", run.stderr)

@@ -455,8 +455,7 @@ func TestXGMACIRQWakeupLinkControlAndFaults(t *testing.T) {
 	// Exercise real network.Link.Start sleeping on RXReady() and waking via GIC SPI 222.
 	stackCfg := gnet.DefaultLnetoStackConfig()
 	stackCfg.Hostname = "xgmac-irq-test"
-	stack := gnet.NewLnetoStack(stackCfg)
-	link, err := network.NewLink(stack, dev, "10.0.2.15/24", dev.MAC(), "10.0.2.2")
+	link, err := network.NewLink(stackCfg, dev, "10.0.2.15/24", dev.MAC(), "10.0.2.2")
 	if err != nil {
 		t.Fatal(err)
 	}

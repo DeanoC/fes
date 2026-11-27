@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"sync/atomic"
 	"time"
@@ -133,9 +134,8 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 	}
 	cfg.BackoffStack = backoff
 	cfg.NewBackoffTCP = func() lneto.BackoffStrategy { return backoff }
-	stack := gnet.NewLnetoStack(cfg)
 	var err error
-	iface.bridge, err = NewLink(stack, nic, c.Address, nic.MAC(), c.Gateway)
+	iface.bridge, err = NewLink(cfg, nic, c.Address, nic.MAC(), c.Gateway)
 	if err != nil {
 		stop(err)
 		return nil, err
@@ -147,7 +147,7 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 		if err := iface.bridge.Available(); err != nil {
 			return nil, err
 		}
-		return stack.Socket(ctx, network, family, sotype, laddr, raddr)
+		return iface.bridge.socket(ctx, network, family, sotype, laddr, raddr)
 	}
 	go func() {
 		err := iface.bridge.Start(runCtx)
@@ -162,6 +162,61 @@ func installInterface(ctx context.Context, c Config, nic Device, lease DHCPLease
 func (i *Interface) Address() string   { return i.config.Address }
 func (i *Interface) MAC() string       { return i.device.MAC() }
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
+
+// DialTCP opens an outbound IPv4 TCP connection over this interface's active *Link.
+func (i *Interface) DialTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	if i == nil || i.bridge == nil {
+		return nil, ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return i.bridge.DialTCP(ctx, addr)
+}
+
+// ListenTCP opens a passive IPv4 TCP listener on port over this interface's active *Link.
+func (i *Interface) ListenTCP(ctx context.Context, port uint16) (net.Listener, error) {
+	if i == nil || i.bridge == nil {
+		return nil, ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return i.bridge.ListenTCP(ctx, port)
+}
+
+// NewHTTPTransport returns an *http.Transport wired to this interface's active *Link.
+func (i *Interface) NewHTTPTransport(cfg TransportConfig) (*http.Transport, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPTransport(i.bridge, cfg)
+}
+
+// NewHTTPClient returns an *http.Client wired to this interface's active *Link.
+func (i *Interface) NewHTTPClient(cfg TransportConfig) (*http.Client, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPClient(i.bridge, cfg)
+}
+
+// NewHTTPServer constructs an idle HTTP/HTTPS server bound to this interface's active *Link.
+func (i *Interface) NewHTTPServer(cfg ServerConfig) (*HTTPServer, error) {
+	if i == nil || i.bridge == nil {
+		return nil, fmt.Errorf("%w: interface unavailable", ErrInvalidHTTPConfig)
+	}
+	if err := i.Err(); err != nil {
+		return nil, err
+	}
+	return NewHTTPServer(i.bridge, cfg)
+}
 
 // Lease returns the acquired DHCPv4 lease and true if the interface was opened
 // via DHCP, or the zero value and false for static IPv4 configurations.
@@ -347,3 +402,27 @@ func (i *Interface) Err() error {
 // Done closes when networking becomes unavailable. It is not a DMA fence;
 // the device allocations remain reserved until reboot.
 func (i *Interface) Done() <-chan struct{} { return i.ctx.Done() }
+
+var _ RawFramePort = (*Interface)(nil)
+
+// SendRawFrame transmits one raw Ethernet frame while obeying the link's
+// pause gate and DMA failure contract.
+func (i *Interface) SendRawFrame(frame []byte) error {
+	if i == nil || i.bridge == nil {
+		return ErrControl
+	}
+	if err := i.Err(); err != nil {
+		return err
+	}
+	return i.bridge.SendRawFrame(frame)
+}
+
+// AddTap registers a non-blocking callback invoked with a copy of each inbound
+// Ethernet frame received by Link.Start. Call the returned function to remove
+// the tap (idempotent).
+func (i *Interface) AddTap(fn func([]byte)) func() {
+	if i == nil || i.bridge == nil {
+		return func() {}
+	}
+	return i.bridge.AddTap(fn)
+}

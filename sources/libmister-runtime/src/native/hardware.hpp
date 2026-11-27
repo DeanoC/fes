@@ -136,6 +136,7 @@ public:
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
 	Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&) override;
+	Error PreparePc386Floppies(AdmittedCorePackage*, const std::vector<InitialComputerMedia>&) override;
 	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
 	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
@@ -190,7 +191,7 @@ private:
  De25HpsWindow* hps_window_ = nullptr;
  bool HpsDdrAvailable() const;
  Error ReleaseHpsWindow(const char* operation, const std::string& system, const std::string& core,
-  bool machine_quiesced=false);
+  bool machine_quiesced = false, std::uint64_t deadline = 0);
  MenuDisplayStatus menu_status_;
  Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;
@@ -285,6 +286,27 @@ private:
 	std::uint32_t ata_size_ = 0;
 	bool ata_ready_ = false;
 	bool ata_flushed_ = false;
+	// fes.media.pc-floppy's drives A: and B: (units 1 and 2). Each holds a
+	// whole image in the window; a writable one is bound to its
+	// fes.pc386-floppy.image record (namespace unit 1), saved before Eject
+	// and at Stop.
+	struct Pc386Floppy {
+		bool loaded = false, write_protected = false, flushed = false;
+		std::uint32_t size = 0;
+		MediaDataIdentity identity;
+		std::unique_ptr<MediaDataFile> file;
+		MediaDiskRecord durable;
+	};
+	Pc386Floppy floppies_[2];
+	FesGpCoreDriver* Pc386FloppyDriver(std::uint8_t unit);
+	Error ReadPc386FloppyImage(const std::string& path, std::uint32_t size, const std::string& base_media_id,
+		const char* phase, std::vector<unsigned char>* image);
+	Error InsertPc386Floppy(std::uint8_t unit, const std::string& path, std::uint32_t size,
+		const std::string& root, const MediaDataBinding& binding);
+	Error SavePc386Floppy(FesGpCoreDriver& driver, std::uint8_t unit, std::uint64_t deadline);
+	Error EjectPc386Floppy(std::uint8_t unit);
+	Error FlushPc386FloppySaves();
+	void ForgetPc386Floppies();
 };
 
 } // namespace native

@@ -15,7 +15,7 @@ module c64_frame_store (
     reg [3:0] page0 [0:104447];
     reg [3:0] page1 [0:104447];
     reg [3:0] page2 [0:104447];
-    reg [3:0] q0, q1, q2;
+    reg [3:0] mem0, mem1, mem2, q0, q1, q2;
     always @(posedge clk_sys) begin
         if (!reset && write_enable) begin
             case (write_page)
@@ -26,18 +26,35 @@ module c64_frame_store (
         end
     end
     always @(posedge pixel_clk) begin
-        q0 <= page0[read_address]; q1 <= page1[read_address]; q2 <= page2[read_address];
+        mem0 <= page0[read_address]; mem1 <= page1[read_address]; mem2 <= page2[read_address];
+        q0 <= mem0; q1 <= mem1; q2 <= mem2;
     end
 `else
     wire [3:0] page_data [0:2];
     reg [5:0] read_bank_q;
+    reg [2:0] read_group_q;
     always @(posedge pixel_clk) read_bank_q <= read_address[16:11];
+    always @(posedge pixel_clk) read_group_q <= read_bank_q[5:3];
     wire [3:0] q0 = page_data[0];
     wire [3:0] q1 = page_data[1];
     wire [3:0] q2 = page_data[2];
     for (genvar page=0; page<3; page=page+1) begin: pages
         wire [4:0] bank_data [0:50];
-        assign page_data[page]=bank_data[read_bank_q][3:0];
+        reg [3:0] group_data [0:6];
+        // Register small local bank muxes before combining the groups. This
+        // keeps distant M10Ks off the single-cycle 51-way display mux.
+        for (genvar group=0; group<7; group=group+1) begin: groups
+            wire [3:0] selected;
+            if (group < 6) begin: full_group
+                assign selected = bank_data[group*8 + read_bank_q[2:0]][3:0];
+            end else begin: last_group
+                assign selected = read_bank_q[2:0] == 0 ? bank_data[48][3:0] :
+                    read_bank_q[2:0] == 1 ? bank_data[49][3:0] :
+                    read_bank_q[2:0] == 2 ? bank_data[50][3:0] : 4'd0;
+            end
+            always @(posedge pixel_clk) group_data[group] <= selected;
+        end
+        assign page_data[page]=group_data[read_group_q];
         for (genvar bank=0; bank<51; bank=bank+1) begin: banks
             // Dense 2048x5 uses one M10K for 2048 four-bit pixels.
             // The inferred ACLR memory pass otherwise chooses 1024x10.
@@ -52,13 +69,13 @@ module c64_frame_store (
         end
     end
 `endif
-    reg [1:0] published_page, read_page_q;
-    reg publish_toggle, acknowledge, have_frame, have_frame_q;
+    reg [1:0] published_page, read_page_q, read_page_qq;
+    reg publish_toggle, acknowledge, have_frame, have_frame_q, have_frame_qq;
     (* async_reg="true" *) reg ack_meta, ack_sync;
     (* async_reg="true" *) reg request_meta, request_sync;
     assign pending = publish_toggle != ack_sync;
-    assign read_data = !have_frame_q ? 4'd0 :
-        read_page_q==0 ? q0 : read_page_q==1 ? q1 : q2;
+    assign read_data = !have_frame_qq ? 4'd0 :
+        read_page_qq==0 ? q0 : read_page_qq==1 ? q1 : q2;
     integer candidate;
     always @(posedge clk_sys) begin
         ack_meta <= acknowledge; ack_sync <= ack_meta;
@@ -81,9 +98,10 @@ module c64_frame_store (
     always @(posedge pixel_clk) begin
         request_meta <= publish_toggle; request_sync <= request_meta;
         read_page_q <= read_page; have_frame_q <= have_frame;
+        read_page_qq <= read_page_q; have_frame_qq <= have_frame_q;
         if (reset) begin
             read_page <= 2; acknowledge <= 0; have_frame <= 0;
-            request_meta <= 0; request_sync <= 0; have_frame_q <= 0;
+            request_meta <= 0; request_sync <= 0; have_frame_q <= 0; have_frame_qq <= 0;
         end else if (frame_start && request_sync != acknowledge) begin
             read_page <= published_page; acknowledge <= request_sync; have_frame <= 1;
         end

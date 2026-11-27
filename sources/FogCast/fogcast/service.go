@@ -451,6 +451,9 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	}
 
 	if err := service.retireSupersededLibraries(ctx); err != nil {
+		if view, ok := service.corePackages.(*kitpackages.View); ok {
+			view.Close()
+		}
 		return fail("retire superseded mapped libraries", err)
 	}
 	service.startTargetMonitor()
@@ -515,6 +518,9 @@ func (s *Service) SetDebug(debug func(string)) {
 
 func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
+		if view, ok := s.corePackages.(*kitpackages.View); ok {
+			view.Close()
+		}
 		if s.monitorCancel != nil {
 			s.monitorCancel()
 		}

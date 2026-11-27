@@ -818,6 +818,12 @@ class LinuxDmaTests(unittest.TestCase):
             for interface, fields in (("axi4_man", ("readIssuingCapability", "combinedIssuingCapability")),
                                       ("axi4_sub", ("readAcceptanceCapability", "combinedAcceptanceCapability")))
             for field in fields) + "# vendor suffix\n"
+        self.window_channels = (
+            "assign sub_rid     = man_rid;\nassign sub_arready = man_arready;\n"
+            "assign sub_rvalid  = man_rvalid;\nassign man_rready   = sub_rready;\n"
+            "assign man_arvalid  = sub_arvalid;\nassign man_arid     = sub_arid;\n"
+            "assign man_awid     = sub_awid;\n"
+        )
 
     @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
     def test_generated_configuration_disables_f2h_and_h2f_only_for_canonical_menu(self):
@@ -825,17 +831,19 @@ class LinuxDmaTests(unittest.TestCase):
         prefix = '''set width 256
 set h2f 128
 set smmu 0
+set f2sdram 256
+set adapter 256
 set removed {}
 proc load_system {name} {}
 proc load_component {name} {}
 proc save_system {name} {}
 proc save_component {} {}
 proc get_component_parameter_value {name} {
-    switch $name {f2s_data_width {return $::width} H2F_Width {return $::h2f} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
+    switch $name {f2s_data_width {return $::width} H2F_Width {return $::h2f} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} f2sdram_data_width {return $::f2sdram} DATA_WIDTH {return $::adapter}}
     error "unexpected parameter $name"
 }
 proc set_component_parameter_value {name value} {
-    switch $name {f2s_data_width {set ::width $value} H2F_Width {set ::h2f $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
+    switch $name {f2s_data_width {set ::width $value} H2F_Width {set ::h2f $value} f2sdram_SMMU {set ::smmu $value} f2sdram_data_width {set ::f2sdram $value} DATA_WIDTH {set ::adapter $value} default {error "unexpected parameter $name"}}
 }
 proc get_component_interface_port_property {interface port property} {return 25}
 proc get_interface_property {name property} {
@@ -848,16 +856,22 @@ proc remove_instance {name} {}
             project = Path(name)
             adapter = project / self.helper.ADAPTER
             adapter.parent.mkdir(parents=True)
-            for managed in (False, True):
-                adapter.write_text(self.source)
-                script, _, changes = self.helper.configure(project, self.definition, hps, managed_fabric=managed)
+            for managed, window in ((False, False), (True, False), (True, True)):
+                adapter.write_text(self.source + (self.window_channels if window else ""))
+                script, profile, changes = self.helper.configure(project, self.definition, hps,
+                                                                managed_fabric=managed, window=window)
                 result = subprocess.run(["tclsh"], input=prefix + "\nif {[catch {\n" + script +
-                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$h2f|$smmu|$removed\"\n",
+                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$h2f|$smmu|$removed\"\nputs \"$f2sdram|$adapter\"\n",
                     text=True, capture_output=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertEqual(result.stdout.strip(),
+                control, memory = result.stdout.strip().splitlines()
+                self.assertEqual(control,
                     "0|0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps2fpga hps2fpga_clk hps2fpga_rst hps_f2sdram_master" if managed
                     else "256|128|true|hps_f2sdram_master")
+                self.assertEqual(memory, "128|128" if window else "256|256")
+                self.assertEqual(profile.get("data_bits"), 128 if window else None)
+                self.assertEqual(changes.get(self.helper.ADAPTER_IP),
+                                 {"DATA_WIDTH": {"before": "256", "after": "128"}} if window else None)
                 self.assertEqual("f2s_data_width" in changes[self.helper.HPS_IP], managed)
                 self.assertEqual(changes[self.helper.HPS_IP].get("H2F_Width"),
                                  {"before": "128", "after": "0"} if managed else None)
@@ -911,6 +925,21 @@ proc remove_instance {name} {}
                        self.source + "set_interface_property axi4_sub readAcceptanceCapability 1\n"):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(source.encode(), self.definition)
+
+    def test_window_adapter_orders_reads_without_changing_scanout_only(self):
+        source = self.source + self.window_channels
+        scanout, _ = self.helper.retarget_adapter(source.encode(), self.definition)
+        window, _ = self.helper.retarget_adapter(source.encode(), self.definition, window=True)
+
+        self.assertIn(self.window_channels.encode(), scanout)
+        self.assertIn(b"assign man_arid     = 5'd0;", window)
+        self.assertIn(rb"assign sub_rid     = read_id_fifo\[read_head\];", window)
+        self.assertIn(b'wire read_finished = man_rvalid && man_rready && man_rlast;', window)
+        self.assertIn(b'read_count != 5\'d16', window)
+        self.assertIn(b'assign man_awid     = sub_awid;', window)
+        with self.assertRaisesRegex(ValueError, 'vendor F2SDRAM read channel changed'):
+            self.helper.retarget_adapter(source.replace('man_arid     = sub_arid', 'man_arid     = 0').encode(),
+                                         self.definition, window=True)
 
     def test_reserved_sid_and_changed_layout_are_refused(self):
         for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),

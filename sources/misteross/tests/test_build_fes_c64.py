@@ -57,6 +57,13 @@ class BuildFesC64Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             producer.model_for("early-ntsc", "8580")
 
+    def test_pal_n_selects_6572_and_6581(self) -> None:
+        model = producer.model_for("pal-n")
+        self.assertEqual(model.ntsc, 3)
+        self.assertEqual(model.core_id, "fes.c64-pal-n")
+        with self.assertRaises(BuildError):
+            producer.model_for("pal-n", "8580")
+
     def test_recipe_lock_pins_the_classified_nextpnr(self) -> None:
         from scripts import pnr_recipe
         self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.c64"), ROOT / producer.C64_TOOLCHAIN_LOCK)

@@ -10,7 +10,6 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
-	gnet "github.com/usbarmory/go-net"
 )
 
 // Models platform ownership only; these callbacks are not physical DMA proof.
@@ -26,7 +25,7 @@ func (*programNetwork) Transmit([]byte) error       { return nil }
 func newProgramNetwork(t *testing.T, lifetime ...context.Context) (*programNetwork, *network.Controller) {
 	t.Helper()
 	n := &programNetwork{}
-	l, err := network.NewLink(gnet.NewLnetoStack(gnet.DefaultLnetoStackConfig()), n, "192.0.2.2/24", "02:00:00:00:00:02", "")
+	l, err := network.NewLink(nil, n, "192.0.2.2/24", "02:00:00:00:00:02", "")
 	if err != nil {
 		t.Fatal(err)
 	}
