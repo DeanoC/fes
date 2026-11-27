@@ -79,6 +79,8 @@ func NewMapper(d Device) *Mapper {
 	m := &Mapper{layout: fallbackLayout(), axes: d.Axes, suppressed: map[uint16]bool{}}
 	if e, ok := lookupSDL(d); ok {
 		m.layout, m.mapping = sdlLayout(e, d.Keys, d.Abs, d.Axes), e.name
+	} else if len(d.Keys) > 0 && !hasBit(d.Keys, btnMode) {
+		m.layout.guide = 0
 	}
 	return m
 }
@@ -132,6 +134,11 @@ func (m *Mapper) Mapping() string {
 // binding, or BTN_MODE on a pad whose mapping leaves that code free.
 func (m *Mapper) Guide(code uint16) bool {
 	return m != nil && !m.mouse && !m.keyboard && m.layout.guide != 0 && code == m.layout.guide
+}
+
+// HasGuide reports whether this pad exposes a dedicated Guide/Home button.
+func (m *Mapper) HasGuide() bool {
+	return m != nil && !m.mouse && !m.keyboard && m.layout.guide != 0
 }
 
 // Learned reports a pad read through a mapping its player made.

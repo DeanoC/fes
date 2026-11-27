@@ -297,8 +297,12 @@ class ObservationTests(unittest.TestCase):
             results = results_for(('parent', 'host'), tier='smoke')
             checks = observation_checks(results)
             self.assertEqual({check['name'] for check in checks},
-                             {'plan', 'parent-tests', 'consistency', 'host'})
+                             {'plan', 'parent-tests', 'consistency', 'host', 'host-sdl3'})
             self.assertTrue(all(check['result'] == 'success' for check in checks))
+            results['host-sdl3']['result'] = 'failure'
+            self.assertIn({'name': 'integration-gate', 'result': 'failure'},
+                          observation_checks(results))
+            results['host-sdl3']['result'] = 'success'
             results['host']['result'] = 'skipped'
             checks = observation_checks(results)
             self.assertIn({'name': 'host', 'result': 'skipped'}, checks)

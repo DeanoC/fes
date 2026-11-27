@@ -436,7 +436,21 @@ session/input ownership path through the supervised local host. Select + Start h
 second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
 under its GUID (`ui/inputmap`: the `swap-ab` preset, single-control bindings,
 and step-by-step `mapping` configured through **Settings › Controllers** or the
-first-run Controllers step). Hardware-verified pads display a `Tested` badge
+first-run Controllers step). On the Linux kit, evdev gamepads allocate the two
+local controller ports (`P1..P2`, leaving additional pads menu-only) and
+synchronize kernel sysfs player LEDs (`:player-1..5`, `:rgb:indicator`,
+`:red/:green/:blue`, and `xpad<N>`) with their assigned port (off when
+unassigned) across attach, detach, and yielding-fixture handoffs; desktop SDL3
+launches assign `P1..P4` slots, set SDL player index and LED color, publish
+controller family glyphs and live button highlights into **Settings ›
+Controllers** (with step-by-step raw learning hidden because `SDL_Gamepad` uses
+SDL mappings), and reload saved `tenfoot.json` profiles once held buttons are
+released. Pads with no dedicated Guide button (such as the wired `081f:e401`
+fixture) default the per-pad **Settings** option in **Settings › Controllers** to
+`Select+Start` in menus (reflected in footer prompts as `SELECT+START settings`)
+while reserving `Select+Start` for Stop during active play; players can toggle
+that shortcut back to `Guide`-only per pad in `tenfoot.json`. Hardware-verified
+pads display a `Tested` badge
 from `ui/controller/tested.go` (currently the wired `081f:e401` USB pad pending
 #1348), while other GameControllerDB and mapped pads work without the badge.
 The bundle's `bin/fogcast-kit` is `cmd/fogcast-api` built under

@@ -347,3 +347,119 @@ func TestLearningStartsAfterTheStickComesHome(t *testing.T) {
 		t.Fatalf("not read raw after the stick came home: axes %v", in.axes)
 	}
 }
+
+func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 100)
+	pad := superFamicomPad(nil)
+	in := &nativeInput{
+		fd:            7,
+		kind:          InputGamepad,
+		player:        0,
+		device:        pad,
+		mapper:        controller.NewMapper(pad),
+		settingsCombo: true,
+		info:          PadInfo{Name: "USB gamepad", GUID: "0300cb231f08000001e4000010010000", NoGuide: true, Player: 1},
+	}
+	if !in.info.NoGuide {
+		t.Fatal("test fixture expected NoGuide=true")
+	}
+	ins := &nativeInputs{devices: []*nativeInput{in}, padProfile: app.padProfile}
+	ins.publishPads(app)
+	now := time.Now()
+
+	// Start then Select opens Settings cleanly without quitting.
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("lone Start must not quit when Select+Start Settings chord is enabled")
+	}
+	in.button(app, ButtonBack, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("Select+Start quit instead of opening Settings")
+	}
+	if !app.SettingsOpen() {
+		t.Fatal("Start -> Select did not open Settings")
+	}
+	in.button(app, ButtonStart, 0, now)
+	in.button(app, ButtonBack, 0, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("releasing chord quit")
+	}
+
+	// Select then Start closes Settings without cycling layout.
+	layoutBefore := app.Snapshot().Grid.Mode
+	in.button(app, ButtonBack, 1, now)
+	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("pressing Select with Settings chord enabled cycled layout eagerly: got %v, want %v", got, layoutBefore)
+	}
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("Select -> Start quit instead of closing Settings")
+	}
+	if app.SettingsOpen() {
+		t.Fatal("Select -> Start did not close Settings")
+	}
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("Select -> Start chord changed layout from %v to %v", layoutBefore, got)
+	}
+	in.button(app, ButtonBack, 0, now)
+	in.button(app, ButtonStart, 0, now)
+	_ = ins.applyButtons(app, now)
+	if in.menuChordFired || in.menuSelectDown || in.menuSelectPending || in.menuStartDown || in.menuStartPending {
+		t.Fatalf("stale chord state remained after release: %+v", in)
+	}
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("unwinding Select -> Start changed layout from %v to %v", layoutBefore, got)
+	}
+
+	// A solo Select tap waits until release, then cycles layout normally.
+	in.button(app, ButtonBack, 1, now)
+	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
+		t.Fatalf("solo Select cycled layout before release: got %v, want %v", got, layoutBefore)
+	}
+	in.button(app, ButtonBack, 0, now)
+	_ = ins.applyButtons(app, now)
+	if got := app.Snapshot().Grid.Mode; got == layoutBefore {
+		t.Fatalf("solo Select release did not cycle layout from %v", layoutBefore)
+	}
+
+	// A solo Start tap waits until release, then produces CmdQuit on desktop.
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("solo Start quit before release")
+	}
+	in.button(app, ButtonStart, 0, now)
+	if !ins.applyButtons(app, now) {
+		t.Fatal("solo Start release did not quit on desktop")
+	}
+}
+
+func TestPortlessPadSettingsChordBlockedDuringActiveSession(t *testing.T) {
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	in := &nativeInput{fd: 9, kind: InputGamepad, player: noLocalPlayer, settingsCombo: true}
+	ins := &nativeInputs{devices: []*nativeInput{in}}
+	now := time.Now()
+
+	in.button(app, ButtonBack, 1, now)
+	in.button(app, ButtonStart, 1, now)
+	_ = ins.applyButtons(app, now)
+	if app.SettingsOpen() || len(in.controls) != 0 || len(feed.events) != 0 {
+		t.Fatalf("portless Settings chord acted during gameplay: settings=%v controls=%v feed=%+v",
+			app.SettingsOpen(), in.controls, feed.events)
+	}
+	in.button(app, ButtonBack, 0, now)
+	in.button(app, ButtonStart, 0, now)
+	_ = ins.applyButtons(app, now)
+
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.mu.Unlock()
+	in.button(app, ButtonBack, 1, now)
+	in.button(app, ButtonStart, 1, now)
+	_ = ins.applyButtons(app, now)
+	if !app.SettingsOpen() {
+		t.Fatal("portless Settings chord did not open Settings in idle menu")
+	}
+}

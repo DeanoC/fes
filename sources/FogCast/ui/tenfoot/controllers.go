@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -24,6 +25,12 @@ type PadInfo struct {
 	Bluetooth  bool
 	// Tested is a pad verified on FES hardware (#1348).
 	Tested bool
+	// NoLearn marks an input backend (such as SDL_Gamepad) that uses its own
+	// controller database rather than evdev step-by-step raw learning.
+	NoLearn bool
+	// NoGuide marks a pad without a dedicated Guide/Home button so menus can
+	// default to Select + Start to open Settings.
+	NoGuide bool
 	// Player is the pad's controller port from 1, or 0 for a menu-only pad.
 	Player int
 }
@@ -53,6 +60,7 @@ const (
 	controllersFocusSwap = iota + 8
 	controllersFocusLearn
 	controllersFocusReset
+	controllersFocusSettingsChord
 	controllersFocusCount
 )
 
@@ -160,10 +168,14 @@ type ControllersSnapshot struct {
 	SwapAB   bool
 	// Mapped is a pad read through a mapping its player made step by step.
 	Mapped bool
-	Focus  int
-	Status string
-	Learn  LearnSnapshot
-	Picker struct {
+	// CanLearn reports whether this pad supports step-by-step raw mapping.
+	CanLearn bool
+	// SettingsCombo reports whether Select + Start opens Settings in menus.
+	SettingsCombo bool
+	Focus         int
+	Status        string
+	Learn         LearnSnapshot
+	Picker        struct {
 		Open    bool
 		Index   int
 		Targets []ControllerTarget
@@ -309,7 +321,12 @@ func (a *App) refreshPadPromptsLocked(id int) {
 	if a.padPrompts == nil {
 		a.padPrompts = map[int]PadPrompts{}
 	}
-	a.padPrompts[id] = NewPadPrompts(info.Family, a.padRemapLocked(info.GUID))
+	profile := a.padProfilesLocked()[info.GUID]
+	prompts := NewPadPrompts(info.Family, a.padRemapLocked(info.GUID))
+	if padSettingsComboEnabled(info, profile) && prompts["SELECT"] != "" && prompts["START"] != "" {
+		prompts["GUIDE"] = prompts["SELECT"] + "+" + prompts["START"]
+	}
+	a.padPrompts[id] = prompts
 }
 
 func (a *App) openControllersLocked() {
@@ -338,6 +355,9 @@ func (a *App) showControllerPadLocked(id int) {
 	a.controllers.picker.open = false
 	a.controllers.learn = padLearn{}
 	a.controllers.status = ""
+	if a.controllers.focus == controllersFocusLearn && a.pads[id].NoLearn {
+		a.controllers.focus = controllersFocusSwap
+	}
 }
 
 func (a *App) stepControllerPadLocked(step int) {
@@ -353,17 +373,18 @@ func (a *App) stepControllerPadLocked(step int) {
 // controllersNav is where each direction moves focus on the page: up,
 // down, left, right. A slot that maps to itself stays put.
 var controllersNav = [controllersFocusCount][4]int{
-	0:                     {0, 1, 0, 2},
-	1:                     {0, controllersFocusSwap, 1, 7},
-	2:                     {2, 3, 0, 2},
-	3:                     {2, 4, 0, 3},
-	4:                     {3, 5, 0, 4},
-	5:                     {4, 6, 1, 5},
-	6:                     {5, 7, 1, 6},
-	7:                     {6, controllersFocusReset, 1, 7},
-	controllersFocusSwap:  {1, controllersFocusSwap, controllersFocusSwap, controllersFocusLearn},
-	controllersFocusLearn: {1, controllersFocusLearn, controllersFocusSwap, controllersFocusReset},
-	controllersFocusReset: {7, controllersFocusReset, controllersFocusLearn, controllersFocusReset},
+	0:                             {0, 1, 0, 2},
+	1:                             {0, controllersFocusSwap, 1, 7},
+	2:                             {2, 3, 0, 2},
+	3:                             {2, 4, 0, 3},
+	4:                             {3, 5, 0, 4},
+	5:                             {4, 6, 1, 5},
+	6:                             {5, 7, 1, 6},
+	7:                             {6, controllersFocusReset, 1, 7},
+	controllersFocusSwap:          {1, controllersFocusSwap, controllersFocusSwap, controllersFocusLearn},
+	controllersFocusLearn:         {1, controllersFocusLearn, controllersFocusSwap, controllersFocusReset},
+	controllersFocusReset:         {7, controllersFocusReset, controllersFocusLearn, controllersFocusSettingsChord},
+	controllersFocusSettingsChord: {7, controllersFocusSettingsChord, controllersFocusReset, controllersFocusSettingsChord},
 }
 
 func (a *App) handleControllersLocked(cmd Command) {
@@ -419,9 +440,15 @@ func (a *App) handleControllersLocked(cmd Command) {
 				c.status = status
 			}
 		case controllersFocusLearn:
-			a.startLearnLocked(time.Now())
+			if !a.pads[c.pad].NoLearn {
+				a.startLearnLocked(time.Now())
+			}
 		case controllersFocusReset:
 			a.resetPadLocked()
+		case controllersFocusSettingsChord:
+			if status, ok := a.togglePadSettingsComboLocked(c.pad); ok {
+				c.status = status
+			}
 		default:
 			c.picker.open = true
 			c.picker.index = 0
@@ -436,7 +463,15 @@ func (a *App) handleControllersLocked(cmd Command) {
 		return
 	}
 	if dir >= 0 {
-		c.focus = controllersNav[c.focus][dir]
+		next := controllersNav[c.focus][dir]
+		if next == controllersFocusLearn && a.pads[c.pad].NoLearn {
+			if dir == 3 {
+				next = controllersFocusReset
+			} else if dir == 2 {
+				next = controllersFocusSwap
+			}
+		}
+		c.focus = next
 		c.status = ""
 	}
 }
@@ -634,6 +669,37 @@ func (a *App) togglePadSwapLocked(id int) (string, bool) {
 	return "Swap A / B is off.", true
 }
 
+func padSettingsComboEnabled(info PadInfo, profile inputmap.Profile) bool {
+	switch profile.SettingsCombo {
+	case inputmap.SettingsComboSelectStart:
+		return true
+	case inputmap.SettingsComboOff:
+		return false
+	default:
+		return info.NoGuide
+	}
+}
+
+func (a *App) togglePadSettingsComboLocked(id int) (string, bool) {
+	info := a.pads[id]
+	profile := a.padProfilesLocked()[info.GUID]
+	enabled := !padSettingsComboEnabled(info, profile)
+	if enabled == info.NoGuide {
+		profile.SettingsCombo = inputmap.SettingsComboAuto
+	} else if enabled {
+		profile.SettingsCombo = inputmap.SettingsComboSelectStart
+	} else {
+		profile.SettingsCombo = inputmap.SettingsComboOff
+	}
+	if !a.savePadProfileLocked(info.GUID, profile) {
+		return a.controllers.status, false
+	}
+	if enabled {
+		return "Select + Start opens Settings in menus.", true
+	}
+	return "Only Guide opens Settings.", true
+}
+
 func (a *App) resetPadLocked() {
 	info := a.pads[a.controllers.pad]
 	if _, ok := a.padProfilesLocked()[info.GUID]; !ok {
@@ -657,7 +723,7 @@ func (a *App) savePadProfileLocked(guid string, profile inputmap.Profile) bool {
 	if len(profile.Bindings) == 0 {
 		profile.Bindings = nil
 	}
-	if profile.Mapping == "" && profile.Preset == "" && profile.Bindings == nil {
+	if profile.Mapping == "" && profile.Preset == "" && profile.SettingsCombo == "" && profile.Bindings == nil {
 		delete(profiles, guid)
 	} else {
 		profiles[guid] = profile
@@ -687,7 +753,15 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 	if !c.open || !ok {
 		return ControllersSnapshot{}
 	}
-	snap := ControllersSnapshot{Open: true, Family: info.Family, Tested: info.Tested, Focus: c.focus, Status: c.status}
+	snap := ControllersSnapshot{
+		Open:          true,
+		Family:        info.Family,
+		Tested:        info.Tested,
+		CanLearn:      !info.NoLearn,
+		SettingsCombo: padSettingsComboEnabled(info, a.padProfilesLocked()[info.GUID]),
+		Focus:         c.focus,
+		Status:        c.status,
+	}
 	for i, id := range a.padIDsLocked() {
 		pad := a.pads[id]
 		label := "Menu"
@@ -829,4 +903,26 @@ func (a *App) setupSwapABLocked() {
 	}
 	status, _ := a.togglePadSwapLocked(ids[0])
 	a.status = status
+}
+
+// playerLEDColors matches TamaGo's DualSense/DS4 P1..P4 lightbar palette.
+var playerLEDColors = [4][3]uint8{
+	{0x00, 0x20, 0x80}, // Player 1: blue
+	{0x80, 0x10, 0x10}, // Player 2: red
+	{0x10, 0x70, 0x10}, // Player 3: green
+	{0x70, 0x10, 0x70}, // Player 4: magenta
+}
+
+// promptFamily is the glyph set for a pad's family.
+func promptFamily(family controller.Family) gfx.PromptFamily {
+	switch family {
+	case controller.FamilyXbox:
+		return gfx.PromptXbox
+	case controller.FamilyPlayStation:
+		return gfx.PromptPlayStation
+	case controller.FamilyNintendo:
+		return gfx.PromptNintendo
+	default:
+		return gfx.PromptGeneric
+	}
 }

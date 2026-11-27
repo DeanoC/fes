@@ -321,8 +321,17 @@ func drawControllerLayout(dev gfx.Device, snap Snapshot, labels map[string]gpuTe
 		swap = "On"
 	}
 	drawControllerButton(dev, labels, used, s, 40, 556, 232, "Swap A / B", swap, page.Focus == controllersFocusSwap)
-	drawControllerButton(dev, labels, used, s, 286, 556, 250, "Map step by step", "", page.Focus == controllersFocusLearn)
-	drawControllerButton(dev, labels, used, s, 550, 556, 200, "Reset this pad", "", page.Focus == controllersFocusReset)
+	resetX := 286.0
+	if page.CanLearn {
+		drawControllerButton(dev, labels, used, s, 286, 556, 250, "Map step by step", "", page.Focus == controllersFocusLearn)
+		resetX = 550
+	}
+	drawControllerButton(dev, labels, used, s, resetX, 556, 200, "Reset this pad", "", page.Focus == controllersFocusReset)
+	settingsVal := "Guide"
+	if page.SettingsCombo {
+		settingsVal = "Select+Start"
+	}
+	drawControllerButton(dev, labels, used, s, resetX+214, 556, 280, "Settings", settingsVal, page.Focus == controllersFocusSettingsChord)
 }
 
 func drawControllerRow(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, s controllersSheet, x, y float64, row ControllerRow, focused bool) {
@@ -357,7 +366,8 @@ func drawControllerButton(dev gfx.Device, labels map[string]gpuTexture, used map
 	sheetBox(dev, s, x, y, w, 48, border, fill, frame)
 	sheetText(dev, labels, used, s, x+18, y+12, w-36, 21, true, heroText, label)
 	if value != "" {
-		sheetText(dev, labels, used, s, x+w-18-sheetTextWidth(s, 21, false, value), y+12, 80, 21, false, heroSecondary, value)
+		valW := max(80.0, sheetTextWidth(s, 21, false, value)+4)
+		sheetText(dev, labels, used, s, x+w-18-sheetTextWidth(s, 21, false, value), y+12, valW, 21, false, heroSecondary, value)
 	}
 }
 

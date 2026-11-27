@@ -989,10 +989,12 @@
         },
         {
           "embed_patterns": [
+            "sources/FogCast/ui/controller/gamecontrollerdb.txt",
             "sources/FogCast/ui/rooms/examples",
             "sources/FogCast/ui/rooms/stdlib"
           ],
           "embedded": [
+            "sources/FogCast/ui/controller/gamecontrollerdb.txt",
             "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua",
             "sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml",
             "sources/FogCast/ui/rooms/examples/computers/main.lua",
@@ -1050,6 +1052,7 @@
             "sources/FogCast/protocol/internal/generated",
             "sources/FogCast/remoteinput",
             "sources/FogCast/storage",
+            "sources/FogCast/ui/controller",
             "sources/FogCast/ui/gfx",
             "sources/FogCast/ui/inputmap",
             "sources/FogCast/ui/localfeed",

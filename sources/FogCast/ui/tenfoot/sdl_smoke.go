@@ -17,7 +17,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
-func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture, renderer *C.SDL_Renderer) error {
+func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads *sdlPadSet, textures, labels map[string]gpuTexture, renderer *C.SDL_Renderer) error {
 	evidence := map[string]any{
 		"api": opts.APIBase,
 	}
@@ -83,22 +83,20 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 				break
 			}
 			pumpSDL(app, pads, time.Now(), renderer)
-			if pads[id] != nil {
+			if pads.handle(id) != nil {
 				break
 			}
 			C.SDL_Delay(5)
 		}
-		if pads[id] == nil {
-			pad := C.SDL_OpenGamepad(id)
-			if pad != nil {
-				pads[id] = pad
-				app.SetGamepads(len(pads))
+		if pads.handle(id) == nil {
+			if pad := C.SDL_OpenGamepad(id); pad != nil {
+				pads.attach(app, id, pad, false)
 			}
 		}
 	}
-	evidence["gamepads"] = len(pads)
-	evidence["gamepad"] = pads[id] != nil
-	if pads[id] != nil {
+	evidence["gamepads"] = pads.len()
+	evidence["gamepad"] = pads.handle(id) != nil
+	if pads.handle(id) != nil {
 		padFocusBefore := app.Snapshot().Grid.Focus
 		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err == nil {
 			if app.Snapshot().Grid.Focus != padFocusBefore {
@@ -190,7 +188,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	return nil
 }
 
-func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+func smokeKeyboardNav(app *App, pads *sdlPadSet, evidence map[string]any) error {
 	focusBefore := app.Snapshot().Grid.Focus
 	evidence["keyboard_focus_before"] = focusBefore
 	if err := virtualKey(app, pads, C.SDLK_RIGHT); err != nil {
@@ -249,7 +247,7 @@ func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, eviden
 	return nil
 }
 
-func smokeMouseNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+func smokeMouseNav(app *App, pads *sdlPadSet, evidence map[string]any) error {
 	if !app.focusIndex(0) {
 		return fmt.Errorf("smoke: mouse failed to focus first title (%s)", padDump(app, pads))
 	}
@@ -271,7 +269,7 @@ func smokeMouseNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence 
 	return nil
 }
 
-func virtualMouseMove(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+func virtualMouseMove(app *App, pads *sdlPadSet, x, y int) error {
 	now := time.Now()
 	ev := C.FogcastEvent{kind: evMouseMove, x: C.int(x), y: C.int(y)}
 	if handleSDLEvent(app, pads, &ev, now, nil) {
@@ -281,7 +279,7 @@ func virtualMouseMove(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y i
 	return nil
 }
 
-func virtualMouseClick(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+func virtualMouseClick(app *App, pads *sdlPadSet, x, y int) error {
 	now := time.Now()
 	down := C.FogcastEvent{kind: evMouseButton, code: C.SDL_BUTTON_LEFT, down: 1, x: C.int(x), y: C.int(y)}
 	if handleSDLEvent(app, pads, &down, now, nil) {
@@ -294,7 +292,7 @@ func virtualMouseClick(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y 
 	return nil
 }
 
-func virtualMouseClickSelected(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad) error {
+func virtualMouseClickSelected(app *App, pads *sdlPadSet) error {
 	snap := app.Snapshot()
 	x, y, w, h, ok := snap.Grid.CellRect(snap.Grid.Focus)
 	if !ok {
@@ -303,7 +301,7 @@ func virtualMouseClickSelected(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepa
 	return virtualMouseClick(app, pads, x+w/2, y+h/2)
 }
 
-func virtualKey(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, key C.int) error {
+func virtualKey(app *App, pads *sdlPadSet, key C.int) error {
 	now := time.Now()
 	down := C.FogcastEvent{kind: evKey, code: key, down: 1}
 	if handleSDLEvent(app, pads, &down, now, nil) {
@@ -316,9 +314,9 @@ func virtualKey(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, key C.int) e
 	return nil
 }
 
-func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_JoystickID, button C.int) error {
+func virtualPress(app *App, pads *sdlPadSet, id C.SDL_JoystickID, button C.int) error {
 	held := map[Command]bool{}
-	pad := pads[id]
+	pad := pads.handle(id)
 	if pad == nil {
 		return fmt.Errorf("smoke: virtual gamepad %d is not open (%s)", int(id), padDump(app, pads))
 	}
