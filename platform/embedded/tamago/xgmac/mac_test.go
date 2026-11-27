@@ -152,8 +152,15 @@ func (h *hardware) Write32(reg, value uint32) {
 			h.regs[channelStatus] |= 1 << 12
 			return
 		}
-		if h.mode == "completion" {
+		switch h.mode {
+		case "missing-first":
+			state &^= first
+		case "completion":
 			state &^= last
+		case "context":
+			state |= contextDesc
+		case "descriptor-error":
+			state |= txDescError
 		}
 		h.mem.deviceWrite32(desc+12, state&^own)
 		h.txIndex = (h.txIndex + 1) % count
@@ -329,7 +336,7 @@ func TestRXDropsAndOwnershipFaults(t *testing.T) {
 	}
 }
 func TestTXFailurePinsBuffersAndRefusesReuse(t *testing.T) {
-	for _, mode := range []string{"timeout", "bus", "completion", "owned", "stopped", "link", "mdio", "frozen"} {
+	for _, mode := range []string{"timeout", "bus", "completion", "missing-first", "context", "descriptor-error", "owned", "stopped", "link", "mdio", "frozen"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newHardware()
 			d := open(t, h)

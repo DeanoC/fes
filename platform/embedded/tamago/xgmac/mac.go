@@ -62,6 +62,7 @@ const (
 	contextDesc      = uint32(1 << 30)
 	first            = uint32(1 << 29)
 	last             = uint32(1 << 28)
+	txDescError      = uint32(1 << 27)
 )
 
 type Registers interface {
@@ -671,7 +672,7 @@ func (d *Device) Transmit(frame []byte) error {
 		}
 		if state := d.memory.Read32(desc + 12); state&own == 0 {
 			d.memory.Barrier()
-			if state&contextDesc != 0 || state&last == 0 {
+			if state&(contextDesc|first|last|txDescError) != first|last {
 				return d.fail(errors.New("xgmac: malformed TX completion"))
 			}
 			d.tx = next
