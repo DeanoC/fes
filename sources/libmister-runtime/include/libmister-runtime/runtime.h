@@ -181,6 +181,9 @@ enum class MediaUnitState { empty, loading, ready };
 struct MediaDataBinding {
     std::string game_id, base_media_id;
     std::uint8_t unit = 0;
+    // A pc386 floppy (units 1 and 2) inserted write-protected: the core
+    // refuses its writes and nothing is saved for it.
+    bool write_protected = false;
 };
 
 // Explicit library disk delivered while a ROM-linked ST is still reset-held.
@@ -666,6 +669,10 @@ public:
 	// reads the manifest, before programming.
 	virtual Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&)
 	{ return {ErrorCode::unsupported_interface, "ATA disk unavailable", "admission"}; }
+	// pc386's launch disks for A: (unit 1) and B: (unit 2): checked here,
+	// inserted while the machine is held so the BIOS boots from A:.
+	virtual Error PreparePc386Floppies(AdmittedCorePackage*, const std::vector<InitialComputerMedia>&)
+	{ return {ErrorCode::unsupported_interface, "pc386 floppy drives unavailable", "admission"}; }
 	virtual Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&)
 	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
 	virtual Error RefreshInitialComputerMedia(AdmittedCorePackage*)
@@ -807,7 +814,8 @@ public:
 		const std::string& expected_package_id, const InitialComputerMedia* initial_media = nullptr);
 	// The game ID keys a fes.computer package's per-game record.
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
-		const std::string& game_id = "", const AtaDiskImage* disk = nullptr);
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr,
+		const std::vector<InitialComputerMedia>* floppies = nullptr);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error InspectPartsCore(const std::string&, const std::string&, const CoreCompositionRequest&, CorePackageInspection*);

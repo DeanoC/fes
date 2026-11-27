@@ -59,7 +59,7 @@ func (c *machineLoadControl) LoadLibraryCore(context.Context, string, string, st
 func (c *machineLoadControl) LoadCore(context.Context, string, string) (Protocol2Response, error) {
 	return Protocol2Response{}, io.ErrUnexpectedEOF
 }
-func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, _ string, disk *ataDiskRequest) (Protocol2Response, error) {
+func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, _ string, disk *ataDiskRequest, _ []floppyRequest) (Protocol2Response, error) {
 	c.loads++
 	c.loadDisk = disk
 	refusal := c.refusal

@@ -8,6 +8,9 @@ plane comes out of pc386_machine: video is the presenter's 720p word, the
 plane's port-2 requester is idle, and pc386_system carries the mailbox's
 display opcodes out to the board in place of into the machine.
 
+The DE25 package exposes only the ATA disk. Keep its unit-zero storage
+endpoint and hard-disk boot, with no floppy drives fitted.
+
 Controller 2 of the AT core's DMA is its register file only
 (pc386_dma2_registers.sv): it reads back as fes_dma8237 does, but runs no
 cycle, so a software request on channels 4-7 does not count down or set TC.
@@ -79,8 +82,42 @@ SYSTEM_SNAPSHOT_AFTER = (b"    pc386_snapshot #(.W(64)) pixel_counts (\n"
                          b"        .clk(clk), .snapshot({frames_shown_sys, present_underflows_sys})\n"
                          b"    );\n"
                          b"    assign plane_underflows_sys = 32'd0;\n")
+SYSTEM_FLOPPY_CAPABILITY = (b".ENABLE_WALL_CLOCK(1),\n"
+                            b"        .ENABLE_PC_FLOPPY(1)\n")
+SYSTEM_FLOPPY_TYPES = (b"    // The floppy drives (docs/design/pc386-removable-media.md, slice F3, as\n"
+                       b'    // decided on #1694): A: is a 3.5" 1.44M drive and B: a 5.25" 1.2M one\n'
+                       b"    // (CMOS types 4 and 2), and the machine boots like an AT, A: then C:\n"
+                       b"    // (boot device 1: CMOS 3Dh=21h, 38h=30h, 2Dh bit 5).\n"
+                       b"    localparam [5:0] FLOPPY_TYPES = {3'd2, 3'd4};   // {B:, A:}\n")
+SYSTEM_FLOPPY_PORTS = (b"        .floppy_type(FLOPPY_TYPES), .boot_device(2'd1),\n"
+                       b"        .floppy_present(floppy_present), .floppy_write_protect(floppy_write_protect),\n"
+                       b"        .floppy_two_sided(floppy_two_sided), .floppy_cylinders(floppy_cylinders), .floppy_spt(floppy_spt),\n"
+                       b"        .fdc_frozen(fdc_frozen), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced), .fdc_written(fdc_written),\n"
+                       b"        .floppy_verify(floppy_verify), .floppy_sectors(floppy_sectors), .floppy_crc(floppy_crc),\n"
+                       b"        .floppy_verify_done(floppy_verify_done), .floppy_verify_match(floppy_verify_match),\n")
+SYSTEM_ATA_ONLY_PORTS = (b"        .floppy_type(6'd0), .boot_device(2'd0),\n"
+                         b"        .floppy_present(2'd0), .floppy_write_protect(2'd0),\n"
+                         b"        .floppy_two_sided(2'd0), .floppy_cylinders(14'd0), .floppy_spt(12'd0),\n"
+                         b"        /* verilator lint_off PINCONNECTEMPTY */\n"
+                         b"        .fdc_frozen(1'b0), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced), .fdc_written(),\n"
+                         b"        .floppy_verify(2'd0), .floppy_sectors(26'd0), .floppy_crc(64'd0),\n"
+                         b"        .floppy_verify_done(), .floppy_verify_match(),\n"
+                         b"        /* verilator lint_on PINCONNECTEMPTY */\n")
+SYSTEM_STORAGE_START = b"    // The floppy drives A: and B: (fes.media.pc-floppy, units 1 and 2) take\n"
+SYSTEM_STORAGE_END = (b"        .exec_reset(exec_reset), .execution_accepted(execution_accepted),\n"
+                      b"        .disk_state")
+SYSTEM_STORAGE_SHA256 = "c83af7ac25b76ee8f26c56d328f87fa665256b555814dab0b33734bd6e718051"
+SYSTEM_STORAGE_AFTER = (b"    fes_computer_storage #(.ENABLE_ATA_DISK(1), .ENABLE_DATA(1), .ENABLE_WALL_CLOCK(1)) storage (\n"
+                        b"        .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),\n"
+                        b"        .argument(storage_argument), .response_valid(storage_response_valid),\n"
+                        b"        .response_error(storage_response_error), .response_data(storage_response_data),\n")
 SYSTEM = ((SYSTEM_WIRES_BEFORE, b"", 1), (SYSTEM_PORTS_BEFORE, SYSTEM_PORTS_AFTER, 1),
-          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1))
+          (SYSTEM_MACHINE_BEFORE, SYSTEM_MACHINE_AFTER, 1), (SYSTEM_SNAPSHOT_BEFORE, SYSTEM_SNAPSHOT_AFTER, 1),
+          (SYSTEM_FLOPPY_CAPABILITY, b".ENABLE_WALL_CLOCK(1)\n", 1),
+          (SYSTEM_FLOPPY_TYPES, b"    wire fdc_busy, fdc_fenced;\n", 1),
+          (SYSTEM_FLOPPY_PORTS, SYSTEM_ATA_ONLY_PORTS, 1),
+          (b"        ddr_hold <= drained && !verifying && !(|floppy_verify);\n",
+           b"        ddr_hold <= drained && !verifying;\n", 1))
 
 AT_DMA2_BEFORE = (
     b"    fes_dma8237 #(.ADDRESS_BITS(24), .AT_PAGES(1), .REFRESH(0), .WORD_ADDRESS(1)) dma2 (\n"
@@ -131,14 +168,24 @@ def retarget_machine(source):
 
 
 def retarget_system(source):
-    """pc386_system with the mailbox's display opcodes carried out to the board."""
+    """pc386_system with board display opcodes and the ATA-only media contract."""
     result = source
     for before, after, count in SYSTEM:
         if result.count(before) != count:
-            raise ValueError("pc386 system display adaptation contract changed")
+            raise ValueError("pc386 system adaptation contract changed")
         result = result.replace(before, after)
-    return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
-                                            for b, a, n in SYSTEM])
+    if result.count(SYSTEM_STORAGE_START) != 1 or result.count(SYSTEM_STORAGE_END) != 1:
+        raise ValueError("pc386 system storage boundary changed")
+    first, last = result.index(SYSTEM_STORAGE_START), result.index(SYSTEM_STORAGE_END)
+    removed = result[first:last]
+    if first >= last or sha(removed) != SYSTEM_STORAGE_SHA256:
+        raise ValueError("pc386 system storage block changed")
+    result = result[:first] + SYSTEM_STORAGE_AFTER + result[last:]
+    changes = [{"before": before.decode(), "after": after.decode(), "count": count}
+               for before, after, count in SYSTEM]
+    changes.append({"removed_sha256": SYSTEM_STORAGE_SHA256, "removed_bytes": len(removed),
+                    "after": SYSTEM_STORAGE_AFTER.decode()})
+    return result, _record(source, result, changes)
 
 
 def retarget_at_core(source):
@@ -150,6 +197,45 @@ def retarget_at_core(source):
         result = result.replace(before, after)
     return result, _record(source, result, [{"before": b.decode(), "after": a.decode(), "count": n}
                                             for b, a, n in AT_CORE])
+
+
+def retarget_window_guard(source):
+    """Discard an old bus epoch when the DE25 response path is reset."""
+    pinned = "583572b89a4b4a645981e57e7af3c7ae7e29fe7386814452a1dab150523d8ebf"
+    if sha(source) != pinned:
+        raise ValueError("review the DE25 reset against the changed DDR guard")
+    changes = (
+        (b"    input  wire                hold,", b"    input  wire                reset, hold,"),
+        (b"    localparam integer BE_W = DATA_W / 8;\n",
+         b"    localparam integer BE_W = DATA_W / 8;\n"
+         b"\n"
+         b"    // The PLL may stop across the entire HPS reset pulse. Hold the\n"
+         b"    // guard in reset through the first two local clock edges.\n"
+         b"    (* async_reg = \"true\" *) reg [1:0] reset_pipe = 2'b11;\n"
+         b"    always @(posedge clk or posedge reset)\n"
+         b"        if (reset) reset_pipe <= 2'b11;\n"
+         b"        else reset_pipe <= {reset_pipe[0], 1'b0};\n"
+         b"    wire reset_pending = reset_pipe[1];\n"),
+        (b"assign m_read = present", b"assign m_read = ~reset_pending & present"),
+        (b"assign m_write = present", b"assign m_write = ~reset_pending & present"),
+        (b"assign waitrequest = skid", b"assign waitrequest = reset_pending | skid"),
+        (b"wire filler = finishing", b"wire filler = ~reset_pending & finishing"),
+        (b"        readdatavalid <= returned & ~hold & ~draining;\n",
+         b"        readdatavalid <= returned & ~hold & ~draining;\n"
+         b"        // The bridge also resets, so this epoch will never receive its responses.\n"
+         b"        if (reset_pending) begin\n"
+         b"            head <= 1'b0; tail <= 1'b0; present <= 1'b0; skid <= 1'b0;\n"
+         b"            beats_owed <= 8'd0; owed_zero <= 1'b1; owed_one <= 1'b0;\n"
+         b"            reads_owed <= 12'd0; finishing <= 1'b0; draining <= 1'b0;\n"
+         b"            returned <= 1'b0; readdatavalid <= 1'b0;\n"
+         b"        end\n"),
+    )
+    result = source
+    for before, after in changes:
+        if result.count(before) != 1:
+            raise ValueError("DE25 DDR guard reset anchor changed")
+        result = result.replace(before, after)
+    return result, _record(source, result, [{"before": b.decode(), "after": a.decode()} for b, a in changes])
 
 
 # The 486DX model's CPU is the DE25's i486DX (i486dx/derive.py), fes_i386_cpu's DE25-only

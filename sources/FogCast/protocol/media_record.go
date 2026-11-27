@@ -14,8 +14,11 @@ type MediaRecordIdentity struct {
 	Unit        uint8  `json:"unit"`
 }
 
+// Unit is the record's namespace unit: 0, or PcFloppyRecordUnit for every
+// pc386 floppy, whichever drive holds it. It is never the drive.
 func (i MediaRecordIdentity) Valid() bool {
-	return mediaRecordCoreID.MatchString(i.CoreID) && ValidMediaGameID(i.GameID) && ValidateDigest(i.BaseMediaID) == nil && i.Unit == 0
+	return mediaRecordCoreID.MatchString(i.CoreID) && ValidMediaGameID(i.GameID) && ValidateDigest(i.BaseMediaID) == nil &&
+		(i.Unit == 0 || (i.Unit == PcFloppyRecordUnit && i.CoreID == Pc386CoreID))
 }
 
 // MediaRecordDiscard removes a record whose file still has ExpectedRevision.

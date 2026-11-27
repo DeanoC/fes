@@ -255,6 +255,43 @@ func TestDurableCorePackagesRejectUnavailableCorruptForeignAndUnsupported(t *tes
 	}
 }
 
+func TestDurableCorePackagesReportCorruptionAfterOpen(t *testing.T) {
+	archive, value := installedPackageFixture(t, "valid-basic")
+	root := durableHTTPStoreRoot(t)
+	store, err := kitpackages.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Select(context.Background(), value.Descriptor.Core.ID, "", value.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(httpapi.New(&fakeController{}, "test-token", "test", discardLogger(), httpapi.WithCorePackages(store, nil)))
+	defer server.Close()
+	path := filepath.Join(root, "archives", value.PackageID+".fcore")
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("not a package"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{"GET", "POST"} {
+		var body []byte
+		if method == "POST" {
+			body = archive
+		}
+		status, data := corePackageRequest(t, server, method, "/v1/core-packages", "application/octet-stream", "test-token", body)
+		if status != http.StatusServiceUnavailable || !bytes.Contains(data, []byte(protocol.CodeCorePackageStoreUnavailable)) {
+			t.Fatalf("%s corrupt store = %d %s", method, status, data)
+		}
+	}
+}
+
 func durableHTTPStoreRoot(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "library")

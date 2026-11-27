@@ -82,7 +82,7 @@ def png_from_ppm(source, target):
 class Guest:
     """Own one QEMU process, its Unix serial socket and its QMP connection."""
     def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False, ui=True, video=False,
-                 boot_firmware=None, image_address=None):
+                 boot_firmware=None, image_address=None, hostfwd=None):
         if (boot_firmware is None) != (image_address is None):
             raise ValueError("boot firmware and image address must be supplied together")
         self.directory = Path(directory)
@@ -118,7 +118,10 @@ class Guest:
         if (disk and ui) or video:
             self.command += ["-device", "ramfb"]
         if disk and ui:
-            self.command += ["-netdev", "user,id=hostnet", "-device",
+            netdev = "user,id=hostnet"
+            if hostfwd:
+                netdev += f",hostfwd={hostfwd}"
+            self.command += ["-netdev", netdev, "-device",
                              "virtio-net-device,netdev=hostnet,mac=52:54:00:12:34:56",
                              "-object", f"filter-dump,id=packets,netdev=hostnet,file={self.directory / 'network.pcap'}"]
         else:

@@ -1,0 +1,19 @@
+Quartus lease: holding /tmp/lander-quartus-lite.lock (lite, cores/fes-zx81/quartus.lock)
+fes.ts1000 Quartus build 1a04c85fb4833db0b77cb8a2d6e8d1d1: /data/fes-f3-d12/sameq2/sources/misteross/build/fes-ts1000-quartus/1a04c85fb4833db0b77cb8a2d6e8d1d1/attempt-i7rp_1ps
+    quartus_sh running 60 s (seed-1)
+    quartus_sh running 120 s (seed-1)
+    quartus_sh running 180 s (seed-1)
+  signoff seed 1: pass, RBF 2b34a27a3256730b
+    quartus_sh running 60 s (seed-2)
+    quartus_sh running 120 s (seed-2)
+    quartus_sh running 180 s (seed-2)
+    quartus_sh running 240 s (seed-2)
+  signoff seed 2: pass, RBF 94e586833bf5ce71
+    quartus_sh running 60 s (seed-3)
+    quartus_sh running 120 s (seed-3)
+  signoff seed 3: pass, RBF 2a669d35d5c83478
+    quartus_sh running 60 s (seed-1)
+    quartus_sh running 120 s (seed-1)
+    quartus_sh running 180 s (seed-1)
+  repeat seed 1: pass, RBF 2b34a27a3256730b
+build-fes-zx81-quartus: FINISHED ts1000: /data/fes-f3-d12/sameq2/sources/misteross/build/packages/bb3b0f4b08809977e5b2cf6fc79c353ae39eddb1c5a97d66f2bc05cac992650f

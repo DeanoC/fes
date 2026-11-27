@@ -682,6 +682,8 @@ class HilPlanTest(unittest.TestCase):
                      'scripts/check_govet.py',
                      'scripts/host_affected.py',
                      'scripts/test_policy.py', 'scripts/ci_gate.py',
+                     'scripts/bundle.py', 'scripts/core_catalog.py',
+                     'scripts/nightly_qualification.py',
                      'scripts/hil_plan.py', 'scripts/consistency.py',
                      'scripts/generate.py'):
             with self.subTest(path=path):
@@ -691,6 +693,15 @@ class HilPlanTest(unittest.TestCase):
         result = run('classify', '--paths-file',
                      self.path_file('scripts/check_deadcode.py\nimage/buildroot/config'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+
+    def test_nightly_release_tooling_set_does_not_request_hardware(self):
+        planner = hil_module()
+        paths = ['scripts/bundle.py', 'scripts/core_catalog.py',
+                 'scripts/nightly_qualification.py']
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertEqual(result['kit_targets'], [])
+        self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
 
     def test_go_vet_gate_change_set_does_not_request_hardware(self):
         planner = hil_module()

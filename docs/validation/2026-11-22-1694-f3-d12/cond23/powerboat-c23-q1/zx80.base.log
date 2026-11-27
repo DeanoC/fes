@@ -1,0 +1,31 @@
+Quartus lease: holding /tmp/fes-quartus-lite-2.lock (lite, cores/fes-zx81/quartus.lock)
+fes.zx80 Quartus build 69bf0d59047eae30eb4e3060a78e60bd: /data/fes-f3-d12/sameq1/sources/misteross/build/fes-zx80-quartus/69bf0d59047eae30eb4e3060a78e60bd/attempt-bfcoiisw
+    quartus_sh running 60 s (seed-1)
+    quartus_sh running 120 s (seed-1)
+    quartus_sh running 180 s (seed-1)
+    quartus_sh running 240 s (seed-1)
+    quartus_sh running 300 s (seed-1)
+    quartus_sh running 360 s (seed-1)
+    quartus_sh running 420 s (seed-1)
+    quartus_sh running 480 s (seed-1)
+    quartus_sh running 540 s (seed-1)
+    quartus_sh running 600 s (seed-1)
+    quartus_sh running 660 s (seed-1)
+  signoff seed 1: pass, RBF e87cca6754090d06
+    quartus_sh running 60 s (seed-2)
+    quartus_sh running 120 s (seed-2)
+    quartus_sh running 180 s (seed-2)
+    quartus_sh running 240 s (seed-2)
+    quartus_sh running 300 s (seed-2)
+  signoff seed 2: pass, RBF 571fd94186827dad
+    quartus_sh running 60 s (seed-3)
+    quartus_sh running 120 s (seed-3)
+    quartus_sh running 180 s (seed-3)
+  signoff seed 3: pass, RBF e45037ff82e79af5
+    quartus_sh running 60 s (seed-1)
+    quartus_sh running 120 s (seed-1)
+    quartus_sh running 180 s (seed-1)
+    quartus_sh running 240 s (seed-1)
+    quartus_sh running 300 s (seed-1)
+  repeat seed 1: pass, RBF e87cca6754090d06
+build-fes-zx81-quartus: FINISHED zx80: /data/fes-f3-d12/sameq1/sources/misteross/build/packages/325542cef3b61649fa19af7af8961655a85cdd3d66c046b7223be512a7db7424

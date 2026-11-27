@@ -14,7 +14,10 @@ The basis names each synchronizer instance and its source reset, pins the
 compiled FIFO source that instantiates them, requires the RDC-50003 rows to
 be exactly these two bridge rows beside the reviewed HDMI output-reset row,
 and requires recovery and removal to pass, at every corner, on every load of
-every one of the four chains. No constraint is added and no rule changes.
+every one of the four chains. The peripheral row includes the hard HPS reset
+output feeding the existing common reset synchronizer. The FIFO chains
+themselves still have exactly the same two reset sources. No constraint is
+added and no rule changes.
 """
 import json
 from pathlib import Path
@@ -23,7 +26,7 @@ import subprocess
 from boards.de25nano.scanout import video_outputs
 
 HERE = Path(__file__).resolve().parent
-POLICY = 'de25-reviewed-window-bridge-fifo-reset-v1'
+POLICY = 'de25-reviewed-window-bridge-fifo-reset-v2'
 REPORTS = {'chains.tsv', 'loads.tsv', 'paths.tsv'}
 BRIDGE = 'soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|'
 MACHINE = 'fes_machine_pll|machine_pll_outclk0'
@@ -45,6 +48,10 @@ COMPILED = ('peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_win_cd
             'peripheral_subsys_fes_win_cdc_st_dc_fifo_1953_phmrs5y.v')
 COMPILED_SHA256 = 'd705d581f70598b64d10168c48aedadb0db6556d5d1c83b2142f79c49f1edaaa'
 WRAPPERS = 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_win_cdc/mm_ccb_1941/synth'
+# Quartus reports the hard HPS output with the atom's internal clock name.
+# The generated topology check binds it to h2f_reset and the top synchronizer.
+HPS_RESET_SOURCE = ('soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|'
+                    'sundancemesa_hps_inst~intosc_clk.reg')
 # The two RDC-50003 rows this basis admits, exactly (the third is the HDMI
 # output-reset row, admitted by output_reset.py).
 ROWS = (
@@ -52,7 +59,7 @@ ROWS = (
      {'fes_top_reset_inst|sync_regs[0]',
       BRIDGE + 'cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]',
       BRIDGE + 'rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]'},
-     {'pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg',
+     {HPS_RESET_SOURCE, 'pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg',
       'auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg',
       *SOURCE_RESETS}),
     (MACHINE, '3',

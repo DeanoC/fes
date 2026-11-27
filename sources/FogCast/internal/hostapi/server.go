@@ -325,6 +325,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		result, err := coordinator.attachInput(r.Context())
 		if err != nil {
+			if writeRemoteInputDisabled(w, err) {
+				return
+			}
 			writeSessionError(w, err)
 			return
 		}
@@ -338,6 +341,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		result, err := coordinator.detachInput(r.Context())
 		if err != nil {
+			if writeRemoteInputDisabled(w, err) {
+				return
+			}
 			writeSessionError(w, err)
 			return
 		}
@@ -363,6 +369,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event, modifiers)
 		if err != nil {
+			if writeRemoteInputDisabled(w, err) {
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
 				return
@@ -396,6 +405,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		if err := coordinator.sendCoreKey(r.Context(), *body.Event); err != nil {
+			if writeRemoteInputDisabled(w, err) {
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
 				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
 				return

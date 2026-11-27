@@ -40,6 +40,7 @@ type spectrumFirmwareCPU struct {
 	romBatches    int
 	failROMBatch  bool
 	inDiskBatch   bool
+	failLiveBatch bool
 	diskBatches   int
 	diskBatchCost time.Duration
 	dmaStatus     uint32
@@ -100,7 +101,24 @@ func (c batchedSpectrumCPU) WithSpectrumROMBatch(base uint64, send func(computer
 	return nil
 }
 func (c *spectrumFirmwareCPU) WithHeldMediaBatch(base uint64, send func(computer.IO) error) error {
-	if base != 0x20010300 || !c.active || !c.held || !c.ready || c.inDiskBatch {
+	if !c.held {
+		return errors.New("media batch outside held upload shell")
+	}
+	return c.withDiskBatch(base, send)
+}
+
+func (c *spectrumFirmwareCPU) WithLiveMediaBatch(base uint64, send func(computer.IO) error) error {
+	if c.held || !c.media.disk {
+		return errors.New("live batch outside running C64")
+	}
+	if c.failLiveBatch {
+		return errors.New("lost live C64 media batch acknowledgement")
+	}
+	return c.withDiskBatch(base, send)
+}
+
+func (c *spectrumFirmwareCPU) withDiskBatch(base uint64, send func(computer.IO) error) error {
+	if base != 0x20010300 || !c.active || !c.ready || c.inDiskBatch {
 		return errors.New("media batch outside held upload shell")
 	}
 	c.diskBatches++
