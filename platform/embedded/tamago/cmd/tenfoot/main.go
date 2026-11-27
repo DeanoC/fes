@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/modelbackend"
+	"github.com/DeanoC/fes/platform/embedded/tamago/ota"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
@@ -40,6 +41,7 @@ type bootConfig struct {
 	AgentMDNS     bool   `json:"agent_mdns"`
 	AgentInstance string `json:"agent_instance"`
 	AgentHost     string `json:"agent_host"`
+	AgentOTA      bool   `json:"agent_ota"`
 }
 
 type observedTransport struct{ base http.RoundTripper }
@@ -80,6 +82,8 @@ type framePlatform struct {
 	uart          input.UART
 	uartIRQ       bool
 	keyboard      *input.USBKeyboard
+	otaMgr        *ota.Manager
+	otaTrialSlot  ota.Slot
 	lastFrame     time.Time
 	lastState     string
 	ready         bool
@@ -222,6 +226,14 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 			if wakeups := g.IdleWakeups(); wakeups > 0 {
 				fmt.Printf("FES_GIC_IDLE_READY wakeups=%d\n", wakeups)
 			}
+		}
+		if p.otaMgr != nil && p.otaTrialSlot != "" {
+			st, err := p.otaMgr.ConfirmBoot(ctx, p.otaTrialSlot)
+			if err != nil {
+				return fmt.Errorf("confirm OTA trial slot %s: %w", p.otaTrialSlot, err)
+			}
+			p.otaTrialSlot = ""
+			fmt.Printf("FES_OTA_CONFIRMED slot=%s generation=%d\n", st.ActiveSlot, st.Generation)
 		}
 		fmt.Println("FES_TENFOOT_READY")
 	}
@@ -390,6 +402,30 @@ func run() (result error) {
 			fmt.Println("FES_NET_IRQ enabled=true")
 		}
 	}
+	var otaMgr *ota.Manager
+	var otaTrialSlot ota.Slot
+	if config.AgentOTA {
+		otaCfg := ota.Config{Board: board.Name}
+		if _, ok := board.WallTime(); ok {
+			otaCfg.Now = func() time.Time {
+				t, _ := board.WallTime()
+				return t
+			}
+		}
+		otaMgr, err = ota.Open(ctx, volume, otaCfg)
+		if err != nil {
+			return fmt.Errorf("open OTA manager: %w", err)
+		}
+		otaBoot, err := otaMgr.SelectBoot(ctx)
+		if err != nil {
+			return fmt.Errorf("select OTA boot slot: %w", err)
+		}
+		fmt.Printf("FES_OTA_BOOT slot=%s trial=%t tries=%d rolled_back=%t recovered=%t\n",
+			otaBoot.Slot, otaBoot.IsTrial, otaBoot.TriesRemaining, otaBoot.RolledBack, otaBoot.RecoveredInterruptedStage)
+		if otaBoot.IsTrial {
+			otaTrialSlot = otaBoot.Slot
+		}
+	}
 	if iface != nil && config.AgentPort != 0 {
 		agentCtrl := agentapi.NewStateController(agentapi.StateControllerConfig{
 			Board:   board.Name,
@@ -405,6 +441,7 @@ func run() (result error) {
 			MDNSInstance:         config.AgentInstance,
 			MDNSHost:             config.AgentHost,
 			Controller:           agentCtrl,
+			OTA:                  otaMgr,
 			OnError: func(err error) {
 				fmt.Printf("FES_AGENT_ERROR err=%q\n", err)
 			},
@@ -463,7 +500,7 @@ func run() (result error) {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 	fmt.Printf("FES_PREFERENCES_LOADED layout=%s\n", app.Snapshot().Grid.Mode)
-	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, uartIRQ: uartIRQ, keyboard: keyboard, model: backend})
+	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, uartIRQ: uartIRQ, keyboard: keyboard, model: backend, otaMgr: otaMgr, otaTrialSlot: otaTrialSlot})
 }
 
 func main() {
