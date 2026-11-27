@@ -214,6 +214,20 @@ func TestSDLControllersVirtualGamepadUIAndSwapAB(t *testing.T) {
 		t.Fatalf("solo Select release did not cycle layout from %v", layoutBefore)
 	}
 
+	// A solo Start tap waits until release, then produces CmdQuit on desktop.
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, true); err != nil {
+		t.Fatal(err)
+	}
+	if pollGamepads(app, pads, held, &stick, now.Add(340*time.Millisecond)) {
+		t.Fatal("solo Start quit before release")
+	}
+	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonStart, false); err != nil {
+		t.Fatal(err)
+	}
+	if !pollGamepads(app, pads, held, &stick, now.Add(360*time.Millisecond)) {
+		t.Fatal("solo Start release did not quit on desktop SDL pad")
+	}
+
 	// Detach clears Settings › Controllers.
 	cleanupPad()
 	if pads.len() != 0 {

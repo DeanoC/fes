@@ -71,7 +71,9 @@ type nativeInput struct {
 	menuSelectDown    bool
 	menuSelectPending bool
 	menuStartDown     bool
+	menuStartPending  bool
 	menuChordFired    bool
+	menuDeferred      []Command
 }
 
 type nativeInputs struct {
@@ -383,7 +385,9 @@ func (ins *nativeInputs) syncProfiles(app *App) {
 			in.menuSelectDown = false
 			in.menuSelectPending = false
 			in.menuStartDown = false
+			in.menuStartPending = false
 			in.menuChordFired = false
+			in.menuDeferred = nil
 		}
 		if noGuideChanged && app != nil {
 			app.SetPadInfo(in.fd, in.info)

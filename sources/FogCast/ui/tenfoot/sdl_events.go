@@ -34,6 +34,7 @@ type sdlPad struct {
 	profileGen    uint64
 	settingsCombo bool
 	selectPending bool
+	startPending  bool
 	chordFired    bool
 	// sent remembers the remapped code pressed while a physical button is down so
 	// profile reloads release the same logical code that went down.
@@ -192,6 +193,7 @@ func (s *sdlPadSet) syncProfiles(app *App) {
 		entry.settingsCombo = padSettingsComboEnabled(entry.info, profile)
 		if !entry.settingsCombo {
 			entry.selectPending = false
+			entry.startPending = false
 			entry.chordFired = false
 		}
 		entry.profileGen = gen
@@ -374,21 +376,33 @@ func pollGamepads(app *App, pads *sdlPadSet, held map[Command]bool, stick *stick
 			if selectDown && startDown {
 				entry.chordFired = true
 				entry.selectPending = false
+				entry.startPending = false
 				pressed[CmdSettings] = true
 			} else if entry.chordFired {
 				entry.selectPending = false
+				entry.startPending = false
 				if !selectDown && !startDown {
 					entry.chordFired = false
 				}
-			} else if selectDown {
-				// Defer Select so Select -> Start opens Settings without first
-				// cycling the layout; a solo tap fires on release instead.
-				entry.selectPending = true
-			} else if entry.selectPending {
-				entry.selectPending = false
-				app.NoteInput(InputGamepad, int(id))
-				app.Press(CmdLayoutCycle, now)
-				app.Release(CmdLayoutCycle)
+			} else {
+				if selectDown {
+					// Defer Select so Select -> Start opens Settings without first
+					// cycling the layout; a solo tap fires on release instead.
+					entry.selectPending = true
+				} else if entry.selectPending {
+					entry.selectPending = false
+					pressed[CmdLayoutCycle] = true
+					used = true
+				}
+				if startDown {
+					// Defer Start so Start -> Select opens Settings without
+					// quitting first; a solo tap fires on release instead.
+					entry.startPending = true
+				} else if entry.startPending {
+					entry.startPending = false
+					pressed[CmdQuit] = true
+					used = true
+				}
 			}
 		}
 		for _, code := range padButtons {

@@ -713,8 +713,11 @@ func TestControllersSettingsChordDefaultToggleAndPrompts(t *testing.T) {
 
 	// Pads without a Guide button default SettingsCombo to true and advertise
 	// SELECT+START in place of GUIDE in footer hints.
-	if got := app.Snapshot().Prompts.apply("A select  GUIDE settings"); got != "bottom button select  SELECT+START settings" {
-		t.Fatalf("guide-less footer hint = %q, want SELECT+START settings", got)
+	wantChord := string(gfx.PromptRune(gfx.PromptGeneric, gfx.PromptSouth)) + " select  " +
+		string(gfx.PromptRune(gfx.PromptGeneric, gfx.PromptSelect)) + "+" +
+		string(gfx.PromptRune(gfx.PromptGeneric, gfx.PromptStart)) + " settings"
+	if got := app.Snapshot().Prompts.apply("A select  GUIDE settings"); got != wantChord {
+		t.Fatalf("guide-less footer hint = %q, want %q", got, wantChord)
 	}
 
 	now := time.Now()
@@ -739,8 +742,9 @@ func TestControllersSettingsChordDefaultToggleAndPrompts(t *testing.T) {
 	if snap := app.Snapshot().Controllers; snap.SettingsCombo {
 		t.Fatal("expected SettingsCombo=false after toggling")
 	}
-	if got := app.Snapshot().Prompts.apply("GUIDE settings"); got != "GUIDE settings" {
-		t.Fatalf("prompt after disabling SettingsCombo = %q, want GUIDE settings", got)
+	wantGuide := string(gfx.PromptRune(gfx.PromptGeneric, gfx.PromptGuide)) + " settings"
+	if got := app.Snapshot().Prompts.apply("GUIDE settings"); got != wantGuide {
+		t.Fatalf("prompt after disabling SettingsCombo = %q, want %q", got, wantGuide)
 	}
 	if p, ok := savedProfile(t, app); !ok || p.SettingsCombo != inputmap.SettingsComboOff {
 		t.Fatalf("saved SettingsCombo = (%+v, %v), want %q", p, ok, inputmap.SettingsComboOff)

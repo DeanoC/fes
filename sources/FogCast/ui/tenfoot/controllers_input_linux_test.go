@@ -405,7 +405,7 @@ func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
 	in.button(app, ButtonBack, 0, now)
 	in.button(app, ButtonStart, 0, now)
 	_ = ins.applyButtons(app, now)
-	if in.menuChordFired || in.menuSelectDown || in.menuSelectPending || in.menuStartDown {
+	if in.menuChordFired || in.menuSelectDown || in.menuSelectPending || in.menuStartDown || in.menuStartPending {
 		t.Fatalf("stale chord state remained after release: %+v", in)
 	}
 	if got := app.Snapshot().Grid.Mode; got != layoutBefore {
@@ -422,5 +422,15 @@ func TestNativePadSelectStartOpensSettingsWhenNoGuide(t *testing.T) {
 	_ = ins.applyButtons(app, now)
 	if got := app.Snapshot().Grid.Mode; got == layoutBefore {
 		t.Fatalf("solo Select release did not cycle layout from %v", layoutBefore)
+	}
+
+	// A solo Start tap waits until release, then produces CmdQuit on desktop.
+	in.button(app, ButtonStart, 1, now)
+	if ins.applyButtons(app, now) {
+		t.Fatal("solo Start quit before release")
+	}
+	in.button(app, ButtonStart, 0, now)
+	if !ins.applyButtons(app, now) {
+		t.Fatal("solo Start release did not quit on desktop")
 	}
 }
