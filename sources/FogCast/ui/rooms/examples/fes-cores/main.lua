@@ -193,6 +193,9 @@ end
 -- Back from a workbench or a game: the library may have new titles, and
 -- the game just played leads Recently played.
 function on_resume()
+  -- A family can be opened before the kit shelf settles. Returning to Home
+  -- must keep that destination rather than choose a late first opening.
+  moved = true
   F.reload()
   load_recents()
 end

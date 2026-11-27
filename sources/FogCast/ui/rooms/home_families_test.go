@@ -482,6 +482,37 @@ func TestHomeCanOpenAdmittedMachineWhileKitShelfWarms(t *testing.T) {
 	})
 }
 
+func TestHomeResumeAfterEarlyOpenKeepsSelectedFamily(t *testing.T) {
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.spectrum", Launchable: true}}}, release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-held.release:
+		default:
+			close(held.release)
+		}
+	})
+	svc := &homeServices{
+		computers:    []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
+		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+	}
+	r := loadHome(t, Options{Services: svc, Local: held, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Label == "Sinclair ZX81" && d.Availability == AvailReady
+	})
+	// The family was opened before the kit inventory answered. On returning,
+	// the host has lost that entry and the kit answers with another ready family.
+	svc.mu.Lock()
+	svc.computers = nil
+	svc.mu.Unlock()
+	r.Resume()
+	close(held.release)
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+	if d := r.Destination(); d.Label != "Sinclair ZX81" {
+		t.Fatalf("resume moved focus after early open: %+v", d)
+	}
+}
+
 func TestHomeRestoresTheSavedFamily(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "home.state.json")
 	if err := os.WriteFile(storePath, []byte(`{"focus":"family:fes.atari-st"}`), 0o644); err != nil {
