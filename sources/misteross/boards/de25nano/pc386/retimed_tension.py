@@ -38,10 +38,12 @@ STRUCTURE_COLUMNS = '''corner node direction exact_matches owner_clocks sync_sta
 clock_outputs keepers machine foreign unclocked port non_register unresolved foreign_examples unclocked_examples
 port_examples non_register_examples unresolved_examples setup_inter_clock setup_inter_clock_example setup_false_path
 setup_false_path_example hold_inter_clock hold_inter_clock_example hold_false_path hold_false_path_example
+recovery_from recovery_from_false_path removal_from removal_from_false_path
 async_output_ids async_output_details async_output_own_q async_output_other async_output_unknown status'''.split()
 STRUCTURE_ZEROS = ('sync_stage', 'is_latch', 'async_inputs', 'clock_outputs', 'foreign', 'unclocked', 'port',
                    'non_register', 'unresolved', 'setup_inter_clock', 'setup_false_path', 'hold_inter_clock',
                    'hold_false_path', 'async_output_other', 'async_output_unknown')
+OUTGOING_RESET_COUNTS = ('recovery_from', 'recovery_from_false_path', 'removal_from', 'removal_from_false_path')
 UCP_PROPERTIES = ('Illegal Clocks', 'Unconstrained Clocks', 'Unconstrained Input Ports',
                   'Paths from Unconstrained Input Ports (Pairs-Only)', 'Unconstrained Output Ports',
                   'Paths to Unconstrained Output Ports (Pairs-Only)')
@@ -181,11 +183,13 @@ def check_structure(subjects, path):
             if key in seen:
                 issues.append(dict(reason='duplicate structure row', row=row))
             seen.add(key)
+            reset_count = '0' if row['direction'] == 'from' else ''
             if key in expected and (row['status'] != 'clear' or row['exact_matches'] != '1'
                                     or row['owner_clocks'] != mf.MACHINE or not own_q_only(row)
                                     or not re.fullmatch(r'[1-9][0-9]*', row['keepers'])
                                     or row['machine'] != row['keepers']
                                     or any(row[name] != '0' for name in STRUCTURE_ZEROS)
+                                    or any(row[name] != reset_count for name in OUTGOING_RESET_COUNTS)
                                     or any(row[name] for name in STRUCTURE_COLUMNS if name.endswith('_example')
                                            or name.endswith('_examples'))):
                 issues.append(dict(reason='unproved same-clock keeper topology', row=row))

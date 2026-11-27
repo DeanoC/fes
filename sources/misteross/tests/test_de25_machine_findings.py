@@ -69,6 +69,7 @@ class RegisteredTensionTests(unittest.TestCase):
     def test_registered_builds_gate_retiming_by_recorded_model(self):
         retimed = '_17339_~1_R6_X56_Y33_N0_I13_dff'
         decoder_duplicate = 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12'
+        decoder_mixed = 'machine_at_decoder_state[1]~DUPLICATE_Duplicate'
         halted_duplicate = 'cpu_halted~DUPLICATE_Duplicate_3'
         cases = (
             ('486sx', '486sx', 'cpu_md_busy', False, None),
@@ -86,6 +87,9 @@ class RegisteredTensionTests(unittest.TestCase):
             ('486dx', '486dx', decoder_duplicate, True, None),
             ('486dx', '486dx', decoder_duplicate, True, 'fixture trace failed'),
             ('486sx', '486sx', decoder_duplicate, False, 'matches 0 bases'),
+            ('486dx', '486dx', decoder_mixed, True, None),
+            ('486dx', '486dx', decoder_mixed, True, 'fixture trace failed'),
+            ('486sx', '486sx', decoder_mixed, False, 'matches 0 bases'),
             ('486dx', '486dx', halted_duplicate, True, None),
             ('486dx', '486dx', halted_duplicate, True, 'fixture trace failed'),
             ('486sx', '486sx', halted_duplicate, False, 'matches 0 bases'),
@@ -242,6 +246,8 @@ class RetimedTensionProofTests(unittest.TestCase):
             for direction in ('from', 'to'):
                 row = dict.fromkeys(retimed_tension.STRUCTURE_COLUMNS, '')
                 row.update(dict.fromkeys(retimed_tension.STRUCTURE_ZEROS, '0'))
+                if direction == 'from':
+                    row.update(dict.fromkeys(retimed_tension.OUTGOING_RESET_COUNTS, '0'))
                 row.update(corner=corner, node=self.NODE, direction=direction, exact_matches='1', owner_clocks=MACHINE,
                            keepers='21', machine='21', status='clear', async_outputs='1', async_output_own_q='1',
                            async_output_ids='edge1', async_output_details=(
@@ -300,6 +306,10 @@ class RetimedTensionProofTests(unittest.TestCase):
                               ('async_output_details', rows[0]['async_output_details'].replace('|q}', '|other}')),
                               ('async_output_details', rows[0]['async_output_details'].replace('asynchronous 0', 'asynchronous 1'))):
             cases[column, value] = [{**rows[0], column: value}, *rows[1:]]
+        for column in retimed_tension.OUTGOING_RESET_COUNTS:
+            for value in ('1', '', 'n/a'):
+                cases[column, value] = [{**rows[0], column: value}, *rows[1:]]
+            cases[column, 'unexpected sink count'] = [rows[0], {**rows[1], column: '0'}, *rows[2:]]
         with tempfile.TemporaryDirectory() as work:
             structure = Path(work) / 'structure.tsv'
             self.write_trace(structure, rows, columns=retimed_tension.STRUCTURE_COLUMNS)
@@ -555,14 +565,16 @@ class MachineFindingsTests(unittest.TestCase):
         self.assertEqual({group['name']: group['rows'] for group in entry['groups']},
                          {'cpu-control-tension': 1, 'retimed-machine-control-tension': len(names)})
 
-    def test_indexed_mixed_duplicates_match_only_the_live_fitted_basis(self):
+    def test_mixed_duplicates_match_only_the_live_fitted_basis(self):
         targets = tuple(S + name for name in (
+            'machine_at_decoder_state[1]~DUPLICATE_Duplicate',
             'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12',
             'cpu_halted~DUPLICATE_Duplicate_3',
             'cpu_int_wait~DUPLICATE_Duplicate_17',
             'machine_at_decoder_state[0]~DUPLICATE_Duplicate_12',
             'machine_at_decoder_phase[1]~DUPLICATE_Duplicate_5',
             'audio_dsp_write~DUPLICATE_Duplicate_2',
+            'cpu_md_busy~DUPLICATE_Duplicate',
             '_36703_[57]~DUPLICATE_Duplicate_0',
         ))
         bases = TABLE.CPU_CONTROL_TENSION, TABLE.RETIMED_CONTROL_TENSION
@@ -594,19 +606,18 @@ class MachineFindingsTests(unittest.TestCase):
             S + 'cpu_m1_out_reg[1178]~DUPLICATE_ENA_dff',
             S + 'cpu_m2_load~ACLR_dff',
             S + 'cpu_m2_load~1SCLR_dff',
-            S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate',
             S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_',
             S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_-12',
             S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12DUPLICATE',
             S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12_3',
             S + 'machine_at_decoder_state[1]~RTM_12',
+            S + 'machine_presenter_loaded_flag~DUPLICATE_Duplicate',
             S + 'machine_presenter_loaded_flag~DUPLICATE_Duplicate_12',
             S + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12|q',
             S.replace('system|', 'window_control|') + 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12',
             S + 'machine_presenter_loaded_flag~SCLR_dff',
             S + 'cpu_wb_deliver~DUPLICATEENA_dff_extra',
             S + '_36689_[*]~SCLR_dff',
-            S + 'cpu_md_busy~DUPLICATE_Duplicate',
         )
         bases = self.bases('cpu-control-tension', 'retimed-machine-control-tension')
         for name in names:

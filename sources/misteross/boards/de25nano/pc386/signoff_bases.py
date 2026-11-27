@@ -196,19 +196,17 @@ RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12
 RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
                 r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
 RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
-# The 111.90 MHz DX fits reported this mixed duplicate spelling for cpu_halted
-# and cpu_int_wait. Both require the same live proof as the retimed sites.
-# Merged C28 fits also reported indexed mixed copies of the decoder state and
-# halted controls. Their exact fitted names select the same live proof.
+# The C28 DX fits reported indexed and unindexed mixed duplicate spellings
+# for CPU controls and decoder state. Both forms require live fitted proof.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
-                             + r'|cpu_(?:halted|int_wait)~DUPLICATE_Duplicate'
-                             + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate_[0-9]+)')
+                             + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate(?:_[0-9]+)?)')
 RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '
                    'in both directions. All four fitted corners must have nonnegative worst incoming '
                    'and outgoing setup and hold slack, no inter-clock or cut setup or hold paths, '
-                   'and no asynchronous connectivity apart from each register\'s own Q arc. '
+                   'and asynchronous structure limited to each register\'s own Q arc. '
+                   'Normal and false-path queries must find zero outgoing recovery and removal paths. '
                    'The detailed unconstrained-path report must exclude every subject. '
                    'The ordinary timing and CDC analyses still apply.')
 RETIMED_CONTROL_TENSION = advisory('TMC-20602', 'retimed-machine-control-tension', 0,
