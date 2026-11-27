@@ -1274,6 +1274,13 @@ Seed 3 sealed normally on this revision and passed independent LOADED
 at 2.336 ns. Worst setup was +0.260 ns and the fit used 45,094 ALMs.
 The summary SHA-256 is
 `1f56b1993162e2e93fd77144897524f1e9744e3267c891b91a0a62c5961b4a80`.
+Seed 1 also sealed normally and measured 2.628 ns independent LOADED.
+Worst setup was +0.301 ns and the fit used 45,068.5 ALMs. TimeQuest
+passed all 868 timing checks and 248 structural checks on the 31
+advisory subjects. Its fitted-proof receipt SHA-256 is
+`b7dd3e2a26d134f6cc2e7026ba3d964fdfc92dd1a7b66ffff4c7b15454b0cc48`.
+The seed summary SHA-256 is
+`398324d057f72941a8b5b7d5a3f705f6069dc6a9339b1353712196d4dc64e44f`.
 
 ## Running a seed on either builder
 
