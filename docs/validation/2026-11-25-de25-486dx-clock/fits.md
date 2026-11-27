@@ -1202,6 +1202,13 @@ was +0.011 ns, hold 0.000 ns, removal +0.015 ns and independent LOADED
 signoff rule failed. The producer refused admission. The seed summary
 SHA-256 is
 `3542122f6c328aec018ecee7d6515c9330e7f72943eea981695ff2e3f7ce41c8`.
+TimeQuest read back the ordinary 8.296 ns setup relationship on all 31
+command paths in a byte-verified copy of the retained final database.
+The original fit had no readable early snapshot. A standalone Plan on
+the private copy generated a new snapshot, and TimeQuest read back
+8.075 ns on all 31 paths there. The original fit's manifest matched
+after the diagnostic. The manifest for the separate phase readbacks
+has SHA-256 `d5a83ce6ecb852b4052dadc62d0e529783a9c7160542b4d22a83b32877618f08`.
 
 ## Integrated C0 = 28 fallback
 
@@ -1290,6 +1297,14 @@ advisory subjects. Its fitted-proof receipt SHA-256 is
 `b7dd3e2a26d134f6cc2e7026ba3d964fdfc92dd1a7b66ffff4c7b15454b0cc48`.
 The seed summary SHA-256 is
 `398324d057f72941a8b5b7d5a3f705f6069dc6a9339b1353712196d4dc64e44f`.
+The copied seed 1 database also showed zero reported outgoing recovery
+or removal paths in 496 normal and cut-path queries across the 31 subjects.
+The same query reported outgoing recovery and removal from the ordinary
+`system|reset` control into the same machine clock at all four corners.
+This measures the reported paths. The copy's manifest matched the
+original before analysis, and analysis left the original unchanged.
+The audit manifest SHA-256 is
+`528506acffe44c30549ac1cd0e450b7b958e0cb88d73a22773dc847685d0c7f6`.
 Seed 2 passed raw timing at +0.277 ns worst setup and measured 2.868 ns
 independent LOADED. The producer refused the unindexed spelling
 `machine_at_decoder_state[1]~DUPLICATE_Duplicate`. The supplemental
@@ -1297,6 +1312,33 @@ numerical trace passed all 504 checks. The exact unmatched subject had
 +2.083 ns worst setup and +0.267 ns worst hold. The failed admission
 receipt SHA-256 is
 `9022230590081f932bd545d47be666024ff57e29c40bbd3740f5ca35ac6e0b0e`.
+The exact unindexed subject passed 28 timing rows and eight structural
+rows in the copied database. It had 4,256 outgoing and 105 incoming
+machine-clock keepers. The unconstrained report contained no exact match.
+All 1,916 original files matched after analysis. The proof receipt
+SHA-256 is
+`c6ee8faeb6d3213ee37b8704039a12641d62d937639357a6d8065be5b46d62f7`.
+Seed 4 sealed normally with +0.085 ns worst setup, 3.185 ns independent
+LOADED and 45,100.7 ALMs. Its summary SHA-256 is
+`567ebea360ce549eed9634ce8e19753eaee51b33131c8bf40550704ef9a47efc`.
+All four seeds on `a12785b3` passed raw timing and independent LOADED.
+Seed 2's admission refusal leaves the four-seed gate incomplete.
+The group receipt SHA-256 is
+`e5c94384750cb1f5f1651abcbdb5a6f5b88a70611b088a7e731470f7c52acd97`.
+
+Revision `3cca38181c2695f43a4ae594ccac972ec67be969` uses the same
+mandatory live proof for indexed and unindexed mixed copies on the
+existing DX control stems. Every live subject must also report zero
+outgoing recovery and removal paths both with and without the TimeQuest
+false-path filter. Its Tcl fixture accepted the clean sample and
+refused a path in each of the four new queries and a query failure.
+The retained DRC classifications leave the ordinary basis unchanged.
+Fresh DE10 netlist bytes and four identities, seven D12 selections, and
+compiled C28 game inputs match the earlier controls. `make check` and
+35 focused tests passed. The DE10 receipt SHA-256 is
+`02fcccfa0e17ba4144c58e7639b7ec759945fd23bf10da935fa958245c7667e8`.
+The Tcl fixture SHA-256 is
+`39a677c687b64dbd9f0d6cd6babc7244014272b278df46def6f4f4259e9f5481`.
 
 ## Running a seed on either builder
 

@@ -314,3 +314,7 @@ receipt SHA-256 is
 inputs and their ordered lists, guest rates and media against
 `2bc8a55e`. The compiled-input receipt SHA-256 is
 `df949eea3cba1e9edeecdfae1a1946d6c288bc4aad4c437104e70ad7d1193582`.
+The proof revision `3cca38181c2695f43a4ae594ccac972ec67be969` reproduced
+the same 78 inputs, ordered dependency lists, guest rates, presenter
+and ATA-only media against `a12785b3`. The comparison SHA-256 is
+`708e70f49328738bb6c89bb51b19f6ca80efe23e6f4aac6cb0be068d34c1cb85`.
