@@ -50,6 +50,8 @@ static void channel(void *ctx,uint32_t address,uint32_t value)
             *reg(f,M+0x3160)|=1U<<8;
         }
     }
+    /* Fail the MAC RX enable readback after the DMA channel has started. */
+    if (e->mode==7 && address==M+4 && (value&1)) *reg(f,address)=value&~1U;
     if (address!=M+0x3124) return;
     assert((cfg&1) && (*reg(f,M+0x3108)&1));
     assert(*reg(f,M+0x311c)==FES_RX_RING_IOVA);
@@ -84,6 +86,15 @@ static void run(unsigned mode)
     struct fes_rx_result r1={0},r2={0};
     struct fes_tx_result t1={.rx=&r1}, t2={.rx=&r2,.previous=&t1};
     int rc=fes_tx_once(&io,frame,&t1);
+    if (mode==7) {
+        assert(rc && r1.dma_possible && !r1.armed && !r1.stopped);
+        assert(!t1.dma_possible && !t1.dispatched && !f->transmits);
+        assert(t1.phy.applied && !t1.phy.restored && f->restarts==1 && f->timing_writes==2);
+        assert(t1.translation_revoked && t1.mac_in_reset && get(f,FES_TX_TABLES+64)==1);
+        assert(fes_tx_terminal(&io,&t1,rc)==FES_TX_COLD_RECOVERY);
+        assert(fes_tx_once(&io,frame,&t2) && e.grants==1);
+        return;
+    }
     if (mode==1) {
         assert(rc && fes_tx_terminal(&io,&t1,rc)==FES_TX_FAILED_DRAINED);
         assert(r1.failure==FES_RX_WRONG_FRAME && !r1.matched && r1.stopped && t1.retained);
@@ -111,6 +122,6 @@ static void run(unsigned mode)
 }
 int main(void)
 {
-    for (unsigned mode=0;mode<7;mode++) run(mode);
+    for (unsigned mode=0;mode<8;mode++) run(mode);
     puts("two nonce-bound TX/RX grants, abort dwell, stale regrant, and contained failure verified");
 }

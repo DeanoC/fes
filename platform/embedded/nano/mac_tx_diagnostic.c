@@ -574,7 +574,13 @@ failed:
         if (out->stage == FES_TX_DISPATCH && out->dma_possible && out->dispatched)
             (void)stop_mac(&t,0xff03);
 #endif
-        if (!out->dma_possible || out->process_stopped) (void)restore_flp(&t);
+        int dma_idle = !out->dma_possible || out->process_stopped;
+#ifdef FES_CBL_BIDIRECTIONAL
+        /* RX starts before TX. An uncertain RX enable can leave the
+         * external link in use even when no TX descriptor was submitted. */
+        dma_idle = dma_idle && (!out->rx->dma_possible || out->rx->stopped);
+#endif
+        if (dma_idle) (void)restore_flp(&t);
         (void)revoke(&t);
     }
     return -1;
