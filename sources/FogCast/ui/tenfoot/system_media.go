@@ -28,6 +28,9 @@ func admitSetupMedia(cap protocol.CoreMediaCapability, name string, size int64) 
 	if cap.Role == protocol.HardDiskRole && !protocol.AdmitAtaDiskSize(size) {
 		return false
 	}
+	if cap.Role == protocol.FloppyRole && !protocol.AdmitPcFloppySize(size) {
+		return false
+	}
 	if len(cap.Extensions) == 0 {
 		return true
 	}

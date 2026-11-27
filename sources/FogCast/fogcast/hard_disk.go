@@ -173,19 +173,22 @@ type machineCoreClient interface {
 // copy with its digest, so relaunching does not move up to 128 MiB. A kit
 // without the staging route predates hard-disk launches.
 func stageHardDisk(ctx context.Context, client machineCoreClient, source *hardDiskSource) error {
-	disk := source.disk
-	held, err := client.DiskImage(ctx, disk.SHA256)
+	return stageDiskImage(ctx, client, source.disk.SHA256, source.disk.Size, source.reader)
+}
+
+func stageDiskImage(ctx context.Context, client machineCoreClient, sha string, size int64, reader io.Reader) error {
+	held, err := client.DiskImage(ctx, sha)
 	if err != nil {
 		return kitDiskStagingError(err)
 	}
-	if held.Staged && held.SHA256 == disk.SHA256 && held.Size == disk.Size {
+	if held.Staged && held.SHA256 == sha && held.Size == size {
 		return nil
 	}
-	staged, err := client.StageDiskImage(ctx, disk.SHA256, disk.Size, source.reader)
+	staged, err := client.StageDiskImage(ctx, sha, size, reader)
 	if err != nil {
 		return kitDiskStagingError(err)
 	}
-	if !staged.Staged || staged.SHA256 != disk.SHA256 || staged.Size != disk.Size {
+	if !staged.Staged || staged.SHA256 != sha || staged.Size != size {
 		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	return nil

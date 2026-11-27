@@ -1,5 +1,6 @@
 """Check generated consumers and copied core source pins without editing them."""
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 from environment import build_environment
@@ -156,6 +157,37 @@ CORE_SOURCES = ()
 VALIDATED = ('packages/board/de25_nano.yaml',)
 
 
+def _pc_floppy_formats(sources: dict[str, Path]) -> int:
+    """The pc386 floppy formats are written out in three places that must agree.
+
+    The runtime's drive table (size, geometry, drives), its admitted sizes and
+    FogCast's table (size, geometry, A:, B:). fes_computer.yaml carries only
+    scalars, so the table is not generated.
+    """
+    runtime = sources['libmister-runtime']
+    hardware = (runtime / 'src/native/hardware.cpp').read_text()
+    table = re.search(r'kPc386FloppyFormats\[\] = \{(.*?)\};', hardware, re.S)
+    drives = {'kDriveA': (True, False), 'kDriveB': (False, True), '0': (False, False)}
+    native = [(int(b), int(c), int(h), int(s), *drives[d]) for b, c, h, s, d in
+              re.findall(r'\{(\d+), (\d+), (\d+), (\d+), (kDriveA|kDriveB|0)\}', table.group(1))] if table else []
+    admitted = re.search(r'PcFloppySizeAdmitted.*?\{([^}]*)\}', (runtime / 'src/native/media_data.hpp').read_text(), re.S)
+    sizes = [int(v) for v in re.findall(r'(\d+)u', admitted.group(1))] if admitted else []
+    go = (sources['FogCast'] / 'protocol/pc_floppy.go').read_text()
+    go_table = re.search(r'pcFloppyFormats = \[\]PcFloppyFormat\{(.*?)\n\}', go, re.S)
+    fogcast = [(int(b), int(c), int(h), int(s), a == 'true', bb == 'true') for b, c, h, s, a, bb in
+               re.findall(r'\{(\d+), (\d+), (\d+), (\d+), (true|false), (true|false)\}', go_table.group(1))] if go_table else []
+    if not native or native != fogcast:
+        raise ValueError('pc386 floppy formats differ between libmister-runtime hardware.cpp and FogCast protocol/pc_floppy.go')
+    if sizes != [row[0] for row in native]:
+        raise ValueError('pc386 floppy sizes in libmister-runtime media_data.hpp differ from its drive table')
+    return len(native)
+
+
+# Tables written out by hand in more than one component, each checked by a
+# function of the source trees.
+TABLE_CHECKS = (_pc_floppy_formats,)
+
+
 def _run(packages, command, source):
     return subprocess.check_output(
         ['go', 'run', './cmd/mister-packages', command, source], cwd=packages,
@@ -204,6 +236,8 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     for owner, source, component, destination in COMPONENT_FIXTURES:
         if (sources[owner] / source).read_bytes() != (sources[component] / destination).read_bytes():
             raise ValueError(f'fixture {component}/{destination} differs from {owner}')
+    for table_check in TABLE_CHECKS:
+        table_check(sources)
     return {'generated_files': len(GENERATED), 'source_pin_copies': 0,
             'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES) + len(COMPONENT_FIXTURES)}
 

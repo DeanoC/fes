@@ -67,6 +67,18 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
+type cancelWhenPathExistsContext struct {
+	context.Context
+	path string
+}
+
+func (ctx cancelWhenPathExistsContext) Err() error {
+	if _, err := os.Lstat(ctx.path); err == nil {
+		return context.Canceled
+	}
+	return ctx.Context.Err()
+}
+
 func install(t *testing.T, s *Store, archive []byte) corepackage.Inspection {
 	t.Helper()
 	inspection, _, err := s.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive))
@@ -454,6 +466,45 @@ func TestStoreRejectsTamperedOrMissingRetainedData(t *testing.T) {
 	}
 }
 
+func TestOpenStoreContextCancelsBeforeCreationAndWhileWaitingForLock(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	path := filepath.Join(t.TempDir(), "absent")
+	if _, err := openStoreContext(ctx, path, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled open = %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled open created a root: %v", err)
+	}
+	store := newStore(t)
+	_, unlock, err := store.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	waitCtx, stop := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stop()
+	if _, err := openStoreContext(waitCtx, store.root, true); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("open waiting for lock = %v", err)
+	}
+}
+
+func TestRealDirectoriesContextStopsAfterCancellation(t *testing.T) {
+	parent := t.TempDir()
+	created := filepath.Join(parent, "created")
+	child := filepath.Join(created, "child")
+	ctx := cancelWhenPathExistsContext{Context: context.Background(), path: created}
+	if err := realDirectoriesContext(ctx, child, true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("directory creation = %v", err)
+	}
+	if _, err := os.Stat(created); err != nil {
+		t.Fatalf("first directory was not created: %v", err)
+	}
+	if _, err := os.Lstat(child); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("continued creating directories after cancellation: %v", err)
+	}
+}
+
 func TestStoreRejectsChangedRootsLocksAndSymlinkAncestors(t *testing.T) {
 	for _, name := range []string{"root", "archives", "packages", ".lock"} {
 		t.Run(name, func(t *testing.T) {
@@ -514,6 +565,131 @@ func TestCancelledWaitingForLockAndInvalidInstall(t *testing.T) {
 	list, err := s.List(context.Background())
 	if err != nil || len(list) != 0 {
 		t.Fatalf("invalid import retained=%v,%v", list, err)
+	}
+}
+
+type blockedUpload struct {
+	reader  *bytes.Reader
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *blockedUpload) Read(p []byte) (int, error) {
+	r.once.Do(func() { close(r.started); <-r.release })
+	return r.reader.Read(p)
+}
+
+func TestInstallDoesNotHoldSharedLockDuringUpload(t *testing.T) {
+	agent := newStore(t)
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, want := fixture(t, "1.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := host.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, listErr := agent.List(ctx)
+	close(upload.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if listErr != nil {
+		t.Fatalf("agent list while upload blocked = %v", listErr)
+	}
+	listed, err := agent.List(context.Background())
+	if err != nil || len(listed) != 1 || listed[0].PackageID != want.PackageID {
+		t.Fatalf("published list = %+v %v", listed, err)
+	}
+}
+
+func TestConcurrentInstallAdmissionIsBoundedAndCancellable(t *testing.T) {
+	first := newStore(t)
+	second := newStore(t)
+	archive, _ := fixture(t, "1.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := first.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	reader := bytes.NewReader(archive)
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Millisecond)
+	_, _, waitErr := second.Install(ctx, int64(len(archive)), reader)
+	cancel()
+	close(upload.release)
+	firstErr := <-done
+	if !errors.Is(waitErr, context.DeadlineExceeded) || reader.Len() != len(archive) {
+		t.Fatalf("waiting import = %v, bytes read = %d", waitErr, len(archive)-reader.Len())
+	}
+	if firstErr != nil {
+		t.Fatal(firstErr)
+	}
+	if _, _, err := second.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("import after admission released = %v", err)
+	}
+}
+
+func TestInstallRejectsInvalidArchiveBeforeWaitingForLock(t *testing.T) {
+	store := newStore(t)
+	_, unlock, err := store.lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, _, err := store.Install(ctx, 3, strings.NewReader("bad")); !errors.Is(err, ErrInvalidPackage) {
+		t.Fatalf("invalid archive while locked = %v", err)
+	}
+}
+
+func TestInstallRechecksSelectedPackageAfterUpload(t *testing.T) {
+	agent := newStore(t)
+	selectedArchive, selected := fixture(t, "1.0.0", "fes.pong")
+	install(t, agent, selectedArchive)
+	if _, err := agent.Select(context.Background(), "fes.pong", "", selected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	host, err := openStore(agent.root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, candidate := fixture(t, "2.0.0", "fes.pong")
+	upload := &blockedUpload{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := host.Install(context.Background(), int64(len(archive)), upload)
+		done <- err
+	}()
+	<-upload.started
+	path := filepath.Join(agent.root, "archives", selected.PackageID+".fcore")
+	if err := os.Chmod(path, 0o600); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("corrupt"), 0o400); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o400); err != nil {
+		close(upload.release)
+		t.Fatal(err)
+	}
+	close(upload.release)
+	if err := <-done; err == nil {
+		t.Fatal("import hid corruption that occurred during upload")
+	}
+	if _, err := os.Stat(filepath.Join(agent.root, "archives", candidate.PackageID+".fcore")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("candidate archive published after corruption: %v", err)
 	}
 }
 

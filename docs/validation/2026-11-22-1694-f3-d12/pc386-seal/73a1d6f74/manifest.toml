@@ -1,0 +1,101 @@
+format = 2
+
+[core]
+id = "fes.pc386"
+name = "FES pc386 (Quartus)"
+description = "Quartus bring-up build. A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound Blaster 2.0, a PS/2 keyboard and mouse, and a hard disk of up to 128 MiB with its saves. Development only."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 3936204
+sha256 = "bd831dc4a8423adca4ad1e060c1acc194e77c33ef9a14ff8d748be20a5ebffdb"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 1
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.audio.pcm-s16-stereo-48k"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.mouse.relative"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.fabric.video.display-plane"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.ata-disk"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.persistence.words"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.rtc.wall-clock"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.pc386.machine"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.pc-floppy"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "6ffb592f1940c8b14e11586dd7f59bb1"
+repository = "https://github.com/DeanoC/fes"
+revision = "73a1d6f74fae8ee23eefd27f03bdda4fcd3dee6f"
+recipe_sha256 = "1af9665e866cb10d5bd79c2887e7696f847347290f2418f39aa2397dbe5f49ba"
+toolchain = "quartus version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93; yosys commit=d273c1cb774f70d58c890745ac1b7dd106d32a26; sha256=396ba8c617f7697672e80cc5e4d7626a8932204dd75ae9b5ffb52eacb3e9e1c0"

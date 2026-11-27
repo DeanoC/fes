@@ -1532,7 +1532,8 @@ for the ZX81, Spectrum, Atari ST and Commodore 64 families. It shows one
 family: a Model row for its variants, the computer with its readiness and
 fixed facts on the left, and its drive and games on the right. For C64 the
 default model is PAL (`fes.c64`). Show all cores also exposes the DE10 6567R8 NTSC (`fes.c64-ntsc`),
-6567R56A early NTSC (`fes.c64-early-ntsc`), and PAL and NTSC C64C
+6567R56A early NTSC (`fes.c64-early-ntsc`), Drean PAL-N (`fes.c64-pal-n`),
+and PAL and NTSC C64C
 (`fes.c64c`, `fes.c64c-ntsc`) models. Each model launches its own library
 entries and binds the user's 36 KiB firmware to its selected package. All use
 the same D64 drive interface. The screen reads the
@@ -3445,10 +3446,17 @@ selections on access before serving either durable or factory packages. The
 first access verifies selected packages under the lock; a list also verifies
 the other durable packages. Later reads reuse valid stat-fingerprint caches.
 The host view opens in the background; calls made meanwhile get the unavailable
-error at once instead of waiting. The lock waits until the caller's context
+error at once instead of waiting. Closing the host cancels the background
+open and prevents retries or publication into the closed view; filesystem
+calls already in progress must return before they can observe cancellation.
+The lock waits until the caller's context
 ends, so a list, inspect or read without a deadline is bounded to one minute. An import
-reads its whole body under the lock and keeps the caller's context, as the
-agent's own install does. Durable and factory inspections are cached by stat
+reads and validates its bounded archive in private memory before taking the
+shared lock; one import per process is admitted through publication so slow
+uploads cannot accumulate unbounded retained archives. Waiting admission is
+cancellable. It rechecks selected packages and publishes under the shared lock
+with the caller's context. An imported factory package is also retained durably,
+so it stays available if a later image omits that factory package. Durable and factory inspections are cached by stat
 fingerprint, as above. A factory cache stores only its fingerprint and
 inspection; later reads with a matching fingerprint rebuild the canonical
 archive from the package directory without hashing members or decoding a ROM
@@ -3458,8 +3466,11 @@ unpacked members or decoding a ROM map again; mister-agent verifies those bytes
 before programming, and its own select and launch paths keep the full `Read`. If
 the durable store cannot be opened, the host follows
 the agent: it withholds the factory packages too and reports HTTP 503
-`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
-the open error. It retries the open at most every five seconds, so a host that
+`CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import. The
+public response has a generic message; the host logs an open failure. The same
+store-unavailable response applies if a durable operation fails after opening,
+while invalid package input and a missing package retain their own errors.
+The host retries a failed open at most every five seconds, so a host that
 starts before FESDATA3 is ready recovers without a restart.
 
 ## Installed core packages and library entries
@@ -3969,7 +3980,12 @@ replaces the stream when any of those change. An explicit attach of a
 stream that no longer matches is refused and leaves the existing stream
 in place. When the host has observed that the stream is unavailable and cannot
 reconnect, a new launcher input POST or event POST returns 503
-`INPUT_UNAVAILABLE` (`no live input stream`). An already-open launcher stream
+`INPUT_UNAVAILABLE` (`no live input stream`). A host whose configuration does
+not enable `[remote_input]` has no input bridge for the session: attach,
+detach, tap and event return 503 `INPUT_UNAVAILABLE` (`remote input is not
+enabled in this host's configuration`). That check comes before the kit-lease
+and connection checks, so a disconnected or foreign-leased target gives the
+same answer. An already-open launcher stream
 ends when a subsequent event encounters the loss or its read timeout expires;
 its initial ready response does not acknowledge individual events. Launcher
 clients can request sequenced event receipts; the original stream has no
@@ -4392,6 +4408,14 @@ and `ata_disk`; the runtime writes the image into the DDR window before release.
 Machine settings are a per-game record on the kit, read and written with the
 library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
 The fixed disk takes no live media operations; Stop saves its delta.
+
+For a pc386 package that declares `fes.media.pc-floppy`, a library entry with
+the `floppy` role selects disk 1 as its boot image. Catalog selection and Home
+readiness require an image readable by drive A:. Launch checks again before
+staging an existing entry, then uploads the image by digest and binds it to
+A: in the library load with the ATA disk empty. The BIOS tries A: then C:.
+B:-only images can be imported and inserted into B: during a running session.
+The live media path checks the geometry against the requested drive.
 
 ## Initial Atari ST library disk
 

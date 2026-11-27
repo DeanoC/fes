@@ -1,0 +1,202 @@
+{
+ "kit": "A",
+ "plan": {
+  "package": "/data/fes-f3-d12/cond23-m279/s3/57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841.fcore",
+  "package_id": "57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841",
+  "firmware": "/home/deano/roms/sinclair/pentagon-trd503.rom",
+  "games": {
+   "machine": "fes.pentagon F3 D12 spent-m1"
+  },
+  "disks": {
+   "tape": "/data/fes-f3-d12/hil/media/fes-hil.tap"
+  },
+  "media_role": "cassette",
+  "rom_id": "pentagon-firmware"
+ },
+ "events": [
+  {
+   "op": "import",
+   "package_id": "57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841",
+   "archive_sha256": "ba3908f49326ba8a90677579a81632f7ae5f3b3f563932f2c652b0dbbb9e5a2d",
+   "compatible": true,
+   "compat": "{'package_id': '57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841', 'descriptor': {'rom': {'id': 'pentagon-firmware', 'role': 'firmware', 'source_size': 49152, 'file': 'rom-map.json', 'size': 4451253, 'sha256': '76a77915dfe361fb10b9e52b9d417127762182a37642f939c8c38f156dfd0c62'}, 'form",
+   "t": 4.82
+  },
+  {
+   "op": "upload",
+   "file": "pentagon-trd503.rom",
+   "sha256": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+   "media_id": "3ef7872a0769ddf55a207b0178277fbb39d446169886c1c2f7a8b5d662b5f16f",
+   "t": 4.89
+  },
+  {
+   "op": "entry",
+   "game": "machine",
+   "game_id": "fpga-fes-pentagon-f3-d12-spent-m1-f00092b09865",
+   "rom_id": "pentagon-firmware",
+   "t": 14.16
+  },
+  {
+   "op": "upload",
+   "file": "fes-hil.tap",
+   "sha256": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "media_id": "2949834a889dbb4bfa73c3ed66b5d16a1046128ad46f8e329ce9a0183ec236a5",
+   "t": 14.17
+  },
+  {
+   "op": "launch",
+   "args": {
+    "game": "machine",
+    "disk": "tape"
+   },
+   "reply": {
+    "state": "active",
+    "package_id": "57e750bd1796f20fa0cb48234ffffe7000ea94c33c636226b2969ecd2ba75841",
+    "generation": 1,
+    "media_units": [
+     {
+      "unit": 0,
+      "interface": {
+       "id": "fes.media.spectrum-tape",
+       "major": 2,
+       "minor": 0
+      },
+      "min_bytes": 10,
+      "max_bytes": 16777216,
+      "chunk_bytes": 512,
+      "state": "ready"
+     },
+     {
+      "unit": 1,
+      "interface": {
+       "id": "fes.media.spectrum-disk",
+       "major": 1,
+       "minor": 0
+      },
+      "min_bytes": 8192,
+      "max_bytes": 2834432,
+      "chunk_bytes": 512,
+      "state": "empty"
+     }
+    ],
+    "build_id": "2db1de121e173e4f6ef54881d939f390",
+    "seconds": 17.02
+   },
+   "t": 31.19
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 8
+   },
+   "reply": {},
+   "t": 39.49
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "menu"
+   },
+   "reply": {
+    "grab": "menu",
+    "ok": true,
+    "sha256": "7287e128549a41d90b08fba92b505dcc36b968e362b60a0ad0dcc7f949e6f03f"
+   },
+   "t": 40.09
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "enter"
+   },
+   "reply": {},
+   "t": 40.63
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 25
+   },
+   "reply": {},
+   "t": 65.93
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "loaded"
+   },
+   "reply": {
+    "grab": "loaded",
+    "ok": true,
+    "sha256": "cd8060352221211e63721c191f5c6aaed16f225dafff7397602756caec9e7872"
+   },
+   "t": 66.47
+  },
+  {
+   "op": "key",
+   "args": {
+    "name": "space"
+   },
+   "reply": {},
+   "t": 67.02
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 69.32
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "break"
+   },
+   "reply": {
+    "grab": "break",
+    "ok": true,
+    "sha256": "f89567e9b027d2b665f53b076360273166cc6b9fdef4d789e75d6d20c3b22078"
+   },
+   "t": 69.87
+  },
+  {
+   "op": "type",
+   "args": {
+    "text": "print 22\n"
+   },
+   "reply": {},
+   "t": 72.35
+  },
+  {
+   "op": "sleep",
+   "args": {
+    "s": 2
+   },
+   "reply": {},
+   "t": 74.65
+  },
+  {
+   "op": "grab",
+   "args": {
+    "name": "typed"
+   },
+   "reply": {
+    "grab": "typed",
+    "ok": true,
+    "sha256": "bb170655fa5c1aeca037f57bc4239f8d27ef7ffbf63fe158d008d3b8e6309693"
+   },
+   "t": 75.2
+  },
+  {
+   "op": "stop",
+   "args": {},
+   "reply": {
+    "code": 200,
+    "state": "idle",
+    "error": null
+   },
+   "t": 79.21
+  }
+ ]
+}

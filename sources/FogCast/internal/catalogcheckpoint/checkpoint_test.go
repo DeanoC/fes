@@ -83,7 +83,7 @@ func realFixture(t *testing.T) (string, string, string) {
 		t.Fatal(err)
 	}
 	// Reconstruct the schema-21 format, including its single-ROM table and
-	// household pointer, before exercising the real migrations to schema 26.
+	// household pointer, before exercising the real migrations to schema 27.
 	db := raw(t, path)
 	mustExec(t, db, `DROP TRIGGER core_entry_media_set_ends; DROP TRIGGER core_entry_media_set_cache_adopt; DROP TRIGGER kit_host_media_set_insert; DROP TRIGGER kit_host_media_set_delete; DROP TABLE core_entry_media_set; DROP TRIGGER shelf_disks_entry_removed; DROP TABLE shelf_disks;
 DROP TRIGGER core_media_import_protect;
@@ -112,7 +112,7 @@ PRAGMA user_version=21`)
 func upgrade(t *testing.T, path string) {
 	t.Helper()
 	ctx := context.Background()
-	store, err := catalog.Open(path) // Run the actual 21→26 migrations.
+	store, err := catalog.Open(path) // Run the actual 21→27 migrations.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,11 +143,11 @@ func TestUpgradeRestorePreservesOriginalAndRetainsNewerCatalog(t *testing.T) {
 	}
 	upgrade(t, database)
 	newer := mustInspect(t, database)
-	if newer.Schema != 26 || count(t, database, "core_entries") != originalEntries+1 || count(t, database, "core_media") != originalMedia+1 {
+	if newer.Schema != 27 || count(t, database, "core_entries") != originalEntries+1 || count(t, database, "core_media") != originalMedia+1 {
 		t.Fatal("real upgraded catalog did not contain new title and media")
 	}
 	retained := filepath.Join(root, "retained")
-	got, err := Restore(ctx, database, filepath.Join(root, "before"), retained, 26)
+	got, err := Restore(ctx, database, filepath.Join(root, "before"), retained, 27)
 	if err != nil || got != before || mustInspect(t, database) != before {
 		t.Fatalf("restore: %+v %v", got, err)
 	}
@@ -163,7 +163,7 @@ func TestUpgradeRestorePreservesOriginalAndRetainsNewerCatalog(t *testing.T) {
 	if saved, err := Load(ctx, retained); err != nil || saved != newer || count(t, filepath.Join(retained, databaseName), "remote_core_entries") != 1 || count(t, filepath.Join(retained, databaseName), "core_media") != originalMedia+1 {
 		t.Fatalf("newer catalog retained: %+v %v", saved, err)
 	}
-	if replay, err := Restore(ctx, database, filepath.Join(root, "before"), retained, 26); err != nil || replay != before {
+	if replay, err := Restore(ctx, database, filepath.Join(root, "before"), retained, 27); err != nil || replay != before {
 		t.Fatalf("replay after committed rename: %+v %v", replay, err)
 	}
 	for _, name := range []string{"config.toml", "library-user.sqlite3", "library-settings.json"} {
@@ -190,7 +190,7 @@ func TestRestoreCopyFailureAndForeignStateDoNotReplaceLiveCatalog(t *testing.T) 
 	newer := mustInspect(t, database)
 	retained := filepath.Join(root, "retained")
 	copyFailure := errors.New("injected copy or file-sync failure")
-	if _, err := restore(ctx, database, snapshot, retained, 26, func(_ context.Context, _, destination string, _ Metadata) error {
+	if _, err := restore(ctx, database, snapshot, retained, 27, func(_ context.Context, _, destination string, _ Metadata) error {
 		if err := os.WriteFile(destination, []byte("partial copy"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +207,7 @@ func TestRestoreCopyFailureAndForeignStateDoNotReplaceLiveCatalog(t *testing.T) 
 	if leftovers, err := filepath.Glob(filepath.Join(root, ".catalog-restore-*")); err != nil || len(leftovers) != 0 {
 		t.Fatalf("failed copy left staged files: %v %v", leftovers, err)
 	}
-	if _, err := Restore(ctx, database, snapshot, retained, 26); err != nil {
+	if _, err := Restore(ctx, database, snapshot, retained, 27); err != nil {
 		t.Fatalf("retry after durable retain and failed live copy: %v", err)
 	}
 	// A third catalog written after the failed restore is foreign to that
@@ -216,7 +216,7 @@ func TestRestoreCopyFailureAndForeignStateDoNotReplaceLiveCatalog(t *testing.T) 
 	mustExec(t, db, "UPDATE games SET title='Later user edit'")
 	_ = db.Close()
 	foreign := mustInspect(t, database)
-	if _, err := Restore(ctx, database, snapshot, retained, 26); err == nil || mustInspect(t, database) != foreign {
+	if _, err := Restore(ctx, database, snapshot, retained, 27); err == nil || mustInspect(t, database) != foreign {
 		t.Fatal("retry replaced a later catalog")
 	}
 }
@@ -233,7 +233,7 @@ func TestRejectCorruptionWrongSchemaAndExistingCheckpoint(t *testing.T) {
 	}
 	upgrade(t, database)
 	newer := mustInspect(t, database)
-	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "wrong-schema"), 27); err == nil {
+	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "wrong-schema"), 28); err == nil {
 		t.Fatal("unexpected current schema was accepted")
 	}
 	if _, err := os.Stat(filepath.Join(root, "wrong-schema")); !errors.Is(err, os.ErrNotExist) {
@@ -242,7 +242,7 @@ func TestRejectCorruptionWrongSchemaAndExistingCheckpoint(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(snapshot, databaseName), []byte("corrupt"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "corrupt"), 26); err == nil || mustInspect(t, database) != newer {
+	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "corrupt"), 27); err == nil || mustInspect(t, database) != newer {
 		t.Fatal("corrupt snapshot changed live catalog")
 	}
 	foreign := filepath.Join(root, "foreign")
@@ -271,13 +271,13 @@ func TestAbsentCatalogRestoresAbsenceAndRetainsCreatedData(t *testing.T) {
 	}
 	_ = store.Close()
 	retained := filepath.Join(root, "retained")
-	if got, err := Restore(ctx, database, snapshot, retained, 26); err != nil || got != (Metadata{}) {
+	if got, err := Restore(ctx, database, snapshot, retained, 27); err != nil || got != (Metadata{}) {
 		t.Fatalf("restore absence: %+v %v", got, err)
 	}
 	if _, err := os.Stat(database); !errors.Is(err, os.ErrNotExist) || count(t, filepath.Join(retained, databaseName), "core_entries") != 1 {
 		t.Fatal("restore did not retain newly created catalog before restoring absence")
 	}
-	if _, err := Restore(ctx, database, snapshot, retained, 26); err != nil {
+	if _, err := Restore(ctx, database, snapshot, retained, 27); err != nil {
 		t.Fatalf("absent restore replay: %v", err)
 	}
 }
@@ -372,7 +372,7 @@ func TestSnapshotIntegrityCheckAndSymlinkRefusal(t *testing.T) {
 	if err := writeJSON(filepath.Join(snapshot, metadataName), corrupt); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "retain"), 26); err == nil || mustInspect(t, database) != newer {
+	if _, err := Restore(ctx, database, snapshot, filepath.Join(root, "retain"), 27); err == nil || mustInspect(t, database) != newer {
 		t.Fatal("matching digest allowed restoring an invalid SQLite file")
 	}
 	link := filepath.Join(root, "linked.sqlite3")

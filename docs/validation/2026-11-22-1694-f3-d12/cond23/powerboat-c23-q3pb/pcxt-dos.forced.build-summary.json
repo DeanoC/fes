@@ -1,0 +1,24 @@
+{
+  "classification": "installable-quartus-hardware-dos-package",
+  "build_id": "16a916c1eba005fa38bd3cd80b917035",
+  "revision": "0be20e5756d11da446a557dacf18c7f086a202f6",
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "core_id": "fes.pcxt-dos",
+  "hardware_dos": true,
+  "front_end": "yosys",
+  "toolchain": "quartus",
+  "quartus_edition": "lite",
+  "quartus_version": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "internal_timing_pass": true,
+  "repeat_rbf_sha256": "104bc9b2a3981311fa07bb9e06e8e38a9c1ae73331b6256546c71a530f86940e",
+  "whole_board_qualified": false,
+  "hardware_acceptance": false,
+  "limits": [
+    "external IO/HPS timing and physical reset qualification remain open",
+    "runtime floppy image is optional; exact-artifact writable media, keyboard and hardware acceptance remain open"
+  ]
+}

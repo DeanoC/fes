@@ -86,6 +86,9 @@ and `de25nano.DisableFPGAIRQ(line)`. `(*gic.Controller).SetPending` /
 - **`Stats()` / `Count(id)` / `ResetStats()`:** Expose lock-free `Dispatched`,
   `Handled`, `Unhandled`, `Spurious`, `StormMasked`, `IdleWakeups`, and
   per-INTID delivery counts without allocations.
+- **`Enabled(id)` / `Pending(id)` / `Priority(id)` / `Edge(id)` / `HasHandler(id)`:**
+  Inspect distributor/redistributor register state and static handler registration
+  for SGI, PPI, and SPI lines.
 - **Unhandled-IRQ storm protection:** Consecutive unhandled deliveries on the
   same PPI/SPI line automatically mask that INTID via `Disable(id)` before EOI
   once the threshold (`DefaultUnhandledStormLimit` = 16, configurable via

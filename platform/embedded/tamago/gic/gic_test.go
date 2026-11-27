@@ -571,3 +571,96 @@ func TestConcurrentRegisterAndDispatch(t *testing.T) {
 		t.Fatalf("Dispatch left %d queued acknowledgements", len(hw.ackQueue))
 	}
 }
+
+type w1scAccess struct {
+	*fakeAccess
+}
+
+func (a *w1scAccess) Write32(addr uint64, val uint32) {
+	switch {
+	case addr == 0x080a0000+GICR_ISENABLER0:
+		a.r32[addr] |= val
+		return
+	case addr == 0x080a0000+GICR_ICENABLER0:
+		a.r32[0x080a0000+GICR_ISENABLER0] &^= val
+		return
+	case addr == 0x080a0000+GICR_ISPENDR0:
+		a.r32[addr] |= val
+		return
+	case addr == 0x080a0000+GICR_ICPENDR0:
+		a.r32[0x080a0000+GICR_ISPENDR0] &^= val
+		return
+	case addr >= 0x08000000+GICD_ISENABLER && addr < 0x08000000+GICD_ICENABLER:
+		a.r32[addr] |= val
+		return
+	case addr >= 0x08000000+GICD_ICENABLER && addr < 0x08000000+GICD_ISPENDR:
+		enAddr := addr - (GICD_ICENABLER - GICD_ISENABLER)
+		a.r32[enAddr] &^= val
+		return
+	case addr >= 0x08000000+GICD_ISPENDR && addr < 0x08000000+GICD_ICPENDR:
+		a.r32[addr] |= val
+		return
+	case addr >= 0x08000000+GICD_ICPENDR && addr < 0x08000000+GICD_ICPENDR+0x80:
+		pendAddr := addr - (GICD_ICPENDR - GICD_ISPENDR)
+		a.r32[pendAddr] &^= val
+		return
+	}
+	a.fakeAccess.Write32(addr, val)
+}
+
+func TestLineReadbackInspection(t *testing.T) {
+	var nilCtrl *Controller
+	if nilCtrl.Enabled(32) || nilCtrl.Pending(32) || nilCtrl.Priority(32) != 0 || nilCtrl.Edge(0) || nilCtrl.HasHandler(0) {
+		t.Fatal("nil Controller inspection returned non-zero state")
+	}
+
+	hw := &w1scAccess{fakeAccess: newFakeAccess(0x08000000, 0x080a0000, 0, 8, []uint32{0})}
+	uninit := NewWithAccess(0x08000000, 0x080a0000, hw)
+	if uninit.Enabled(32) || uninit.Pending(32) || uninit.Priority(32) != 0 || uninit.Edge(32) {
+		t.Fatal("uninitialized Controller inspection returned non-zero state")
+	}
+
+	g := NewWithAccess(0x08000000, 0x080a0000, hw)
+	if err := g.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	// SGIs are always edge-triggered in GICv3.
+	if !g.Edge(0) || !g.Edge(15) {
+		t.Fatal("SGI expected Edge == true")
+	}
+
+	// Out-of-bounds line checks return zero values safely.
+	oob := g.Lines()
+	if g.Enabled(oob) || g.Pending(oob) || g.Priority(oob) != 0 || g.Edge(oob) || g.HasHandler(MaxINTID) {
+		t.Fatalf("out-of-bounds INTID %d inspection returned non-zero state", oob)
+	}
+
+	// Check PPI (INTID 30) and SPI (INTID 128) enable, pending, priority, edge, and handler state.
+	for _, id := range []uint32{30, 128} {
+		if g.Enabled(id) || g.Pending(id) || g.Edge(id) || g.HasHandler(id) {
+			t.Fatalf("initial state for id=%d not clean", id)
+		}
+		if got := g.Priority(id); got != DefaultPriority {
+			t.Fatalf("initial Priority(%d)=%#x want %#x", id, got, DefaultPriority)
+		}
+		g.Enable(id)
+		g.SetPending(id)
+		g.SetPriority(id, 0x40)
+		g.SetEdge(id, true)
+		g.Register(id, func() {})
+		if !g.Enabled(id) || !g.Pending(id) || g.Priority(id) != 0x40 || !g.Edge(id) || !g.HasHandler(id) {
+			t.Fatalf("enabled state mismatch for id=%d: en=%t pend=%t prio=%#x edge=%t handler=%t",
+				id, g.Enabled(id), g.Pending(id), g.Priority(id), g.Edge(id), g.HasHandler(id))
+		}
+
+		g.ClearPending(id)
+		g.SetEdge(id, false)
+		g.Disable(id)
+		g.Register(id, nil)
+		if g.Enabled(id) || g.Pending(id) || g.Edge(id) || g.HasHandler(id) {
+			t.Fatalf("cleared state mismatch for id=%d: en=%t pend=%t edge=%t handler=%t",
+				id, g.Enabled(id), g.Pending(id), g.Edge(id), g.HasHandler(id))
+		}
+	}
+}

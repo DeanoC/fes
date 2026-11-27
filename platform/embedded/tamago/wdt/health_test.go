@@ -120,3 +120,36 @@ func (k *fakeHealthKicker) Kick() error {
 	k.kickCalls.Add(1)
 	return nil
 }
+
+func TestCompositeCheckAllJoinsEveryFailure(t *testing.T) {
+	errA := errors.New("probe a failed")
+	errB := errors.New("probe b failed")
+	var hits [3]atomic.Int32
+
+	all := CompositeCheckAll(
+		HealthProbe{Name: ""},
+		HealthProbe{Name: "alpha", Check: func() error { hits[0].Add(1); return errA }},
+		HealthProbe{Name: "ok", Check: func() error { hits[1].Add(1); return nil }},
+		HealthProbe{Name: "", Check: func() error { hits[2].Add(1); return errB }},
+	)
+	err := all()
+	if err == nil {
+		t.Fatal("expected joined probe error")
+	}
+	for i := range hits {
+		if hits[i].Load() != 1 {
+			t.Fatalf("probe %d hits=%d want 1 (must not short-circuit)", i, hits[i].Load())
+		}
+	}
+	if !errors.Is(err, errA) || !errors.Is(err, errB) {
+		t.Fatalf("joined err=%v missing errA or errB", err)
+	}
+	if !strings.Contains(err.Error(), `"alpha"`) || !strings.Contains(err.Error(), `"#2"`) {
+		t.Fatalf("joined err=%v missing expected probe labels", err)
+	}
+
+	okOnly := CompositeCheckAll(HealthProbe{Name: "healthy", Check: func() error { return nil }})
+	if err := okOnly(); err != nil {
+		t.Fatalf("healthy CompositeCheckAll err=%v", err)
+	}
+}

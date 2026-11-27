@@ -33,22 +33,38 @@ const viewReopenDelay = 5 * time.Second
 // it. A failed open is retried at most every viewReopenDelay, so a host that
 // starts before FESDATA3 is ready recovers without a restart.
 type View struct {
-	open    func() (*Store, error)
+	open    func(context.Context) (*Store, error)
 	factory *Factory
 	now     func() time.Time
+	ctx     context.Context
+	cancel  context.CancelFunc
 
 	mu      sync.Mutex
 	durable *Store
 	opening bool
 	openErr error
 	retryAt time.Time
+	closed  bool
 }
 
 // NewView starts opening the durable store with open.
-func NewView(open func() (*Store, error), factory *Factory) *View {
-	v := &View{open: open, factory: factory, now: time.Now}
+func NewView(open func(context.Context) (*Store, error), factory *Factory) *View {
+	ctx, cancel := context.WithCancel(context.Background())
+	v := &View{open: open, factory: factory, now: time.Now, ctx: ctx, cancel: cancel}
 	_, _ = v.store()
 	return v
+}
+
+// Close cancels an in-flight background open and prevents further retries.
+// A filesystem operation already in progress must return before its caller
+// can observe cancellation; Close does not wait for a blocked syscall.
+func (v *View) Close() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.closed = true
+	if v.cancel != nil {
+		v.cancel()
+	}
 }
 
 // store returns the open durable store, or ErrStoreUnavailable joined with
@@ -56,6 +72,9 @@ func NewView(open func() (*Store, error), factory *Factory) *View {
 func (v *View) store() (*Store, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.closed {
+		return nil, errors.Join(ErrStoreUnavailable, context.Canceled)
+	}
 	if v.durable != nil {
 		return v.durable, nil
 	}
@@ -70,13 +89,16 @@ func (v *View) store() (*Store, error) {
 }
 
 func (v *View) openInBackground() {
-	store, err := v.open()
+	store, err := v.open(v.ctx)
 	if err == nil && store == nil {
 		err = errors.New("kit packages: open returned no store")
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.opening = false
+	if v.closed {
+		return
+	}
 	if err != nil {
 		v.openErr = err
 		v.retryAt = v.now().Add(viewReopenDelay)
@@ -93,7 +115,31 @@ func (v *View) Import(ctx context.Context, length int64, reader io.Reader) (core
 	if err != nil {
 		return corepackage.Inspection{}, false, err
 	}
-	return store.Install(ctx, length, reader)
+	if reader == nil {
+		return store.Install(ctx, length, nil)
+	}
+	body := &requestBodyReader{reader: reader}
+	inspection, created, err := store.Install(ctx, length, body)
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		if body.err != nil && errors.Is(err, body.err) {
+			return inspection, created, err
+		}
+		err = errors.Join(ErrStoreUnavailable, err)
+	}
+	return inspection, created, err
+}
+
+type requestBodyReader struct {
+	reader io.Reader
+	err    error
+}
+
+func (r *requestBodyReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		r.err = err
+	}
+	return n, err
 }
 
 func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
@@ -105,6 +151,9 @@ func (v *View) List(ctx context.Context) ([]corepackage.Inspection, error) {
 	defer cancel()
 	durable, err := store.List(ctx)
 	if err != nil {
+		if !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+			err = errors.Join(ErrStoreUnavailable, err)
+		}
 		return nil, err
 	}
 	factory, err := v.factory.List(ctx)
@@ -137,6 +186,9 @@ func (v *View) Inspect(ctx context.Context, id string) (corepackage.Inspection, 
 	if errors.Is(err, ErrPackageNotFound) {
 		return v.factory.Inspect(ctx, id)
 	}
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		err = errors.Join(ErrStoreUnavailable, err)
+	}
 	return inspection, err
 }
 
@@ -150,6 +202,9 @@ func (v *View) Read(ctx context.Context, id string) (corepackage.Inspection, []b
 	inspection, data, err := store.ReadCached(ctx, id)
 	if errors.Is(err, ErrPackageNotFound) {
 		return v.factory.Read(ctx, id)
+	}
+	if err != nil && !errors.Is(err, ErrInvalidPackage) && !errors.Is(err, ErrInvalidPackageID) {
+		err = errors.Join(ErrStoreUnavailable, err)
 	}
 	return inspection, data, err
 }

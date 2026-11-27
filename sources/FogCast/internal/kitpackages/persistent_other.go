@@ -2,12 +2,15 @@
 
 package kitpackages
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 func OpenPersistent(string) (*Store, error) {
 	return nil, errors.New("kit packages: persistent target storage requires Linux")
 }
-func OpenPersistentForHost(string) (*Store, error) {
+func OpenPersistentForHost(context.Context, string) (*Store, error) {
 	return nil, errors.New("kit packages: persistent target storage requires Linux")
 }
 func (s *Store) CheckPersistent() error {
