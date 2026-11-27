@@ -121,6 +121,17 @@ def verify_protected_layout(disk, image, prefix_sha256):
         current.seek(PREFIX_SIZE+backup*512); original.seek(PREFIX_SIZE+backup*512)
         if original.read(512) != boot_sector or current.read(512) != boot_sector:
             raise ValueError('FAT backup boot sector changed')
+        # A directory walk still succeeds with a damaged FSInfo sector. The
+        # native FAT writer checks its signatures before allocating clusters.
+        info_sector = struct.unpack_from('<H', boot_sector, 48)[0]
+        if info_sector not in (0, 0xffff):
+            if info_sector >= struct.unpack_from('<H', boot_sector, 14)[0]:
+                raise ValueError('FAT FSInfo outside reserved sectors')
+            current.seek(PREFIX_SIZE + info_sector * 512)
+            info = current.read(512)
+            if (info[:4] != b'RRaA' or info[484:488] != b'rrAa' or
+                    info[508:] != b'\x00\x00\x55\xaa'):
+                raise ValueError('invalid FAT FSInfo signatures')
 
 
 def verify_prepared_image(disk, receipt, inputs, fit_data, output, run):

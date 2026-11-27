@@ -298,3 +298,16 @@ class LauncherImageTests(unittest.TestCase):
         with patch.object(image, 'checked_native', side_effect=[matched, ValueError('SPL changed')]):
             with self.assertRaisesRegex(ValueError, 'SPL changed'):
                 launcher_image_verify.verify(self.uboot, self.entry, self.sdk, self.recovery, self.staged, self.output)
+
+    def test_standalone_verify_rejects_fsinfo_that_would_prevent_install(self):
+        receipt = self.prepare()
+        disk = self.output/'native-launcher-sd.img'
+        with disk.open('r+b') as stream:
+            stream.seek(image.PREFIX_SIZE + 48)
+            sector = int.from_bytes(stream.read(2), 'little')
+            stream.seek(image.PREFIX_SIZE + 512 * sector)
+            stream.write(bytes(4))
+        receipt['image_sha256'] = image.sha(disk)
+        (self.output/'result.json').write_bytes(encoded(receipt))
+        with self.assertRaisesRegex(ValueError, 'FAT FSInfo signatures'):
+            self.verify_prepared()
