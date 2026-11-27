@@ -1281,6 +1281,13 @@ advisory subjects. Its fitted-proof receipt SHA-256 is
 `b7dd3e2a26d134f6cc2e7026ba3d964fdfc92dd1a7b66ffff4c7b15454b0cc48`.
 The seed summary SHA-256 is
 `398324d057f72941a8b5b7d5a3f705f6069dc6a9339b1353712196d4dc64e44f`.
+Seed 2 passed raw timing at +0.277 ns worst setup and measured 2.868 ns
+independent LOADED. The producer refused the unindexed spelling
+`machine_at_decoder_state[1]~DUPLICATE_Duplicate`. The supplemental
+numerical trace passed all 504 checks. The exact unmatched subject had
++2.083 ns worst setup and +0.267 ns worst hold. The failed admission
+receipt SHA-256 is
+`9022230590081f932bd545d47be666024ff57e29c40bbd3740f5ca35ac6e0b0e`.
 
 ## Running a seed on either builder
 
@@ -1322,3 +1329,7 @@ Verilator 5.032 cannot read. The PPI reset test passes on 5.054. The
 DE25 video compile has an additional reproducible 5.054 failure tracked
 in [#2275](https://github.com/DeanoC/fes/issues/2275). Main fixed that
 failure in [#2292](https://github.com/DeanoC/fes/pull/2292).
+The integrated `a12785b3` candidate includes this fix. With Verilator
+5.054, the DE25 PC/XT standard-shell simulation, video lint mutation,
+and PPI reset handshake all passed. The log SHA-256 is
+`d1179cf39d714f415a61db066c9cb3b69e7390e5278a78405684dfe2f23427e7`.
