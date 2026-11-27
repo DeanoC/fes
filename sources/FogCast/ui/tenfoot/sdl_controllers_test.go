@@ -61,6 +61,9 @@ func TestSDLControllersVirtualGamepadUIAndSwapAB(t *testing.T) {
 	if !snap.Controllers.Open || len(snap.Controllers.Tabs) != 1 || snap.Controllers.Tabs[0].Label != "P1" {
 		t.Fatalf("Settings › Controllers did not open for virtual SDL pad: %+v", snap.Controllers)
 	}
+	if snap.Controllers.CanLearn {
+		t.Fatal("expected SDL pad in Settings › Controllers to report CanLearn=false")
+	}
 
 	// Pressing Y while Controllers is open highlights both the tab and row via NotePadButton.
 	if err := setVirtualSDLButtonForTest(pads, id, remoteinput.ButtonY, true); err != nil {

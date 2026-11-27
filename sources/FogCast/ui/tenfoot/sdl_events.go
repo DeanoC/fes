@@ -252,6 +252,7 @@ func sdlPadInfo(id C.SDL_JoystickID, pad *C.SDL_Gamepad, player int) PadInfo {
 		Recognised: true,
 		Bluetooth:  dev.Bluetooth(),
 		Tested:     dev.Tested(),
+		NoLearn:    true,
 		Player:     player,
 	}
 }

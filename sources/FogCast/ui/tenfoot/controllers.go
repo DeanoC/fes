@@ -25,6 +25,9 @@ type PadInfo struct {
 	Bluetooth  bool
 	// Tested is a pad verified on FES hardware (#1348).
 	Tested bool
+	// NoLearn marks an input backend (such as SDL_Gamepad) that uses its own
+	// controller database rather than evdev step-by-step raw learning.
+	NoLearn bool
 	// Player is the pad's controller port from 1, or 0 for a menu-only pad.
 	Player int
 }
@@ -161,10 +164,12 @@ type ControllersSnapshot struct {
 	SwapAB   bool
 	// Mapped is a pad read through a mapping its player made step by step.
 	Mapped bool
-	Focus  int
-	Status string
-	Learn  LearnSnapshot
-	Picker struct {
+	// CanLearn reports whether this pad supports step-by-step raw mapping.
+	CanLearn bool
+	Focus    int
+	Status   string
+	Learn    LearnSnapshot
+	Picker   struct {
 		Open    bool
 		Index   int
 		Targets []ControllerTarget
@@ -339,6 +344,9 @@ func (a *App) showControllerPadLocked(id int) {
 	a.controllers.picker.open = false
 	a.controllers.learn = padLearn{}
 	a.controllers.status = ""
+	if a.controllers.focus == controllersFocusLearn && a.pads[id].NoLearn {
+		a.controllers.focus = controllersFocusSwap
+	}
 }
 
 func (a *App) stepControllerPadLocked(step int) {
@@ -420,7 +428,9 @@ func (a *App) handleControllersLocked(cmd Command) {
 				c.status = status
 			}
 		case controllersFocusLearn:
-			a.startLearnLocked(time.Now())
+			if !a.pads[c.pad].NoLearn {
+				a.startLearnLocked(time.Now())
+			}
 		case controllersFocusReset:
 			a.resetPadLocked()
 		default:
@@ -437,7 +447,15 @@ func (a *App) handleControllersLocked(cmd Command) {
 		return
 	}
 	if dir >= 0 {
-		c.focus = controllersNav[c.focus][dir]
+		next := controllersNav[c.focus][dir]
+		if next == controllersFocusLearn && a.pads[c.pad].NoLearn {
+			if dir == 3 {
+				next = controllersFocusReset
+			} else if dir == 2 {
+				next = controllersFocusSwap
+			}
+		}
+		c.focus = next
 		c.status = ""
 	}
 }
@@ -688,7 +706,7 @@ func (a *App) controllersSnapshotLocked() ControllersSnapshot {
 	if !c.open || !ok {
 		return ControllersSnapshot{}
 	}
-	snap := ControllersSnapshot{Open: true, Family: info.Family, Tested: info.Tested, Focus: c.focus, Status: c.status}
+	snap := ControllersSnapshot{Open: true, Family: info.Family, Tested: info.Tested, CanLearn: !info.NoLearn, Focus: c.focus, Status: c.status}
 	for i, id := range a.padIDsLocked() {
 		pad := a.pads[id]
 		label := "Menu"

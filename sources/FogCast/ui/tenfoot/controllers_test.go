@@ -642,3 +642,59 @@ func TestControllersTestedBadgeAndSettingsSummary(t *testing.T) {
 		t.Fatalf("untested controllers summary = %q, want %q", row.Value, "Xbox 360 Controller")
 	}
 }
+
+func TestControllersHidesLearnWhenPadSetsNoLearn(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 100)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetPadInfo(7, PadInfo{
+		Name: "Xbox 360 Controller", GUID: testPadGUID,
+		Vendor: 0x045e, Product: 0x028e, Family: gfx.PromptXbox, Recognised: true, Player: 1,
+	})
+	app.AttachInput(InputGamepad, 7)
+	app.SetPadInfo(9, PadInfo{
+		Name: "DualSense Wireless Controller", GUID: "050000004c050000e60c000000810000",
+		Vendor: 0x054c, Product: 0x0ce6, Family: gfx.PromptPlayStation, Recognised: true, NoLearn: true, Player: 2,
+	})
+	app.AttachInput(InputGamepad, 9)
+
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	app.mu.Lock()
+	app.focusSettingsRowLocked(settingsSectionRowPrefix + settingsSectionControllers)
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+
+	// Start on learnable pad 7 and move focus onto "Map step by step".
+	for _, cmd := range []Command{CmdDown, CmdDown, CmdDown, CmdLeft, CmdLeft, CmdRight} {
+		app.HandleCommand(cmd, now)
+	}
+	if snap := app.Snapshot().Controllers; !snap.CanLearn || snap.Focus != controllersFocusLearn {
+		t.Fatalf("pad 7 should focus learn (CanLearn=%v focus=%d)", snap.CanLearn, snap.Focus)
+	}
+
+	// Switching to pad 9 (NoLearn=true) must clamp focus off Learn and hide CanLearn.
+	app.HandleCommand(CmdFilterNext, now)
+	snap := app.Snapshot()
+	if snap.Controllers.CanLearn || snap.Controllers.Focus != controllersFocusSwap {
+		t.Fatalf("pad 9 should hide learn and clamp focus to Swap: %+v", snap.Controllers)
+	}
+
+	// Moving Right from Swap skips Learn directly to Reset; Left goes back to Swap.
+	app.HandleCommand(CmdRight, now)
+	if got := app.Snapshot().Controllers.Focus; got != controllersFocusReset {
+		t.Fatalf("Right from Swap focus = %d, want Reset (%d)", got, controllersFocusReset)
+	}
+	app.HandleCommand(CmdLeft, now)
+	if got := app.Snapshot().Controllers.Focus; got != controllersFocusSwap {
+		t.Fatalf("Left from Reset focus = %d, want Swap (%d)", got, controllersFocusSwap)
+	}
+	if app.PadLearning(9) {
+		t.Fatal("pad 9 with NoLearn must not enter PadLearning")
+	}
+
+	dev, err := gfx.NewSoftware(1280, 720)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawFrame(dev, app.Snapshot(), map[string]gpuTexture{}, map[string]gpuTexture{})
+}

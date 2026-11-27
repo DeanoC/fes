@@ -1658,7 +1658,12 @@ paths restore their Lua stack after errors and return-valued callbacks also
 restore it after success or soft overrun.
 
 `cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
-and list). It is another client of the public host API, not a second launch
+and list). Both input shells share **Settings › Controllers** (`tenfoot.json`
+`swap-ab` presets and per-button remapping, family button glyphs, live button
+highlights, and P1..P4 player LEDs): Linux evdev syncs sysfs LED nodes on port
+attach/detach/yield while supporting step-by-step raw mapping, and desktop SDL3
+tracks open `SDL_Gamepad` handles with SDL player index/LED updates and
+release-gated profile reloads (hiding raw step-by-step learning). It is another client of the public host API, not a second launch
 path:
 
 ```text
