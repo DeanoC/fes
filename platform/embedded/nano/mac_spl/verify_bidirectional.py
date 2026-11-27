@@ -178,12 +178,20 @@ def tx_observations(trace, identity):
 
 
 def rx_observations(trace, identity, n, frame, tx):
+    stop = trace.row(
+        "FES_CBL_BIDI STOP",
+        "id:s round:d phase:d shared:b cfg:x8 ctrl:x8 status:x8 mac:x8 mtl:x8 dma:x8 ch:x8 post_ctrl:x8",
+    )
+    need(stop["id"] == identity and stop["round"] == n, "wrong shared-channel stop round")
     r = trace.row(
         "FES_CBL_BIDI RX",
         "id:s round:d possible:b armed:b matched:b stopped:b retained:b failure:d desc:x8 channel:x8 mac:x8 mtl:x8 dma:x8 ch:x8 dwell_us:d reply:s",
     )
     need(r["id"] == identity and r["round"] == n, "wrong receive round")
+    r["stop_proof"] = stop
     if not r["possible"]:
+        need(not any(stop[k] for k in "phase shared cfg ctrl status mac mtl dma ch post_ctrl".split()),
+             "RX stop registers contradict no DMA")
         need(
             not any(
                 r[k]
@@ -217,6 +225,18 @@ def rx_observations(trace, identity, n, frame, tx):
         and not r["dma"] & 0xF03
         and not r["ch"] & 0x7FFF0000,
         "RX channel, MAC, MTL or AXI retirement unproven",
+    )
+    dma, channel, status = stop["dma"], stop["ch"], stop["status"]
+    rx_state = (dma >> 8) & 15
+    exhausted = rx_state == 0 and status & 0x80 and not r["desc"] & (1 << 31)
+    need(
+        stop["phase"] == 6 and stop["shared"] == 1 and stop["cfg"] == 4
+        and stop["ctrl"] == 0x40C81 and stop["post_ctrl"] == 0x40C80
+        and status & 0x3302 == 2 and not stop["mac"] & 7 and not stop["mtl"] & 0x3FFF0037
+        and not dma & 3 and (channel >> 28) & 7 == 0
+        and (channel >> 19) & 0x1FF in (0, 1, 2) and (channel >> 16) & 7 in (0, 3)
+        and (rx_state in (3, 4) or exhausted),
+        "shared-channel RX quiescence before clearing SR was not established",
     )
     descriptor_ok = r["desc"] & 0xF000BFFF == 0x3000003C
     if r["matched"]:

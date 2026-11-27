@@ -3,7 +3,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-from test_nano_mac_bidirectional_replay import BIDI, IDENTITY, trial, wire
+from test_nano_mac_bidirectional_replay import BIDI, IDENTITY, no_stop, trial, wire
 
 path = Path(__file__).resolve().parents[1] / 'platform/embedded/nano/mac_spl/verify_positive.py'
 spec = importlib.util.spec_from_file_location('fes_flp_tx_test', path)
@@ -81,9 +81,9 @@ class PhySetupReplay(unittest.TestCase):
                 terminal = terminal.replace(old, new)
             rows[first:end+1] = [untouched, terminal]
             if decoder is BIDI:
-                i = next(i for i,r in enumerate(rows) if r.startswith('FES_CBL_BIDI RX'))
+                i = next(i for i,r in enumerate(rows) if r.startswith('FES_CBL_BIDI STOP'))
                 power = next(i for i,r in enumerate(rows) if ' stage=30 ' in r)
-                rows[i:power] = [f'FES_CBL_BIDI RX id={IDENTITY} round=1 possible=0 armed=0 matched=0 stopped=0 retained=0 failure=0 desc=00000000 channel=00000000 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 dwell_us=0 reply=-',
+                rows[i:power] = [no_stop(1), f'FES_CBL_BIDI RX id={IDENTITY} round=1 possible=0 armed=0 matched=0 stopped=0 retained=0 failure=0 desc=00000000 channel=00000000 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 dwell_us=0 reply=-',
                                  f'FES_CBL_BIDI ROUND id={IDENTITY} round=1 vmid=1 cmd=12 success=0']
             self.assertFalse(decoder.decode_closed(wire(rows), receipt)['target_succeeded'])
             with self.assertRaises(ValueError):

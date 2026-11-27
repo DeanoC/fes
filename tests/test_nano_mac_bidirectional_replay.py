@@ -13,6 +13,11 @@ SPEC.loader.exec_module(BIDI)
 IDENTITY = "5abcdef055000009"
 
 
+def no_stop(n):
+    return (f"FES_CBL_BIDI STOP id={IDENTITY} round={n} phase=0 shared=0 cfg=00000000 ctrl=00000000 "
+            "status=00000000 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 post_ctrl=00000000")
+
+
 def trial():
     # Retained real CBL boot prologue and Park checkpoint layout. All request,
     # descriptor and grant observations below are explicitly a software fixture.
@@ -55,6 +60,7 @@ def trial():
                     for i in (0, 1)
                 ),
                 f"FES_CBL_MAC_TX END id={IDENTITY}" + summary,
+                f"FES_CBL_BIDI STOP id={IDENTITY} round={n} phase=6 shared=1 cfg=00000004 ctrl=00040c81 status=00000082 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 post_ctrl=00040c80",
                 f"FES_CBL_BIDI RX id={IDENTITY} round={n} possible=1 armed=1 matched=1 stopped=1 retained=1 failure=0 desc=3000003c channel=00000180 mac=00000000 mtl=00000000 dma=00000000 ch=00000000 dwell_us=10000 reply={reply.hex()}",
                 f"FES_CBL_BIDI ROUND id={IDENTITY} round={n} vmid={n} cmd={12 if n == 1 else 8} success=1",
             ]
@@ -120,11 +126,42 @@ class BidirectionalWitness(unittest.TestCase):
         with self.assertRaises(ValueError):
             BIDI.decode_closed(raw, {**r, "frames": [r["frames"][0]] * 2})
 
+    def test_stop_waits_for_only_quiescent_rx_states(self):
+        head, (first, second), suffix, receipt = trial()
+        index = next(i for i, line in enumerate(first) if line.startswith("FES_CBL_BIDI STOP"))
+
+        def replace(changes):
+            copy = first.copy()
+            for old, new in changes.items():
+                self.assertIn(old, copy[index])
+                copy[index] = copy[index].replace(old, new, 1)
+            return wire(head + copy + second + suffix)
+
+        for field, invalid in (
+            ("phase=6", "phase=5"), ("shared=1", "shared=0"),
+            ("cfg=00000004", "cfg=00000005"), ("ctrl=00040c81", "ctrl=00040c80"),
+            ("post_ctrl=00040c80", "post_ctrl=00040c81"),
+            ("status=00000082", "status=00000182"), ("status=00000082", "status=00001082"),
+            ("status=00000082", "status=00000080"), ("status=00000082", "status=00000002"),
+            ("mac=00000000", "mac=00000001"), ("mtl=00000000", "mtl=00010000"),
+            ("dma=00000000", "dma=00000003"), ("dma=00000000", "dma=00000200"),
+            ("ch=00000000", "ch=10000000"), ("ch=00000000", "ch=00180000"),
+            ("ch=00000000", "ch=00020000"), ("round=1", "round=2"),
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                BIDI.decode_closed(replace({field: invalid}), receipt)
+        for dma, ch in (("00000300", "00080000"), ("00000400", "00130000")):
+            result = BIDI.decode_positive(replace({"dma=00000000": "dma="+dma, "ch=00000000": "ch="+ch,
+                                                  "status=00000082": "status=00000002"}), receipt)
+            self.assertEqual(result["rounds"][0]["rx"]["stop_proof"]["dma"], int(dma, 16))
+        with self.assertRaises(ValueError):
+            BIDI.decode_closed(wire(head + first[:index] + first[index+1:] + second + suffix), receipt)
+
     def test_failed_second_grant_preserves_first(self):
         head, (first, second), suffix, r = trial()
         second = second.copy()
-        second[-3] = (
-            second[-3]
+        second[-4] = (
+            second[-4]
             .replace("rc=0 stage=8", "rc=-1 stage=5")
             .replace("disposition=closed", "disposition=failed-drained")
             .replace("fault_reg=00000000", "fault_reg=9480080c")
@@ -162,7 +199,7 @@ class BidirectionalWitness(unittest.TestCase):
                 s.replace("resolved=0f49", "resolved=0300").replace("pcs=0806", "pcs=0000")
                 for s in block[3:5]
             ]
-            interrupted += [terminal, empty, block[-1].replace("success=1", "success=0")]
+            interrupted += [terminal, no_stop(n), empty, block[-1].replace("success=1", "success=0")]
             raw = wire(head + ([] if n == 1 else first) + interrupted + suffix)
             outcome = BIDI.decode_closed(raw, receipt)
             self.assertEqual(outcome["successful_rounds"], n - 1)
