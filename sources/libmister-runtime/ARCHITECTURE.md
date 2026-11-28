@@ -23,7 +23,7 @@ flowchart TD
 
   subgraph DE25["DE25-Nano (AArch64 Agilex 5)"]
     D25Mgr["ConfigFS Worker + /run/fes-de25-computer.lock\n(permanent-owner kernel, matched receipt)"]
-    D25Drv["De25ComputerCoreDriver (BRAM) &\nFesGpCoreDriver (standard) over DE25 Avalon\n(0x20010300, de25_core_contract.hpp)"]
+    D25Drv["De25ComputerCoreDriver (BRAM),\nDe25MenuCoreDriver (MENU) & FesGpCoreDriver (standard)\nover DE25 Avalon (0x20010300, de25_core_contract.hpp)"]
     D25Mem["de25-dma ABI 3 (8 MiB 2-slot scanout)\n+ De25HpsWindow ABI 1 (window machines)"]
   end
 
