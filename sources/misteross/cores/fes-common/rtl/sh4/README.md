@@ -56,7 +56,7 @@ defines instruction encodings and behavior. The implemented slice includes:
   literal loads, indexed and GBR-relative forms, and MOVA.
 - BT, BF, BT/S, BF/S, BRA, BSR, BRAF, BSRF, JMP, JSR, RTS, and NOP. The branch decision and
   target are captured before the delay slot executes.
-- LDTLB, TRAPA, RTE, and register forms of LDC/STC for SR, VBR, SSR, and SPC.
+- LDTLB, TRAPA, RTE, SLEEP, and register forms of LDC/STC for SR, VBR, SSR, and SPC.
   LDC/STC also transfer GBR, STC reads SGR, and STS/LDS support PR register
   and stack transfers.
 
@@ -75,8 +75,21 @@ the original privilege and executes with the restored SR and register bank.
 The guest TLB handler can read TEA and PTEH, load PTEL, execute LDTLB, then
 return and retry the faulting access.
 
-FPU, the remaining integer and privileged instructions, interrupts,
-copy-back mode, software cache controls, raw TLB arrays, area-7 MMU register
+Maskable interrupts enter at VBR + 0x600 between instructions. A request
+must exceed SR.IMASK and SR.BL must be clear. Interrupt entry saves the next
+PC in SPC, saves SR and R15 in SSR and SGR, switches to the privileged register
+bank, and exposes the event in INTEVT at P4 address `0xff000028`. Delayed
+branches retire their slots before interrupts can enter. NMI latches a rising
+edge, takes priority over the maskable request, and uses event code 0x1c0.
+SLEEP suspends instruction issue until an eligible interrupt arrives.
+
+The board-side interrupt controller presents a synchronous selected priority
+in `irq_level` and event code in `irq_event` until the CPU pulses `irq_ack`.
+Level zero means idle. The synchronous `nmi` input is edge-triggered, and
+`nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
+
+FPU, the remaining integer and privileged instructions, interrupt source
+arbitration and peripherals, standby power controls, copy-back mode, software cache controls, raw TLB arrays, area-7 MMU register
 aliases, board buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -133,6 +146,8 @@ Additional guest programs exercise signed and unsigned division and
 multiplication, flag updates, indexed moves, and nested calls that save PR
 on the stack. MAC tests cover both saturation widths, shared-base
 postincrement, and a TLB miss on the second operand followed by RTE.
+Interrupt tests cover priority masking, delay-slot completion, RTE,
+SLEEP and wakeup, and NMI priority and block behavior.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

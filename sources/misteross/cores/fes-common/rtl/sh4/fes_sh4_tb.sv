@@ -5,7 +5,10 @@ module fes_sh4_tb;
     logic reset = 1, bram_reset = 1, load_we = 0;
     logic [8:0] load_word_addr;
     logic [31:0] load_data;
-    logic valid, ready, rvalid, retired, bram_retired;
+    logic valid, ready, rvalid, retired, bram_retired, bram_irq_ack;
+    logic [3:0] irq_level = 0;
+    logic [11:0] irq_event = 0;
+    logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [3:0] fault, bram_fault;
     logic [3:0] wstrb;
@@ -25,19 +28,24 @@ module fes_sh4_tb;
     logic check_warm_loop = 0, check_alias_load = 1;
 
     fes_sh4 #(.RESET_PC(0)) dut (
-        .clk, .reset, .mem_valid(valid), .mem_ready(ready),
+        .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
+        .mem_valid(valid), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
         .retired, .retired_pc, .fault, .fault_pc
     );
 
     fes_sh4_bram_system bram (
-        .clk, .reset(bram_reset), .load_we, .load_word_addr, .load_data,
+        .clk, .reset(bram_reset), .irq_level(4'b0), .irq_event(12'b0),
+        .nmi(1'b0), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
         .retired(bram_retired), .retired_pc(bram_retired_pc),
         .fault(bram_fault), .fault_pc(bram_fault_pc)
     );
 
     assign ready = cycle % 5 == 4;
+    always @(posedge clk)
+        if (!bram_reset)
+            assert (!bram_irq_ack) else $fatal(1, "Unexpected diagnostic interrupt acknowledge");
 
     always @(posedge clk) begin
         rvalid <= 0;
@@ -474,6 +482,11 @@ module fes_sh4_tb;
         assert (dut.gpr_storage[17] == 'h7000_00f0 && dut.spc == 6 &&
                 dut.ssr == 0 && dut.mmu.utlb_valid == 0)
             else $fatal(1, "Supervisor-only MMU control was not enforced");
+        emit('h06, 'h001b); // SLEEP is also privileged.
+        start_bus();
+        expect_stop(1, 'h100);
+        assert (dut.spc == 6 && dut.ssr == 0)
+            else $fatal(1, "User SLEEP did not take an illegal instruction exception");
 
         // Signed overflow, subtract-with-borrow, rotate through T, and the
         // negative multiple-of-32 register-controlled shift special case.
@@ -678,10 +691,113 @@ module fes_sh4_tb;
                 dut.gpr[15] == 'h300 && ext_mem['h2fc >> 2] == 8)
             else $fatal(1, "Call linkage or indexed and GBR-relative memory was incorrect");
 
+        // Equal-priority interrupts remain masked. Raising the priority as
+        // the branch retires must defer acknowledgement until after its slot.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'h410e); // LDC R1,SR
+        emit('h04, 'he20a);
+        emit('h06, 'hef50);
+        emit('h08, 'hed00);
+        emit('h0a, 'ha005); // BRA 0x18
+        emit('h0c, 'h7201); // ADD #1,R2 in the slot
+        emit('h18, 'h7202);
+        emit('h1a, 'h001b); // SLEEP
+        emit('h1c, 'h7204);
+        emit('h600, 'h0842); // STC SPC,R8
+        emit('h602, 'h0932); // STC SSR,R9
+        emit('h604, 'h0a3a); // STC SGR,R10
+        literal('h606, 1, 'h640);
+        emit('h608, 'h6b12); // Read INTEVT into R11
+        emit('h60a, 'h7d01); // Count entries in shared R13
+        emit('h60c, 'h002b); // RTE
+        emit('h60e, 'h0009);
+        image['h80 >> 2] = 32'h4000_0050;
+        image['h640 >> 2] = 32'hff00_0028;
+        irq_level = 5;
+        irq_event = 'h340;
+        start_bus();
+        wait (retired && retired_pc == 'ha);
+        assert (!irq_ack && dut.intevt == 0) else $fatal(1, "Equal-priority IRQ was accepted");
+        @(negedge clk);
+        irq_level = 6;
+        wait (irq_ack);
+        assert (dut.spc == 'h18 && dut.gpr_storage[2] == 11 && dut.gpr[13] == 0 &&
+                dut.ssr == 'h4000_0050 && dut.sgr == 'h50 && dut.intevt == 'h340)
+            else $fatal(1, "IRQ interrupted a delay slot or saved incorrect state");
+        @(negedge clk);
+        irq_level = 5;
+        wait (retired && retired_pc == 'h1a);
+        @(negedge clk); // Let the SLEEP retirement pulse complete.
+        repeat (20) begin
+            @(negedge clk);
+            assert (!retired && !irq_ack) else $fatal(1, "Masked IRQ woke SLEEP");
+        end
+        assert (dut.gpr[8] == 'h18 && dut.gpr[9] == 'h4000_0050 && dut.gpr[10] == 'h50 &&
+                dut.gpr[11] == 'h340 && dut.gpr[13] == 1 && dut.gpr[2] == 13)
+            else $fatal(1, "First IRQ handler or RTE did not complete");
+        irq_level = 7;
+        irq_event = 'h420;
+        wait (irq_ack);
+        @(negedge clk);
+        irq_level = 0;
+        expect_stop(1, 'h100);
+        assert (dut.gpr[8] == 'h1c && dut.gpr[9] == 'h4000_0050 && dut.gpr[11] == 'h420 &&
+                dut.gpr[13] == 2 && dut.gpr_storage[2] == 17 && dut.intevt == 'h420)
+            else $fatal(1, "IRQ did not wake SLEEP and resume at the next instruction");
+
+        // A newly asserted NMI also wins when both inputs first arrive on
+        // the same cycle while asleep.
+        start_bus();
+        wait (retired && retired_pc == 'h1a);
+        @(negedge clk);
+        irq_level = 15;
+        irq_event = 'h400;
+        nmi = 1;
+        @(negedge clk);
+        assert (!irq_ack && dut.spc == 'h1c && dut.intevt == 'h1c0)
+            else $fatal(1, "A new NMI lost priority to a simultaneous IRQ");
+        irq_level = 0;
+        nmi = 0;
+        expect_stop(1, 'h100);
+        assert (dut.gpr[11] == 'h1c0 && dut.gpr_storage[2] == 17)
+            else $fatal(1, "NMI did not wake SLEEP and return");
+
+        // An NMI edge captured with BL set takes priority over a pending IRQ
+        // when BL clears. Holding the NMI input high must yield a single entry.
+        emit('h08, 'h0009);
+        emit('h0e, 'hfffd);
+        emit('h60a, 'h0009);
+        irq_level = 15;
+        irq_event = 'h400;
+        nmi = 1;
+        start_bus();
+        wait (retired && retired_pc == 'h608);
+        assert (!irq_ack && dut.gpr[8] == 4 && dut.gpr[11] == 'h1c0)
+            else $fatal(1, "Latched NMI did not take priority over IRQ");
+        wait (irq_ack);
+        assert (dut.spc == 4 && dut.intevt == 'h400) else $fatal(1, "Pending IRQ was lost after NMI");
+        @(negedge clk);
+        irq_level = 0;
+        wait (retired && retired_pc == 'h18);
+        assert (dut.gpr[11] == 'h400) else $fatal(1, "Held NMI was taken twice");
+        nmi = 0;
+        reset = 1;
+
+        // The interrupt controller can permit NMI entry with BL still set.
+        nmi = 1;
+        nmi_while_blocked = 1;
+        start_bus();
+        wait (retired && retired_pc == 'h608);
+        assert (!irq_ack && dut.gpr[8] == 0 && dut.gpr[9] == 'h7000_00f0 && dut.gpr[11] == 'h1c0)
+            else $fatal(1, "NMI override did not enter with BL set");
+        nmi = 0;
+        nmi_while_blocked = 0;
+
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution and MAC");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC and interrupts");
         $finish;
     end
 

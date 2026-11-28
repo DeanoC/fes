@@ -3,6 +3,11 @@
 module fes_sh4_bram_system (
     input  logic        clk,
     input  logic        reset,
+    input  logic [3:0]  irq_level,
+    input  logic [11:0] irq_event,
+    input  logic        nmi,
+    input  logic        nmi_while_blocked,
+    output logic        irq_ack,
     input  logic        load_we,
     input  logic [8:0]  load_word_addr,
     input  logic [31:0] load_data,
@@ -18,7 +23,8 @@ module fes_sh4_bram_system (
     logic ram_read, in_range, read_in_range;
 
     fes_sh4 #(.RESET_PC(32'b0)) cpu (
-        .clk, .reset, .mem_valid(valid), .mem_ready(1'b1),
+        .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
+        .mem_valid(valid), .mem_ready(1'b1),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
         .retired, .retired_pc, .fault, .fault_pc
