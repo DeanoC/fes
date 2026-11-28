@@ -1,0 +1,74 @@
+--- machine_tb.cpp
++++ machine_tb.cpp
+@@ -175,4 +175,5 @@
+ #include "cpu_profile_layout.h"
+ #include "cpu_profile.h"
++#include "pair_window.hpp"
+ #include "census.h"
+ 
+@@ -908,4 +909,7 @@
+     std::function<unsigned(const uint8_t (&bytes)[15])> length;  // an instruction's length, from its bytes
+     std::vector<bool> dirty;     // pages stored to since the oracle last ran
++    ReplayPairWindows pairing;
++    bool pair_default32 = false;
++    uint16_t pair_cs = 0;
+     CpuProfile *prof = nullptr;  // --cpu-profile
+     GuestMemory guest;
+@@ -970,4 +974,6 @@
+         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
+         next_linear = s.seg[fes_i386::SEG_CS].base + s.eip;
++        pair_cs = s.seg[fes_i386::SEG_CS].selector;
++        pair_default32 = (s.seg[fes_i386::SEG_CS].ar & 0x4000) != 0;
+         next_cr0 = s.cr0;
+         next_cr3 = s.cr3;
+@@ -1035,4 +1041,5 @@
+                 && !m.top.flush_request && (waiting || asleep)) {
+                 m.clock();
++                pairing.park();
+                 ++parked_clocks;
+                 if (prof) prof->parked(asleep);
+@@ -1160,4 +1167,7 @@
+         cpu.clk = 1;
+         cpu.eval();
++        // The simulation bind latched these predicates at the just-completed
++        // rising CPU edge, with this clock's input responses already driven.
++        pairing.sample(cpu.rootp);
+         m.irq13 = cpu.x87_irq13;
+ 
+@@ -1227,4 +1237,10 @@
+             // Its bytes through the page tables it was fetched with (#1707).
+             uint8_t ib[15];
++            // Capture the retiring instruction's source mode and PC, before advancing
++            // to its architectural successor. Discard transitions and exception events.
++            const uint32_t pair_linear = next_linear;
++            const bool pair_paged = (next_cr0 >> 31) != 0;
++            const uint16_t next_cs = get16(cpu.arch_sel, fes_i386::SEG_CS);
++            const bool next_default32 = (get16(cpu.arch_ar, fes_i386::SEG_CS) & 0x4000) != 0;
+             read_instruction(next_cr0, next_cr3, next_linear, a20m, ib);
+             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+@@ -1234,4 +1250,10 @@
+             uint32_t byte = 0;
+             const unsigned ilen = length(ib);
++            pairing.retire(cpu.rootp->fes_i386_cpu__DOT__p5_retire_linear,
++                           cpu.rootp->fes_i386_cpu__DOT__p5_retire_tag, cpu.trace_exception,
++                           pair_cs != next_cs || pair_default32 != next_default32,
++                           pair_paged, ib, pair_linear, ilen);
++            pair_cs = next_cs;
++            pair_default32 = next_default32;
+             if (prof) prof->retire(m.cycles, start, retire_next, ib, ilen, cpu.trace_exception, cpu.arch_cr0 & 1);
+             if (!cpu.trace_exception && stale.executed(start, start + ilen, byte)) {
+@@ -1974,4 +1996,5 @@
+                 profile.write(options.profile, machine.cycles);
+             if (cpu_prof_out && machine.cycles >= cpu_prof_next) {
++                rtl->pairing.snapshot(machine.cycles, options.rtl_at_flip != 0);
+                 cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ, CpuProfile::in_flight(rtl->cpu));
+                 cpu_prof_next = machine.cycles + uint64_t(options.cpu_profile_every * CLOCK_HZ);
+@@ -2191,4 +2214,8 @@
+         if (cpu_prof_out) {
+             if (rtl_begun) cpu_prof.dump(cpu_prof_out, machine.cycles, double(machine.cycles) / CLOCK_HZ, CpuProfile::in_flight(rtl->cpu));
++            if (rtl_begun) {
++                rtl->pairing.finish(machine.cycles);
++                rtl->pairing.write();
++            }
+             std::fclose(cpu_prof_out);
+         }

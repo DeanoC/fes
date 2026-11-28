@@ -1,0 +1,28 @@
+{
+  "classification": "Diagnostic whole-machine fit, seed 1",
+  "c28_source": "35b061f58bfb2c97eb143a00fdb35818e0a67594",
+  "trial_source": "5466af9a50b17af655a93689f9eb895b96b0c2c1",
+  "patch_sha256": "56efb8db473dae80bd1b515cc648177700064b60e43a3f23e432075573072875",
+  "quartus": "Pro 26.3",
+  "machine_clock_hz": "2350000000/21",
+  "alms_used": 45116,
+  "alms_available": 46800,
+  "timing_rows": 165,
+  "minimum_slack_ns": 0.0,
+  "loaded_corners": [
+    "4_slow_fix4_100c\tdata_delay=1.053\tskew=-1.275",
+    "4_slow_fix4_0c\tdata_delay=1.187\tskew=-1.502",
+    "4_slow_fix4a_0c\tdata_delay=1.186\tskew=-1.494",
+    "MIN_fast_fix4_0c\tdata_delay=0.655\tskew=-0.713"
+  ],
+  "package": "d035beaf0ccd5e2ed03f9784ea4e3f534c76f582731755324b3d9120d63bda5e.812103a1dd8b9daa33716d69a02e64906823f7ed3f65c9b6f95bcf3bb5326686.build-inputs.json",
+  "rbf_sha256": "2464a7b645f1b5a71b00a0da4fa30c05b6d08abf07e28addc5c4e9cd650273db",
+  "report_hashes": {
+    "golden_top.fit.summary": "ca61c7d3ddb2823d1cffde97aa2487ff3714cbab185cd6d6a67c270cbf3819bf",
+    "golden_top.sta.summary": "e8ba61d0bed37f01dbe5d785830548c57c7a55ca8b7fd4f82a4cdbdb1fdc2d5e",
+    "loaded.tsv": "d59311dc69da2865abc0b261941ca63db54dec83c01823fb3e4acd1a8c4b5da3"
+  },
+  "unit_result": "fes_i386_x87 against the host x87: 18337 passed, 0 failed [packed decimal: 61 cases, FBLD 6845 issued 6842 converted, FBSTP 13371 issued 11618 converted]",
+  "producer_exit": 0,
+  "report_exit": 0
+}

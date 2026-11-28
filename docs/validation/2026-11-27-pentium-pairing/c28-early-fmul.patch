@@ -1,0 +1,25 @@
+diff --git a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv
+index b3bedb611..8c2b1befc 100644
+--- a/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv
++++ b/sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv
+@@ -1336,7 +1336,10 @@ module fes_i386_x87 (
+     // The forms the backend answers directly. FRNDINT, FSCALE, FXTRACT, FPREM
+     // and FPREM1 run on the transcendental engine, which drives the backend
+     // itself (#2027 slice 6).
+-    assign bk_req_valid = seq == B_ISSUE;
++    // Normalized multiply operands are already registered on entry to A_OP.
++    // Offer them there and retain B_ISSUE for backpressure.
++    wire early_mul = seq == A_OP && cur == X87_ARITH && a_mul;
++    assign bk_req_valid = seq == B_ISSUE || early_mul;
+     // How many operations of each kind the backend has been offered and has
+     // taken. Nothing reads these in hardware, so synthesis removes them; the
+     // `verilator public_flat_rd` attribute is what lets a bench read them, and
+@@ -2105,7 +2108,7 @@ module fes_i386_x87 (
+                 // Every path into A_OP arrives here -- the direct one and
+                 // the two that come back from a denormal's pre-normalising
+                 // shift, whose result the engine reads out of oa_m and ob_m.
+-                A_OP: if (bk_form) seq <= B_ISSUE;
++                A_OP: if (bk_form) seq <= early_mul && bk_req_ready ? B_WAIT : B_ISSUE;
+                 else if (cur == X87_TRANS || t_exact) seq <= T_GO;
+                 // The denormalising shift of a tiny result, which runs
+                 // before the rounding so the result is rounded once.

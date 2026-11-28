@@ -1,0 +1,284 @@
+{
+  "instrumentation_revision": "8ac7f8fa2ada112672a65d70d37e6be0874bdaa9",
+  "historical_receipt_revision": "122b82c4e78ed08b8a011993c9d0af99ecf85d04",
+  "host": "powerboat",
+  "inputs": {
+    "revision": "35b061f58bfb2c97eb143a00fdb35818e0a67594",
+    "misteross_tree": "fa699fd163c0539b4e20e1e9a2d17b8f49d28884",
+    "clock_hz": "2350000000/21",
+    "historical_cpu_parameters": {
+      "I486": 0,
+      "x87_present": {
+        "doom": false,
+        "quake": true
+      }
+    },
+    "workloads": [
+      "doom",
+      "quake"
+    ],
+    "workload_drives": {
+      "doom": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3",
+      "quake": "e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c"
+    },
+    "verilator": {
+      "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+      "commit": "bbb60a403932a9f695cb6ff001ceb73de6ad9234",
+      "sha256": "d74a5f9cbe9665135fcdcfe2415894e26951d98eb5f01621c38955e6845003d9",
+      "version": "Verilator 5.054 2026-11-01 rev v5.054",
+      "install": "88aecb8d8e6335737d014a1331f45d51ad8448b6eb5fa05285e1e99113198e50"
+    },
+    "processor_archive": "6de85825fe21a3fe15d9b1255f9bcdfb303bbe98b1bf0c5c832114c321a46e80",
+    "machine_binary": "d5d6719573d15520e7cdac0e0c3f8ed1b56cf4c104843d72e8fbe84bf724cf0e",
+    "oracle": {
+      "revision": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+      "patch_sha256": "a1fd72857de6a900bf20fb3ab7ba7b1bda7f11778572cf6d2d8029c6921b8377",
+      "provisioner_sha256": "0c4552c2290a0f50681090a65cf25deeb1916568c910bcfcc88a91097f8089b2",
+      "adapter_sha256": "25c2a5109e037ec47af13caabe102ab27134d2119f3a301532fad5d7080b69c0",
+      "linked_sha256": {
+        "adapter": "0ad5dccb3ba5fac762d70e30f2bac3cded862565710895fbe257f1dcff1429af",
+        "paramtree": "6b8ba5842ba2bfe611cc7268c331fff50214859a164c95895d966de277893e44",
+        "cpu": "2584b7eaa08b2f69d1312cbc81381af479bf96760419e5b27de936c04271f41c",
+        "fpu": "b0cd7e7e93fbc4e1843c8973c2e7b5d159e743808c5dbf67e0e92dd5b02b687b",
+        "softfloat": "704476802e39369d31b300a7dac152cf5d33b3492654f888d96976d378487513"
+      }
+    },
+    "presenter": {
+      "source": "cores/fes-pc386/rtl/pc386_presenter.sv",
+      "derived": "derived/pc386_presenter.sv",
+      "source_sha256": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
+      "derived_sha256": "7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167",
+      "changes": [
+        {
+          "before": "    reg loaded_flag;",
+          "after": "    reg loaded_flag;\n    reg [2:0] loaded_report_gap;",
+          "count": 1
+        },
+        {
+          "before": "            loaded_flag <= 0;",
+          "after": "            loaded_report_gap <= 3'd0;\n            loaded_flag <= 0;",
+          "count": 1
+        },
+        {
+          "before": "            request_sync <= {request_sync[1:0], request_toggle};",
+          "after": "            if (loaded_report_gap != 0) loaded_report_gap <= loaded_report_gap - 3'd1;\n            request_sync <= {request_sync[1:0], request_toggle};",
+          "count": 1
+        },
+        {
+          "before": "            if (f_busy && f_received == f_beats && f_issued == f_beats && !ddr_read) begin",
+          "after": "            if (f_busy && f_received == f_beats && f_issued == f_beats && !ddr_read &&\n                loaded_report_gap == 0) begin\n                loaded_report_gap <= 3'd7;",
+          "count": 1
+        }
+      ],
+      "loaded_rearm_cycles": 8
+    },
+    "media": {
+      "mode": "ata-only",
+      "startup_arguments": [
+        "--floppy-type",
+        "A:0",
+        "--floppy-type",
+        "B:0",
+        "--boot-device",
+        "0"
+      ],
+      "port_values": {
+        "floppy_type": 0,
+        "boot_device": 0,
+        "floppy_present": 0,
+        "floppy_write_protect": 0,
+        "floppy_two_sided": 0,
+        "floppy_cylinders": 0,
+        "floppy_spt": 0,
+        "floppy_verify": 0,
+        "floppy_sectors": 0,
+        "floppy_crc": 0,
+        "fdc_frozen": 0
+      },
+      "system": "cores/fes-pc386/rtl/pc386_system.sv",
+      "system_source_sha256": "df110ff35f9bb33b9e5fce64f9ead43b0e0034d9b0c40a29a23daff6a7cad2cd",
+      "system_derived_sha256": "07c0185c93b646625896e765460166d01362ee73eee469b065c5ed34e061a603",
+      "verifier": "cores/fes-pc386/rtl/pc386_floppy_verify.sv",
+      "verifier_sha256": "f8577f89ae4cd6fb0a6ed83b871ceabb2826b24a2e9df686691af70888948cf7"
+    },
+    "firmware": {
+      "bios": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7",
+      "vgabios": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02"
+    },
+    "instrumentation_sha256": {
+      "replay.py": "42f9c4964453404fed1aa90cec0d98e508ae9c67d1e88f5dcfa61c2085ec00bd",
+      "machine_tb.patch": "f659150f2f363368134ee0349ed71fd7e2f45a7b01bdbd2f102f4f3e51327b39",
+      "opportunity.py": "d08b103c580c2c53489513f30d1836b24022b9a0b84ce73d7bfd999e79554b47",
+      "retire_source.py": "897e9617d563988c6548934956d9d47b4c03fc3af38dbd3a49c390e0262cae6b",
+      "x87_stalls_probe.sv": "120bebb50b57b900cad8198a2a7a9ecf7602f99732d271244f1cdfc364407d3e",
+      "fes_i386_pkg.sv": "ed7dd3c66c728b85b612af1bd5eee087680deecdd5a112b846d54b1e54c13690",
+      "fes_i386_cpu.sv": "b016fd68503070d0ebd585b61626fe70ecd83e50e4eb80abd3744e5faff75f63",
+      "machine_tb.cpp": "f0b5a0e23c7b035d817a06d9352751de5a33adc495c1a80e1778d4c60af4a995",
+      "audio_link.h": "c8fc5fe59b51228b5009a372e02d02b5d8204f59c9fad0c6503bffab94f3f33a",
+      "pair_window.hpp": "7c80645bc35720931d82d114632ffb3c9c3681d7367ee21030b5949aed2220c8",
+      "pentium_pairing.hpp": "5b699fb100b472f97d9bb4cad600d5762bcd23202f77dc1872519a6e67e5b676",
+      "retire_bytes.hpp": "ae487417ecb96e0b77bea6b50f26e91a4444a67f79ac939031bc322b9c9aebcc",
+      "x87_stalls.h": "d61119452c35f08f5396548a5c87c6853129538a18c924bbec1f8ec82c512298"
+    }
+  },
+  "workloads": {
+    "doom": {
+      "verified_window": {
+        "from_cycle": 2661117017,
+        "to_cycle": 2717069401,
+        "cycles": 55952384,
+        "retired": 31690474,
+        "pairs": 1415435,
+        "exceptions": 114,
+        "untagged_nonexception_retirements": 0,
+        "unpaged_memory_crosschecks": 30900214,
+        "unpaged_memory_disagreements": 0,
+        "paged_retirements": 0,
+        "parked_cycles": 82538,
+        "x87": {
+          "sampled_cpu_clocks": 55869846,
+          "x87_busy_clocks": 0,
+          "busy_with_non_esc_issue": 0,
+          "x87_hold_asserted": 0,
+          "hold_redirect_or_flush": 0,
+          "hold_with_another_issue_blocker": 0,
+          "sole_x87_issue_blocker": 0,
+          "sole_with_wait_instruction": 0,
+          "sole_stable_stack_reg_arith_raw": 0,
+          "sole_stable_stack_reg_arith_no_raw": 0,
+          "sole_register_raw_unclassified": 0,
+          "sole_by_hold_term_set": {}
+        },
+        "opportunity": {
+          "retirements_in_candidate_pairs_pct": 8.932873645247465,
+          "pairing_only_max_cycles_saved_pct": 2.5297134792326275,
+          "pairing_only_max_same_clock_speedup": 1.0259536887551226,
+          "pairing_only_best_case_break_even_mhz": 109.07389205895396,
+          "sole_x87_issue_blocker_pct_of_window": 0.0
+        }
+      },
+      "matched_published_sha256": {
+        "cpu.prof": "5e3db43fe1fe84b903a5607df0d0b4bf33cf60273b8296179012916cdc99164d",
+        "result.json": "e8f8c5c55c76bdfdf2e28f794dc26bf41579bf73cb32b509806122e26591cd8f",
+        "window.json": "5f5b40aba8272a6ae71225f1c10264e7417b698b1d87881e33d313627da72462"
+      },
+      "run_markers": [
+        "RTL-BEGIN 2605164633 flips=40",
+        "HANDOVER 0170:00189fde cr0=7ffffff1 cr3=00000000 flags=00000206 0000400c 0000000c 000003d4 0003e440 0023cba0 00000001 00000084 00000000",
+        "RTL retired=68830475 oracle_steps=0 protected_steps=0 parked_clocks=220777 tf_retired=0 pe_retired=68804518 pe_entries=179 vga_loads=0 replays=0 port0_reads=1705255 port0_writes=13118278 smc_stores=173342 smc_addresses=6 smc_executed=0 smc_restarts=44417 store_page_mismatches=0",
+        "END rtl-window steps=671190915 cycles=2717069401 seconds=24.280"
+      ],
+      "output_sha256": {
+        "pairing.json": "b9079db8e0c1a9b91597bde0f78d0e96241dc2520d9e95dfb9df60230177e451",
+        "verified.json": "93a121c5719f90e967b34ae031629df73f3869ad527422251ea1de0c23ec17e1",
+        "run.log": "f0848cbd4e1a69e938d274f01f8ddff692d150dd31a023dee7bb56ec2520b517"
+      }
+    },
+    "quake": {
+      "verified_window": {
+        "from_cycle": 503571519,
+        "to_cycle": 2741666815,
+        "cycles": 2238095296,
+        "retired": 640601632,
+        "pairs": 39229579,
+        "exceptions": 1298,
+        "untagged_nonexception_retirements": 3627,
+        "unpaged_memory_crosschecks": 189311941,
+        "unpaged_memory_disagreements": 0,
+        "paged_retirements": 429457032,
+        "parked_cycles": 53488481,
+        "x87": {
+          "sampled_cpu_clocks": 2184606815,
+          "x87_busy_clocks": 432611784,
+          "busy_with_non_esc_issue": 22820432,
+          "x87_hold_asserted": 630579272,
+          "hold_redirect_or_flush": 652095,
+          "hold_with_another_issue_blocker": 42296321,
+          "sole_x87_issue_blocker": 587630856,
+          "sole_with_wait_instruction": 0,
+          "sole_stable_stack_reg_arith_raw": 296558,
+          "sole_stable_stack_reg_arith_no_raw": 400657,
+          "sole_register_raw_unclassified": 586933641,
+          "sole_by_hold_term_set": {
+            "prior_operation": 512929110,
+            "pending_control": 9,
+            "store_value": 33087994,
+            "prior_operation+store_value": 41613743
+          }
+        },
+        "opportunity": {
+          "retirements_in_candidate_pairs_pct": 12.247729958952087,
+          "pairing_only_max_cycles_saved_pct": 1.7528109312464235,
+          "pairing_only_max_same_clock_speedup": 1.0178408252476292,
+          "pairing_only_best_case_break_even_mhz": 109.94328300550995,
+          "sole_x87_issue_blocker_pct_of_window": 26.25584607814662
+        },
+        "post_first_sampled_render": {
+          "from_cycle": 1678571583,
+          "to_cycle": 2741666815,
+          "cycles": 1063095232,
+          "retired": 249801864,
+          "pairs": 15200990,
+          "exceptions": 545,
+          "untagged_nonexception_retirements": 1116,
+          "unpaged_memory_crosschecks": 124711,
+          "unpaged_memory_disagreements": 0,
+          "paged_retirements": 249654962,
+          "parked_cycles": 313432,
+          "x87": {
+            "sampled_cpu_clocks": 1062781800,
+            "x87_busy_clocks": 388281066,
+            "busy_with_non_esc_issue": 20398630,
+            "x87_hold_asserted": 567192494,
+            "hold_redirect_or_flush": 534119,
+            "hold_with_another_issue_blocker": 38132090,
+            "sole_x87_issue_blocker": 528526285,
+            "sole_with_wait_instruction": 0,
+            "sole_stable_stack_reg_arith_raw": 275846,
+            "sole_stable_stack_reg_arith_no_raw": 363819,
+            "sole_register_raw_unclassified": 527886620,
+            "sole_by_hold_term_set": {
+              "prior_operation": 462843479,
+              "store_value": 29633155,
+              "prior_operation+store_value": 36049651
+            }
+          },
+          "opportunity": {
+            "retirements_in_candidate_pairs_pct": 12.170437607303043,
+            "pairing_only_max_cycles_saved_pct": 1.4298803665408595,
+            "pairing_only_max_same_clock_speedup": 1.0145062253333768,
+            "pairing_only_best_case_break_even_mhz": 110.30465768506141,
+            "sole_x87_issue_blocker_pct_of_window": 49.71579865010626
+          }
+        }
+      },
+      "matched_published_sha256": {
+        "cpu.prof": "21a1506588616f51ee5d51182de50783e3cf2cbfe7c9f2e9b7a78fd234f9db0d",
+        "result.json": "e8f8c5c55c76bdfdf2e28f794dc26bf41579bf73cb32b509806122e26591cd8f",
+        "frames/t0015.00.ppm": "b835a2fe762373353b45055e390102e1f2f692f2ccaa8b37604781af6400638d",
+        "frames/t0020.00.ppm": "90382b62c6a7dfb4c4f616cbe6f128856f0adab0eead21d49e158609d0ac9ab1",
+        "frames/final.ppm": "693197296597618789b52f06c59442ccc8fea75486bea828dd75951ec0494887"
+      },
+      "run_markers": [
+        "RTL-BEGIN 503571519 flips=2",
+        "HANDOVER 04b3:000014d1 cr0=7ffffff0 cr3=00000000 flags=00000297 38630200 000c0a68 00000005 00001ee4 00000a52 00000a5c 00000a68 00000001",
+        "RTL retired=640601632 oracle_steps=0 protected_steps=0 parked_clocks=53488481 tf_retired=0 pe_retired=429494574 pe_entries=1211 vga_loads=25499 replays=776511 port0_reads=37274438 port0_writes=187311246 smc_stores=93 smc_addresses=1 smc_executed=0 smc_restarts=1663735 store_page_mismatches=0",
+        "END rtl-window steps=763178078 cycles=2741666815 seconds=24.500"
+      ],
+      "raw_frames_matching_control": 25,
+      "output_sha256": {
+        "pairing.json": "06c6c99e841e22042cf1d9ec2445a08fbdb5b05d64944c51adeaca1a2deb95b2",
+        "verified.json": "d0bafe9af3640dd07e5d03b2500865b856a1e231e652ecc54c7a3c96dae4bbb4",
+        "run.log": "d0fe7e296bec6f419d30193b36ff253562b8da3b8fc59de32f1113f9f57f1dcd",
+        "post-first-render.json": "fcd5430d95bdb7cec1a9986c5854df07b61b3c16c9b9ed208b2a773a83b7e214"
+      },
+      "sorted_sha256sum_frame_list_sha256": "c59015afae565755d0624516e2188b382e2a58379ee6893cb44c503add6cfcde"
+    }
+  },
+  "run": {
+    "start_utc": "2026-11-27T13:20:16.645944+00:00",
+    "end_utc": "2026-11-27T20:01:19.754845+00:00",
+    "elapsed_seconds": 24063.109031910077,
+    "return_code": 0
+  }
+}
