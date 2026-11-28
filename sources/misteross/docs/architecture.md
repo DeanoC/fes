@@ -1681,11 +1681,26 @@ install lives at `<cache>/tools/<tool>/<key>`. Its key reads:
 
 - the tool's pin (repo and commit only, through `scripts/lockfile.py`; the
   lock's rationale text and its bytes are not part of it);
-- the complete `scripts/bootstrap.sh`, so shared checkout, environment and
-  build orchestration changes cannot reuse an install made under older build
-  behavior. Any bootstrap edit conservatively changes every tool key;
-- the normalized host and compiler probes, without the kernel release or the
-  accelerator compiler.
+- the complete isolated build driver (`scripts/bootstrap-build.sh`), its
+  launcher and the lockfile reader. Shared checkout, environment preparation,
+  tool recipes and the helper that reads selected commits all remain in the
+  key. The cache coordinator (`scripts/bootstrap.sh`) no longer enters it;
+- the normalized host and compiler probes, including the resolved build
+  utilities, without the kernel release or the accelerator compiler.
+
+The coordinator may change cache bookkeeping without rebuilding compilers. It
+holds the per-install lock, but the isolated driver independently rechecks its
+planned key, lock and empty build roots, scrubs its build environment, builds,
+stages evidence and publishes before the coordinator resumes. Consumers verify
+the published closure again. A change of build driver or lockfile reader moves
+the key; a coordinator-only change does not. The first use of this split makes
+new keys. Historic committed refs still keep their old bootstrap digest for
+pruning, and exact binary-pinned Yosys selection continues to verify the full
+old install rather than silently selecting a replacement. Audited producer
+closures omit the coordinator; broad fallback closures still include it under the
+frozen identity policies, so those producer toolchain identities still change
+when it changes. The cache helper remains a producer toolchain input, including
+its cache-only implementation; this split does not remove that identity churn.
 
 Only nextpnr adds the OFF/HIP/CUDA configuration, the accelerator compiler
 and backend environment, and the Mistral pin it compiles against. The HIP,

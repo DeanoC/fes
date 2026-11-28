@@ -61,7 +61,7 @@ class SealedEntryFixture(unittest.TestCase):
         cls.root = cls.repo / 'sources/misteross'
         cls.root.mkdir(parents=True)
         paths = set(seal.PINNED_INPUTS) | source_closure.imports("pc386_quartus", ROOT)
-        paths |= {'scripts/source_closure.py', 'scripts/bootstrap.sh', 'scripts/toolchain_cache.py'}
+        paths |= {'scripts/source_closure.py', 'scripts/bootstrap.sh', *source_closure.TOOLCHAIN_RECIPE_FILES}
         for path in sorted(paths):
             target = cls.root / path
             target.parent.mkdir(parents=True, exist_ok=True)

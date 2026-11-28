@@ -50,12 +50,45 @@ def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: s
 
 
 class ToolchainCacheContractTests(unittest.TestCase):
+    def test_prune_recipe_digest_uses_each_committed_layout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            root = request.root
+            def git(*args):
+                return subprocess.run(['git', '-C', str(root), *args], check=True,
+                                      capture_output=True, text=True).stdout.strip()
+            git('init', '-q')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.invalid')
+            driver = root / 'scripts/bootstrap-build.sh'
+            launcher = root / 'scripts/bootstrap-build.py'
+            driver_bytes, launcher_bytes = driver.read_bytes(), launcher.read_bytes()
+            driver.unlink()
+            launcher.unlink()
+            legacy_bytes = (root / 'scripts/bootstrap.sh').read_bytes()
+            git('add', '.')
+            git('commit', '-qm', 'legacy layout')
+            legacy = git('rev-parse', 'HEAD')
+            driver.write_bytes(driver_bytes)
+            launcher.write_bytes(launcher_bytes)
+            git('add', '.')
+            git('commit', '-qm', 'split layout')
+            split = git('rev-parse', 'HEAD')
+            self.assertEqual(toolchain_cache.referenced_recipe(root, legacy),
+                             hashlib.sha256(legacy_bytes).hexdigest())
+            self.assertEqual(toolchain_cache.referenced_recipe(root, split),
+                             toolchain_cache._recipe_digest(request, 'yosys'))
+            driver.write_text(driver.read_text() + '\n# uncommitted edit\n')
+            self.assertNotEqual(toolchain_cache.referenced_recipe(root, split),
+                                toolchain_cache._recipe_digest(request, 'yosys'))
+
     def test_binary_pin_selects_original_verified_install_after_recipe_drift(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             request = self._request(base / "source", base / "cache")
             original = _publish(request, "yosys", content="approved")
-            recipe = request.root / "scripts/bootstrap.sh"
+            recipe = request.root / "scripts/bootstrap-build.sh"
             recipe.write_text(recipe.read_text() + "\n# newer provisioning recipe\n")
             current = _publish(request, "yosys", content="new build")
             self.assertNotEqual(original.key, current.key)
@@ -91,7 +124,7 @@ class ToolchainCacheContractTests(unittest.TestCase):
             base = Path(directory)
             request = self._request(base / "source", base / "cache")
             first = _publish(request, "yosys", content="first")
-            recipe = request.root / "scripts/bootstrap.sh"
+            recipe = request.root / "scripts/bootstrap-build.sh"
             recipe.write_text(recipe.read_text() + "\n# another install\n")
             second = _publish(request, "yosys", content="second")
             unrelated, wanted = sorted((first, second), key=lambda item: item.key)
@@ -131,6 +164,8 @@ class ToolchainCacheContractTests(unittest.TestCase):
         if not scripts.exists():
             scripts.mkdir(parents=True)
             shutil.copy2(SOURCE / "scripts" / "lockfile.py", scripts / "lockfile.py")
+            shutil.copy2(SOURCE / "scripts" / "bootstrap-build.sh", scripts / "bootstrap-build.sh")
+            shutil.copy2(SOURCE / "scripts" / "bootstrap-build.py", scripts / "bootstrap-build.py")
             shutil.copy2(SOURCE / "scripts" / "bootstrap.sh", scripts / "bootstrap.sh")
             shutil.copy2(SOURCE / "toolchain.lock", root / "toolchain.lock")
         cache.mkdir(parents=True, exist_ok=True)
@@ -211,12 +246,12 @@ class ToolchainCacheContractTests(unittest.TestCase):
                 toolchain_cache.locked_pins(hip)["mistral"],
             )
 
-    def test_complete_bootstrap_script_keys_each_install(self):
+    def test_complete_build_driver_keys_each_install(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             request = self._request(base / "checkout", base / "cache")
             keys = toolchain_cache.tool_keys(request)
-            bootstrap = request.root / "scripts" / "bootstrap.sh"
+            bootstrap = request.root / "scripts" / "bootstrap-build.sh"
             text = bootstrap.read_text(encoding="utf-8")
             for tool in toolchain_cache.TOOLS:
                 self.assertIn(f"build_{tool}() {{", toolchain_cache.tool_recipe(text, tool))
@@ -236,6 +271,40 @@ class ToolchainCacheContractTests(unittest.TestCase):
             bootstrap.write_text(text.replace("build_yosys() {", "build_yosys_gone() {"), encoding="utf-8")
             with self.assertRaisesRegex(toolchain_cache.CacheError, "build_yosys"):
                 toolchain_cache.tool_keys(request)
+
+    def test_cache_coordinator_edits_do_not_change_recipe_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "checkout", base / "cache")
+            before = toolchain_cache.tool_keys(request)
+            coordinator = request.root / "scripts/bootstrap.sh"
+            text = coordinator.read_text(encoding="utf-8")
+            # This changes executable post-hit housekeeping, not just a comment.
+            changed = text.replace("==> leaving %s build leftovers", "==> deferring %s build leftovers")
+            self.assertNotEqual(changed, text)
+            coordinator.write_text(changed, encoding="utf-8")
+            self.assertEqual(before, toolchain_cache.tool_keys(request))
+
+    def test_recipe_launcher_lock_reader_and_shared_helpers_move_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "checkout", base / "cache")
+            before = toolchain_cache.tool_keys(request)
+            scripts = request.root / "scripts"
+            for name, marker in (("bootstrap-build.sh", "run_logged() {"),
+                                 ("bootstrap-build.sh", "checkout_pin() {"),
+                                 ("bootstrap-build.sh", "build_yosys() {"),
+                                 ("bootstrap-build.py", "def main():"),
+                                 ("lockfile.py", "def main(argv: Sequence[str] | None = None) -> int:")):
+                with self.subTest(name=name, marker=marker):
+                    path = scripts / name
+                    text = path.read_text(encoding="utf-8")
+                    self.assertIn(marker, text)
+                    changed = text.replace(marker, marker + "\n    # build contract mutation", 1)
+                    path.write_text(changed, encoding="utf-8")
+                    after = toolchain_cache.tool_keys(request)
+                    self.assertTrue(all(after[tool] != before[tool] for tool in toolchain_cache.TOOLS))
+                    path.write_text(text, encoding="utf-8")
 
     def test_publish_and_verify_covers_library_data_and_internal_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -862,7 +931,8 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.root = self.repository / "sources" / "misteross"
         (self.root / "scripts").mkdir(parents=True)
         shutil.copy2(SOURCE / "scripts" / "lockfile.py", self.root / "scripts" / "lockfile.py")
-        shutil.copy2(SOURCE / "scripts" / "bootstrap.sh", self.root / "scripts" / "bootstrap.sh")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap-build.sh", self.root / "scripts" / "bootstrap-build.sh")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap-build.py", self.root / "scripts" / "bootstrap-build.py")
         shutil.copy2(SOURCE / "toolchain.lock", self.root / "toolchain.lock")
         core = self.root / "cores" / "fes-core"
         core.mkdir(parents=True)
@@ -936,7 +1006,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
         os.utime(toolchain_cache.lock_path(other_host, "openfpgaloader"), (old, old))
         # A pinned install built by an older bootstrap.sh is no longer referenced.
         older_bootstrap = self.base / "older-bootstrap.sh"
-        older_bootstrap.write_text("# older\n" + (self.root / "scripts" / "bootstrap.sh").read_text(), encoding="utf-8")
+        older_bootstrap.write_text("# older\n" + (self.root / "scripts" / "bootstrap-build.sh").read_text(), encoding="utf-8")
         older = self.request(bootstrap_path=older_bootstrap)
         older_install = _publish(older, "mistral")
         self.assertNotEqual(older_install.key, toolchain_cache.tool_key(pinned, "mistral"))
@@ -1026,7 +1096,7 @@ class ToolchainCachePruneTests(unittest.TestCase):
 
     def test_prune_preserves_committed_binary_pin_across_recipe_drift(self):
         older_recipe = self.base / "older-bootstrap.sh"
-        older_recipe.write_text("# older\n" + (self.root / "scripts/bootstrap.sh").read_text())
+        older_recipe.write_text("# older\n" + (self.root / "scripts/bootstrap-build.sh").read_text())
         older = self.request(bootstrap_path=older_recipe)
         install = _publish(older, "yosys", content="approved binary")
         _publish(self.request(), "yosys", content="new provisioning binary")
@@ -1724,7 +1794,8 @@ class ToolchainCachePruneTests(unittest.TestCase):
         non_git_root = self.base / "non-git"
         (non_git_root / "scripts").mkdir(parents=True)
         shutil.copy2(SOURCE / "scripts" / "lockfile.py", non_git_root / "scripts" / "lockfile.py")
-        shutil.copy2(SOURCE / "scripts" / "bootstrap.sh", non_git_root / "scripts" / "bootstrap.sh")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap-build.sh", non_git_root / "scripts" / "bootstrap-build.sh")
+        shutil.copy2(SOURCE / "scripts" / "bootstrap-build.py", non_git_root / "scripts" / "bootstrap-build.py")
         shutil.copy2(SOURCE / "toolchain.lock", non_git_root / "toolchain.lock")
         non_git_req = self.request(non_git_root / "toolchain.lock", root=non_git_root)
         warn_stderr = io.StringIO()

@@ -13,10 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name('source_closures.json')
 EXCLUDED_PARTS = {'sim', 'testbench', 'tests'}
-# Files tool authentication reads besides toolchain_cache.py itself: the
-# build_<tool> functions in bootstrap.sh key each install, and lockfile.py
-# parses the lock's pins.
-TOOLCHAIN_RECIPE_FILES = ('scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py')
+# The complete isolated build driver, launcher, and lockfile reader key each
+# install; the cache-only coordinator is not read during tool authentication.
+TOOLCHAIN_RECIPE_FILES = ('scripts/bootstrap-build.sh', 'scripts/bootstrap-build.py', 'scripts/lockfile.py', 'scripts/toolchain_cache.py')
 
 
 def covered(path, roots):
