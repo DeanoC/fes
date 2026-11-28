@@ -3,7 +3,7 @@ QUARTUS_ROOTDIR ?= /data/altera_pro/26.3/quartus
 BUILD_DIR ?= ../../../../../../out/sh4
 BUILD := $(abspath $(BUILD_DIR))
 TOP := fes_sh4_bram_system
-RTL := fes_sh4_icache.sv fes_sh4_dcache.sv fes_sh4_mmu.sv fes_sh4.sv $(TOP).sv
+RTL := fes_sh4_icache.sv fes_sh4_dcache.sv fes_sh4_mmu.sv fes_sh4_integer.sv fes_sh4_multiplier.sv fes_sh4.sv $(TOP).sv
 PROJECT := $(TOP).qpf $(TOP).qsf $(TOP).sdc
 QUARTUS_JOBS := $(abspath ../../../../scripts/quartus_jobs.py)
 

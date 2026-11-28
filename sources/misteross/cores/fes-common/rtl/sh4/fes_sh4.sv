@@ -16,14 +16,15 @@ module fes_sh4 #(
     output logic [31:0] fault_pc
 );
     typedef enum logic [3:0] {
-        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT, COMMIT, EXCEPTION, STOP
+        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT, COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC_SR, STC_SR,
-        LDC_VBR, LDC_SSR, LDC_SPC, STC_VBR, STC_SSR, STC_SPC, STC_SGR, RTE, TRAPA
+        LDC_VBR, LDC_SSR, LDC_SPC, STC_VBR, STC_SSR, STC_SPC, STC_SGR, RTE, TRAPA,
+        INTEGER, MULTIPLY, CLRMAC, LDS, STS, LDC_GBR, STC_GBR, BRAF, BSRF
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
     localparam logic [3:0] ILLEGAL = 4'd1, SLOT_ILLEGAL = 4'd2,
@@ -37,6 +38,12 @@ module fes_sh4 #(
     logic [31:0] gpr_storage [0:23];
     logic [31:0] pc, pr, delay_target, delay_branch_pc, pre_slot_pr;
     logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
+    logic [31:0] gbr, mach, macl, sys_value;
+    logic [63:0] product;
+    logic dec_sys_load, sys_load, dest_r0;
+    logic alu_recognized, alu_r0, alu_write;
+    logic [31:0] alu_result;
+    logic [3:0] alu_flag_mask, alu_flag_value;
     logic [11:0] expevt, exception_event;
     logic [7:0] tra, trap_imm;
     logic [3:0] exception_cause;
@@ -97,11 +104,34 @@ module fes_sh4 #(
         assign gpr[r] = gpr_storage[gpr_index(4'(r), bank_one)];
     end
 
+    fes_sh4_integer integer_extra (
+        .clk, .capture(stage == DECODE), .ir, .recognized(alu_recognized), .use_r0(alu_r0),
+        .lhs(a), .rhs(b), .flags({sr[9:8], sr[0]}),
+        .result(alu_result), .write_gpr(alu_write), .flag_mask(alu_flag_mask), .flag_value(alu_flag_value)
+    );
+
+    fes_sh4_multiplier multiplier (
+        .clk, .launch(stage == MUL_PRODUCTS), .sum_products(stage == MUL_SUM), .finish(stage == MUL_RESULT),
+        .word_operands(ir[15:12] == 4'h2),
+        .signed_operands(ir[3:0] == 4'hd || ir[3:0] == 4'hf),
+        .lhs(a), .rhs(b), .product
+    );
+
     assign n = ir[11:8];
     assign m = ir[7:4];
 
     always_comb begin
-        decoded = BAD;
+        case (ir[5:4])
+            0: sys_value = mach;
+            1: sys_value = macl;
+            default: sys_value = pr;
+        endcase
+    end
+
+    always_comb begin
+        decoded = alu_recognized ? INTEGER : BAD;
+        dest_r0 = alu_r0;
+        dec_sys_load = 1'b0;
         dec_size = BYTE;
         dec_pre = 1'b0;
         dec_post = 1'b0;
@@ -127,6 +157,24 @@ module fes_sh4 #(
             16'h002b: decoded = RTE;
             16'hc3??: decoded = TRAPA;
             16'h0?29: decoded = MOV_T;
+            16'h0028: decoded = CLRMAC;
+            16'h4?1e: decoded = LDC_GBR;
+            16'h0?12: decoded = STC_GBR;
+            16'h3??5, 16'h3??d, 16'h0??7, 16'h2??e, 16'h2??f: decoded = MULTIPLY;
+            16'h4?0a, 16'h4?1a, 16'h4?2a: decoded = LDS;
+            16'h0?0a, 16'h0?1a, 16'h0?2a: decoded = STS;
+            16'h4?06, 16'h4?16, 16'h4?26: begin
+                decoded = LOAD;
+                dec_size = LONGWORD;
+                dec_post = 1'b1;
+                dec_sys_load = 1'b1;
+            end
+            16'h4?02, 16'h4?12, 16'h4?22: begin
+                decoded = STORE;
+                dec_size = LONGWORD;
+                dec_pre = 1'b1;
+                dec_b = sys_value;
+            end
 
             16'he???: begin decoded = MOV; dec_b = {{24{ir[7]}}, ir[7:0]}; end
             16'h7???: begin decoded = ADD; dec_b = {{24{ir[7]}}, ir[7:0]}; end
@@ -152,6 +200,8 @@ module fes_sh4 #(
 
             16'h4?2b: decoded = JMP;
             16'h4?0b: decoded = CALL;
+            16'h0?23: begin decoded = BRAF; dec_offset = gpr[n]; end
+            16'h0?03: begin decoded = BSRF; dec_offset = gpr[n]; end
             16'ha???, 16'hb???: begin
                 decoded = ir[12] ? BSR : BR;
                 dec_offset = {{19{ir[11]}}, ir[11:0], 1'b0};
@@ -177,6 +227,20 @@ module fes_sh4 #(
                 dec_size = size_t'(ir[1:0]);
                 dec_pre = ir[2];
             end
+            16'h0??4, 16'h0??5, 16'h0??6, 16'h0??c, 16'h0??d, 16'h0??e: begin
+                decoded = ir[3] ? LOAD : STORE;
+                dec_size = size_t'(ir[1:0]);
+                dec_a = ir[3] ? gpr[m] : gpr[n];
+                dec_offset = gpr[0];
+            end
+            16'hc0??, 16'hc1??, 16'hc2??, 16'hc4??, 16'hc5??, 16'hc6??: begin
+                decoded = ir[10] ? LOAD : STORE;
+                dec_size = size_t'(ir[9:8]);
+                dest_r0 = ir[10];
+                dec_a = gbr;
+                dec_b = gpr[0];
+                dec_offset = {24'b0, ir[7:0]} << dec_size;
+            end
             16'h1???, 16'h5???: begin
                 decoded = ir[14] ? LOAD : STORE;
                 dec_size = LONGWORD;
@@ -186,17 +250,24 @@ module fes_sh4 #(
             default: ;
         endcase
 
+        if (alu_recognized && alu_r0) begin
+            dec_a = gpr[0];
+            dec_b = {24'b0, ir[7:0]};
+        end
+
         // Byte and word displacement forms place the register in a different field.
         casez (ir)
             16'h80??, 16'h81??, 16'h84??, 16'h85??: begin
                 decoded = ir[10] ? LOAD : STORE;
+                dest_r0 = ir[10];
                 dec_size = ir[8] ? WORD : BYTE;
                 dec_a = gpr[m];
                 dec_b = gpr[0];
                 dec_offset = ir[8] ? {27'b0, ir[3:0], 1'b0} : {28'b0, ir[3:0]};
             end
             16'h9???, 16'hd???, 16'hc7??: begin
-                decoded = ir[15:12] == 4'hc ? MOVA : LOAD;
+                dest_r0 = ir[15:12] == 4'hc;
+                decoded = dest_r0 ? MOVA : LOAD;
                 dec_size = ir[15:12] == 4'h9 ? WORD : LONGWORD;
                 dec_pc_relative = 1'b1;
                 dec_offset = dec_size == WORD ? {23'b0, ir[7:0], 1'b0} : {22'b0, ir[7:0], 2'b00};
@@ -232,7 +303,7 @@ module fes_sh4 #(
         taken = 1'b0;
 
         case (op)
-            MOV, MOV_T, MOVA, STC_SR, STC_VBR, STC_SSR, STC_SPC, STC_SGR,
+            MOV, MOV_T, MOVA, STC_SR, STC_VBR, STC_SSR, STC_SPC, STC_SGR, STS, STC_GBR,
             ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP, SHLL, SHLR, SHAR: begin
                 write_gpr = 1'b1;
                 case (op)
@@ -243,6 +314,8 @@ module fes_sh4 #(
                     STC_SSR: value = ssr;
                     STC_SPC: value = spc;
                     STC_SGR: value = sgr;
+                    STC_GBR: value = gbr;
+                    STS: value = sys_value;
                     MOVA: value = effective_addr;
                     ADD, SUB, ADDC, SUBC: begin
                         value = arithmetic[31:0];
@@ -272,11 +345,11 @@ module fes_sh4 #(
                     default: next_t = b[0];
                 endcase
             end
-            JMP, CALL, RETURN_OP, BR, BSR, BT, BF, BTS, BFS, RTE: begin
+            JMP, CALL, RETURN_OP, BR, BSR, BRAF, BSRF, BT, BF, BTS, BFS, RTE: begin
                 control = 1'b1;
                 delayed = op != BT && op != BF;
                 taken = (op == BT || op == BTS) ? t : (op == BF || op == BFS) ? !t : 1'b1;
-                write_pr = op == CALL || op == BSR;
+                write_pr = op inside {CALL, BSR, BSRF};
                 if (op == JMP || op == CALL)
                     target = a;
                 if (op == RETURN_OP)
@@ -447,6 +520,9 @@ module fes_sh4 #(
             pc <= RESET_PC;
             fetch_pc <= RESET_PC;
             pr <= 32'b0;
+            gbr <= 32'b0;
+            mach <= 32'b0;
+            macl <= 32'b0;
             sr <= 32'h7000_00f0;
             ssr <= '0;
             spc <= '0;
@@ -511,14 +587,15 @@ module fes_sh4 #(
                     trap_imm <= ir[7:0];
                     size <= dec_size;
                     pre <= dec_pre;
-                    post <= dec_post && n != m;
+                    post <= dec_post && (dec_sys_load || n != m);
+                    sys_load <= dec_sys_load;
                     pc_relative <= dec_pc_relative;
                     a <= dec_a;
                     b <= dec_b;
                     offset <= dec_offset;
                     store_value <= dec_b;
-                    dst <= decoded == MOVA || ((ir[15:8] == 8'h84 || ir[15:8] == 8'h85) && decoded == LOAD) ? 4'd0 : n;
-                    base_reg <= decoded == LOAD ? m : n;
+                    dst <= dest_r0 ? 4'd0 : n;
+                    base_reg <= decoded == LOAD && !dec_sys_load ? m : n;
                     stage <= EXECUTE;
                 end
                 EXECUTE: begin
@@ -544,13 +621,27 @@ module fes_sh4 #(
                             default: data_wstrb <= is_store ? 4'b1111 : 4'b0;
                         endcase
                         stage <= DATA_TRANSLATE;
+                    end else if (op == INTEGER) begin
+                        stage <= INTEGER_RESULT;
+                    end else if (op == MULTIPLY) begin
+                        stage <= MUL_PRODUCTS;
                     end else begin
                         stage <= COMMIT;
                     end
                 end
+                INTEGER_RESULT: begin
+                    wb_value <= alu_result;
+                    wb_gpr <= alu_write;
+                    wb_t <= alu_flag_mask[0];
+                    wb_t_value <= alu_flag_value[0];
+                    stage <= COMMIT;
+                end
+                MUL_PRODUCTS: stage <= MUL_SUM;
+                MUL_SUM: stage <= MUL_RESULT;
+                MUL_RESULT: stage <= COMMIT;
                 DATA_TRANSLATE: begin
                     if (mmu_register || event_register) begin
-                        wb_gpr <= op == LOAD;
+                        wb_gpr <= op == LOAD && !sys_load;
                         wb_value <= mmu_reg_rdata;
                         if (event_register) begin
                             if (mmu_register_index == 8) begin
@@ -581,7 +672,7 @@ module fes_sh4 #(
                     stage <= DATA_WAIT;
                 DATA_WAIT: if (data_complete) begin
                     if (op == LOAD) begin
-                        wb_gpr <= 1'b1;
+                        wb_gpr <= !sys_load;
                         case (size)
                             BYTE: wb_value <= {{24{load_word[7]}}, load_word[7:0]};
                             WORD: wb_value <= {{16{load_word[15]}}, load_word[15:0]};
@@ -607,6 +698,25 @@ module fes_sh4 #(
                         LDC_SSR: ssr <= a & SR_MASK;
                         LDC_SPC: spc <= a;
                         RTE: sr <= ssr;
+                        LDC_GBR: gbr <= a;
+                        INTEGER: begin
+                            if (alu_flag_mask[3]) sr[9] <= alu_flag_value[3];
+                            if (alu_flag_mask[2]) sr[8] <= alu_flag_value[2];
+                            if (alu_flag_mask[1]) sr[1] <= alu_flag_value[1];
+                        end
+                        CLRMAC: {mach, macl} <= 64'b0;
+                        MULTIPLY: begin
+                            macl <= product[31:0];
+                            if (ir[15:12] == 4'h3)
+                                mach <= product[63:32];
+                        end
+                        LDS, LOAD: if (op == LDS || sys_load) begin
+                            case (ir[5:4])
+                                0: mach <= op == LDS ? a : wb_value;
+                                1: macl <= op == LDS ? a : wb_value;
+                                default: pr <= op == LDS ? a : wb_value;
+                            endcase
+                        end
                         default: ;
                     endcase
                     if (start_slot)

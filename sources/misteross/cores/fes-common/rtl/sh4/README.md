@@ -45,14 +45,18 @@ The [Renesas SH-4 software manual](https://www.renesas.com/en/document/mas/sh-4-
 defines instruction encodings and behavior. The implemented slice includes:
 
 - Register and immediate MOV and ADD, SUB, ADDC, SUBC, AND, OR, XOR, NOT, TST,
-  integer compares, single-bit logical and arithmetic shifts, and T-bit access.
+  integer compares, shifts and rotates, T-bit and S-bit access, extensions,
+  SWAP, XTRCT, DT, and the DIV0U/DIV0S/DIV1 division steps.
+- MUL.L, MULS.W, MULU.W, DMULS.L and DMULU.L, with pipelined partial products.
+  CLRMAC and register and stack transfers expose MACH and MACL.
 - Byte, word, and longword MOV through a register, including predecrement
   stores and postincrement loads, base-plus-displacement forms, PC-relative
-  literal loads, and MOVA.
-- BT, BF, BT/S, BF/S, BRA, BSR, JMP, JSR, RTS, and NOP. The branch decision and
+  literal loads, indexed and GBR-relative forms, and MOVA.
+- BT, BF, BT/S, BF/S, BRA, BSR, BRAF, BSRF, JMP, JSR, RTS, and NOP. The branch decision and
   target are captured before the delay slot executes.
 - LDTLB, TRAPA, RTE, and register forms of LDC/STC for SR, VBR, SSR, and SPC.
-  STC also reads SGR.
+  LDC/STC also transfer GBR, STC reads SGR, and STS/LDS support PR register
+  and stack transfers.
 
 ## Exception entry and return
 
@@ -123,6 +127,9 @@ faults, and guest code that programs the TLB and accesses remapped code and
 data. The exception tests execute an in-guest refill handler for a data read,
 an instruction fetch, and a store in a branch delay slot. They check restart
 through RTE, the restored register bank, and the general TRAPA vector.
+Additional guest programs exercise signed and unsigned division and
+multiplication, flag updates, indexed moves, and nested calls that save PR
+on the stack.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

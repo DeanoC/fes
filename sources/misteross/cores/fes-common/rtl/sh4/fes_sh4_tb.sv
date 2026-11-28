@@ -455,10 +455,138 @@ module fes_sh4_tb;
                 dut.ssr == 0 && dut.mmu.utlb_valid == 0)
             else $fatal(1, "Supervisor-only MMU control was not enforced");
 
+        // Signed overflow, subtract-with-borrow, rotate through T, and the
+        // negative multiple-of-32 register-controlled shift special case.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'he201); // MOV #1,R2
+        emit('h04, 'h312f); // ADDV R2,R1
+        emit('h06, 'h0829); // MOVT R8
+        emit('h08, 'h312b); // SUBV R2,R1
+        emit('h0a, 'h0929); // MOVT R9
+        emit('h0c, 'h632a); // NEGC R2,R3
+        emit('h0e, 'h4324); // ROTCL R3
+        emit('h10, 'he4e0); // MOV #-32,R4
+        emit('h12, 'h6533); // MOV R3,R5
+        emit('h14, 'h454c); // SHAD R4,R5
+        emit('h16, 'h6633); // MOV R3,R6
+        emit('h18, 'h464d); // SHLD R4,R6
+        emit('h1a, 'h673c); // EXTU.B R3,R7
+        emit('h1c, 'h6a3f); // EXTS.W R3,R10
+        emit('h1e, 'he000); // MOV #0,R0
+        emit('h20, 'hcb80); // OR #0x80,R0
+        emit('h22, 'hca01); // XOR #1,R0
+        emit('h24, 'hc981); // AND #0x81,R0
+        emit('h26, 'hc802); // TST #2,R0
+        emit('h28, 'h0b29); // MOVT R11
+        emit('h2a, 'h4005); // ROTR R0
+        emit('h2c, 'h6c08); // SWAP.B R0,R12
+        emit('h2e, 'h6d09); // SWAP.W R0,R13
+        emit('h30, 'h2dcd); // XTRCT R12,R13
+        emit('h32, 'he000); // MOV #0,R0
+        emit('h34, 'h4010); // DT R0 (wrap)
+        emit('h36, 'h4015); // CMP/PL R0
+        emit('h38, 'h0e29); // MOVT R14
+        image['h80 >> 2] = 'h7fff_ffff;
+        start_bus();
+        expect_stop(1, 'h3a);
+        assert (dut.gpr[1] == 'h7fff_ffff && dut.gpr[8] == 1 && dut.gpr[9] == 1 &&
+                dut.gpr[3] == 'hffff_fffd && dut.gpr[5] == 'hffff_ffff && dut.gpr[6] == 0 &&
+                dut.gpr[7] == 253 && dut.gpr[10] == 'hffff_fffd && dut.gpr[11] == 1 &&
+                dut.gpr[12] == 'h8000_4000 && dut.gpr[13] == 'h4000_0040 &&
+                dut.gpr[0] == 'hffff_ffff && dut.gpr[14] == 0)
+            else $fatal(1, "Extended integer flags, shifts or register destinations were incorrect");
+
+        // The software division sequences use Q/M/T across 32 DIV1 steps.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he007); // Divisor 7 in R0
+        emit('h02, 'he100); // High dividend in R1
+        emit('h04, 'he264); // Low dividend 100
+        emit('h06, 'h0019); // DIV0U
+        for (int step = 0; step < 32; step++) begin
+            emit('h08 + 4*step, 'h4224); // ROTCL R2
+            emit('h0a + 4*step, 'h3104); // DIV1 R0,R1
+        end
+        emit('h88, 'h4224);
+        emit('h8a, 'he300); // Zero for signed-quotient correction
+        emit('h8c, 'h323e); // ADDC R3,R2
+        start_bus();
+        expect_stop(1, 'h8e);
+        assert (dut.gpr[2] == 14) else $fatal(1, "Unsigned DIV1 quotient is %h", dut.gpr[2]);
+
+        emit('h02, 'he1ff); // Sign extension for a negative dividend
+        emit('h04, 'he29b); // One's complement representation of -100
+        emit('h06, 'h2107); // DIV0S R0,R1
+        start_bus();
+        expect_stop(1, 'h8e);
+        assert (dut.gpr[2] == 'hffff_fff2) else $fatal(1, "Signed DIV1 quotient is %h", dut.gpr[2]);
+
+        // Exercise DSP partial products with opposite signed/unsigned high
+        // words, and verify short multiplies leave MACH intact.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'he2ff);
+        emit('h04, 'h312d); // DMULS.L R2,R1
+        emit('h06, 'h080a); // STS MACH,R8
+        emit('h08, 'h091a); // STS MACL,R9
+        emit('h0a, 'h3125); // DMULU.L R2,R1
+        emit('h0c, 'h0a0a);
+        emit('h0e, 'h0b1a);
+        literal('h10, 1, 'h84);
+        emit('h12, 'h212f); // MULS.W R2,R1
+        emit('h14, 'h0c1a);
+        emit('h16, 'h212e); // MULU.W R2,R1
+        emit('h18, 'h0d1a);
+        emit('h1a, 'h0127); // MUL.L R2,R1
+        emit('h1c, 'h0e1a);
+        emit('h1e, 'h0f0a);
+        image['h80 >> 2] = 'h8000_0000;
+        image['h84 >> 2] = 'h0000_8000;
+        start_bus();
+        expect_stop(1, 'h20);
+        assert (dut.gpr[8] == 0 && dut.gpr[9] == 'h8000_0000 &&
+                dut.gpr[10] == 'h7fff_ffff && dut.gpr[11] == 'h8000_0000 &&
+                dut.gpr[12] == 'h0000_8000 && dut.gpr[13] == 'h7fff_8000 &&
+                dut.gpr[14] == 'hffff_8000 && dut.gpr[15] == 'h7fff_ffff)
+            else $fatal(1, "Multiply signedness, width, or MACH preservation was incorrect");
+
+        // A nested call preserves PR via its normal stack instructions.
+        // Its callee uses both indexed and GBR-relative data addressing.
+        image = '{default:32'hfffd_fffd};
+        literal('h0, 15, 'h70);
+        emit('h02, 'he308); // Offset from PC+4 to outer callee
+        emit('h04, 'h0303); // BSRF R3
+        emit('h06, 'h0009);
+        emit('h10, 'h4f22); // STS.L PR,@-R15
+        emit('h12, 'hb009); // BSR 0x28
+        emit('h14, 'h0009);
+        emit('h16, 'h4f26); // LDS.L @R15+,PR
+        emit('h18, 'h000b); // RTS
+        emit('h1a, 'h0009);
+        literal('h28, 3, 'h74);
+        emit('h2a, 'h431e); // LDC R3,GBR
+        emit('h2c, 'h0412); // STC GBR,R4
+        emit('h2e, 'he03d);
+        emit('h30, 'hc201); // MOV.L R0,@(4,GBR)
+        emit('h32, 'he004);
+        emit('h34, 'h073e); // MOV.L @(R0,R3),R7
+        emit('h36, 'he659);
+        emit('h38, 'h0366); // MOV.L R6,@(R0,R3)
+        emit('h3a, 'hc601); // MOV.L @(4,GBR),R0
+        emit('h3c, 'h000b);
+        emit('h3e, 'h0009);
+        image['h70 >> 2] = 'h300;
+        image['h74 >> 2] = 'h200;
+        start_bus();
+        expect_stop(1, 'h8);
+        assert (dut.gpr[4] == 'h200 && dut.gpr[7] == 'h3d && dut.gpr[0] == 'h59 &&
+                dut.gpr[15] == 'h300 && ext_mem['h2fc >> 2] == 8)
+            else $fatal(1, "Call linkage or indexed and GBR-relative memory was incorrect");
+
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception vectors and RTE");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return and extended integer execution");
         $finish;
     end
 
