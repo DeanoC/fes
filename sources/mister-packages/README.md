@@ -8,6 +8,38 @@ programming-profile declarations, format-2/3/4/5 package schemas and conformance
 fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 
+## Schema and generation flow
+
+Every wire offset, ABI opcode, programming profile, and package conformance
+corpus has one canonical source here; `make generate` (`scripts/generate.py`)
+validates each YAML definition and emits checked-in consumers across all four
+modules, and `make check-generated` (`scripts/generate.py --check`) fails on any
+drift:
+
+```mermaid
+flowchart LR
+  subgraph Sources["Canonical Definitions (sources/mister-packages/)"]
+    YAML["packages/\nabi/ | board/ | cpu/ | fabric/\nplatform/ | programming/ | registers/ | soc/"]
+    Fix["testdata/\ncore-bundle-v2..v5 | core-persistence-v1\nmedia-data-v1 | *-exchanges.json"]
+  end
+
+  Gen["make generate\n(scripts/generate.py +\ncmd/mister-packages validate / emit-*)"]
+
+  subgraph Consumers["Checked-in Consumers (76 generated files + synced fixtures)"]
+    FES["FES parent\n(emit-c, emit-cpp, emit-go:\nimage/kernel/, platform/embedded/)"]
+    FC["FogCast\n(emit-go + corepackage/protocol fixtures)"]
+    RT["libmister-runtime\n(emit-cpp + unit test fixtures)"]
+    OSS["misteross\n(emit-c, emit-cpp, emit-verilog\n+ core/board generated RTL & fixtures)"]
+  end
+
+  YAML --> Gen
+  Fix --> Gen
+  Gen --> FES
+  Gen --> FC
+  Gen --> RT
+  Gen --> OSS
+```
+
 Format5 describes a DE25 cold-start base plus its default empty partial persona.
 The three exact members, controller identity and frozen-root bindings are
 specified in [the schema guide](docs/schema.md#static-expansion-package-format-5).

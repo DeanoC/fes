@@ -11,6 +11,24 @@ volume. Adopting that image is an appliance update. Software installation never
 creates or formats a partition. Core packages remain in their separate library;
 installing or activating software does not rewrite their selections or settings.
 
+## Activation and recovery flow
+
+```mermaid
+flowchart TD
+  Install["Install immutable bundle\n(cmd/fes-software -> FESDATA3;\nrunning services untouched)"]
+  Queue["Queue activation\n(POST /v1/kit/software/activate;\npersisted across reboot)"]
+  Wait["Wait for released, idle boundary\n(active play/lease keeps running;\nnew claims wait behind activation)"]
+  Maint["Enter target maintenance &\nstop old service group (proven exit)"]
+  Start["Start candidate bundle\n(mister-runtime, mister-agent,\nfogcast-kit host, fogcast-tenfoot)"]
+  Ready{"Agent + runtime idle, host/catalog &\nlauncher ready for 10 s\n(within 3 min budget)?"}
+  Accept["Accepted & persistent\n(survives reboot;\nhost/tenfoot restart alone on exit)"]
+  Recover["Supervisor recovery / backoff\n(or explicit select-factory /\nrollback to retained bundle)"]
+
+  Install --> Queue --> Wait --> Maint --> Start --> Ready
+  Ready -->|"Yes"| Accept
+  Ready -->|"No"| Recover
+```
+
 ## Prepare a bundle
 
 For ordinary updates, use the [parent build command](#build-an-update-without-rebuilding-the-os)
