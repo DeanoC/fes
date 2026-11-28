@@ -1,4 +1,5 @@
 """GPU lease behavior with a private directory and fake device ids."""
+import fcntl
 import json
 import io
 import os
@@ -1020,6 +1021,57 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(report['gpus'], [{'id': '0', 'state': 'free'}, {'id': '1', 'state': 'free'}])
         self.assertEqual(report['queue'], [])
         self.assertFalse(self.lease.exists())
+
+    def hold_mid_acquire(self, directory, gpu_id):
+        """Stand where attempt() has taken a flock but not yet written its owner.
+
+        The state lock is held and the GPU lock file is empty. Returns a
+        callback that writes the owner and releases the state lock, as
+        attempt() does.
+        """
+        directory = gpu_lease.ensure_lease_dir(directory)
+        state = gpu_lease.open_private(directory / 'state.lock')
+        self.addCleanup(os.close, state)
+        fcntl.flock(state, fcntl.LOCK_EX)
+        gpu = gpu_lease.open_private(gpu_lease.lease_path(directory, gpu_id))
+        self.addCleanup(os.close, gpu)
+        self.assertTrue(gpu_lease.try_lock(gpu))
+
+        def finish(owner):
+            gpu_lease.write_fd_json(gpu, {'gpu': gpu_id, 'owner': owner, 'label': 'mid-acquire',
+                                          'pid': os.getpid(), 'start_unix': time.time()})
+            fcntl.flock(state, fcntl.LOCK_UN)
+        return finish
+
+    def stop_status(self, status):
+        if status.poll() is None:
+            status.kill()
+        status.communicate(timeout=10)
+
+    def test_status_never_reports_a_held_gpu_before_its_owner(self):
+        # A held GPU and its owner become visible together: status waits for
+        # the state lock rather than reporting the flock with no metadata.
+        gpu_lease.ensure_private_subdir(gpu_lease.ensure_lease_dir(self.lease) / 'jobs')
+        cases = (
+            (self.lease, '0', lambda payload: payload['gpus'][0]),
+            (gpu_lease.job_slot_directory(self.lease, 'carol'), '0',
+             lambda payload: payload['jobs'][0]),
+        )
+        for directory, gpu_id, entry in cases:
+            with self.subTest(directory=directory.name):
+                finish = self.hold_mid_acquire(directory, gpu_id)
+                status = subprocess.Popen([sys.executable, str(GPU_STATUS), '--json'],
+                                          env=self.env(), stdout=subprocess.PIPE,
+                                          stderr=subprocess.PIPE, text=True)
+                self.addCleanup(self.stop_status, status)
+                time.sleep(0.3)
+                self.assertIsNone(status.poll(), 'gpu-status read the lease mid-acquire')
+                finish('carol')
+                stdout, stderr = status.communicate(timeout=10)
+                self.assertEqual(status.returncode, 0, stderr)
+                held = entry(json.loads(stdout))
+                self.assertEqual(held['state'], 'held' if directory == self.lease else 'running')
+                self.assertEqual(held['owner'], 'carol')
 
     def test_invalid_override_and_the_tool_never_terminates_other_processes(self):
         env = self.env(GPU_LEASE_IDS='0,0')

@@ -1527,20 +1527,34 @@ def public_ticket(ticket):
     }
 
 
-def report(directory, vendor, ids):
-    directory = Path(directory)
-    gpus = []
-    for gpu_id in ids:
-        meta = read_holder(directory, gpu_id) if directory.is_dir() else None
-        if meta is None:
-            gpus.append({'id': gpu_id, 'state': 'free'})
-        else:
-            gpus.append(public_held(gpu_id, meta))
-    queue = [public_ticket(ticket) for ticket in iter_tickets(directory)] if directory.is_dir() else []
-    if directory.is_dir():
+def read_lease_state(directory, ids):
+    """Holders of ids and both queues, read as one snapshot under the state lock.
+
+    attempt() takes a GPU flock and writes its metadata while it holds the
+    state lock, so an unlocked reader could see a held GPU with no owner, or
+    the previous holder's. Probing under the state lock also keeps the
+    probe's brief flock from making a concurrent attempt skip that GPU.
+    """
+    def operation():
+        gpus = []
+        for gpu_id in ids:
+            meta = read_holder(directory, gpu_id)
+            gpus.append({'id': gpu_id, 'state': 'free'} if meta is None
+                        else public_held(gpu_id, meta))
+        queue = [public_ticket(ticket) for ticket in iter_tickets(directory)]
         # Yielding phase requests are served after the main queue, so list them last.
         queue.extend(dict(public_ticket(ticket), yields=True)
                      for ticket in iter_tickets(directory, YIELD_QUEUE))
+        return gpus, queue
+    return with_state_lock(directory, operation)
+
+
+def report(directory, vendor, ids):
+    directory = Path(directory)
+    if directory.is_dir():
+        gpus, queue = read_lease_state(directory, ids)
+    else:
+        gpus, queue = [{'id': gpu_id, 'state': 'free'} for gpu_id in ids], []
     payload = {'lease_dir': str(directory), 'vendor': vendor, 'gpus': gpus, 'queue': queue}
     jobs = job_report(directory) if directory.is_dir() else None
     if jobs is not None:
@@ -1559,23 +1573,33 @@ def job_report(directory):
         return []
     jobs = []
     for slot_directory in slot_directories:
-        slot_ids = []
-        for path in slot_directory.glob('gpu-*.lock'):
-            slot_id = path.name[len('gpu-'):-len('.lock')]
-            if ID_RE.fullmatch(slot_id):
-                slot_ids.append(slot_id)
-        for slot_id in sorted(slot_ids, key=id_key):
-            meta = read_holder(slot_directory, slot_id)
-            if meta is not None:
-                job = public_held(slot_id, meta)
-                job['slot'] = job.pop('id')
-                job['state'] = 'running'
-                jobs.append(job)
-        for ticket in iter_tickets(slot_directory):
-            waiting = public_ticket(ticket)
-            jobs.append({'state': 'waiting', 'ticket': waiting['ticket'], 'owner': waiting['owner'],
-                         'label': waiting['label'], 'pid': waiting['pid'], 'host': waiting['host'],
-                         'age_seconds': waiting['age_seconds'], 'command': waiting['command']})
+        # Each slot directory has its own state lock, which acquire() holds
+        # while it takes a slot and writes that slot's metadata.
+        jobs.extend(with_state_lock(slot_directory,
+                                    lambda slot_directory=slot_directory: slot_jobs(slot_directory)))
+    return jobs
+
+
+def slot_jobs(slot_directory):
+    """Running and waiting phase-lease jobs of one slot directory."""
+    jobs = []
+    slot_ids = []
+    for path in slot_directory.glob('gpu-*.lock'):
+        slot_id = path.name[len('gpu-'):-len('.lock')]
+        if ID_RE.fullmatch(slot_id):
+            slot_ids.append(slot_id)
+    for slot_id in sorted(slot_ids, key=id_key):
+        meta = read_holder(slot_directory, slot_id)
+        if meta is not None:
+            job = public_held(slot_id, meta)
+            job['slot'] = job.pop('id')
+            job['state'] = 'running'
+            jobs.append(job)
+    for ticket in iter_tickets(slot_directory):
+        waiting = public_ticket(ticket)
+        jobs.append({'state': 'waiting', 'ticket': waiting['ticket'], 'owner': waiting['owner'],
+                     'label': waiting['label'], 'pid': waiting['pid'], 'host': waiting['host'],
+                     'age_seconds': waiting['age_seconds'], 'command': waiting['command']})
     return jobs
 
 
