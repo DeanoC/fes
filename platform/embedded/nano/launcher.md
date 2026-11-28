@@ -171,8 +171,10 @@ package requires a fresh fit and board run.
 
 ## 4. Controls and clean-reboot persistence
 
-- **Navigate & launch:** Arrows + Enter (on fresh media, first open
-  **Settings → Updates → Systems → Install**, then **Open library**).
+- **First boot.** A freshly staged installer card opens with an empty library.
+  Press **O** for Settings. Use the arrows and **Enter** to choose **Updates →
+  Systems**, select the staged system, and choose **Install**. When installation
+  finishes, choose **Open library**, highlight the title and press **Enter**.
 - **Return to MENU:** Press and release **Ctrl+Alt+Escape** (neutral-report
   fences prevent held keys from re-triggering launch or return).
 - **Layout & shutdown:** **L** changes layout (buffered in RAM while MENU owns
@@ -194,10 +196,12 @@ GOWORK=off go -C platform/embedded/tamago test -race -count=1 -timeout=120s \
   ./nativefabric -run 'TestProgramLauncher|TestProgramStartup|TestProgramPreferences'
 ```
 
-An earlier matched R1 image cold-booted to Tenfoot twice, launched and
-returned from ZX81 by keyboard, and retained the List layout. Factory
-restore, a factory cold boot and native reinstall are still open. Each new
-image needs its own board evidence.
+The earlier R1 trial cold-booted to Tenfoot twice and retained the List
+layout on a card with ZX81 already installed. A later TRWU8CBL trial
+restored factory QSPI, cold-booted Terasic Linux, reinstalled native R1 and
+cold-booted the fresh launcher. The physical keyboard installed ZX81,
+launched it, returned to the library and parked the board.
+[Factory recovery and native reinstall](../../../docs/validation/2026-11-27-de25-r1-factory-recovery/README.md) ·
 [R1 trial](https://github.com/DeanoC/fes/pull/2026) ·
 [Lifecycle qualification](https://github.com/DeanoC/fes/issues/1867)
 Standard DE25 HIL uses Kit D25 (`TRWU8J8G`) on Linux; never access `TRWU8CBL`
