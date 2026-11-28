@@ -750,6 +750,11 @@ A/B/C/X/Y/L/R/Select/Start, signed X/Y axes, and synchronized event reports cons
 native runtime. Authenticated input leases only gate delivery to that retained
 device: detach releases held state without destroying it, and agent shutdown
 destroys it once. Package interface and generation checks gate delivery.
+When the runtime observer is configured, a remote input attachment also
+requires an active core; if the runtime identifies its core, that identity
+must match the requested one. A failed load therefore cannot create or confirm
+an input attachment while the runtime is idle. Lease cleanup still neutralizes
+input and reports any failure instead of assuming it is safe.
 Exact-artifact hardware acceptance remains a separate integration gate.
 
 Remote input retains Select wire code 107 and MD C code 108; X/Y/L/R append
