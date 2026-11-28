@@ -27,21 +27,22 @@ module fes_sh4 #(
     typedef enum logic [4:0] {
         ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT,
         COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT,
-        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, SQ_ACCESS, SQ_WORD, SQ_SEND, ASLEEP, STOP
+        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, SQ_ACCESS, SQ_WORD, SQ_SEND, FP_RESULT, FP_SECOND, ASLEEP, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP
     } op_t;
-    typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
+    typedef enum logic [1:0] {BYTE, WORD, LONGWORD, QUADWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
     localparam logic [3:0] ILLEGAL = 4'd1, SLOT_ILLEGAL = 4'd2,
                            FETCH_ALIGN = 4'd3, DATA_ALIGN = 4'd4, TLB_MISS = 4'd5, TLB_MULTIPLE = 4'd6,
                            TLB_PROTECT = 4'd7, TLB_INITIAL_WRITE = 4'd8,
-                           ADDRESS_ERROR = 4'd9, TRAP = 4'd10;
+                           ADDRESS_ERROR = 4'd9, TRAP = 4'd10,
+                           FPU_DISABLED = 4'd11, SLOT_FPU_DISABLED = 4'd12;
     localparam logic [31:0] SR_MASK = 32'h7000_83f3;
 
     stage_t stage;
@@ -49,7 +50,12 @@ module fes_sh4 #(
     logic [31:0] gpr_storage [0:23];
     logic [31:0] pc, pr, delay_target, delay_branch_pc, pre_slot_pr;
     logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
-    logic [31:0] gbr, dbr, mach, macl, sys_value;
+    logic [31:0] gbr, dbr, mach, macl, sys_value, fpscr, fpul;
+    logic dec_fp_mem, dec_fp_pair, fp_mem, fp_pair, fp_second;
+    logic fp_opcode, fp_system, fp_format_error, fp_write_register, fp_write_fpul, fp_write_fpscr;
+    logic [3:0] fp_read_number;
+    logic [63:0] fp_read_value, fp_source, fp_result;
+    logic [31:0] fp_system_value;
     control_reg_t dec_control_reg, control_reg;
     logic dec_control_transfer, control_transfer, control_write, writes_sr, load_gpr;
     logic [31:0] control_read_value, control_write_value;
@@ -181,9 +187,11 @@ module fes_sh4 #(
     assign m = ir[7:4];
 
     always_comb begin
-        case (ir[5:4])
+        case (ir[7:4])
             0: sys_value = mach;
             1: sys_value = macl;
+            5: sys_value = fpul;
+            6: sys_value = fpscr;
             default: sys_value = pr;
         endcase
     end
@@ -216,6 +224,7 @@ module fes_sh4 #(
         decoded = alu_recognized ? INTEGER : BAD;
         dest_r0 = alu_r0;
         dec_sys_load = 1'b0;
+        dec_fp_mem = 1'b0;
         dec_control_transfer = 1'b0;
         dec_size = BYTE;
         dec_pre = 1'b0;
@@ -266,20 +275,40 @@ module fes_sh4 #(
                 dec_size = ir[14] ? WORD : LONGWORD;
             end
             16'h3??5, 16'h3??d, 16'h0??7, 16'h2??e, 16'h2??f: decoded = MULTIPLY;
-            16'h4?0a, 16'h4?1a, 16'h4?2a: decoded = LDS;
-            16'h0?0a, 16'h0?1a, 16'h0?2a: decoded = STS;
-            16'h4?06, 16'h4?16, 16'h4?26: begin
+            16'h4?0a, 16'h4?1a, 16'h4?2a, 16'h4?5a, 16'h4?6a: decoded = LDS;
+            16'h0?0a, 16'h0?1a, 16'h0?2a, 16'h0?5a, 16'h0?6a: decoded = STS;
+            16'h4?06, 16'h4?16, 16'h4?26, 16'h4?56, 16'h4?66: begin
                 decoded = LOAD;
                 dec_size = LONGWORD;
                 dec_post = 1'b1;
                 dec_sys_load = 1'b1;
             end
-            16'h4?02, 16'h4?12, 16'h4?22: begin
+            16'h4?02, 16'h4?12, 16'h4?22, 16'h4?52, 16'h4?62: begin
                 decoded = STORE;
                 dec_size = LONGWORD;
                 dec_pre = 1'b1;
                 dec_b = sys_value;
             end
+
+            16'hf??6, 16'hf??8, 16'hf??9: begin
+                decoded = LOAD;
+                dec_fp_mem = 1'b1;
+                dec_size = fpscr[20] ? QUADWORD : LONGWORD;
+                dec_a = gpr[m];
+                dec_post = ir[3:0] == 4'h9;
+                if (ir[3:0] == 4'h6)
+                    dec_offset = gpr[0];
+            end
+            16'hf??7, 16'hf??a, 16'hf??b: begin
+                decoded = STORE;
+                dec_fp_mem = 1'b1;
+                dec_size = fpscr[20] ? QUADWORD : LONGWORD;
+                dec_pre = ir[3:0] == 4'hb;
+                if (ir[3:0] == 4'h7)
+                    dec_offset = gpr[0];
+            end
+            16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
+            16'hf3fd, 16'hfbfd: decoded = FLOAT_OP;
 
             16'he???: begin decoded = MOV; dec_b = {{24{ir[7]}}, ir[7:0]}; end
             16'h7???: begin decoded = ADD; dec_b = {{24{ir[7]}}, ir[7:0]}; end
@@ -411,7 +440,8 @@ module fes_sh4 #(
             effective_addr = a - (32'd1 << size);
         if (pc_relative)
             effective_addr = (size == WORD ? pc + 32'd4 : (pc + 32'd4) & 32'hffff_fffc) + offset;
-        aligned = (size != LONGWORD || effective_addr[1:0] == 2'b00) &&
+        aligned = (size != QUADWORD || effective_addr[2:0] == 3'b000) &&
+                  (size != LONGWORD || effective_addr[1:0] == 2'b00) &&
                   (size != WORD || !effective_addr[0]);
 
         write_gpr = 1'b0;
@@ -494,12 +524,38 @@ module fes_sh4 #(
             3: byte_result = wb_value[7:0] | ir[7:0];
         endcase
     end
+    assign dec_fp_pair = ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
+    assign fp_read_number = ir[3:0] == 4'hd ? n : m;
+    assign fp_system = (ir[7:4] inside {4'h5, 4'h6}) &&
+                       ((ir[15:12] == 4'h0 && ir[3:0] == 4'ha) ||
+                        (ir[15:12] == 4'h4 && (ir[3:0] inside {4'h2, 4'h6, 4'ha})));
+    assign fp_opcode = (ir[15:12] == 4'hf && ir != 16'hfffd) || fp_system;
+    assign fp_format_error = op == FLOAT_OP && fpscr[19] && ir[3:0] == 4'hd &&
+                             ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
+                              ((ir[7:4] inside {4'h4, 4'h5}) && n[0]));
+    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) ||
+                               (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf}))));
+    assign fp_write_fpul = stage == COMMIT && ((op == FLOAT_OP && ir[7:0] == 8'h1d) ||
+                           (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
+    assign fp_write_fpscr = stage == COMMIT && fp_system && ir[7:4] == 4'h6 &&
+                            ((op == LDS) || (op == LOAD && sys_load));
+    assign fp_system_value = op == FLOAT_OP ? fp_source[31:0] : op == LDS ? a : wb_value;
+
+    fes_sh4_fpu_regs fpu_regs (
+        .clk, .reset, .read_number(fp_read_number), .read_pair(dec_fp_pair), .read_value(fp_read_value),
+        .write_register(fp_write_register), .write_number(n), .write_pair(fp_pair), .write_value(fp_result),
+        .write_fpul(fp_write_fpul), .write_fpscr(fp_write_fpscr),
+        .change_bank(stage == COMMIT && op == FLOAT_OP && ir == 16'hfbfd),
+        .change_size(stage == COMMIT && op == FLOAT_OP && ir == 16'hf3fd),
+        .system_value(fp_system_value), .fpul, .fpscr
+    );
+
     assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
                            (control_transfer && control_reg != CR_GBR);
     assign control_write = control_transfer && (op == LDC || op == LOAD);
     assign control_write_value = op == LDC ? a : wb_value;
     assign writes_sr = control_write && control_reg == CR_SR;
-    assign load_gpr = !sys_load && (!control_transfer || control_reg == CR_BANK);
+    assign load_gpr = !fp_mem && !sys_load && (!control_transfer || control_reg == CR_BANK);
 
     always_comb begin
         exception_cause = 4'b0;
@@ -517,7 +573,9 @@ module fes_sh4 #(
                     exception_cause = mmu_fault;
             end
             EXECUTE: begin
-                if (op == BAD || (!supervisor && privileged_op) ||
+                if (fp_opcode && sr[15])
+                    exception_cause = in_slot ? SLOT_FPU_DISABLED : FPU_DISABLED;
+                else if (op == BAD || fp_format_error || (!supervisor && privileged_op) ||
                     (in_slot && (control || pc_relative || writes_sr || op == TRAPA)))
                     exception_cause = in_slot ? SLOT_ILLEGAL : ILLEGAL;
                 else if ((op == LOAD || op == MAC || is_store) && !aligned) begin
@@ -561,6 +619,8 @@ module fes_sh4 #(
             TLB_PROTECT:       exception_event = stage != ISSUE && is_store ? 12'h0c0 : 12'h0a0;
             TLB_INITIAL_WRITE: exception_event = 12'h080;
             TRAP:              exception_event = 12'h160;
+            FPU_DISABLED:      exception_event = 12'h800;
+            SLOT_FPU_DISABLED: exception_event = 12'h820;
             default:           exception_event = 12'h000;
         endcase
     end
@@ -582,7 +642,7 @@ module fes_sh4 #(
     assign bad_fetch_region = (!fetch_supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111;
     assign sq_region = data_addr[31:26] == 6'b111000;
     assign plain_prefetch = op == PREF && !sq_region;
-    assign sq_store = ordinary_store && size == LONGWORD;
+    assign sq_store = ordinary_store && (size inside {LONGWORD, QUADWORD});
     assign sq_request = stage == SQ_SEND;
     assign mem_sq = bus_sq;
     assign bad_data_region = !supervisor && data_addr[31] && !sq_region;
@@ -830,7 +890,10 @@ module fes_sh4 #(
                     trap_imm <= ir[7:0];
                     size <= dec_size;
                     pre <= dec_pre;
-                    post <= dec_post && (dec_sys_load || dec_control_transfer || n != m);
+                    post <= dec_post && (dec_sys_load || dec_control_transfer || dec_fp_mem || n != m);
+                    fp_mem <= dec_fp_mem;
+                    fp_pair <= dec_fp_pair;
+                    fp_source <= fp_read_value;
                     sys_load <= dec_sys_load;
                     control_reg <= dec_control_reg;
                     control_transfer <= dec_control_transfer;
@@ -859,17 +922,21 @@ module fes_sh4 #(
                     wb_base <= (op == STORE && pre) || (op == LOAD && post) || op == MAC;
                     writeback_base <= pre ? effective_addr : a + (32'd1 << size);
                     mac_second <= 1'b0;
+                    fp_second <= 1'b0;
                     if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance || op == PREF) begin
                         data_addr <= effective_addr[31:2];
                         data_index <= effective_addr[13:2];
                         data_addr_lane <= effective_addr[1:0];
-                        data_wdata <= store_value << {effective_addr[1:0], 3'b000};
+                        data_wdata <= fp_mem ? fp_source[31:0] :
+                                      store_value << {effective_addr[1:0], 3'b000};
                         case (size)
                             BYTE: data_wstrb <= ordinary_store ? 4'b0001 << effective_addr[1:0] : 4'b0;
                             WORD: data_wstrb <= ordinary_store ? 4'b0011 << effective_addr[1:0] : 4'b0;
                             default: data_wstrb <= ordinary_store ? 4'b1111 : 4'b0;
                         endcase
                         stage <= DATA_TRANSLATE;
+                    end else if (op == FLOAT_OP) begin
+                        stage <= FP_RESULT;
                     end else if (op == INTEGER) begin
                         stage <= INTEGER_RESULT;
                     end else if (op == MULTIPLY) begin
@@ -877,6 +944,29 @@ module fes_sh4 #(
                     end else begin
                         stage <= COMMIT;
                     end
+                end
+                FP_RESULT: begin
+                    fp_result <= fp_source;
+                    if (ir[3:0] == 4'hd) begin
+                        case (ir[7:4])
+                            0: fp_result[31:0] <= fpul;
+                            4: if (fp_pair) fp_result[63] <= !fp_source[63];
+                               else fp_result[31] <= !fp_source[31];
+                            5: if (fp_pair) fp_result[63] <= 1'b0;
+                               else fp_result[31] <= 1'b0;
+                            8: fp_result[31:0] <= 32'b0;
+                            9: fp_result[31:0] <= 32'h3f80_0000;
+                            default: ;
+                        endcase
+                    end
+                    stage <= COMMIT;
+                end
+                FP_SECOND: begin
+                    data_addr <= data_addr + 30'd1;
+                    data_index <= data_index + 12'd1;
+                    data_wdata <= fp_source[63:32];
+                    fp_second <= 1'b1;
+                    stage <= sq_region ? SQ_ACCESS : DATA_REQ;
                 end
                 INTEGER_RESULT: begin
                     wb_value <= alu_result;
@@ -987,7 +1077,7 @@ module fes_sh4 #(
                         stage <= SQ_WORD;
                     end else begin
                         sq_words[data_addr[5:2]] <= data_wdata;
-                        stage <= COMMIT;
+                        stage <= fp_mem && fp_pair && !fp_second ? FP_SECOND : COMMIT;
                     end
                 end
                 SQ_WORD: begin
@@ -1001,12 +1091,18 @@ module fes_sh4 #(
                 DATA_REQ: if (ic_array ? ic_array_ready : data_ready)
                     stage <= DATA_WAIT;
                 DATA_WAIT: if (ic_array ? ic_array_complete : data_complete) begin
+                    if (op == LOAD && fp_mem) begin
+                        if (!fp_second)
+                            fp_result[31:0] <= load_value;
+                        else
+                            fp_result[63:32] <= load_value;
+                    end
                     if (op == LOAD || op == MAC || (byte_access && data_wstrb == 0)) begin
                         wb_gpr <= op == LOAD && load_gpr;
                         wb_value <= ic_array ? ic_array_rdata : load_value;
                     end
-                    stage <= op == MAC ? MAC_READ :
-                             byte_access && data_wstrb == 0 ? BYTE_MODIFY : COMMIT;
+                    stage <= fp_mem && fp_pair && !fp_second ? FP_SECOND :
+                             op == MAC ? MAC_READ : byte_access && data_wstrb == 0 ? BYTE_MODIFY : COMMIT;
                 end
                 BYTE_MODIFY: begin
                     if (op == TAS || !byte_writes) begin
@@ -1056,7 +1152,7 @@ module fes_sh4 #(
                             if (ir[15:12] == 4'h3)
                                 mach <= product[63:32];
                         end
-                        LDS, LOAD: if (op == LDS || sys_load) begin
+                        LDS, LOAD: if ((op == LDS || sys_load) && !fp_system) begin
                             case (ir[5:4])
                                 0: mach <= op == LDS ? a : wb_value;
                                 1: macl <= op == LDS ? a : wb_value;

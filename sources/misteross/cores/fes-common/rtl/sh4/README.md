@@ -1,4 +1,4 @@
-# FES SH-4 integer RTL
+# FES SH-4 RTL
 
 The first slice is an independently written, single-issue SH-4 integer core
 targeting the DE25-Nano's Agilex 5. It separates fetch, decode and operand
@@ -101,6 +101,23 @@ ITLB for instructions or UTLB for operands. Translation misses leave
 the line intact. Software is responsible for maintaining coherence
 between distinct virtual indexes that alias the same physical address.
 
+## Floating-point registers and transfers
+
+FPSCR selects the FR and XF banks, controls pair size for FMOV, and holds
+the architectural mode and exception fields. The transfer path supports
+FPUL and FPSCR register and stack moves, the FPUL/FR moves FLDS and FSTS,
+FRCHG, FSCHG, FLDI0, FLDI1, FABS and FNEG, and all single and paired FMOV
+addressing forms. A paired memory transfer uses two ordered longwords
+through the normal operand path. It checks eight-byte alignment and
+translation before touching memory and retires its destination or
+address update after both words complete. The little-endian interface
+carries the low word of a pair first.
+
+The SR.FD gate distinguishes a general FPU-disable exception (0x800)
+from a delay-slot FPU-disable exception (0x820). The handler may clear FD
+in SSR and use RTE to retry. Floating-point arithmetic and conversion
+instructions still need execution units and numerical exception handling.
+
 ## Prefetch and store queues
 
 Outside the queue window, PREF fills a cacheable 32-byte operand line. It
@@ -151,7 +168,7 @@ in `irq_level` and event code in `irq_event` until the CPU pulses `irq_ack`.
 Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
-FPU, the remaining integer and privileged instructions, interrupt source
+Floating-point arithmetic, the remaining integer and privileged instructions, interrupt source
 arbitration and peripherals, standby power controls, cache index and RAM modes, area-7 MMU register aliases, board
 buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
@@ -235,7 +252,9 @@ refill, associative invalidation and refresh, ASID matching, and multiple
 matches. A guest also enables translation using mappings installed through
 the P4 arrays. Cache-array regressions exercise injected instruction
 words, associative invalidation, translated operand tags, and dirty
-write-back on an operand retag.
+write-back on an operand retag. Floating-point transfer tests cover both
+banks, single and paired moves, endian order, alignment, system-register
+stack transfers, a TLB retry, and FPU-disable exception return.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

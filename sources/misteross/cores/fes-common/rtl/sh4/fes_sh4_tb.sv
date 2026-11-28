@@ -617,6 +617,17 @@ module fes_sh4_tb;
                 retried_word_writes == 1 && ext_mem['h1010 >> 2] == 'h1122_3380)
             else $fatal(1, "TAS.B write-class miss did not retry exactly once");
 
+        emit('h2e, 'hf3fd); // FSCHG
+        emit('h30, 'hf059); // FMOV @R5+,DR0, initially unmapped
+        image['h1010 >> 2] = 'h89ab_cdef;
+        image['h1014 >> 2] = 'h1234_5678;
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr[8] == 'h30 && dut.gpr[12] == 'h40 && dut.gpr[13] == 'hc10 &&
+                dut.gpr_storage[5] == 'hc18 && dut.fpu_regs.fr_even[0] == 'h1234_5678 &&
+                dut.fpu_regs.fr_odd[0] == 'h89ab_cdef)
+            else $fatal(1, "Paired FMOV did not restart through a TLB miss");
+
         // Supervisor can read SR and clear MD. A user execution of LDTLB
         // must fault before changing the TLB state.
         image = '{default:32'hfffd_fffd};
@@ -1283,6 +1294,109 @@ module fes_sh4_tb;
                 resident_writes == 16 && ext_mem['h204 >> 2] == 'h89ab_cdef)
             else $fatal(1, "OC array data or dirty victim retagging was incorrect");
 
+        // Exercise both floating register banks, single moves, paired
+        // register and memory moves, and FPUL/FPSCR stack round trips.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'h086a); // STS FPSCR,R8
+        emit('h02, 'he000);
+        emit('h04, 'h406a); // LDS R0,FPSCR
+        emit('h06, 'hf09d); // FLDI1 FR0
+        emit('h08, 'hf04d); // FNEG FR0
+        emit('h0a, 'hf10c); // FMOV FR0,FR1
+        emit('h0c, 'hf15d); // FABS FR1
+        emit('h0e, 'hf11d); // FLDS FR1,FPUL
+        emit('h10, 'h095a); // STS FPUL,R9
+        literal('h12, 0, 'h80);
+        emit('h14, 'h405a); // LDS R0,FPUL
+        emit('h16, 'hf20d); // FSTS FPUL,FR2
+        literal('h18, 5, 'h84);
+        emit('h1a, 'hf359); // FMOV.S @R5+,FR3
+        emit('h1c, 'hf3fd); // FSCHG (paired moves)
+        emit('h1e, 'hf42c); // FMOV DR2,DR4
+        emit('h20, 'hf54c); // FMOV DR4,XD4
+        emit('h22, 'hfbfd); // FRCHG
+        literal('h24, 7, 'h88);
+        emit('h26, 'hf74b); // FMOV DR4,@-R7
+        emit('h28, 'hf679); // FMOV @R7+,DR6
+        emit('h2a, 'he008);
+        emit('h2c, 'hf767); // FMOV DR6,@(R0,R7)
+        emit('h2e, 'hf976); // FMOV @(R0,R7),XD8
+        emit('h30, 'hf79a); // FMOV XD8,@R7
+        emit('h32, 'h0a6a); // STS FPSCR,R10
+        literal('h34, 15, 'h8c);
+        emit('h36, 'h4f62); // STS.L FPSCR,@-R15
+        emit('h38, 'h4f52); // STS.L FPUL,@-R15
+        emit('h3a, 'he000);
+        emit('h3c, 'h405a);
+        emit('h3e, 'h406a);
+        emit('h40, 'h4f56); // LDS.L @R15+,FPUL
+        emit('h42, 'h4f66); // LDS.L @R15+,FPSCR
+        emit('h44, 'h0b6a);
+        emit('h46, 'h0c5a);
+        image['h80 >> 2] = 'h1234_5678;
+        image['h84 >> 2] = 'h380;
+        image['h88 >> 2] = 'h300;
+        image['h8c >> 2] = 'h400;
+        image['h380 >> 2] = 'h89ab_cdef;
+        start_bus();
+        expect_stop(1, 'h48);
+        assert (dut.gpr[8] == 'h0004_0001 && dut.gpr[9] == 'h3f80_0000 &&
+                dut.gpr[10] == 'h0030_0000 && dut.gpr[11] == 'h0030_0000 &&
+                dut.gpr[12] == 'h1234_5678 && dut.gpr[5] == 'h384 &&
+                dut.gpr[7] == 'h300 && dut.gpr[15] == 'h400 &&
+                dut.fpu_regs.fr_even[0] == 'hbf80_0000)
+            else $fatal(1, "Floating-point register, FPSCR, FPUL, or address update was incorrect");
+        assert (ext_mem['h2f8 >> 2] == 'h89ab_cdef && ext_mem['h2fc >> 2] == 'h1234_5678 &&
+                ext_mem['h300 >> 2] == 'h89ab_cdef && ext_mem['h304 >> 2] == 'h1234_5678 &&
+                ext_mem['h308 >> 2] == 'h89ab_cdef && ext_mem['h30c >> 2] == 'h1234_5678)
+            else $fatal(1, "Paired floating-point memory moves did not preserve bank or endian order");
+
+        // The FD exception handler clears FD in SSR and returns to the faulting
+        // FPU instruction or the branch which owns the faulting delay slot.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'h410e);
+        emit('h04, 'hf08d); // FLDI0 FR0 with FD set
+        image['h80 >> 2] = 'h4000_8000;
+        literal('h100, 2, 'h140);
+        emit('h102, 'h6822);
+        emit('h104, 'h0932);
+        literal('h106, 10, 'h144);
+        emit('h108, 'h29a9); // AND R10,R9
+        emit('h10a, 'h493e); // LDC R9,SSR
+        emit('h10c, 'h002b);
+        emit('h10e, 'h0009);
+        image['h140 >> 2] = 'hff00_0024;
+        image['h144 >> 2] = 'hffff_7fff;
+        start_bus();
+        wait (retired && retired_pc == 'h04);
+        assert (dut.gpr[8] == 'h800 && dut.spc == 'h04 && dut.sr[15] == 0 &&
+                dut.fpu_regs.fr_even[0] == 0)
+            else $fatal(1, "FD exception failed to resume FLDI0 through RTE");
+
+        emit('h04, 'ha002); // BRA 0x0c
+        emit('h06, 'hf09d); // FLDI1 FR0, initially disabled in the slot
+        start_bus();
+        wait (retired && retired_pc == 'h06);
+        assert (dut.gpr[8] == 'h820 && dut.spc == 'h04 && dut.sr[15] == 0 &&
+                dut.fpu_regs.fr_even[0] == 'h3f80_0000)
+            else $fatal(1, "FD delay-slot exception failed to replay its branch");
+
+        // A misaligned paired load must change neither the FPR pair nor the
+        // postincrement register.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'hf09d);
+        emit('h02, 'hf18d);
+        emit('h04, 'hf3fd);
+        literal('h06, 7, 'h80);
+        emit('h08, 'hf079); // FMOV @R7+,DR0
+        image['h80 >> 2] = 'h304;
+        start_bus();
+        expect_stop(4, 'h08);
+        assert (dut.gpr[7] == 'h304 && dut.fpu_regs.fr_even[0] == 'h3f80_0000 &&
+                dut.fpu_regs.fr_odd[0] == 0)
+            else $fatal(1, "Misaligned FMOV changed its source pointer or destination");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1474,7 +1588,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays and cache arrays");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays and FPU transfers");
         $finish;
     end
 
