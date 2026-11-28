@@ -23,6 +23,7 @@ flowchart LR
   subgraph Target["Kit Target (mister-agent)"]
     TAPI["internal/httpapi\n(127.0.0.1:8182)"]
     Agent["internal/agent\n(leases, staging, recovery)"]
+    Input["internal/input\n(TargetController,\nlocal-input.sock)"]
     RClient["internal/misterruntime\n(protocol 2 client)"]
   end
 
@@ -30,7 +31,7 @@ flowchart LR
   Source["Read-only LAN Library Source\n(/api/v1/library/core-entries,\n/api/v1/mesh/content/*)"]
 
   TF <-->|"HTTP"| HAPI
-  TF -->|"ui/localfeed\n(/run/fogcast/local-input.sock)"| Agent
+  TF -->|"ui/localfeed\n(/run/fogcast/local-input.sock)"| Input
   Web <-->|"HTTP"| HAPI
   HAPI --> Svc
   Svc --> Pkg
@@ -46,7 +47,7 @@ flowchart LR
 | Tenfoot UI & renderer | `ui/tenfoot`, `ui/rooms`, `ui/gfx`, `ui/localfeed`, `ui/controller` | Portable `RunPlatform` UI loop, Home/Systems/Settings views, software/SDL3/linuxfb renderers, and local pad/keyboard input. |
 | Host API & service | `internal/hostapi`, `fogcast`, `catalog`, `protocol`, `targethttp` | HTTP/launcher/source listeners, catalog/library indexing, launch composition, remote library sources, and session coordination. |
 | Core packages & media | `corepackage`, `internal/bundledfirmware`, `internal/mediasession`, `internal/zx81tapes`, `internal/spectrumdisks`, `internal/spectrumtapes` | Format-2/3/4/5 archive validation, spooled ROM/part staging, firmware bundling, and live media conversion/delivery. |
-| Target agent & runtime client | `internal/httpapi`, `internal/agent`, `internal/misterruntime`, `internal/kitlease`, `internal/kitpackages` | Target HTTP API, execution lease & grace-window ownership, staged package/media storage, and local protocol-2 RPC to `mister-runtime`. |
+| Target agent & runtime client | `internal/httpapi`, `internal/agent`, `internal/input`, `internal/misterruntime`, `internal/kitlease`, `internal/kitpackages` | Target HTTP API, execution lease & grace-window ownership, local/remote input delivery, staged package/media storage, and local protocol-2 RPC to `mister-runtime`. |
 | Updates & appliance store | `appliance`, `internal/applianceupdate`, `internal/softwareagent` | Immutable kit-software bundle verification/activation (`fes-kit-software`) and OS appliance release/rollback metadata. |
 
 ## Core package formats and static composition
