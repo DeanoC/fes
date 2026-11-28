@@ -243,7 +243,10 @@ Best-effort differences:
   supported. Of the key tables, only the unshifted one at `$007E` is the same
   byte for byte. The shifted, function and graphics tables at `$00A5`,
   `$00CC` and `$00F3` give the ZX81's character for each key, but their
-  layout is this ROM's own. This ROM keeps its flags in SPARE1 (`$4021`) and a pointer in
+  layout is this ROM's own. The Sinclair high-resolution display entry points
+  at `$0207` and `$02A4` are not compatible: code that jumps to them to control
+  the display or exit an NMI cannot rely on this ROM's contents there. This ROM
+  keeps its flags in SPARE1 (`$4021`) and a pointer in
   SPARE2 (`$407B`), and uses the printer buffer (`$403C`) and `MEMBOT` as
   scratch. A program that keeps data or machine code there can fail. Printing
   follows the print position in `S_POSN`, so setting `DF_CC` alone (by `POKE`
@@ -281,7 +284,9 @@ tapes are in the checkout, it also loads and lists two `.p` files made by other
 tools. A tape
 saved by Sinclair's own ROM is still a manual check (the `load` mode of
 `cores/fes-zx81/sim/openrom_tb.cpp`): the repository has no tape saved that
-way. `tests/test_zx81_openrom.py` checks the assembler, including that it
+way. The `new-boundary` check observes the frame engine stopping before NEW
+begins its memory reset and the display restarting afterward.
+`tests/test_zx81_openrom.py` checks the assembler, including that it
 rejects malformed lines and instructions it cannot encode, and the image's
 fixed interface bytes.
 The ROM has no kit acceptance yet.

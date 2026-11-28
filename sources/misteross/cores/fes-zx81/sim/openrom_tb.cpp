@@ -5,6 +5,7 @@
 //   Vzx81_machine geometry [N]       frame timing and the ink box (any ROM)
 //   Vzx81_machine check              boot, type and run BASIC, SAVE, LOAD
 //                                    (PAL, or NTSC on the TS1000 build)
+//   Vzx81_machine new-boundary SYMBOLS  observe NEW stopping the frame engine
 //   Vzx81_machine load TAPE.p        LOAD a tape and print its listing
 //   Vzx81_machine shot OUT.pgm KEYS [FRAMES]  type KEYS, wait, save the picture
 #include "Vzx81_machine.h"
@@ -49,6 +50,11 @@ struct Machine {
     uint16_t display_cell_address = 0;
     uint8_t display_cell_value = 0;
     unsigned display_cell_writes = 0;
+    bool watch_new_boundary = false;
+    bool saw_fast_stop = false;
+    bool saw_new_entry = false;
+    uint16_t fast_stop_address = 0;
+    uint16_t new_entry_address = 0;
 
     void tick() {
         if (!tape.empty())
@@ -57,6 +63,11 @@ struct Machine {
         const bool display_fetch = watch_display_fetches && !reading_peek &&
             (address & 0xc000) == 0xc000 && !dut.bus_m1_n && !dut.bus_mreq_n &&
             !dut.bus_rd_n && dut.halt_n;
+        const bool opcode_fetch = !dut.bus_m1_n && !dut.bus_mreq_n && !dut.bus_rd_n;
+        const bool new_entry_fetch = watch_new_boundary && opcode_fetch && address == new_entry_address;
+        if (watch_new_boundary && opcode_fetch && address == fast_stop_address)
+            saw_fast_stop = true;
+        if (new_entry_fetch) dut.peek_addr = 0x403b; // CDFLAG
         if (watch_display_cell && dut.ram_write_enable &&
             dut.ram_address == (display_cell_address & 0x3fff) &&
             dut.ram_write_data == display_cell_value)
@@ -64,6 +75,13 @@ struct Machine {
         if (display_fetch) dut.peek_addr = address & 0x7fff;
         dut.clk_sys = 1;
         dut.eval();
+        if (new_entry_fetch) {
+            const uint8_t flags = dut.peek_data;
+            require(saw_fast_stop && !(flags & 0xa0),
+                    "NEW began clearing memory before the active display stopped");
+            saw_new_entry = true;
+            watch_new_boundary = false;
+        }
         if (display_fetch) {
             ++display_fetches;
             const uint8_t op = dut.peek_data;
@@ -849,6 +867,16 @@ std::vector<uint8_t> read_file(const char *path) {
     return {std::istreambuf_iterator<char>(in), {}};
 }
 
+uint16_t symbol_address(const char *path, const std::string &wanted) {
+    std::ifstream symbols(path);
+    require(bool(symbols), std::string("cannot read symbols ") + path);
+    unsigned address;
+    std::string name;
+    while (symbols >> std::hex >> address >> name)
+        if (name == wanted) return uint16_t(address);
+    fail("symbol missing from open ROM: " + wanted);
+}
+
 void boot(Machine &m) {
     auto &d = m.dut;
     d.clk_sys = 0;
@@ -877,10 +905,26 @@ int main(int argc, char **argv) {
     // Keep progress visible when the long-running suite writes to CI logs.
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     Verilated::commandArgs(argc, argv);
-    require(argc >= 2, "usage: geometry | check TAPE.p");
+    require(argc >= 2, "usage: geometry | check | new-boundary SYMBOLS | load TAPE.p");
     const std::string mode = argv[1];
     Machine m;
     boot(m);
+
+    if (mode == "new-boundary") {
+        require(argc == 3, "usage: new-boundary ZX81_OPENROM.sym");
+        m.acknowledge_keys = true;
+        type(m, "A"); // NEW, before NEWLINE dispatches the command
+        require((m.peek(0x403b) & 0xc0) == 0xc0, "NEW test did not start in SLOW mode");
+        m.fast_stop_address = symbol_address(argv[2], "border_ix.stop");
+        m.new_entry_address = symbol_address(argv[2], "new_entry");
+        m.watch_new_boundary = true;
+        type(m, "NL");
+        require(m.saw_new_entry && m.saw_fast_stop, "NEW did not cross the synchronized display stop");
+        m.run_frames(4);
+        require((m.peek(0x403b) & 0xc0) == 0xc0, "NEW did not resume SLOW mode");
+        std::cout << "NEW: display stopped before memory reset, then resumed\n";
+        return 0;
+    }
 
     if (mode == "slow-gap") {
         require(argc == 3, "usage: slow-gap print|edge|plot|short");
@@ -968,7 +1012,7 @@ int main(int argc, char **argv) {
         test_overlong_edit_line(m);
         return 0;
     }
-    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | printmem | cont | regress | overlong | shot OUT.pgm KEYS");
+    require(mode == "check", "usage: geometry | check | new-boundary SYMBOLS | load TAPE.p | lowmem | pause | printmem | cont | regress | overlong | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
     // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels

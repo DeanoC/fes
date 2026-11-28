@@ -24,6 +24,19 @@ def assemble(text: str, size: int = 0x100) -> bytes:
 
 
 class AssemblerTest(unittest.TestCase):
+    def test_binary_literals_and_modulo_are_distinct(self):
+        image = assemble("""
+        org 0
+N       equ 5
+        db %101, 5%1, 5 %1, 5% 1, 5 % 1, 5%10, 5%%10
+        db N%1, (5)%1, %101%10, 0xff%10, 'A'%10
+        db 1+%10, -%10+3
+        """)
+        self.assertEqual(image[:14], bytes([5, 0, 0, 0, 0, 5, 1,
+                                            0, 0, 5, 5, 5, 3, 1]))
+        with self.assertRaises(z80asm.AsmError):
+            assemble("org 0\ndb 5%0\n")
+
     def test_encodings(self):
         image = assemble("""
         org 0
