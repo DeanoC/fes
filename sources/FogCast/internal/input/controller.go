@@ -471,13 +471,39 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 		c.needsRelease = false
 	}
 	current := c.active
-	if current != nil && current.session == spec.Session && current.core == spec.Core &&
+	sameLease := current != nil && current.session == spec.Session && current.core == spec.Core &&
 		current.executionGeneration == spec.ExecutionGeneration &&
 		current.lifetime != nil && current.lifetime.Done() == lifetime.Done() &&
-		subtle.ConstantTimeCompare(current.token, spec.Token) == 1 {
-		c.mu.Unlock()
+		subtle.ConstantTimeCompare(current.token, spec.Token) == 1
+	observe := c.observe
+	bindingFn := c.portsBinding
+	c.mu.Unlock()
+
+	// A kit lease alone does not mean a core was successfully loaded. Check
+	// the runtime before creating or reusing a bridge, while the lifecycle
+	// lock excludes a concurrent core replacement. Otherwise a failed load
+	// can admit input against an idle runtime and leave cleanup blocked.
+	var observation *CoreObservation
+	if c.ports != nil && observe != nil {
+		obs, err := observe(ctx)
+		if err != nil {
+			return err
+		}
+		if !obs.Active || (obs.CoreID != "" && obs.CoreID != spec.Core) {
+			return errNoCore
+		}
+		observation = &obs
+	}
+	// Runtime observation may block long enough for either the request or
+	// the admitting execution lease to end. Never confirm or replace an
+	// attachment after that authority has been lost.
+	if err := errors.Join(ctx.Err(), lifetime.Err()); err != nil {
+		return err
+	}
+	if sameLease {
 		return nil
 	}
+	c.mu.Lock()
 	c.active = nil
 	c.mu.Unlock()
 	if err := stopLease(current); err != nil {
@@ -491,16 +517,9 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 	var remote *remoteSourceSink
 	var keyboardBinding *KeyboardHIDBinding
 	var matrixBinding *MatrixBinding
-	c.mu.Lock()
-	observe := c.observe
-	bindingFn := c.portsBinding
-	c.mu.Unlock()
 	if c.ports != nil && (observe != nil || bindingFn != nil) {
-		if observe != nil {
-			obs, err := observe(ctx)
-			if err != nil {
-				return err
-			}
+		if observation != nil {
+			obs := *observation
 			if err := c.ports.setObservationContext(ctx, obs); err != nil {
 				return err
 			}
