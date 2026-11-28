@@ -10,7 +10,7 @@ and `corepackage` packages reused by the Linux-free TamaGo base under
 ```mermaid
 flowchart LR
   subgraph Clients["Clients (Loopback on Kit or LAN Desktop)"]
-    TF["fogcast-tenfoot /\nfogcast-kit tenfoot\n(ui/tenfoot + ui/gfx)"]
+    TF["fogcast-tenfoot\n(ui/tenfoot + ui/gfx)"]
     Web["Browser UI / CLI\n(cmd/fogcast)"]
   end
 

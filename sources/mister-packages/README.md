@@ -13,7 +13,7 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 Every wire offset, ABI opcode, programming profile, and package conformance
 corpus has one canonical source here; `make generate` (`scripts/generate.py`)
 validates each YAML definition and emits checked-in consumers across all four
-modules, and `make check-generated` (`scripts/consistency.py`) fails on any
+modules, and `make check-generated` (`scripts/generate.py --check`) fails on any
 drift:
 
 ```mermaid
