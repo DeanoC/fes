@@ -209,6 +209,8 @@ class Smoke:
         self.record("quake_console", self.wait_for("quake-console", complete, 210))
         self.command("vid_describecurrentmode")
         self.command("quit")
+        # DOS Quake shows a confirmation menu when a demo has been playing.
+        self.keys("y")
 
         def dos_prompt(frame):
             text = tesseract(frame, 6)
