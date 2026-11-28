@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import tarfile
+import time
 import tomllib
 
 BASE = Path.home() / ".local/share/fes-qualification"
@@ -27,6 +28,37 @@ def canonical(value):
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def kit_is_free(kit):
+    ledger = "de25-TRWU8J8G-STATUS.md" if kit == "D25" else f"kit{kit}-STATUS.md"
+    entries = (Path.home() / "kit-status" / ledger).read_text().splitlines()
+    heading = next((s for s in reversed(entries) if s.startswith("## ")), "")
+    return heading, f"KIT {kit} FREE" in heading
+
+
+def kit_wait_settings():
+    def integer(name, default):
+        value = os.environ.get(name)
+        if value is None:
+            return default
+        try:
+            parsed = int(value)
+        except ValueError as error:
+            raise ValueError(f"{name} must be an integer") from error
+        if parsed < 0:
+            raise ValueError(f"{name} must not be negative")
+        return parsed
+
+    wait = integer("FES_NIGHTLY_KIT_WAIT_SECONDS", 2700)
+    poll = integer("FES_NIGHTLY_KIT_POLL_SECONDS", 60)
+    if poll == 0:
+        raise ValueError("FES_NIGHTLY_KIT_POLL_SECONDS must be greater than zero")
+    return wait, poll
+
+
+def kit_log(message):
+    print(f"nightly kit worker: {message}", file=sys.stderr, flush=True)
 
 
 def fetch(relative):
@@ -118,58 +150,73 @@ def accept(binding):
         if board == "de25-nano":
             (build / "core-build.result").write_text(line)
         checker = stage_hil_check(head, req["hil"], run / "checker")
-        for kit_name in req["hil"]["kits"]:
-            kit = "D25" if kit_name == "TRWU8J8G" else kit_name
-            if kit not in (["D25"] if board == "de25-nano" else ["B", "A"]):
-                raise ValueError("registered kit incompatible with board")
-            ledger = "de25-TRWU8J8G-STATUS.md" if kit == "D25" else f"kit{kit}-STATUS.md"
-            entries = (Path.home() / "kit-status" / ledger).read_text().splitlines()
-            status = next((s for s in reversed(entries) if s.startswith("## ")), "")
-            if f"KIT {kit} FREE" not in status:
-                continue
-            evidence = run / kit
-            evidence.mkdir()
-            env = dict(os.environ, HIL_KIND="core", LW_REPO="DeanoC/fes", LW_PR="main", LW_HEAD=head)
-            worker = QUEUE / ("hil-de25-watch.sh" if kit == "D25" else "hil-core.sh")
-            if checker:
-                env["C_SERIES"] = "6:8"
-                env["FES_NIGHTLY_CHECKER"] = str(checker)
-            if kit != "D25":
-                # Keep HILQ's baseline, locks, host isolation and restore. Substitute
-                # only the run-local smoke entry point to observe release identities.
-                overlay = evidence / "hilq"
-                overlay.mkdir()
-                for name in ("current.json", "kits", "host-golden", "hil_host.py", "hil_preflight.py"):
-                    (overlay / name).symlink_to(QUEUE / name)
-                (overlay / "hilcore.py").symlink_to(Path(__file__).with_name("nightly-de10-smoke.py").resolve())
-                env["HILQ_HOME"] = str(overlay)
-                env["FES_NIGHTLY_CORE"] = core
-            with (evidence / "worker.log").open("wb") as log:
-                result = subprocess.run([worker, kit, "main", head, build, evidence], env=env,
-                                        stdout=log, stderr=subprocess.STDOUT)
-            verdict = (evidence / "verdict").read_text().strip()
-            if verdict == "NOTSTARTED":
-                continue
-            if result.returncode or verdict != "PASS":
-                (run / "failed").touch()
-                raise ValueError(f"kit {kit} failed, see {evidence}")
-            filename = "menu-result.json" if kit == "D25" and core == "fes.menu" else "result.json"
-            smoke = json.loads((evidence / "out" / filename).read_bytes())
-            if (smoke["verdict"], smoke["kit"], smoke["head"], smoke["package_id"]) != (
-                    "PASS", kit, head, req["package_id"]):
-                raise ValueError(f"kit result identity mismatch in {evidence}")
-            if checker:
-                smoke["hil_check"] = json.loads((evidence / "out/hil-check.json").read_bytes())
-                smoke["hil_check_sha256"] = req["hil"]["sha256"]
-            observed = evidence / "out/release-software.txt"
-            raw = canonical(dict(software=observed.read_text() if observed.exists() else None, request_sha256=binding, request=req, smoke=smoke,
-                                 kit="TRWU8J8G" if kit == "D25" else kit,
-                                 restored=True, evidence_dir=str(evidence)))
-            tmp = run / "pass.json"
-            tmp.write_bytes(raw)
-            tmp.replace(report)
-            return raw
-        raise ValueError("designated kits unavailable")
+        wait_seconds, poll_seconds = kit_wait_settings()
+        kits = ["D25" if name == "TRWU8J8G" else name for name in req["hil"]["kits"]]
+        kit_log(f"wait start: kits={', '.join(kits)} timeout={wait_seconds}s interval={poll_seconds}s")
+        deadline = time.monotonic() + wait_seconds
+        attempts = {}
+        poll_round = 0
+        while True:
+            poll_round += 1
+            for kit_name in req["hil"]["kits"]:
+                kit = "D25" if kit_name == "TRWU8J8G" else kit_name
+                if kit not in (["D25"] if board == "de25-nano" else ["B", "A"]):
+                    raise ValueError("registered kit incompatible with board")
+                heading, free = kit_is_free(kit)
+                kit_log(f"poll {poll_round}: kit {kit}: {heading!r}")
+                if not free:
+                    continue
+                kit_log(f"kit {kit} is FREE; starting HIL driver")
+                attempts[kit] = attempts.get(kit, 0) + 1
+                evidence = run / (kit if attempts[kit] == 1 else f"{kit}-attempt-{attempts[kit]}")
+                evidence.mkdir()
+                env = dict(os.environ, HIL_KIND="core", LW_REPO="DeanoC/fes", LW_PR="main", LW_HEAD=head)
+                worker = QUEUE / ("hil-de25-watch.sh" if kit == "D25" else "hil-core.sh")
+                if checker:
+                    env["C_SERIES"] = "6:8"
+                    env["FES_NIGHTLY_CHECKER"] = str(checker)
+                if kit != "D25":
+                    # Keep HILQ's baseline, locks, host isolation and restore. Substitute
+                    # only the run-local smoke entry point to observe release identities.
+                    overlay = evidence / "hilq"
+                    overlay.mkdir()
+                    for name in ("current.json", "kits", "host-golden", "hil_host.py", "hil_preflight.py"):
+                        (overlay / name).symlink_to(QUEUE / name)
+                    (overlay / "hilcore.py").symlink_to(Path(__file__).with_name("nightly-de10-smoke.py").resolve())
+                    env["HILQ_HOME"] = str(overlay)
+                    env["FES_NIGHTLY_CORE"] = core
+                with (evidence / "worker.log").open("wb") as log:
+                    result = subprocess.run([worker, kit, "main", head, build, evidence], env=env,
+                                            stdout=log, stderr=subprocess.STDOUT)
+                verdict = (evidence / "verdict").read_text().strip()
+                if verdict == "NOTSTARTED":
+                    if wait_seconds and time.monotonic() >= deadline:
+                        break
+                    continue
+                if result.returncode or verdict != "PASS":
+                    (run / "failed").touch()
+                    raise ValueError(f"kit {kit} failed, see {evidence}")
+                filename = "menu-result.json" if kit == "D25" and core == "fes.menu" else "result.json"
+                smoke = json.loads((evidence / "out" / filename).read_bytes())
+                if (smoke["verdict"], smoke["kit"], smoke["head"], smoke["package_id"]) != (
+                        "PASS", kit, head, req["package_id"]):
+                    raise ValueError(f"kit result identity mismatch in {evidence}")
+                if checker:
+                    smoke["hil_check"] = json.loads((evidence / "out/hil-check.json").read_bytes())
+                    smoke["hil_check_sha256"] = req["hil"]["sha256"]
+                observed = evidence / "out/release-software.txt"
+                raw = canonical(dict(software=observed.read_text() if observed.exists() else None, request_sha256=binding, request=req, smoke=smoke,
+                                     kit="TRWU8J8G" if kit == "D25" else kit,
+                                     restored=True, evidence_dir=str(evidence)))
+                tmp = run / "pass.json"
+                tmp.write_bytes(raw)
+                tmp.replace(report)
+                return raw
+            remaining = deadline - time.monotonic()
+            if wait_seconds == 0 or remaining <= 0:
+                kit_log(f"wait timed out after {wait_seconds}s; no designated kit completed a run")
+                raise ValueError("designated kits unavailable")
+            time.sleep(min(poll_seconds, remaining))
 
 
 if __name__ == "__main__":
