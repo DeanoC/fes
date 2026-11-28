@@ -74,9 +74,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            must keep it. On the games image, HIMEMX's /VERBOSE banner must
            name a real A20 method, not "Always on", A20 must be off at the
            prompt, and XMS 03h/04h and 05h/06h must turn it on and off again
-           and agree with memory. Every check must print ok. With --cpu rtl,
-           the RTL must run both images without an oracle step or a stop;
-           writes a20-rtl/.
+           and agree with memory. Each launch restores CMOS 0Fh = 09h, the
+           status DOS/4GW leaves there, as a record saved at a Stop mid-game
+           holds it: POST must take the launch as a power-on and boot, while
+           the resume check's CPU reset still resumes (#2353). Every check
+           must print ok. With --cpu rtl, the RTL must run both images without
+           an oracle step or a stop; writes a20-rtl/.
   c2xx     runs cores/fes-pc386/sim/c2xx_test.asm (C2TEST.COM) at the
            FreeDOS prompt (#1330): INT 15h C205h with a key or an aux byte
            already in the 8042's output buffer, one with IRQ1 masked, and
@@ -424,7 +427,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'game_launch': None, 'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
-              'ems': None, 'rtl_begin': None, 'floppy': []}
+              'ems': None, 'rtl_begin': None, 'floppy': [], 'cmos_shutdown': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -502,6 +505,8 @@ def parse_boot(text: str) -> dict:
             report['sb'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'MOUSE':
             report['mouse'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'CMOS-SHUTDOWN':
+            report['cmos_shutdown'] = int(rest, 16)
         elif kind == 'EMS':
             report['ems'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'END':
@@ -959,6 +964,11 @@ A20_CHECKS = {
 HIMEMX_METHOD = re.compile(r'(\S.*?) A20 method used')
 
 
+# The shutdown status DOS/4GW leaves in CMOS 0Fh, which a record saved at a
+# Stop mid-game restores into the next launch (#2353).
+A20_LAUNCH_SHUTDOWN = 0x09
+
+
 def run_a20(args, linked: list[Path]) -> dict:
     """A20TEST.COM at the FreeDOS prompt on the boot and games images."""
     images = firmware.images(args.download, args.jobs)
@@ -968,10 +978,14 @@ def run_a20(args, linked: list[Path]) -> dict:
     disks = {profile: fixture_with(args, f'a20{rtl}/{profile}', 'a20_test.asm', 'A20TEST.COM',
                                    freedos.image(args.download, args.jobs, profile)) for profile in profiles}
 
+    # Each launch restores CMOS 0Fh = 09h, as a record saved at a Stop under
+    # DOS/4GW holds it: the boot must still reach the prompt (#2353), and the
+    # resume check's CPU reset after POST must still take its own status.
     def run(profile: str) -> dict:
         return run_machine(testbench, f'a20{rtl}/{profile}',
                            ['--disk', str(disks[profile]), '--limit-seconds', str(args.limit_seconds),
-                            '--type', 'a20test|', '--expect', 'A20 DONE ok', '--cpu', args.cpu], images)
+                            '--type', 'a20test|', '--expect', 'A20 DONE ok', '--cpu', args.cpu,
+                            '--cmos-shutdown', f'{A20_LAUNCH_SHUTDOWN:#x}'], images)
 
     print(f'Running A20TEST.COM on the {" and ".join(profiles)} image on the {args.cpu} CPU', flush=True)
     with concurrent.futures.ThreadPoolExecutor(len(profiles)) as pool:
@@ -982,6 +996,10 @@ def run_a20(args, linked: list[Path]) -> dict:
         run['lines'] = lines
         failures += [f'{profile}: {failure}' for failure in run['failures']]
         failures += [f'{profile}: {line}' for line in lines if not line.endswith(' ok')]
+        if run['cmos_shutdown'] != A20_LAUNCH_SHUTDOWN:
+            failures.append(f'{profile}: the launch did not restore CMOS 0Fh = {A20_LAUNCH_SHUTDOWN:02X}h')
+        else:
+            checks.append(f'{profile}: the launch restored CMOS 0Fh = {A20_LAUNCH_SHUTDOWN:02X}h')
         names = list(dict.fromkeys(line.split()[1] for line in lines if line.startswith('A20 ')))
         if names != list(A20_CHECKS[profile]):
             failures.append(f'{profile}: A20TEST.COM ran {names}, expected {list(A20_CHECKS[profile])}')

@@ -1,0 +1,6 @@
+{"frame": "p1-t00.png", "mean_luma": 2.93, "nonblack": 0.0}
+{"frame": "p1-t10.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "p1-t30.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "p1-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9993}
+{"frame": "p2-t12.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.9991}
+{"frame": "p2-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9991}

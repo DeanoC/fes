@@ -1,0 +1,46 @@
+{"n": 1, "op": "grab", "result": {"ok": true}}
+{"n": 2, "op": "load", "result": {"load": {"state": "active"}, "seconds": 12.14, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}}
+{"n": 3, "op": "grab", "result": {"ok": true}}
+{"n": 4, "op": "sleep", "result": {}}
+{"n": 5, "op": "grab", "result": {"ok": true}}
+{"n": 6, "op": "sleep", "result": {}}
+{"n": 7, "op": "grab", "result": {"ok": true}}
+{"n": 8, "op": "sleep", "result": {}}
+{"n": 9, "op": "grab", "result": {"ok": true}}
+{"n": 10, "op": "type", "result": {}}
+{"n": 11, "op": "sleep", "result": {}}
+{"n": 12, "op": "grab", "result": {"ok": true}}
+{"n": 13, "op": "type", "result": {}}
+{"n": 14, "op": "sleep", "result": {}}
+{"n": 15, "op": "type", "result": {}}
+{"n": 16, "op": "sleep", "result": {}}
+{"n": 17, "op": "grab", "result": {"ok": true}}
+{"n": 18, "op": "stop", "result": {"state": "idle"}}
+{"n": 19, "op": "sleep", "result": {}}
+{"n": 20, "op": "grab", "result": {"ok": true}}
+{"n": 21, "op": "load", "result": {"load": {"state": "active"}, "seconds": 8.82, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}}
+{"n": 22, "op": "grab", "result": {"ok": true}}
+{"n": 23, "op": "sleep", "result": {}}
+{"n": 24, "op": "grab", "result": {"ok": true}}
+{"n": 25, "op": "sleep", "result": {}}
+{"n": 26, "op": "grab", "result": {"ok": true}}
+{"n": 27, "op": "sleep", "result": {}}
+{"n": 28, "op": "grab", "result": {"ok": true}}
+{"n": 29, "op": "type", "result": {}}
+{"n": 30, "op": "sleep", "result": {}}
+{"n": 31, "op": "grab", "result": {"ok": true}}
+{"n": 32, "op": "stop", "result": {"state": "idle"}}
+{"n": 33, "op": "sleep", "result": {}}
+{"n": 34, "op": "grab", "result": {"ok": true}}
+{"n": 35, "op": "load", "result": {"load": {"state": "active"}, "seconds": 12.79, "active_interfaces": ["fes.audio.pcm-s16-stereo-48k 1.0", "fes.fabric.de25-hps-window 1.0", "fes.fabric.de25-scanout 1.3", "fes.fabric.video.display-plane 1.0", "fes.keyboard.hid 1.0", "fes.media.ata-disk 1.0", "fes.memory.hps-ddr 1.0", "fes.mouse.relative 1.0", "fes.pc386.machine 1.0", "fes.persistence.words 1.0", "fes.rtc.wall-clock 1.0", "fes.video.fixed-720p60 1.0", "fes.video.session-display 1.0"]}}
+{"n": 36, "op": "sleep", "result": {}}
+{"n": 37, "op": "grab", "result": {"ok": true}}
+{"n": 38, "op": "type", "result": {}}
+{"n": 39, "op": "sleep", "result": {}}
+{"n": 40, "op": "type", "result": {}}
+{"n": 41, "op": "sleep", "result": {}}
+{"n": 42, "op": "grab", "result": {"ok": true}}
+{"n": 43, "op": "stop", "result": {"state": "idle"}}
+{"n": 44, "op": "sleep", "result": {}}
+{"n": 45, "op": "grab", "result": {"ok": true}}
+{"n": 46, "op": "quit"}

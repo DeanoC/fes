@@ -38,8 +38,10 @@ SEAL_EXCLUDED = (
     "cores/fes-pc386/tools/build_pc386_with_lockstep.py", "cores/fes-pc386/tools/pc386_run_lockstep.py",
     *(name for name in quartus.SUITE_SOURCES if name.endswith(".py") and name != "scripts/yosys_netlist.py"),
 )
-# The ROM hex digest firmware.lock pins: the one #1951's seal recorded.
-SEALED_ROM_HEX = "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18"
+# The ROM hex digest firmware.lock pins. #1951's seal recorded 815620361ef2...;
+# #2353's POST change (a power-on ignores CMOS 0Fh) moved it, and the next
+# pc386 seal records this one.
+SEALED_ROM_HEX = "abe6f29c14ad3cc354f13408004a5c1868e706fd04a375a1c32c3beaea5ac28a"
 
 
 def _module_name(relative: str) -> str:

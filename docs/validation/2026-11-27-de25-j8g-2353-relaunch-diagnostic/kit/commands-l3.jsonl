@@ -1,0 +1,18 @@
+{"op":"load"}
+{"op":"sleep","s":12}
+{"op":"grab","name":"n1-t12"}
+{"op":"type","text":"cd \\doom\n"}
+{"op":"sleep","s":2}
+{"op":"type","text":"doom\n"}
+{"op":"sleep","s":20}
+{"op":"tap","key":"enter"}
+{"op":"sleep","s":1.5}
+{"op":"tap","key":"enter"}
+{"op":"sleep","s":1}
+{"op":"tap","key":"enter"}
+{"op":"sleep","s":1}
+{"op":"tap","key":"enter"}
+{"op":"sleep","s":8}
+{"op":"grab","name":"n1-doom-play"}
+{"op":"stop"}
+{"op":"quit"}

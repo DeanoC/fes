@@ -1,0 +1,16 @@
+{"op":"load"}
+{"op":"grab","name":"p1-t00"}
+{"op":"sleep","s":10}
+{"op":"grab","name":"p1-t10"}
+{"op":"sleep","s":20}
+{"op":"grab","name":"p1-t30"}
+{"op":"stop"}
+{"op":"sleep","s":6}
+{"op":"grab","name":"p1-s1"}
+{"op":"load"}
+{"op":"sleep","s":12}
+{"op":"grab","name":"p2-t12"}
+{"op":"stop"}
+{"op":"sleep","s":6}
+{"op":"grab","name":"p2-s1"}
+{"op":"quit"}

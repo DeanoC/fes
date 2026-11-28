@@ -1,0 +1,5 @@
+#!/bin/bash
+# Read-only J8G kernel/owner state: run3. Never touches 0x10d21400.
+D=/data/de25-2353-diag; tag=$1
+/home/deano/lander-hilq/kits/kssh D25 'echo "boot_id=$(cat /proc/sys/kernel/random/boot_id) uptime=$(cut -d" " -f1 /proc/uptime)"; echo "--- smmu lines: $(dmesg | grep -ci arm-smmu)  bad_streamid: $(dmesg | grep -ci -e C_BAD_STREAMID -e "event 0x02")"; dmesg | grep -i arm-smmu | tail -8; echo "--- reserved/pool"; dmesg | grep -i -e "fes-window" -e "window-pool" -e "reserved mem" -e "de25-dma" -e "dma-owner" | tail -20; echo "--- iomem"; grep -i -e 8580 -e 957f -e reserved /proc/iomem | head; echo "--- meminfo"; grep -e MemTotal -e MemFree -e CmaTotal -e CmaFree /proc/meminfo; echo "--- owner"; ls -l /sys/bus/platform/drivers/*/ 2>/dev/null | grep -i dma-owner; for l in driver iommu_group; do echo "$l -> $(readlink /sys/bus/platform/devices/20010200.dma-owner/$l)"; done; echo "--- runtime"; pidof mister-runtime; ls /dev | grep -i de25' > $D/out/kitstate-$tag.txt 2>&1
+cat $D/out/kitstate-$tag.txt

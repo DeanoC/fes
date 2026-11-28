@@ -1,0 +1,25 @@
+{"frame": "00-before-load.png", "mean_luma": 232.29, "nonblack": 0.9995}
+{"frame": "l1-t10.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.9991}
+{"frame": "l1-t30.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0001}
+{"frame": "l1-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9991}
+{"frame": "l2-t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.9993}
+{"frame": "l2-t10.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.1932}
+{"frame": "l2-t30.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.0001}
+{"frame": "l2-t60.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0001}
+{"frame": "l2-t-ver.png", "mean_luma": 14.15, "nonblack": 0.2264, "changed_vs_prev": 0.184}
+{"frame": "l2-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9988}
+{"frame": "l3-t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.9993}
+{"frame": "l3-t10.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.1931}
+{"frame": "l3-t30.png", "mean_luma": 14.91, "nonblack": 0.2368, "changed_vs_prev": 0.0}
+{"frame": "l3-d1-doom.png", "mean_luma": 53.06, "nonblack": 0.6241, "changed_vs_prev": 0.5478}
+{"frame": "l3-d2-doom.png", "mean_luma": 69.83, "nonblack": 0.75, "changed_vs_prev": 0.5384}
+{"frame": "l3-s1.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.7498}
+{"frame": "l4-t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "l4-t10.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "l4-t30.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "l4-t-typed.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.0}
+{"frame": "l4-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9993}
+{"frame": "l5-t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.9993}
+{"frame": "l5-t10.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.1932}
+{"frame": "l5-t20.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0}
+{"frame": "l5-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.9991}

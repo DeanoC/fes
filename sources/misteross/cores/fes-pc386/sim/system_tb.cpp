@@ -136,6 +136,10 @@ constexpr unsigned HOLD_CUTS = 4, HOLD_TRIALS = 1024;
 // the record writes.
 constexpr uint16_t SETTINGS[8] = {0, 0, 0, 0, 0x240, 5, 1, 0};
 constexpr unsigned MARKER_BYTE = 0x50, MARKER = 0xa5;
+// The record also carries CMOS 0Fh = 09h, the shutdown status DOS/4GW leaves
+// while it runs, as a record saved at a Stop mid-game holds it. A launch is a
+// power-on: POST must boot and clear it, not resume through it (#2353).
+constexpr unsigned SHUTDOWN_BYTE = 0x0f, SHUTDOWN_STATUS = 0x09;
 // The status ring (pc386_status.sv): the head, then 256 records of 8 words.
 constexpr uint32_t RING_HEAD = 0x01000000u, RING_RECORDS = 0x01001000u, RING_MAGIC = 0x50333836u;
 constexpr unsigned RING_SLOTS = 256, HISTORY = 1u << 18;  // clocks of status the bench keeps
@@ -524,6 +528,7 @@ private:
         std::vector<uint16_t> record(WORDS, 0);
         std::copy(settings, settings + 8, record.begin());
         record[8 + MARKER_BYTE / 2] = uint16_t(MARKER << (8 * (MARKER_BYTE & 1)));
+        record[8 + SHUTDOWN_BYTE / 2] |= uint16_t(SHUTDOWN_STATUS << (8 * (SHUTDOWN_BYTE & 1)));
         restore(record);
         std::printf("RESTORE %llu\n", (unsigned long long)cycles);
         // 2026-10-31 12:00:00, a Saturday (7).
@@ -704,6 +709,8 @@ private:
 #endif
         check(std::equal(settings, settings + 8, record.begin()), "the record keeps the restored settings");
         check(cmos(record, MARKER_BYTE) == MARKER, "CMOS 50h keeps the restored byte");
+        check(cmos(record, SHUTDOWN_BYTE) == 0,
+              "CMOS 0Fh: the launch's POST took the restored shutdown status 09h as a power-on and cleared it");
         check(cmos(record, 0x60) == 0x24 && cmos(record, 0x61) == 5 && cmos(record, 0x62) == 1,
               "CMOS 60h-62h hold the restored Sound Blaster setting");
         check(cmos(record, 0x12) == 0xf0 && cmos(record, 0x15) == (640 & 0xff) && cmos(record, 0x16) == (640 >> 8),

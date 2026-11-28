@@ -26,7 +26,7 @@
     "bios": {
       "file": "pc386-bios.bin",
       "bytes": 65536,
-      "sha256": "23b9df9134e4f5c1aa32665219de71ddeb425d5764c30ee721d26893fc9780c7"
+      "sha256": "0f831b5a0900940d80815e6815ac5afb6b582c6f117f4d4dcd30577fe06b73a4"
     },
     "vgabios": {
       "file": "pc386-vgabios.bin",
@@ -36,6 +36,6 @@
   },
   "rom_hex": {
     "file": "pc386-rom.hex",
-    "sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18"
+    "sha256": "abe6f29c14ad3cc354f13408004a5c1868e706fd04a375a1c32c3beaea5ac28a"
   }
 }
