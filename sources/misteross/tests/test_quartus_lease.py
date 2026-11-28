@@ -19,7 +19,9 @@ its name was built, and refuses any shell command word it cannot resolve
 unless both editions' leases are held.
 """
 import ast
+import contextlib
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -1833,6 +1835,74 @@ class JobsTests(unittest.TestCase):
             self.assertEqual(self.jobs.remote("pro", "auto", "HEAD", "", ["true"]), 0)
         self.assertEqual(len(calls), 4, "it dispatched before a host was ready")
         self.assertIn("powerboat", launched.call_args.args[0])
+
+    def wait_message(self, edition, first_round):
+        """The line remote prints while it waits on first_round's probes."""
+        gib = 1024 ** 2
+        ready = {"host": "powerboat", "free": 1, "available_kib": 100 * gib, "home": "/home/u"}
+        rounds = [first_round, {"powerboat": ready, "chip-30x0-ai-dev": dict(ready, host="chip-30x0-ai-dev")}]
+        calls = []
+
+        def probe(host, _edition, timeout=60):
+            calls.append(host)
+            return dict(rounds[min((len(calls) - 1) // 2, 1)][host])
+
+        stderr = io.StringIO()
+        with mock.patch.object(self.jobs, "probe", probe), mock.patch.object(self.jobs, "REPROBE_SECONDS", 0), \
+                contextlib.redirect_stderr(stderr):
+            self.jobs._select_host(edition, "auto", float("inf"), "", ["true"], "e" * 40)
+        return next(line for line in stderr.getvalue().splitlines() if "probing again" in line)
+
+    def test_the_wait_message_names_busy_slots_and_their_holders(self):
+        # 27 Nov 2026: Powerboat had 36 GiB available and both Pro slots held,
+        # and the message blamed memory.
+        gib = 1024 ** 2
+        probes = self.probes(0, 40 * gib, 0, 36 * gib)
+        probes["powerboat"]["holders"] = {"/a": [[1000, "quartus_jobs.py run --label b"]], "/b": [[202, ""]]}
+        line = self.wait_message("pro", probes)
+        self.assertIn("powerboat: no free pro slot (held by pid 202, pid 1000 `quartus_jobs.py run --label b`);",
+                      line)
+        self.assertIn("chip-30x0-ai-dev: no free pro slot;", line)
+        self.assertNotIn("memory", line)
+
+    def test_the_wait_message_shows_available_reserved_and_needed_memory(self):
+        gib = 1024 ** 2
+        probes = self.probes(1, 30 * gib, 1, 36 * gib)
+        probes["chip-30x0-ai-dev"]["reserved_kib"] = 25 * gib
+        probes["powerboat"]["reserved_kib"] = 30 * gib
+        need = qt.PEAK_RSS_GIB["pro"]
+        line = self.wait_message("pro", probes)
+        self.assertIn("chip-30x0-ai-dev: not enough unreserved memory: 5 GiB unreserved "
+                      f"(30 GiB available, 25 GiB reserved), {need} GiB needed", line)
+        self.assertIn("powerboat: not enough unreserved memory: 6 GiB unreserved "
+                      f"(36 GiB available, 30 GiB reserved), {need} GiB needed", line)
+        self.assertNotIn("slot", line)
+
+    def test_the_wait_message_names_a_probe_error(self):
+        gib = 1024 ** 2
+        probes = self.probes(0, 40 * gib, 0, 36 * gib)
+        probes["chip-30x0-ai-dev"] = {"host": "chip-30x0-ai-dev", "error": "probe failed: timed out"}
+        line = self.wait_message("pro", probes)
+        self.assertIn("chip-30x0-ai-dev: probe error: probe failed: timed out", line)
+        self.assertIn("powerboat: no free pro slot", line)
+
+    def test_the_wait_message_names_both_reasons_when_both_apply(self):
+        gib = 1024 ** 2
+        line = self.wait_message("pro", self.probes(0, 40 * gib, 0, 4 * gib))
+        self.assertIn("powerboat: no free pro slot and not enough unreserved memory: 4 GiB unreserved", line)
+
+    def test_probe_names_the_slot_holders(self):
+        slot = self.pools["lite"][0]
+        holder = subprocess.Popen(["flock", slot, "sleep", "30"])
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.terminate)
+        deadline = time.monotonic() + 10
+        while not qt.flock_holders(slot) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        data = self.jobs.probe(self.jobs.local_host(), "lite")
+        self.assertNotIn("error", data, data)
+        self.assertEqual(data["free"], 0)
+        self.assertIn(holder.pid, [pid for pid, _ in data["holders"][slot]])
 
     def test_the_remote_program_runs_from_data_under_the_lease(self):
         script, run_dir = self.jobs.remote_script(

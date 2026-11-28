@@ -58,10 +58,11 @@ MODEL = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*')
 # package share a name, and a base checkout's producers must not mix with the
 # head's modules.
 PROBE = r'''
-import importlib, json, sys
+import hashlib, importlib, json, sys
 from pathlib import Path
 source = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(source))
+from scripts.input_identity import input_role
 EXECUTION = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
 def models(module):
     named = getattr(module, "MODELS", None)
@@ -81,13 +82,24 @@ for recipe in json.loads(sys.argv[2]):
         names = models(module)
         repository, revision = module._require_clean_source(source, identity_version=2)
         tools = (module.selection_identities() if hasattr(module, "selection_identities")
-                 else {name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")})
+                 else {name: "selection-only" for name in (
+                     module.MACHINE.tool_set(module.MACHINE.spec(source))
+                     if getattr(module, "MACHINE", None) is not None and hasattr(module.MACHINE, "tool_set")
+                     else ("quartus", "qsys", "ipgenerate", "pfg"))})
         for name in names:
             extra = {} if name is None else {"model": name}
             record = json.loads(module.create_build_record(
                 source, repository, revision, tools, execution=EXECUTION, identity_version=2, **extra))
             ids = record["identities"]
-            entry["identities"][name or ""] = {"design": ids["design"], "toolchain": ids["toolchain"]}
+            policy = record.get("parameters", {}).get("identity_policy", "design-v1")
+            fw_gen = {p: v for p, v in sorted(record.get("source_inputs", {}).items())
+                      if input_role(p, policy) == "firmware-generator"}
+            row = {"design": ids["design"], "toolchain": ids["toolchain"]}
+            if fw_gen:
+                row["firmware_generator"] = hashlib.sha256(
+                    json.dumps(fw_gen, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
+            entry["identities"][name or ""] = row
         entry["models"] = names
     except Exception as error:  # reported per recipe; the caller decides
         entry["error"] = type(error).__name__ + ": " + str(error)
@@ -107,7 +119,7 @@ def registered(path=None, *, allow_empty=False):
     for core_id, recipe in sorted(recipes.items()):
         quartus = recipe.quartus or {}
         script = recipe.producer_script
-        if (recipe.board != BOARD or recipe.toolchain != 'quartus' or recipe.front_end != 'quartus-pro'
+        if (recipe.board != BOARD or recipe.toolchain != 'quartus' or recipe.front_end not in ('quartus-pro', 'yosys')
                 or quartus.get('edition') != 'pro' or quartus.get('device_family') != 'agilex5'
                 or not script.startswith(PRODUCER_DIR) or not script.endswith('.py')
                 or '..' in Path(script).parts or not CORE_ID.fullmatch(core_id)):
@@ -187,6 +199,8 @@ def plan(recipes, head, selection, base=None):
                     add(core_id, model, 'design identity changed')
                 elif before['toolchain'] != after['toolchain']:
                     add(core_id, model, 'toolchain selection changed')
+                elif before.get('firmware_generator') != after.get('firmware_generator'):
+                    add(core_id, model, 'firmware generator changed')
         if not jobs:
             for model in models_of(FALLBACK_CORE):
                 add(FALLBACK_CORE, model, 'no DE25 package input changed; exact-head MENU run')

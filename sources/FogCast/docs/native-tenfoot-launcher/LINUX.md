@@ -38,7 +38,7 @@ same public host API client; there is no second launch path.
 | `ui/tenfoot/run_stub.go` | `//go:build !sdl3` stub |
 | Fonts (`label.go`) | Mac system fonts first; Noto/DejaVu Linux paths; embedded Go Regular fallback |
 | Prefs | `os.UserConfigDir()` → Mac `~/Library/Application Support/FogCast/tenfoot.json`; Linux `$XDG_CONFIG_HOME/FogCast/tenfoot.json` or `~/.config/FogCast/tenfoot.json` |
-| CI | No Linux SDL3 job (out of scope) |
+| CI | The Linux SDL3 controller regression tests run under Debian sid when host Go inputs change; there is no full Linux launcher CI matrix. |
 
 ## What the Mac mini can prove vs a Linux box
 

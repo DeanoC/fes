@@ -111,11 +111,12 @@ _OPTIONAL_RECIPE_FIELDS = frozenset({
     "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "front_end",
     "quartus", "hil_check", "hil_kits", "board"})
 # The tool that elaborates a core's logic, and the Quartus edition and device
-# family it requires. An OSS row elaborates with Yosys and says so by omission.
-# Yosys on Pro/Agilex 5 is design decision D3 and is rejected until it is taken.
-FRONT_ENDS = {"yosys": ("lite", "cyclonev"),
-              "quartus-lite": ("lite", "cyclonev"),
-              "quartus-pro": ("pro", "agilex5")}
+# family pairs it permits. An OSS row elaborates with Yosys and says so by
+# omission. Yosys on Pro/Agilex 5 (D3) is used by hybrid DE25 cores such as
+# fes.pc386.
+FRONT_ENDS = {"yosys": (("lite", "cyclonev"), ("pro", "agilex5")),
+              "quartus-lite": (("lite", "cyclonev"),),
+              "quartus-pro": (("pro", "agilex5"),)}
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -200,7 +201,7 @@ def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
             # end of this block does not reach it.
             if not isinstance(entry.get("front_end"), str) or entry["front_end"] not in FRONT_ENDS:
                 raise ValueError("unknown recipe front end")
-            if FRONT_ENDS[entry["front_end"]] != (q["edition"], q["device_family"]):
+            if (q["edition"], q["device_family"]) not in FRONT_ENDS[entry["front_end"]]:
                 raise ValueError("front end, Quartus edition and device family disagree")
         else:
             if "quartus" in entry:

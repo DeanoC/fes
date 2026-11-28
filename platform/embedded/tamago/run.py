@@ -23,7 +23,7 @@ import sys
 import time
 import threading
 from urllib.parse import urlparse, unquote
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from host_support import Guest, LocalDNSServer, LocalSNTPServer, frames, network_catalog
 
@@ -746,6 +746,7 @@ def main():
                 "agent_mdns": True,
                 "agent_instance": "FES-QEMU",
                 "agent_host": "fes-qemu.local",
+                "agent_ota": True,
             }
             initial_mtime = prepare_disk(prepare_host(), extra_boot=agent_boot)
             initial = record["initial_preferences"].get("layout", "grid")
@@ -754,6 +755,9 @@ def main():
             screenshots = record["screenshots"] = []
             boot_started = datetime.now(timezone.utc)
             agent_host_port = _free_tcp_port()
+            initial_slot = "A"
+            target_slot = "B"
+            ota_sha = ""
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display,
                        usb=args.input == "usb", hostfwd=f"tcp:127.0.0.1:{agent_host_port}-:8080") as guest:
                 first = ready(guest, initial)
@@ -766,6 +770,8 @@ def main():
                 else:
                     if "FES_AGENT_READY " not in guest.text:
                         raise RuntimeError("missing tenfoot agent startup marker: FES_AGENT_READY")
+                    if "FES_OTA_READY " not in guest.text:
+                        raise RuntimeError("missing tenfoot OTA startup marker: FES_OTA_READY")
                     agent_base = f"http://127.0.0.1:{agent_host_port}"
                     with urlopen(f"{agent_base}/v1/health", timeout=args.timeout) as resp:
                         agent_health = json.load(resp)
@@ -785,10 +791,48 @@ def main():
                         if time.monotonic() >= diag_deadline:
                             raise RuntimeError(f"guest agent did not emit mDNS announcement: {agent_diag}")
                         time.sleep(0.1)
+                    with urlopen(f"{agent_base}/v1/ota", timeout=args.timeout) as resp:
+                        ota_initial = json.load(resp)
+                    initial_slot = ota_initial.get("active_slot")
+                    if ota_initial.get("phase") != "idle" or initial_slot not in ("A", "B"):
+                        raise RuntimeError(f"unexpected guest /v1/ota initial state: {ota_initial}")
+                    if agent_diag.get("ota", {}).get("active_slot") != initial_slot:
+                        raise RuntimeError(f"guest /v1/diagnostics missing matching ota state: {agent_diag}")
+                    target_slot = "B" if initial_slot == "A" else "A"
+                    ota_payload = b"FES-TAMAGO-OTA-V2" * 256
+                    ota_sha = hashlib.sha256(ota_payload).hexdigest()
+                    stage_req = Request(
+                        f"{agent_base}/v1/ota/stage",
+                        data=ota_payload,
+                        method="POST",
+                        headers={
+                            "Content-Type": "application/octet-stream",
+                            "X-OTA-Version": "2.0.0-qemu",
+                            "X-OTA-Target": "qemu",
+                            "X-OTA-SHA256": ota_sha,
+                        },
+                    )
+                    with urlopen(stage_req, timeout=args.timeout) as resp:
+                        ota_staged = json.load(resp)
+                    if (ota_staged.get("state", {}).get("phase") != "staged" or
+                            ota_staged.get("state", {}).get("pending_slot") != target_slot):
+                        raise RuntimeError(f"unexpected guest /v1/ota/stage response: {ota_staged}")
+                    activate_req = Request(f"{agent_base}/v1/ota/activate", data=b"", method="POST")
+                    with urlopen(activate_req, timeout=args.timeout) as resp:
+                        ota_activated = json.load(resp)
+                    if (ota_activated.get("phase") != "pending" or
+                            ota_activated.get("pending_slot") != target_slot or
+                            ota_activated.get("tries_remaining") != 3):
+                        raise RuntimeError(f"unexpected guest /v1/ota/activate response: {ota_activated}")
                     record["agent_http"] = {
                         "health": agent_health,
                         "status": agent_status,
                         "diagnostics": agent_diag,
+                    }
+                    record["agent_ota_boot1"] = {
+                        "initial": ota_initial,
+                        "staged": ota_staged,
+                        "activated": ota_activated,
                     }
                     guest.press("right")
                     record["input_events"] = [{"source": args.input, "key": "right"}]
@@ -835,8 +879,37 @@ def main():
                     raise RuntimeError(f"FAT32 preference timestamp did not advance past {initial_mtime.isoformat()}")
                 if len({s["sha256"] for s in screenshots}) != 3:
                     raise RuntimeError("QMP screenshots did not change with navigation and layout")
-                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
+                extracted_ota = output / "extracted-ota-image.bin"
+                checked("read-ota-image", ["mcopy", "-o", "-i", disk, f"::FES/OTA/SLOT{target_slot}/IMAGE.BIN", extracted_ota])
+                if sha(extracted_ota) != ota_sha:
+                    raise RuntimeError(f"staged slot {target_slot} IMAGE.BIN digest mismatch after boot-1")
+                boot2_port = _free_tcp_port()
+                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display,
+                           usb=args.input == "usb", hostfwd=f"tcp:127.0.0.1:{boot2_port}-:8080") as guest:
                     ready(guest, expected)
+                    if f"FES_OTA_READY active_slot={initial_slot} phase=pending " not in guest.text:
+                        raise RuntimeError(f"boot-2 did not retain pending OTA state on {initial_slot}")
+                    with urlopen(f"http://127.0.0.1:{boot2_port}/v1/ota", timeout=args.timeout) as resp:
+                        ota_pending = json.load(resp)
+                    slot_key = "slot_b" if target_slot == "B" else "slot_a"
+                    slot_rec = ota_pending.get(slot_key) or {}
+                    if (ota_pending.get("active_slot") != initial_slot or
+                            ota_pending.get("pending_slot") != target_slot or
+                            ota_pending.get("phase") != "pending" or
+                            ota_pending.get("tries_remaining") != 3 or
+                            slot_rec.get("healthy") is not False or
+                            slot_rec.get("version") != "2.0.0-qemu"):
+                        raise RuntimeError(f"unexpected guest /v1/ota pending state across reboot: {ota_pending}")
+                    cancel_req = Request(f"http://127.0.0.1:{boot2_port}/v1/ota/cancel", data=b"", method="POST")
+                    with urlopen(cancel_req, timeout=args.timeout) as resp:
+                        ota_canceled = json.load(resp)
+                    if ota_canceled.get("phase") != "idle" or ota_canceled.get("active_slot") != initial_slot:
+                        raise RuntimeError(f"unexpected guest /v1/ota/cancel state: {ota_canceled}")
+                    record["agent_ota_boot2"] = {
+                        "image_sha256": ota_sha,
+                        "pending": ota_pending,
+                        "canceled": ota_canceled,
+                    }
                     screenshots.append(guest.screenshot("restored"))
                     record["second_boot_frames"] = frames(guest.text)
                 reboot_prefs, reboot_mtime = preferences("preferences-after-reboot")

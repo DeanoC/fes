@@ -1243,17 +1243,21 @@ household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
 legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80`, `.sna` or
-`.szx` name, or no name, inserts the Spectrum cassette on unit 0, and a `.trd`
-or `.scl` name the TR-DOS disk on unit 1. Clear does not eject the TR-DOS
-disk, and the CLI's disk commands do not handle it; a live insert replaces it.
+`.szx` name, or no name, inserts the Spectrum cassette on unit 0. A `.trd`
+or `.scl` name inserts the TR-DOS disk on unit 1, and a `.dsk` name the +3
+disk there when the package has a +3 drive. Clear does not eject the Spectrum
+disk, and neither does `fogcast eject-disk`; a live insert replaces it.
 Library disk inserts retain the confirmed session filename on failures before
 target dispatch. After dispatch, the target's `no_change` result determines
 whether the host can retain that filename.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
-`fogcast eject-cassette` for a Spectrum tape. A stored
-media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
-so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
+`fogcast eject-cassette` for a Spectrum tape. `fogcast change-disk` also
+inserts a Spectrum `.trd`, `.scl` or `.dsk` image of up to 1 MiB into the
+unit-1 disk, which the host converts for the package's drive. A stored
+media ID is named `disk.dsk`, `disk.d64`, `disk.st` or `disk.img` from the active unit,
+so the host checks the declared disk size or discrete ST geometry against that generation;
+on a Spectrum it is `disk.dsk` for a +3 drive and `disk.trd` for a TR-DOS drive. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
@@ -1658,7 +1662,16 @@ paths restore their Lua stack after errors and return-valued callbacks also
 restore it after success or soft overrun.
 
 `cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
-and list). It is another client of the public host API, not a second launch
+and list). Both input shells share **Settings › Controllers** (`tenfoot.json`
+`swap-ab` presets and per-button remapping, family button glyphs, live button
+highlights, and player LEDs): Linux evdev assigns the two local controller
+ports (`P1..P2`, menu-only above two) and syncs sysfs LED nodes on port
+attach/detach/yield while supporting step-by-step raw mapping, and desktop SDL3
+tracks open `SDL_Gamepad` handles (`P1..P4`) with SDL player index/LED updates
+and release-gated profile reloads (hiding raw step-by-step learning); both
+expose a per-pad **Settings** (`Select+Start` / `Guide`) option in **Settings ›
+Controllers** that defaults to `Select+Start` in menus on pads with no Guide
+button (`SELECT+START settings` footer hints). It is another client of the public host API, not a second launch
 path:
 
 ```text

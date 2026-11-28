@@ -137,7 +137,13 @@ for holder, peak in held_peaks.items():
     groups[top] = groups.get(top, 0) + peak
 reserved = sum(max(0, peak - tree_rss(top)) for top, peak in groups.items())
 
+def command(pid):
+    try: return open("/proc/%d/cmdline" % pid, "rb").read(4096).replace(b"\0", b" ").decode(errors="replace").strip()[:120]
+    except OSError: return ""
+
 print(json.dumps({"slots": {p: key(p) in held for p in config["slots"]},
+                  "holders": {p: [[pid, command(pid)] for pid in sorted(held.get(key(p), ()))]
+                              for p in config["slots"]},
                   "available_kib": mem["MemAvailable"], "reserved_kib": reserved,
                   "home": os.path.expanduser("~")}))
 """
@@ -178,10 +184,29 @@ def probe(host: str, edition: str, timeout: float = 60) -> dict:
 REPROBE_SECONDS = 60
 
 
+def not_ready_reason(p: dict, edition: str) -> str | None:
+    """Why a probed host cannot admit one edition job after existing
+    reservations, or None when it can."""
+    if "error" in p:
+        return f"probe error: {p['error']}"
+    reasons = []
+    if p["free"] <= 0:
+        holders = sorted({(pid, name) for held in p.get("holders", {}).values() for pid, name in held})
+        reasons.append(f"no free {edition} slot" + (
+            " (held by " + ", ".join(f"pid {pid}" + (f" `{name}`" if name else "") for pid, name in holders) + ")"
+            if holders else ""))
+    gib = 1024 ** 2
+    need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * gib
+    if _admissible_kib(p) < need:
+        reasons.append(f"not enough unreserved memory: {_admissible_kib(p) // gib} GiB unreserved "
+                       f"({p['available_kib'] // gib} GiB available, {p.get('reserved_kib', 0) // gib} GiB "
+                       f"reserved), {need // gib} GiB needed")
+    return " and ".join(reasons) or None
+
+
 def is_ready(p: dict, edition: str) -> bool:
     """A probed host can admit one edition job after existing reservations."""
-    need = quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)] * 1024 * 1024
-    return "error" not in p and p["free"] > 0 and p["available_kib"] - p.get("reserved_kib", 0) >= need
+    return not_ready_reason(p, edition) is None
 
 
 def _admissible_kib(p: dict) -> int:
@@ -808,9 +833,8 @@ def _select_host(edition: str, asked: str, deadline: float, label: str, command:
                     "finished_utc": datetime.now(timezone.utc).isoformat(), "status": "capped", "exit": 124})
             return 124
         subject = "no build host" if asked == "auto" else asked
-        print(f"quartus_jobs: {subject} is not ready for {edition}; at least "
-              f"{quartus_tools.PEAK_RSS_GIB[quartus_tools.edition_class(edition)]} GiB of unreserved memory is "
-              f"required; "
+        reasons = "; ".join(f"{p['host']}: {not_ready_reason(p, edition)}" for p in probes)
+        print(f"quartus_jobs: {subject} is not ready for {edition}: {reasons}; "
               f"probing again in {REPROBE_SECONDS} s", file=sys.stderr, flush=True)
         time.sleep(max(0, min(REPROBE_SECONDS, deadline - time.monotonic())))
     for p in probes:

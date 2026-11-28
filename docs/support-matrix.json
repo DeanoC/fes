@@ -2405,10 +2405,11 @@
         },
         "issues": [
           2029,
-          2245
+          2245,
+          2353
         ],
-        "proven": "nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run.",
-        "missing": "the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip."
+        "proven": "warm-reset SMMU fix (#2246); HDMI scanline display-priority/write-credit fix (#2344); registered DE25 Quartus Pro 26.3 recipe; exact-head 486SX Kit D25 load 1 ran FreeDOS, HID keyboard, DOOM E1M1 with 0 scanline dropouts, HDMI audio, 0 new SMMU faults, and verified restore (relaunch after stopping inside DOOM hit #2353).",
+        "missing": "relaunch CMOS 0Fh POST fix (#2353 / #2366) and exact-package Kit D25 smoke receipt for sealed; the pc386 acceptance corpus on Kit D25; conformance; the `fes.persistence.words` save round-trip."
       }
     ]
   }

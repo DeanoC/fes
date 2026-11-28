@@ -95,14 +95,14 @@ A cell is sealed only when its exact package SHA-256 is recorded with an in-repo
 | Atari ST | builds: `fes.atari-st` | #2042 |
 | C64 | builds: `fes.c64` | #2262 |
 | PC/XT | builds: `fes.pcxt-dos` | #2182 |
-| pc386 | builds: `fes.pc386` | #2029, #2245 |
+| pc386 | builds: `fes.pc386` | #2029, #2245, #2353 |
 
 - **ZX81 family.** Proven on Kit D25: MENU and ZX81 baseline promotion; launch, F12 to the media selector, Stop and verified restore (`docs/validation/2026-11-16-de25-kit-parity/`). Missing for tier 1: ZX80, TS1000 and TS1500 models in the DE25 producer and `kDe25StandardCores`; typed keyboard input; conformance; a ZX81 game corpus, which DE10 does not have either. Zon X and 16K carts wait on expansions.
 - **Spectrum family.** Proven on Kit D25: 48K and 128K exact-head HILQ smoke 9/9 with the screens checked (#2042); +2A/+3 `.dsk` and Pentagon `.trd` boots with restore verified (#2046). Missing for tier 1: keyboard input on the +3 and Pentagon; the Pentagon ROM in the HILQ firmware table; tape and snapshot media on the board; the audio-clock review; conformance; the Fuse corpus.
 - **Atari ST.** Proven on Kit D25: smoke 10/10; TOS 1.04 UK and EmuTOS reach the GEM desktop (#1937, #2042). Missing for tier 1: the Hatari corpus (Xenon, Gomoku with the mouse, The Lurking Horror disk save, Terramex disk swap); a cycle comparison with DE10; a long board SDRAM run; the audio-clock review; conformance.
 - **C64.** Proven on Kit D25: HDMI frame and D64 mount (#2234). Missing for tier 1: typed keyboard input; conformance; the corpus from `docs/validation/2026-11-07-c64-game-acceptance/`; the audio-clock review.
 - **PC/XT.** Proven on Kit D25: smoke 9/9 with restore verified; FreeDOS reached `A:\>` only on the superseded +4.0 ns package (#2069). Missing for tier 1: a reproducible Quartus compile; a reseal after the SDRAM DQ capture/hold fix; FreeDOS on the new package; SDRAM at 100 MHz under load; the qualification set; conformance.
-- **pc386.** Proven on Kit D25: nothing accepted. Open PR #2246 shows POST progress and window release on J8G; no DOS run. Missing for tier 1: the warm-reset SMMU fix (#2246); a registered DE25 recipe with the Quartus Pro front end; DOS boot on Kit D25; the pc386 acceptance set; the `fes.persistence.words` save round-trip.
+- **pc386.** Proven on Kit D25: warm-reset SMMU fix (#2246); HDMI scanline display-priority/write-credit fix (#2344); registered DE25 Quartus Pro 26.3 recipe; exact-head 486SX Kit D25 load 1 ran FreeDOS, HID keyboard, DOOM E1M1 with 0 scanline dropouts, HDMI audio, 0 new SMMU faults, and verified restore (relaunch after stopping inside DOOM hit #2353). Missing for tier 1: relaunch CMOS 0Fh POST fix (#2353 / #2366) and exact-package Kit D25 smoke receipt for sealed; the pc386 acceptance corpus on Kit D25; conformance; the `fes.persistence.words` save round-trip.
 
 ## Quality tier and checks
 

@@ -10,39 +10,49 @@ import "C"
 
 import (
 	"time"
+
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-func commandFromSDLButton(code C.int) Command {
+func logicalFromSDLButton(code C.int) remoteinput.Code {
 	switch code {
 	case C.SDL_GAMEPAD_BUTTON_DPAD_UP:
-		return CommandFromButton(ButtonDPadUp)
+		return remoteinput.ButtonDPadUp
 	case C.SDL_GAMEPAD_BUTTON_DPAD_DOWN:
-		return CommandFromButton(ButtonDPadDown)
+		return remoteinput.ButtonDPadDown
 	case C.SDL_GAMEPAD_BUTTON_DPAD_LEFT:
-		return CommandFromButton(ButtonDPadLeft)
+		return remoteinput.ButtonDPadLeft
 	case C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
-		return CommandFromButton(ButtonDPadRight)
+		return remoteinput.ButtonDPadRight
 	case C.SDL_GAMEPAD_BUTTON_SOUTH:
-		return CommandFromButton(ButtonSouth)
+		return remoteinput.ButtonA
 	case C.SDL_GAMEPAD_BUTTON_EAST:
-		return CommandFromButton(ButtonEast)
+		return remoteinput.ButtonB
 	case C.SDL_GAMEPAD_BUTTON_WEST:
-		return CommandFromButton(ButtonWest)
+		return remoteinput.ButtonX
 	case C.SDL_GAMEPAD_BUTTON_NORTH:
-		return CommandFromButton(ButtonNorth)
+		return remoteinput.ButtonY
 	case C.SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
-		return CommandFromButton(ButtonLeftShoulder)
+		return remoteinput.ButtonL
 	case C.SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
-		return CommandFromButton(ButtonRightShoulder)
+		return remoteinput.ButtonR
 	case C.SDL_GAMEPAD_BUTTON_START:
-		return CommandFromButton(ButtonStart)
+		return remoteinput.ButtonStart
 	case C.SDL_GAMEPAD_BUTTON_BACK:
-		return CommandFromButton(ButtonBack)
-	case C.SDL_GAMEPAD_BUTTON_GUIDE:
-		return CmdSettings
+		return remoteinput.ButtonSelect
 	default:
-		return CmdNone
+		return 0
 	}
+}
+
+func commandFromSDLButton(code C.int) Command {
+	if code == C.SDL_GAMEPAD_BUTTON_GUIDE {
+		return CmdSettings
+	}
+	if logical := logicalFromSDLButton(code); logical != 0 {
+		return CommandFromLogical(remoteinput.Event{Kind: remoteinput.KindButton, Code: logical})
+	}
+	return CmdNone
 }
 
 func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {

@@ -3,10 +3,15 @@
 package agentapi_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/netip"
 	"slices"
@@ -16,8 +21,11 @@ import (
 
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/fes/platform/embedded/tamago/agentapi"
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/mdns"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/ota"
 )
 
 func setupTestLinkPair(t *testing.T) (linkSrv, linkCli *network.Link, macSrv string, macCli [6]byte, cleanup func()) {
@@ -326,5 +334,261 @@ func TestServiceDefaultMDNSNamesDerivedFromTargetID(t *testing.T) {
 	}
 	if len(gotFrom2) != 1 || gotFrom2[0].Instance != "FES-TamaGo-aaaa1111bbbb" || gotFrom2[0].Host != "fes-tamago-aaaa1111bbbb.local" || mdns.ParseFogCastTXT(gotFrom2[0].TXT).TargetID != id2 {
 		t.Fatalf("unexpected default mDNS service for %s: %+v", id2, gotFrom2)
+	}
+}
+
+type memFATDisk struct {
+	mu      sync.Mutex
+	sectors uint64
+	data    map[uint64][block.SectorSize]byte
+}
+
+func newMemFATVolume(t *testing.T) *fat.Volume {
+	t.Helper()
+	const (
+		reserved   = uint64(32)
+		fats       = uint64(2)
+		clusters   = uint64(65536)
+		fatSectors = uint64(516)
+		spc        = uint64(1)
+	)
+	total := reserved + fats*fatSectors + clusters*spc
+	d := &memFATDisk{
+		sectors: total,
+		data:    make(map[uint64][block.SectorSize]byte),
+	}
+	var boot [block.SectorSize]byte
+	binary.LittleEndian.PutUint16(boot[11:], block.SectorSize)
+	boot[13] = byte(spc)
+	binary.LittleEndian.PutUint16(boot[14:], uint16(reserved))
+	boot[16] = byte(fats)
+	binary.LittleEndian.PutUint32(boot[32:], uint32(total))
+	binary.LittleEndian.PutUint32(boot[36:], uint32(fatSectors))
+	binary.LittleEndian.PutUint32(boot[44:], 2)
+	binary.LittleEndian.PutUint16(boot[48:], 1)
+	boot[510], boot[511] = 0x55, 0xaa
+	d.data[0] = boot
+
+	var fsInfo [block.SectorSize]byte
+	binary.LittleEndian.PutUint32(fsInfo[0:], 0x41615252)
+	binary.LittleEndian.PutUint32(fsInfo[484:], 0x61417272)
+	binary.LittleEndian.PutUint32(fsInfo[488:], 0xffffffff)
+	binary.LittleEndian.PutUint32(fsInfo[492:], 0xffffffff)
+	binary.LittleEndian.PutUint32(fsInfo[508:], 0xaa550000)
+	d.data[1] = fsInfo
+
+	var fat0 [block.SectorSize]byte
+	binary.LittleEndian.PutUint32(fat0[0:], 0x0ffffff8)
+	binary.LittleEndian.PutUint32(fat0[4:], 0x0fffffff)
+	binary.LittleEndian.PutUint32(fat0[8:], 0x0fffffff)
+	d.data[reserved] = fat0
+	d.data[reserved+fatSectors] = fat0
+
+	vol, err := fat.Mount(d)
+	if err != nil {
+		t.Fatalf("fat.Mount: %v", err)
+	}
+	return vol
+}
+
+func (d *memFATDisk) SectorCount() uint64 { return d.sectors }
+
+func (d *memFATDisk) ReadSectors(lba uint64, dst []byte) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	count := uint64(len(dst) / block.SectorSize)
+	for i := uint64(0); i < count; i++ {
+		sec := d.data[lba+i]
+		copy(dst[i*block.SectorSize:(i+1)*block.SectorSize], sec[:])
+	}
+	return nil
+}
+
+func (d *memFATDisk) WriteSectors(lba uint64, src []byte) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	count := uint64(len(src) / block.SectorSize)
+	for i := uint64(0); i < count; i++ {
+		var sec [block.SectorSize]byte
+		copy(sec[:], src[i*block.SectorSize:(i+1)*block.SectorSize])
+		d.data[lba+i] = sec
+	}
+	return nil
+}
+
+func (d *memFATDisk) Flush() error { return nil }
+
+func TestServiceOTAHTTPLifecycleOverLneto(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	linkSrv, linkCli, macSrv, _, cleanup := setupTestLinkPair(t)
+	defer cleanup()
+
+	vol := newMemFATVolume(t)
+	const testSignature = "valid test signature"
+	mgr, err := ota.Open(ctx, vol, ota.Config{
+		Board:         "de25-nano",
+		MaxImageBytes: 64 << 10,
+		VerifySignature: func(_ ota.SlotManifest, _ [32]byte, signature []byte) error {
+			if !bytes.Equal(signature, []byte(testSignature)) {
+				return errors.New("invalid test signature")
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1 := bytes.Repeat([]byte("SLOT-A-V1"), 256)
+	if _, err := mgr.SeedActiveSlot(ctx, ota.StageRequest{Version: "1.0.0", Target: "de25-nano", Payload: v1, Signature: []byte(testSignature)}); err != nil {
+		t.Fatal(err)
+	}
+
+	const secret = "ota-bearer-secret"
+	svc, err := agentapi.NewService(agentapi.ServiceConfig{
+		Endpoint:       agentapi.NewLinkEndpoint(linkSrv, macSrv),
+		Port:           8080,
+		TargetID:       "33333333-4444-4555-8666-777777777777",
+		Token:          secret,
+		Controller:     agentapi.NewStateController(agentapi.StateControllerConfig{Board: "de25-nano", Address: linkSrv.Prefix().String()}),
+		OTA:            mgr,
+		MaxUploadBytes: 8192,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer stopCancel()
+		_ = svc.Stop(stopCtx)
+	}()
+
+	tr, err := network.NewHTTPTransport(linkCli, network.TransportConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: tr, Timeout: 5 * time.Second}
+	baseURL := "http://" + svc.Addr().String()
+
+	doReq := func(method, path string, body []byte, hdrs map[string]string, tok string) (*http.Response, []byte) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, method, baseURL+path, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tok != "" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
+		for k, v := range hdrs {
+			req.Header.Set(k, v)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", method, path, err)
+		}
+		defer resp.Body.Close()
+		var buf bytes.Buffer
+		if _, err := buf.ReadFrom(resp.Body); err != nil {
+			t.Fatal(err)
+		}
+		return resp, buf.Bytes()
+	}
+
+	// Unauthenticated OTA routes fail closed with 401.
+	if resp, _ := doReq(http.MethodGet, "/v1/ota", nil, nil, ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauth GET /v1/ota status=%d, want 401", resp.StatusCode)
+	}
+	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", []byte("abc"), map[string]string{"X-OTA-Version": "2.0.0"}, "wrong"); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("bad-token POST /v1/ota/stage status=%d, want 401", resp.StatusCode)
+	}
+
+	// Diagnostics reports OTA state cleanly.
+	resp, diagBody := doReq(http.MethodGet, "/v1/diagnostics", nil, nil, secret)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/v1/diagnostics status=%d body=%s", resp.StatusCode, diagBody)
+	}
+	var diag agentapi.DiagnosticsSnapshot
+	if err := json.Unmarshal(diagBody, &diag); err != nil || diag.OTA == nil || diag.OTA.ActiveSlot != ota.SlotA {
+		t.Fatalf("unexpected diagnostics OTA snapshot: %+v (%v)", diag, err)
+	}
+
+	// Stage validation failures: missing version (400), oversized upload (413), wrong target (400), digest mismatch (400).
+	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", []byte("x"), nil, secret); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("missing version status=%d, want 400", resp.StatusCode)
+	}
+	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", make([]byte, 9000), map[string]string{"X-OTA-Version": "2.0"}, secret); resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized payload status=%d, want 413", resp.StatusCode)
+	}
+	v2 := bytes.Repeat([]byte("SLOT-B-V2"), 256)
+	v2SHA := fmt.Sprintf("%x", sha256.Sum256(v2))
+	stageHeaders := map[string]string{
+		"X-OTA-Version":        "2.0.0",
+		"X-OTA-Target":         "de25-nano",
+		"X-OTA-SHA256":         v2SHA,
+		"X-OTA-Rollback-Epoch": "2",
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, stageHeaders, secret); resp.StatusCode != http.StatusBadRequest || !bytes.Contains(body, []byte("invalid test signature")) {
+		t.Fatalf("unsigned stage status=%d body=%s, want signature rejection with 400", resp.StatusCode, body)
+	}
+	if got := mgr.Status().Phase; got != ota.PhaseIdle {
+		t.Fatalf("phase after unsigned stage = %s, want idle", got)
+	}
+	signedStageHeaders := make(map[string]string, len(stageHeaders)+1)
+	for key, value := range stageHeaders {
+		signedStageHeaders[key] = value
+	}
+	signedStageHeaders["X-OTA-Signature"] = base64.StdEncoding.EncodeToString([]byte(testSignature))
+	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", v2, map[string]string{
+		"X-OTA-Version": "2.0.0",
+		"X-OTA-Target":  "qemu",
+		"X-OTA-SHA256":  v2SHA,
+	}, secret); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("wrong target status=%d, want 400", resp.StatusCode)
+	}
+
+	// Stage -> Cancel -> Re-stage -> Activate -> Conflict on stage during Pending -> SelectBoot -> Confirm -> Rollback.
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, signedStageHeaders, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("stage v2 status=%d body=%s", resp.StatusCode, body)
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/cancel", nil, nil, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("cancel status=%d body=%s", resp.StatusCode, body)
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/stage", v2, signedStageHeaders, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("restage v2 status=%d body=%s", resp.StatusCode, body)
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/activate", nil, nil, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("activate status=%d body=%s", resp.StatusCode, body)
+	}
+	if resp, _ := doReq(http.MethodPost, "/v1/ota/stage", v2, map[string]string{"X-OTA-Version": "3.0"}, secret); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stage during PhasePending status=%d, want 409", resp.StatusCode)
+	}
+
+	dec, err := mgr.SelectBoot(ctx)
+	if err != nil || dec.Slot != ota.SlotB || !dec.IsTrial {
+		t.Fatalf("SelectBoot: dec=%+v err=%v", dec, err)
+	}
+	if resp, body := doReq(http.MethodPost, "/v1/ota/confirm", nil, nil, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("confirm status=%d body=%s", resp.StatusCode, body)
+	}
+	var stAfter ota.State
+	resp, stateBody := doReq(http.MethodGet, "/v1/ota", nil, nil, secret)
+	if resp.StatusCode != http.StatusOK || json.Unmarshal(stateBody, &stAfter) != nil {
+		t.Fatalf("GET /v1/ota after confirm failed: %d %s", resp.StatusCode, stateBody)
+	}
+	if stAfter.ActiveSlot != ota.SlotB || stAfter.Phase != ota.PhaseIdle || stAfter.SlotB == nil || !stAfter.SlotB.Healthy {
+		t.Fatalf("unexpected state after HTTP confirm: %+v", stAfter)
+	}
+
+	if resp, body := doReq(http.MethodPost, "/v1/ota/rollback", []byte(`{"reason":"http rollback test"}`), nil, secret); resp.StatusCode != http.StatusOK {
+		t.Fatalf("rollback status=%d body=%s", resp.StatusCode, body)
+	} else {
+		var rb ota.State
+		if err := json.Unmarshal(body, &rb); err != nil || rb.ActiveSlot != ota.SlotA {
+			t.Fatalf("unexpected rollback state: %s (%v)", body, err)
+		}
 	}
 }

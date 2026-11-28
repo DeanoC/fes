@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/gic"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/modelbackend"
+	"github.com/DeanoC/fes/platform/embedded/tamago/ota"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 	"github.com/DeanoC/fes/platform/embedded/tamago/serial"
 )
@@ -40,6 +41,7 @@ type bootConfig struct {
 	AgentMDNS     bool   `json:"agent_mdns"`
 	AgentInstance string `json:"agent_instance"`
 	AgentHost     string `json:"agent_host"`
+	AgentOTA      bool   `json:"agent_ota"`
 }
 
 type observedTransport struct{ base http.RoundTripper }
@@ -390,6 +392,22 @@ func run() (result error) {
 			fmt.Println("FES_NET_IRQ enabled=true")
 		}
 	}
+	var otaMgr *ota.Manager
+	if config.AgentOTA {
+		otaCfg := ota.Config{Board: board.Name}
+		if _, ok := board.WallTime(); ok {
+			otaCfg.Now = func() time.Time {
+				t, _ := board.WallTime()
+				return t
+			}
+		}
+		otaMgr, err = ota.Open(ctx, volume, otaCfg)
+		if err != nil {
+			return fmt.Errorf("open OTA manager: %w", err)
+		}
+		st := otaMgr.Status()
+		fmt.Printf("FES_OTA_READY active_slot=%s phase=%s generation=%d\n", st.ActiveSlot, st.Phase, st.Generation)
+	}
 	if iface != nil && config.AgentPort != 0 {
 		agentCtrl := agentapi.NewStateController(agentapi.StateControllerConfig{
 			Board:   board.Name,
@@ -405,6 +423,7 @@ func run() (result error) {
 			MDNSInstance:         config.AgentInstance,
 			MDNSHost:             config.AgentHost,
 			Controller:           agentCtrl,
+			OTA:                  otaMgr,
 			OnError: func(err error) {
 				fmt.Printf("FES_AGENT_ERROR err=%q\n", err)
 			},

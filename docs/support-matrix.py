@@ -853,10 +853,10 @@ def feature_union(ids: list[str]) -> str:
 
 
 # The tool that elaborates a core's logic, and the Quartus edition and device
-# family it requires. scripts/recipes.py holds the same table for the registry.
-FRONT_ENDS = {'yosys': ('lite', 'cyclonev'),
-              'quartus-lite': ('lite', 'cyclonev'),
-              'quartus-pro': ('pro', 'agilex5')}
+# family pairs it permits. scripts/recipes.py holds the same table for the registry.
+FRONT_ENDS = {'yosys': (('lite', 'cyclonev'), ('pro', 'agilex5')),
+              'quartus-lite': (('lite', 'cyclonev'),),
+              'quartus-pro': (('pro', 'agilex5'),)}
 
 
 def _pins(path: Path) -> dict:
@@ -933,7 +933,7 @@ def validate(root: Path, data: dict) -> list[str]:
                     errors.append(f'{core_id} Quartus {field} differs from its lock')
             front_end = recipe.get('front_end')
             pair = (recipe['quartus'].get('edition'), recipe['quartus'].get('device_family'))
-            if not isinstance(front_end, str) or FRONT_ENDS.get(front_end) != pair:
+            if not isinstance(front_end, str) or pair not in FRONT_ENDS.get(front_end, ()):
                 errors.append(f'{core_id} front end does not match its Quartus edition and device family')
         elif lock.is_file():
             pins = _pins(lock)

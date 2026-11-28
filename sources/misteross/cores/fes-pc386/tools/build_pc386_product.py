@@ -191,7 +191,8 @@ def execution_inputs(paths, env, device=0):
 
 def selected_recipe(root: Path) -> dict:
     data = tomllib.loads((Path(root).parents[1] / "config/core-recipes.toml").read_text())
-    matches = [r for r in data["recipes"] if r["core_id"] == "fes.pc386"]
+    matches = [r for r in data["recipes"] if r["core_id"] == "fes.pc386"
+               and r.get("board", "de10-nano") == "de10-nano"]
     if len(matches) != 1:
         raise board.BuildError("pc386 must have one product recipe")
     entry = matches[0]

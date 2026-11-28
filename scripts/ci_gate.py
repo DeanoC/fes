@@ -11,8 +11,8 @@ from scripts.parent_tests import parent_partitions
 
 JOB_LANES = {
     'parent-tests': 'parent', 'consistency': 'parent', 'host': 'host',
-    'runtime': 'runtime', 'contracts': 'contracts', 'fpga-producer': 'fpga',
-    'tamago': 'tamago',
+    'host-sdl3': 'host', 'runtime': 'runtime', 'contracts': 'contracts',
+    'fpga-producer': 'fpga', 'tamago': 'tamago',
 }
 
 
