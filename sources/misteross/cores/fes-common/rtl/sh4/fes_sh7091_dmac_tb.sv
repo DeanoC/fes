@@ -1,5 +1,11 @@
 // Exercise DMA and CPU contention at the shared external memory port.
 module fes_sh7091_dmac_tb (input logic clk, output logic finished);
+    logic ddt_valid = 0, ddt_ready;
+    logic [1:0] ddt_kind = 0, device_channel;
+    logic [63:0] ddt_command = 0;
+    logic device_valid, device_write, device_last, device_ready = 0;
+    logic [3:0] device_mask;
+    logic [31:0] device_wdata, device_rdata = 0;
     logic reset = 1, nmi = 0;
     logic reg_request = 0;
     logic [31:2] reg_addr;
@@ -24,6 +30,9 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
 
     logic unused_idle;
     fes_sh7091_dmac dma (
+        .ddt_valid, .ddt_kind, .ddt_command, .ddt_ready,
+        .device_valid, .device_write, .device_last, .device_channel, .device_mask,
+        .device_wdata, .device_ready, .device_rdata,
         .idle(unused_idle),
         .clk, .reset, .nmi, .pause, .stopped, .reg_request, .reg_addr, .reg_rmask, .reg_wstrb,
         .reg_wdata, .reg_selected, .reg_rvalid, .reg_rdata, .dreq_n, .dreq_ack,
@@ -96,6 +105,31 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
         assert (!dma_ready);
         @(negedge clk);
         cpu_valid = 0;
+    endtask
+
+    task automatic demand_request(input logic [1:0] kind, input logic [63:0] command);
+        @(negedge clk);
+        ddt_kind = kind;
+        ddt_command = command;
+        ddt_valid = 1;
+        #1;
+        assert (ddt_ready) else $fatal(1, "Unexpected DDT backpressure, command %h", command);
+        @(negedge clk);
+        ddt_valid = 0;
+    endtask
+
+    task automatic check_device_write(input logic [1:0] channel_id, input logic [3:0] mask,
+                                      input logic [31:0] value, input logic last);
+        wait (device_valid);
+        repeat (3) begin
+            @(negedge clk);
+            assert (device_valid && device_write && device_channel == channel_id &&
+                    device_mask == mask && device_wdata == value && device_last == last)
+                else $fatal(1, "Unexpected DMA device beat on channel %d: %h", device_channel, device_wdata);
+        end
+        device_ready = 1;
+        @(negedge clk);
+        device_ready = 0;
     endtask
 
     initial begin
@@ -206,6 +240,81 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
         cpu_lock = 0;
         wait (irq[1]);
         assert (memory['h52] == 'h4433_2211);
+        // A normal single-address burst drains the programmed count
+        // after one falling DREQ edge.
+        channel(0, 'h40, 0, 2, 'h812b5);
+        @(negedge clk);
+        dreq_n[0] = 0;
+        wait (dreq_ack[0]);
+        @(negedge clk);
+        dreq_n[0] = 1;
+        check_device_write(0, 'hf, 'h1234_0100, 1);
+        check_device_write(0, 'hf, 'h1234_0101, 1);
+        wait (irq[0]);
+
+        // Demand channel 0 takes its direction, size and count from DTR,
+        // and masks writes from the CPU while DMAOR.DDT is set.
+        write_reg('h40, 'h8201);
+        memory['h60] = 'hfedc_ba98;
+        demand_request(0, {3'd0, 1'b0, 2'd0, 2'd3, 8'd2, 16'hffff, 32'h181});
+        check_device_write(0, 1, 'h00fe_dcba, 1);
+        wait (unused_idle);
+        repeat (3) @(negedge clk);
+        assert (!device_valid);
+        check_reg('h00, 'h182);
+        check_reg('h08, 1);
+        write_reg('h00, 0);
+        check_reg('h00, 'h182);
+        demand_request(1, 0);
+        check_device_write(0, 1, 'h0000_fedc, 1);
+        wait (unused_idle);
+        check_reg('h0c, 'h5213);
+
+        // Quadword DTR uses a different size encoding from CHCR.
+        demand_request(0, {3'd3, 1'b1, 2'd0, 2'd1, 8'd1, 16'b0, 32'h190});
+        for (int i = 0; i < 2; i++) begin
+            wait (device_valid);
+            @(negedge clk);
+            assert (device_valid && !device_write && device_channel == 0 &&
+                    device_mask == 'hf && device_last == (i == 1));
+            device_rdata = 32'h1290_2000 + 32'(i);
+            device_ready = 1;
+            @(negedge clk);
+            device_ready = 0;
+        end
+        wait (unused_idle);
+        assert (memory['h64] == 'h1290_2000 && memory['h65] == 'h1290_2001);
+        check_reg('h04, 'h198);
+        check_reg('h08, 0);
+
+        // A fixed-length burst is continued internally after its first request.
+        demand_request(0, {3'd2, 1'b0, 2'd0, 2'd1, 8'd2, 16'b0, 32'h190});
+        check_device_write(0, 'hf, 'h1290_2000, 1);
+        check_device_write(0, 'hf, 'h1290_2001, 1);
+        wait (unused_idle);
+
+        // COUNT=0 is the maximum. A stop command after one requested unit
+        // retains the residue and clears DE without setting TE.
+        demand_request(0, {3'd2, 1'b0, 2'd0, 2'd2, 8'd0, 16'b0, 32'h190});
+        check_device_write(0, 'hf, 'h1290_2000, 1);
+        wait (unused_idle);
+        demand_request(0, {3'd7, 1'b0, 2'd0, 2'd2, 8'd0, 16'b0, 32'b0});
+        check_reg('h08, 'hff_ffff);
+        check_reg('h0c, 'h52b0);
+
+        // Queue four channel-3 requests with the CPU's channel registers.
+        check_reg('h3c, 'he37);
+        write_reg('h3c, 0);
+        channel(3, 'h40, 'h1a0, 4, 'h5035);
+        pause = 1;
+        demand_request(0, {4'b0, 2'd3, 58'b0});
+        repeat (3) demand_request(1, 0);
+        #1;
+        assert (!ddt_ready);
+        pause = 0;
+        wait (irq[3]);
+        for (int i = 0; i < 4; i++)
+            assert (memory['h68+i] == 32'h1234_0100 + 32'(i));
         finished = 1;
     end
 endmodule

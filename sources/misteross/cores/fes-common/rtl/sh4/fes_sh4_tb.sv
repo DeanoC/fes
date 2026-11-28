@@ -1,4 +1,10 @@
 module fes_sh4_tb;
+    logic ddt_valid = 0, ddt_ready;
+    logic [1:0] ddt_kind = 0, device_channel;
+    logic [63:0] ddt_command = 0;
+    logic device_valid, device_write, device_last, device_ready = 0;
+    logic [3:0] device_mask;
+    logic [31:0] device_wdata, device_rdata = 0;
     logic clk = 0;
     always #5 clk <= ~clk;
 
@@ -75,6 +81,9 @@ module fes_sh4_tb;
     );
 
     fes_sh4_bram_system bram (
+        .ddt_valid, .ddt_kind, .ddt_command, .ddt_ready,
+        .device_valid, .device_write, .device_last, .device_channel, .device_mask,
+        .device_wdata, .device_ready, .device_rdata,
         .clk, .reset(bram_reset), .rtc_tick(bram_rtc_tick), .irq_level(4'b0), .irq_event(12'b0),
         .sci_rxd(bram_sci_txd), .sci_sck(1'b1), .sci_txd(bram_sci_txd), .sci_txd_enable(unused_sci_txd_enable),
         .sci_sck_out(unused_sci_sck_out), .sci_sck_enable(unused_sci_sck_enable),
@@ -2783,6 +2792,64 @@ module fes_sh4_tb;
             end
             bram_reset = 1;
         end
+
+        // Program the SH7091 registers exactly as a Dreamcast ch2-DMA
+        // client does. The external request and streamed data cross the SoC boundary.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80); // DMAC base
+        literal('h02, 0, 'h84); // DMAOR
+        literal('h04, 2, 'h90); // DMAOR address is beyond MOV.L @(disp,Rn)
+        emit('h06, 'h2202);
+        literal('h08, 0, 'h88); // SAR2
+        emit('h0a, 'h1108);
+        emit('h0c, 'he002);     // DMATCR2 = two 32-byte blocks
+        emit('h0e, 'h110a);
+        literal('h10, 0, 'h8c); // CHCR2
+        emit('h12, 'h110b);
+        emit('h14, 'haffe);     // Spin with the DMA request channels enabled
+        emit('h16, 'h0009);
+        image['h80 >> 2] = 'hffa0_0000;
+        image['h84 >> 2] = 'h8201;
+        image['h88 >> 2] = 'h100;
+        image['h8c >> 2] = 'h12c1;
+        image['h90 >> 2] = 'hffa0_0040;
+        for (int i = 0; i < 16; i++)
+            image[('h100 >> 2) + i] = 32'hcafe_0000 + 32'(i);
+        for (int word = 0; word < 'h140 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_retired && bram_retired_pc == 'h16);
+        @(negedge clk);
+        ddt_kind = 2;
+        ddt_valid = 1;
+        repeat (2) begin
+            #1;
+            assert (ddt_ready);
+            @(negedge clk);
+        end
+        ddt_valid = 0;
+        for (int i = 0; i < 16; i++) begin
+            wait (device_valid);
+            repeat (2) begin
+                @(negedge clk);
+                assert (device_valid && device_write && device_channel == 2 && device_mask == 'hf &&
+                        device_wdata == 32'hcafe_0000 + 32'(i) && device_last == (i % 8 == 7))
+                    else $fatal(1, "Dreamcast DMA beat %0d at the external port: %h", i, device_wdata);
+            end
+            device_ready = 1;
+            @(negedge clk);
+            device_ready = 0;
+        end
+        wait (bram.system_cpu.dma_idle);
+        assert (bram.system_cpu.dmac.count[2] == 0 && bram.system_cpu.dmac.chcr[2][1] &&
+                bram.system_cpu.dmac.sar[2] == 'h140 && bram_fault == 0);
+        bram_reset = 1;
 
         assert (ubc_finished) else $fatal(1, "UBC test did not finish");
         assert (cpg_finished) else $fatal(1, "CPG test did not finish");

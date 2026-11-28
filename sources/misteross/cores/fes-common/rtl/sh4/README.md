@@ -381,18 +381,32 @@ beat. The external memory half of the transfer uses the normal bus.
 ## DMA controller
 
 The four-channel DMAC exposes SAR, DAR, DMATCR, CHCR and DMAOR through
-the SH7091 P4 register window. It supports dual-address memory copies,
-dual-address DREQ transfers on channels 0 and 1, and transfers triggered
-by TMU2 capture. Capture data can also be used as the source of a 32-bit
-transfer. The external request ports take active-low requests and acknowledge
-each accepted unit with an active-high pulse.
+the SH7091 P4 register window. It supports dual-address memory copies, single-
+and dual-address DREQ transfers on channels 0 and 1, and TMU2 capture requests.
+The capture value can supply the data for a 32-bit transfer. DREQ inputs are
+active low, with an active-high acknowledgement when the DMAC starts a unit.
 
 The DMA engine buffers each 1-, 2-, 4-, 8- or 32-byte transfer unit and
 moves it through the shared 32-bit port. Completion and address errors
 feed INTC. DMA accesses physical memory and software manages cache
-coherency around DMA buffers. The board supplies physical DMA handshake
-timing. Single-address DMA, direct data transfer mode and other peripheral
-requests remain unimplemented.
+coherency around DMA buffers.
+
+With DMAOR.DDT set, the board can submit a 64-bit DTR command on
+`ddt_valid && ddt_ready` with `ddt_kind=0`. Kind 1 requests another unit
+on the previous DTR channel, and kind 2 requests a unit directly on channel 2.
+DTR commands configure channel 0 from the request fields, with support for
+continuous edge bursts, per-unit requests, and transfer termination.
+Channels 1–3 use their CPU-programmed registers and can queue four external
+requests apiece. A board bridge can use the direct channel-2 request for
+Dreamcast display-list, YUV or texture transfers.
+
+Single-address transfers use a separate device port. A beat transfers on
+`device_valid && device_ready` with data packed in the low-order bytes.
+`device_write` selects the memory-to-device direction. `device_channel`
+identifies the active DMA channel, `device_mask` marks the bytes in the beat,
+and `device_last` marks the end of the transfer unit. The board bridge
+supplies physical DBREQ/BAVL/TR/TDACK and DREQ pin timing. The Holly register
+block that generates Dreamcast DMA requests remains to be integrated.
 
 ## Memory contract
 
@@ -489,7 +503,10 @@ priority tie handling. A guest program wakes from SLEEP on a TMU0
 interrupt, clears the source in its handler, and resumes through RTE.
 DMA checks cover a stalled read, a 32-byte unit, byte lane steering, register
 writeback, sticky flag acknowledgement, an alignment error, a capture
-transfer and an external request. The shared-bus tests check that DMA
+transfer and an external request. Demand DMA tests check DTR setup,
+repeat and halt commands, queued requests and device backpressure. A guest
+programs the Dreamcast channel-2 register values and sends two 32-byte units
+to the device port. The shared-bus tests check that DMA
 respects TAS and store-queue ownership. A guest configures a DMA copy,
 wakes on the completion interrupt, and reads the destination after RTE.
 ICR regressions cover both NMI edges, masking and independent IRL input.

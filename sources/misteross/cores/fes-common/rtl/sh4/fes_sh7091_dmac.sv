@@ -1,4 +1,4 @@
-// SH7091 normal-mode DMA. Each transfer unit is read into a buffer before
+// SH7091 DMA. Each transfer unit is read into a buffer before
 // writes begin, so a wide unit can travel over the 32-bit external port.
 module fes_sh7091_dmac (
     input  logic        clk, reset, nmi, pause, stopped,
@@ -16,6 +16,16 @@ module fes_sh7091_dmac (
     output logic        capture_accept,
     output logic [4:0]  irq,
     input  logic [3:0]  serial_request,
+    input  logic        ddt_valid,
+    input  logic [1:0]  ddt_kind,
+    input  logic [63:0] ddt_command,
+    output logic        ddt_ready,
+    output logic        device_valid, device_write, device_last,
+    output logic [1:0]  device_channel,
+    output logic [3:0]  device_mask,
+    output logic [31:0] device_wdata,
+    input  logic        device_ready,
+    input  logic [31:0] device_rdata,
     output logic        mem_valid, mem_burst,
     output logic [1:0]  mem_serial,
     input  logic        mem_ready,
@@ -24,7 +34,7 @@ module fes_sh7091_dmac (
     input  logic        mem_rvalid,
     input  logic [31:0] mem_rdata
 );
-    typedef enum logic [2:0] {IDLE, CAPTURE, CHECK, READ_REQUEST, READ_REPLY, WRITE_REQUEST, RETIRE} state_t;
+    typedef enum logic [3:0] {IDLE, CAPTURE, CHECK, READ_REQUEST, READ_REPLY, WRITE_REQUEST, DEVICE_READ, DEVICE_WRITE, RETIRE} state_t;
     state_t state;
     logic [31:0] sar [0:3], dar [0:3], chcr [0:3];
     logic [23:0] count [0:3];
@@ -49,6 +59,13 @@ module fes_sh7091_dmac (
     logic [1:0] source_lane, dest_lane;
     logic [31:0] next_source, next_destination;
     logic [28:0] serial_tx_addr, serial_rx_addr;
+    logic [2:0] ddt_queued [1:3];
+    logic [1:0] ddt_channel, ddt_prior_channel, ddt_mode;
+    logic [2:0] dtr_size, dtr_chcr_size;
+    logic ddt_prior_valid, ddt_pending, ddt_accept, ddt_setup, ddt_end, ddt_reg_command;
+    logic ddt_device_to_mem, single_read, single_write, stop_unit, start_unit;
+    logic [3:0] external_request, external_enabled;
+    logic [15:0] unused_dtr_reserved;
 
     // Channel registers and DMAOR are longword P4 accesses.
     assign idle = state == IDLE;
@@ -59,22 +76,58 @@ module fes_sh7091_dmac (
     assign read_reg = reg_request && reg_selected && !stopped && reg_wstrb == 0 && reg_rmask == 4'hf;
     assign channel_write = write_reg && !op_register && (reg_channel != 0 || !dmaor[15]);
 
+    // The board converts the external bus handshake to command, repeat and
+    // direct-channel-2 requests. The data port carries one packed 32-bit beat.
+    localparam logic [1:0] DTR = 0, REPEAT = 1, DIRECT = 2;
+    assign ddt_channel = ddt_kind == DIRECT ? 2'd2 :
+                         ddt_kind == REPEAT ? ddt_prior_channel : ddt_command[59:58];
+    assign unused_dtr_reserved = ddt_command[47:32];
+    assign ddt_mode = ddt_command[57:56];
+    assign dtr_size = ddt_command[63:61];
+    assign dtr_chcr_size = dtr_size == 3 ? 3'd0 : dtr_size == 4 ? 3'd4 : dtr_size + 3'd1;
+    assign ddt_device_to_mem = ddt_command[60];
+    assign ddt_reg_command = ddt_kind == DTR && ddt_channel == 0 && ddt_mode != 0;
+    assign ddt_setup = ddt_accept && ddt_reg_command && dtr_size < 5;
+    assign ddt_end = ddt_accept && ddt_reg_command && dtr_size == 7;
+    assign ddt_ready = dmaor[15] && !stopped && !write_reg &&
+                       (ddt_kind inside {DTR, DIRECT} || (ddt_kind == REPEAT && ddt_prior_valid)) &&
+                       (ddt_channel == 0 ? !ddt_pending && !(channel == 0 && !idle) &&
+                        (ddt_reg_command || (chcr[0][0] && !chcr[0][1])) :
+                        ddt_queued[ddt_channel] < 4);
+    assign ddt_accept = ddt_valid && ddt_ready;
+
     for (genvar i = 0; i < 4; i++) begin : request_channel
-        logic external_pending;
+        logic pin_request, ddt_request;
         if (i < 2) begin : has_external_pin
-            assign external_pending = chcr[i][19] ? edge_pending[i] : !dreq_sync[i];
+            assign pin_request = chcr[i][19] ? edge_pending[i] : !dreq_sync[i];
         end else begin : internal_requests_only
-            assign external_pending = 0;
+            assign pin_request = 0;
         end
+        if (i == 0) begin : demand
+            assign ddt_request = ddt_pending;
+        end else begin : queued
+            assign ddt_request = ddt_queued[i] != 0;
+            logic enqueue, dequeue;
+            assign enqueue = ddt_accept && ddt_channel == 2'(i);
+            assign dequeue = dmaor[15] && start_unit && channel == 2'(i) && external_enabled[i];
+            always_ff @(posedge clk)
+                if (reset || !dmaor[15])
+                    ddt_queued[i] <= 0;
+                else if (enqueue != dequeue)
+                    ddt_queued[i] <= enqueue ? ddt_queued[i] + 3'd1 : ddt_queued[i] - 3'd1;
+        end
+        assign external_request[i] = dmaor[15] ? ddt_request : pin_request;
+        assign external_enabled[i] = chcr[i][11:8] inside {4'd0, 4'd2, 4'd3};
         assign eligible[i] = chcr[i][0] && !chcr[i][1] &&
-                             ((chcr[i][11:8] == 0 && external_pending) ||
-                              chcr[i][11:8] == 4 ||
-                              (chcr[i][11:10] == 2'b10 && serial_request[chcr[i][9:8]]) ||
-                              ((chcr[i][11:8] inside {4'd12, 4'd14}) && capture_pending));
+                             ((external_enabled[i] && external_request[i]) ||
+                              (i != 0 || !dmaor[15]) &&
+                              (chcr[i][11:8] == 4 ||
+                               (chcr[i][11:10] == 2'b10 && serial_request[chcr[i][9:8]]) ||
+                               ((chcr[i][11:8] inside {4'd12, 4'd14}) && capture_pending)));
         assign irq[i] = chcr[i][2] && chcr[i][1];
     end
     assign irq[4] = dmaor[2];
-    assign have_request = dmaor[0] && dmaor[2:1] == 0 && !dmaor[15] && (|eligible);
+    assign have_request = dmaor[0] && dmaor[2:1] == 0 && (|eligible);
 
     always_comb begin
         case (dmaor[9:8])
@@ -107,13 +160,24 @@ module fes_sh7091_dmac (
     assign serial_rx = resource_mode[3:2] == 2'b10 && resource_mode[0];
     assign serial_tx_addr = resource_mode[1] ? 29'h1fe8_000c : 29'h1fe0_000c;
     assign serial_rx_addr = resource_mode[1] ? 29'h1fe8_0014 : 29'h1fe0_0014;
-    assign address_error = size_code > 4 || source_mode == 3 || dest_mode == 3 ||
-                           |((source[4:0] | destination[4:0]) & alignment_mask) ||
-                           (serial_tx ? destination[28:0] != serial_tx_addr || size_code != 1 :
-                                      destination[28:26] == 3'b111) ||
-                           (serial_rx ? source[28:0] != serial_rx_addr || size_code != 1 :
-                            captured_source ? source != 32'hffd8_002c || size_code != 3 :
-                                              source[28:26] == 3'b111);
+    assign single_read = resource_mode == 2;
+    assign single_write = resource_mode == 3;
+    assign address_error = size_code > 4 ||
+                           (!single_write && (source_mode == 3 || |(source[4:0] & alignment_mask) ||
+                            (serial_rx ? source[28:0] != serial_rx_addr || size_code != 1 :
+                             captured_source ? source != 32'hffd8_002c || size_code != 3 :
+                                               source[28:26] == 3'b111))) ||
+                           (!single_read && (dest_mode == 3 || |(destination[4:0] & alignment_mask) ||
+                            (serial_tx ? destination[28:0] != serial_tx_addr || size_code != 1 :
+                                         destination[28:26] == 3'b111)));
+    assign stop_unit = pause || !dmaor[0] || dmaor[2:1] != 0 || !chcr[channel][0] || (nmi && !prior_nmi);
+    assign start_unit = state == CHECK && !stop_unit && !address_error;
+    assign device_valid = state inside {DEVICE_READ, DEVICE_WRITE};
+    assign device_write = state == DEVICE_WRITE;
+    assign device_last = beat == last_beat;
+    assign device_channel = channel;
+    assign device_mask = size_code == 1 ? 4'b0001 : size_code == 2 ? 4'b0011 : 4'b1111;
+    assign device_wdata = buffer[beat];
     assign source_lane = source[1:0];
     assign dest_lane = destination[1:0];
     assign source_mask = size_code == 1 ? (4'b0001 << source_lane) :
@@ -144,6 +208,9 @@ module fes_sh7091_dmac (
             dreq_last <= '1;
             edge_pending <= 0;
             prior_nmi <= 0;
+            ddt_pending <= 0;
+            ddt_prior_channel <= 0;
+            ddt_prior_valid <= 0;
             dreq_ack <= 0;
             capture_accept <= 0;
             reg_rvalid <= 0;
@@ -168,7 +235,18 @@ module fes_sh7091_dmac (
                     endcase
                 end
             end
-            if (channel_write) case (reg_addr[3:2])
+            if (ddt_setup) begin
+                if (ddt_device_to_mem)
+                    dar[0] <= ddt_command[31:0];
+                else
+                    sar[0] <= ddt_command[31:0];
+                count[0] <= {16'b0, ddt_command[55:48]};
+                chcr[0] <= {12'b0, ddt_mode == 1, 3'b0, 4'b0101, 3'b001, ddt_device_to_mem,
+                            ddt_mode != 3, dtr_chcr_size, 4'b0001};
+                end_seen[0] <= 0;
+            end else if (ddt_end) begin
+                chcr[0][0] <= 0;
+            end else if (channel_write) case (reg_addr[3:2])
                 0: sar[reg_channel] <= reg_wdata;
                 1: dar[reg_channel] <= reg_wdata;
                 2: count[reg_channel] <= reg_wdata[23:0];
@@ -183,6 +261,20 @@ module fes_sh7091_dmac (
                          {13'b0, dmaor[2:1] & (reg_wdata[2:1] | ~error_seen), 1'b0};
                 error_seen <= 0;
             end
+            if (!dmaor[15]) begin
+                ddt_prior_valid <= 0;
+                ddt_pending <= 0;
+            end else begin
+                if (ddt_accept && ddt_kind == DTR && (!ddt_reg_command || ddt_setup)) begin
+                    ddt_prior_channel <= ddt_channel;
+                    ddt_prior_valid <= 1;
+                end
+                if (ddt_accept && ddt_channel == 0 && (!ddt_reg_command || ddt_setup))
+                    ddt_pending <= 1;
+                else if (channel == 0 && ((start_unit && !chcr[0][19]) ||
+                         (state == RETIRE && count[0] == 1)))
+                    ddt_pending <= 0;
+            end
             prior_nmi <= nmi;
             if (nmi && !prior_nmi) begin
                 dmaor[1] <= 1;
@@ -192,13 +284,15 @@ module fes_sh7091_dmac (
             dreq_sync <= dreq_meta;
             dreq_last <= dreq_sync;
             for (int i = 0; i < 2; i++)
-                if (chcr[i][0] && dreq_last[i] && !dreq_sync[i])
+                if (dmaor[15] || !chcr[i][0])
+                    edge_pending[i] <= 0;
+                else if (dreq_last[i] && !dreq_sync[i])
                     edge_pending[i] <= 1;
             dreq_ack <= 0;
             capture_accept <= 0;
 
             case (state)
-                IDLE: if (!pause && have_request && !write_reg) begin
+                IDLE: if (!pause && have_request && !write_reg && !(ddt_setup || ddt_end)) begin
                     channel <= chosen;
                     state <= CAPTURE;
                 end else if (!have_request)
@@ -210,15 +304,16 @@ module fes_sh7091_dmac (
                     beat <= 0;
                     state <= CHECK;
                 end
-                CHECK: if (pause || !dmaor[0] || dmaor[2:1] != 0 || !chcr[channel][0] || (nmi && !prior_nmi))
+                CHECK: if (stop_unit)
                     state <= IDLE;
                 else if (address_error) begin
                     dmaor[2] <= 1;
                     error_seen[1] <= 0;
                     state <= IDLE;
                 end else begin
-                    if (resource_mode == 0 && !channel[1]) begin
-                        edge_pending[channel[0]] <= 0;
+                    if (external_enabled[channel] && !dmaor[15] && !channel[1]) begin
+                        if (!(chcr[channel][19] && transfer_burst))
+                            edge_pending[channel[0]] <= 0;
                         dreq_ack[channel[0]] <= 1;
                     end
                     if (resource_mode inside {4'd12, 4'd14})
@@ -227,7 +322,20 @@ module fes_sh7091_dmac (
                         buffer[0] <= capture_value;
                         state <= WRITE_REQUEST;
                     end else
-                        state <= READ_REQUEST;
+                        state <= single_write ? DEVICE_READ : READ_REQUEST;
+                end
+                DEVICE_READ: if (device_ready) begin
+                    buffer[beat] <= device_rdata;
+                    if (device_last) begin
+                        beat <= 0;
+                        state <= WRITE_REQUEST;
+                    end else
+                        beat <= beat + 3'd1;
+                end
+                DEVICE_WRITE: if (device_ready) begin
+                    beat <= beat + 3'd1;
+                    if (device_last)
+                        state <= RETIRE;
                 end
                 READ_REQUEST: if (mem_ready)
                     state <= READ_REPLY;
@@ -235,7 +343,7 @@ module fes_sh7091_dmac (
                     buffer[beat] <= mem_rdata >> {source_lane, 3'b0};
                     if (beat == last_beat) begin
                         beat <= 0;
-                        state <= WRITE_REQUEST;
+                        state <= single_read ? DEVICE_WRITE : WRITE_REQUEST;
                     end else begin
                         beat <= beat + 3'd1;
                         state <= READ_REQUEST;
@@ -247,12 +355,14 @@ module fes_sh7091_dmac (
                         state <= RETIRE;
                 end
                 RETIRE: begin
-                    if (source_mode != 0)
+                    if (!single_write && source_mode != 0)
                         sar[channel] <= source_mode == 1 ? next_source : source - {26'b0, unit_bytes};
-                    if (dest_mode != 0)
+                    if (!single_read && dest_mode != 0)
                         dar[channel] <= dest_mode == 1 ? next_destination : destination - {26'b0, unit_bytes};
                     count[channel] <= count[channel] - 24'd1;
                     if (count[channel] == 1) begin
+                        if (!channel[1] && !dmaor[15] && external_enabled[channel])
+                            edge_pending[channel[0]] <= 0;
                         chcr[channel][1] <= 1;
                         end_seen[channel] <= 0;
                     end
