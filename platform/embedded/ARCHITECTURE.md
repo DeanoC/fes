@@ -159,7 +159,7 @@ flowchart LR
 | Core mailbox & display | `computer`, `scanout` | `CPUHooks` (Avalon CSRs), `dmaops` / pinned DDR menu slots | `ProgramService`, `MenuSession` |
 | HDMI TX & I2C | `adv7513` (HDMI TX + EDID 1.4/CEA-861) → `i2c` (DesignWare APB I2C) | Agilex 5 HPS I2C MMIO (`0x10c02800..0x10c02c00`) | Standalone bare-metal driver packages (host-tested, ready for board HDMI bring-up) |
 | USB & Bluetooth input | `usbcontrol` → `dwc2` (Nano) / `usb` (QEMU) → `input/usbhub` + `input/controllers` (DualSense, DS4, XInput, Xbox GIP, Switch Pro, generic HID) + `bt` (`hci`/`l2cap`/`hidp`, e.g. RTL8761BU) | `gic`, EL3 SMC `0xc2000303` | `cmd/fpgaload`, `ProgramInputPlatform`, `ProgramMultiInputPlatform`, `ProgramKeyboard` |
-| Networking & target API | `agentapi` (`FogCast/targethttp`, `/v1/ota*`) + `mdns` (RFC 6762/6763 `_fogcast._tcp`) + `network` (`lneto`, `HTTPServer`/`HTTPClient`, DHCPv4/DNSv4/SNTP) → `xgmac` (Nano) / VirtIO (QEMU) | `dmaops`, `gic`, EL3 SMC `0xc2000305`, `ota.Manager` | `cmd/tenfoot` (QEMU opt-in `agent_listen`/`agent_mdns`/`agent_ota`), `cmd/network`, `cmd/fpgaload` (dormant) |
+| Networking & target API | `agentapi` (`FogCast/targethttp`, `/v1/ota*`) + `mdns` (RFC 6762/6763 `_fogcast._tcp`) + `network` (`lneto`, `HTTPServer`/`HTTPClient`, DHCPv4/DNSv4/SNTP) → `xgmac` (Nano) / VirtIO (QEMU) | `dmaops`, `gic`, EL3 SMC `0xc2000305`, `ota.Manager` | `cmd/tenfoot` (QEMU opt-in `agent_port`/`agent_mdns`/`agent_ota`), `cmd/network`, `cmd/fpgaload` (dormant) |
 | Board & core services | `board` (`de25nano` / `qemuvirt`), `arm64map`, `gic`, `dmaops`, `fpgairq`, `wdt`, `rtc`, `psci`, `serial` | ARMv8 sysregs, GIC-600/GICv3, MMIO, EL3 PSCI/SMCs | All packages above |
 
 ---
