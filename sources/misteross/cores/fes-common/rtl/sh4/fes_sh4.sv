@@ -27,14 +27,14 @@ module fes_sh4 #(
     typedef enum logic [4:0] {
         ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT,
         COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT,
-        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, SQ_ACCESS, SQ_WORD, SQ_SEND, FP_RESULT, FP_SECOND, ASLEEP, STOP
+        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, SQ_ACCESS, SQ_WORD, SQ_SEND, FP_RESULT, FP_SECOND, FP_LHS, FP_START, FP_WAIT, FP_RETIRE, ASLEEP, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ADD
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD, QUADWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
@@ -42,7 +42,7 @@ module fes_sh4 #(
                            FETCH_ALIGN = 4'd3, DATA_ALIGN = 4'd4, TLB_MISS = 4'd5, TLB_MULTIPLE = 4'd6,
                            TLB_PROTECT = 4'd7, TLB_INITIAL_WRITE = 4'd8,
                            ADDRESS_ERROR = 4'd9, TRAP = 4'd10,
-                           FPU_DISABLED = 4'd11, SLOT_FPU_DISABLED = 4'd12;
+                           FPU_DISABLED = 4'd11, SLOT_FPU_DISABLED = 4'd12, FPU_EXCEPTION = 4'd13;
     localparam logic [31:0] SR_MASK = 32'h7000_83f3;
 
     stage_t stage;
@@ -52,10 +52,13 @@ module fes_sh4 #(
     logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
     logic [31:0] gbr, dbr, mach, macl, sys_value, fpscr, fpul;
     logic dec_fp_mem, dec_fp_pair, fp_mem, fp_pair, fp_second;
-    logic fp_opcode, fp_system, fp_format_error, fp_write_register, fp_write_fpul, fp_write_fpscr;
+    logic fp_opcode, fp_instruction, fp_system, fp_format_error, fp_write_register, fp_write_fpul, fp_write_fpscr;
     logic [3:0] fp_read_number;
     logic [63:0] fp_read_value, fp_source, fp_result;
     logic [31:0] fp_system_value;
+    logic [63:0] fp_lhs, fp_add_value;
+    logic fp_add_done, fp_normal_operands;
+    logic [5:0] fp_causes;
     control_reg_t dec_control_reg, control_reg;
     logic dec_control_transfer, control_transfer, control_write, writes_sr, load_gpr;
     logic [31:0] control_read_value, control_write_value;
@@ -307,6 +310,7 @@ module fes_sh4 #(
                 if (ir[3:0] == 4'h7)
                     dec_offset = gpr[0];
             end
+            16'hf??0, 16'hf??1: decoded = FLOAT_ADD;
             16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
             16'hf3fd, 16'hfbfd: decoded = FLOAT_OP;
 
@@ -524,16 +528,19 @@ module fes_sh4 #(
             3: byte_result = wb_value[7:0] | ir[7:0];
         endcase
     end
-    assign dec_fp_pair = ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
-    assign fp_read_number = ir[3:0] == 4'hd ? n : m;
+    assign dec_fp_pair = decoded == FLOAT_ADD ? fpscr[19] :
+                         ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
+    assign fp_read_number = stage == FP_LHS || ir[3:0] == 4'hd ? n : m;
     assign fp_system = (ir[7:4] inside {4'h5, 4'h6}) &&
                        ((ir[15:12] == 4'h0 && ir[3:0] == 4'ha) ||
                         (ir[15:12] == 4'h4 && (ir[3:0] inside {4'h2, 4'h6, 4'ha})));
     assign fp_opcode = (ir[15:12] == 4'hf && ir != 16'hfffd) || fp_system;
-    assign fp_format_error = op == FLOAT_OP && fpscr[19] && ir[3:0] == 4'hd &&
-                             ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
-                              ((ir[7:4] inside {4'h4, 4'h5}) && n[0]));
-    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) ||
+    assign fp_format_error = fpscr[19] &&
+                             ((decoded == FLOAT_ADD && (n[0] || m[0])) ||
+                              (decoded == FLOAT_OP && ir[3:0] == 4'hd &&
+                               ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
+                                ((ir[7:4] inside {4'h4, 4'h5}) && n[0]))));
+    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_ADD ||
                                (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf}))));
     assign fp_write_fpul = stage == COMMIT && ((op == FLOAT_OP && ir[7:0] == 8'h1d) ||
                            (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
@@ -547,7 +554,14 @@ module fes_sh4 #(
         .write_fpul(fp_write_fpul), .write_fpscr(fp_write_fpscr),
         .change_bank(stage == COMMIT && op == FLOAT_OP && ir == 16'hfbfd),
         .change_size(stage == COMMIT && op == FLOAT_OP && ir == 16'hf3fd),
+        .update_exceptions(stage == FP_RETIRE), .causes(fp_causes),
         .system_value(fp_system_value), .fpul, .fpscr
+    );
+
+    fes_sh4_fp_add fp_add (
+        .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[0]),
+        .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source),
+        .done(fp_add_done), .value(fp_add_value), .causes(fp_causes), .normal_operands(fp_normal_operands)
     );
 
     assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
@@ -573,9 +587,9 @@ module fes_sh4 #(
                     exception_cause = mmu_fault;
             end
             EXECUTE: begin
-                if (fp_opcode && sr[15])
+                if (fp_instruction && sr[15])
                     exception_cause = in_slot ? SLOT_FPU_DISABLED : FPU_DISABLED;
-                else if (op == BAD || fp_format_error || (!supervisor && privileged_op) ||
+                else if (op == BAD || (!supervisor && privileged_op) ||
                     (in_slot && (control || pc_relative || writes_sr || op == TRAPA)))
                     exception_cause = in_slot ? SLOT_ILLEGAL : ILLEGAL;
                 else if ((op == LOAD || op == MAC || is_store) && !aligned) begin
@@ -585,6 +599,9 @@ module fes_sh4 #(
                 end else if (op == TRAPA)
                     exception_cause = TRAP;
             end
+            FP_RETIRE: if (fp_causes[5] || |(fp_causes[4:0] & fpscr[11:7]) ||
+                           (fp_normal_operands && |fpscr[9:7]))
+                exception_cause = FPU_EXCEPTION;
             MAC_READ: if (!mac_second && (mac_second_addr[0] || (!mac_word && mac_second_addr[1]))) begin
                 exception_cause = DATA_ALIGN;
                 address_exception = 1'b1;
@@ -621,6 +638,7 @@ module fes_sh4 #(
             TRAP:              exception_event = 12'h160;
             FPU_DISABLED:      exception_event = 12'h800;
             SLOT_FPU_DISABLED: exception_event = 12'h820;
+            FPU_EXCEPTION:     exception_event = 12'h120;
             default:           exception_event = 12'h000;
         endcase
     end
@@ -886,7 +904,8 @@ module fes_sh4 #(
                 ISSUE: if (fetch_consume)
                     stage <= DECODE;
                 DECODE: begin
-                    op <= decoded;
+                    op <= fp_format_error ? BAD : decoded;
+                    fp_instruction <= fp_opcode;
                     trap_imm <= ir[7:0];
                     size <= dec_size;
                     pre <= dec_pre;
@@ -937,6 +956,8 @@ module fes_sh4 #(
                         stage <= DATA_TRANSLATE;
                     end else if (op == FLOAT_OP) begin
                         stage <= FP_RESULT;
+                    end else if (op == FLOAT_ADD) begin
+                        stage <= FP_LHS;
                     end else if (op == INTEGER) begin
                         stage <= INTEGER_RESULT;
                     end else if (op == MULTIPLY) begin
@@ -945,6 +966,16 @@ module fes_sh4 #(
                         stage <= COMMIT;
                     end
                 end
+                FP_LHS: begin
+                    fp_lhs <= fp_read_value;
+                    stage <= FP_START;
+                end
+                FP_START: stage <= FP_WAIT;
+                FP_WAIT: if (fp_add_done) begin
+                    fp_result <= fp_add_value;
+                    stage <= FP_RETIRE;
+                end
+                FP_RETIRE: stage <= COMMIT;
                 FP_RESULT: begin
                     fp_result <= fp_source;
                     if (ir[3:0] == 4'hd) begin

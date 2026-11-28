@@ -101,7 +101,7 @@ ITLB for instructions or UTLB for operands. Translation misses leave
 the line intact. Software is responsible for maintaining coherence
 between distinct virtual indexes that alias the same physical address.
 
-## Floating-point registers and transfers
+## Floating-point execution
 
 FPSCR selects the FR and XF banks, controls pair size for FMOV, and holds
 the architectural mode and exception fields. The transfer path supports
@@ -115,8 +115,15 @@ carries the low word of a pair first.
 
 The SR.FD gate distinguishes a general FPU-disable exception (0x800)
 from a delay-slot FPU-disable exception (0x820). The handler may clear FD
-in SSR and use RTE to retry. Floating-point arithmetic and conversion
-instructions still need execution units and numerical exception handling.
+in SSR and use RTE to retry.
+
+FADD and FSUB share a pipelined single- and double-precision adder. It
+supports nearest-even and toward-zero rounding, FPSCR denormal handling,
+and the SH-4 NaN encodings. An arithmetic exception updates FPSCR cause
+and sticky flags and enters VBR + 0x100 with EXPEVT 0x120 before changing the
+destination. When enabled, the SH-4's O/U/I software-completion traps also
+apply to normal operands with an exact result. The remaining floating-point
+arithmetic and conversion instructions still need execution units.
 
 ## Prefetch and store queues
 
@@ -254,7 +261,9 @@ the P4 arrays. Cache-array regressions exercise injected instruction
 words, associative invalidation, translated operand tags, and dirty
 write-back on an operand retag. Floating-point transfer tests cover both
 banks, single and paired moves, endian order, alignment, system-register
-stack transfers, a TLB retry, and FPU-disable exception return.
+stack transfers, a TLB retry, and FPU-disable exception return. Adder tests
+cover signed cancellation, ties, overflow, subnormal results, NaNs, and
+precise arithmetic traps with delay-slot replay.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

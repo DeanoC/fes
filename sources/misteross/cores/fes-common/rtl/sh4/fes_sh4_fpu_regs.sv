@@ -14,6 +14,8 @@ module fes_sh4_fpu_regs (
     input  logic        write_fpscr,
     input  logic        change_bank,
     input  logic        change_size,
+    input  logic        update_exceptions,
+    input  logic [5:0]  causes,
     input  logic [31:0] system_value,
     output logic [31:0] fpul,
     output logic [31:0] fpscr
@@ -45,6 +47,10 @@ module fes_sh4_fpu_regs (
             else begin
                 if (change_bank)
                     fpscr[21] <= !fpscr[21];
+                if (update_exceptions) begin
+                    fpscr[17:12] <= causes;
+                    fpscr[6:2] <= fpscr[6:2] | causes[4:0];
+                end
                 if (change_size)
                     fpscr[20] <= !fpscr[20];
             end
