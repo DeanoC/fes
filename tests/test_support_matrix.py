@@ -805,7 +805,7 @@ class SupportMatrixTests(unittest.TestCase):
         data = SUPPORT_MATRIX.load_json(ROOT)
         rendered = SUPPORT_MATRIX.render(data, SUPPORT_MATRIX.de25_core_ids(ROOT))
         self.assertIn('## DE25 tier 1 progress', rendered)
-        self.assertIn('| pc386 | builds: `fes.pc386` |', rendered)
+        self.assertIn('| pc386 | sealed: `fes.pc386` |', rendered)
         self.assertIn('none: `fes.zx80`, `fes.ts1000`, `fes.ts1500`; builds: `fes.zx81`', rendered)
 
     def test_de25_sealed_needs_the_exact_package_in_a_smoke_record(self):
