@@ -147,6 +147,7 @@ def arguments_for(workload, output, media=None):
 
 RUNS = (('sx', 'doom'), ('sx', '3dbench'), ('sx', 'quake'))
 MODEL = '486sx'
+CONTROL_REVISION = '17cbddbec2f7559e37467a975943828c766310f7'
 
 
 def replay(workload, arm, binary, images, drive, output, media=None):
@@ -225,11 +226,19 @@ def analyze(output, analyzer):
 
 def compare(candidate, control):
     """G4 at the candidate, CPI against the control (reported), and G5's Quake outcome equality."""
-    a, b = (json.loads((path / 'analysis.json').read_text()) for path in (candidate, control))
+    (ia, a), (ib, b) = ((json.loads((path / 'inputs.json').read_text()), json.loads((path / 'analysis.json').read_text()))
+                        for path in (candidate, control))
+    # method.md: the control is main at its base, the 486SX at C0 = 34 with main's presenter.
+    if (ib['revision'], ib['model'], ib['c0'], 'presenter' in ib) != (CONTROL_REVISION, MODEL, 34, False):
+        raise SystemExit('the control is not main\'s 486SX C0 = 34 run')
+    if (ia['model'], ia['c0'] < 34, ia.get('presenter', {}).get('loaded_rearm_cycles')) != (MODEL, True, 8):
+        raise SystemExit('the candidate is not a raised-clock 486SX run with the eight-cycle presenter')
     ratios = {work: (a['cpi'][work] / b['cpi'][work] if a['cpi'].get(work) and b['cpi'].get(work) else None)
               for work in ('doom', '3dbench')}
     quake = {'candidate': a['workloads']['quake']['outcome'], 'control': b['workloads']['quake']['outcome']}
-    report = {'g4_pass': a['g4_pass'] is True, 'cpi_ratio_candidate_over_control': ratios,
+    report = {'candidate': {key: ia[key] for key in ('revision', 'c0', 'clock_hz')},
+              'control': {key: ib[key] for key in ('revision', 'c0', 'clock_hz')},
+              'g4_pass': a['g4_pass'] is True, 'cpi_ratio_candidate_over_control': ratios,
               'g5_quake': quake, 'g5_pass': quake['candidate'] == quake['control']}
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report['g4_pass'] and report['g5_pass'] else 1
