@@ -17,6 +17,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bsc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_tmu.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_intc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_wdt.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_rtc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_dmac.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bus.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091.sv

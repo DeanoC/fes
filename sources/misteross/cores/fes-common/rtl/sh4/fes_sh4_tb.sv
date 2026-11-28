@@ -2,7 +2,7 @@ module fes_sh4_tb;
     logic clk = 0;
     always #5 clk <= ~clk;
 
-    logic reset = 1, bram_reset = 1, load_we = 0, bram_nmi = 0;
+    logic reset = 1, bram_reset = 1, load_we = 0, bram_nmi = 0, bram_rtc_tick = 0;
     logic [8:0] load_word_addr;
     logic [31:0] load_data;
     logic valid, ready, rvalid, retired, bram_retired, bram_irq_ack;
@@ -31,7 +31,8 @@ module fes_sh4_tb;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
-    logic dma_finished;
+    logic dma_finished, rtc_finished;
+    fes_sh7091_rtc_tb rtc_test (.clk, .finished(rtc_finished));
     fes_sh7091_dmac_tb dma_test (.clk, .finished(dma_finished));
     fes_sh7091_tmu_tb tmu_test (.clk, .finished(tmu_finished));
     fes_sh7091_bsc_tb bsc_test (.clk, .finished(bsc_finished));
@@ -50,7 +51,7 @@ module fes_sh4_tb;
     );
 
     fes_sh4_bram_system bram (
-        .clk, .reset(bram_reset), .irq_level(4'b0), .irq_event(12'b0),
+        .clk, .reset(bram_reset), .rtc_tick(bram_rtc_tick), .irq_level(4'b0), .irq_event(12'b0),
         .nmi(bram_nmi), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
         .retired(bram_retired), .retired_pc(bram_retired_pc),
         .fault(bram_fault), .fault_pc(bram_fault_pc)
@@ -2271,6 +2272,52 @@ module fes_sh4_tb;
         bram_nmi = 0;
         bram_reset = 1;
 
+        // Wake on the RTC periodic interrupt from the board's oscillator tick.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'he205);
+        emit('h04, 'h2121); // IPRA: RTC priority 5
+        literal('h06, 1, 'h84);
+        emit('h08, 'he219);
+        emit('h0a, 'h2120); // RTC periodic interrupt every 128 oscillator ticks
+        literal('h0c, 3, 'h88);
+        emit('h0e, 'h430e); // Enable interrupts
+        emit('h10, 'h001b);
+        emit('h12, 'hee53);
+        image['h80 >> 2] = 'hffd0_0004;
+        image['h84 >> 2] = 'hffc8_003c;
+        image['h88 >> 2] = 'h4000_0000;
+        literal('h600, 1, 'h640);
+        emit('h602, 'he209);
+        emit('h604, 'h2120); // Clear PEF and disable periodic requests
+        literal('h606, 3, 'h644);
+        emit('h608, 'h6d32); // INTEVT
+        emit('h60a, 'h002b);
+        emit('h60c, 'h0009);
+        image['h640 >> 2] = 'hffc8_003c;
+        image['h644 >> 2] = 'hff00_0028;
+        for (int word = 0; word <= 'h644 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h10));
+        @(negedge clk);
+        assert (bram_fault == 0);
+        bram_rtc_tick = 1;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h12));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h4a0 &&
+                bram.system_cpu.cpu.gpr[14] == 'h53)
+            else $fatal(1, "RTC guest fault %d at %h, INTEVT %h",
+                        bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13]);
+        bram_rtc_tick = 0;
+        bram_reset = 1;
+
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
@@ -2278,12 +2325,13 @@ module fes_sh4_tb;
         assert (tmu_finished) else $fatal(1, "TMU/INTC regression timed out");
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, and bus and interrupt arbitration");
+        wait (rtc_finished);
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, and bus and interrupt arbitration");
         $finish;
     end
 
     initial begin
-        #355000;
+        #1100000;
         $display("Diagnostic BRAM reset %b, last retirement %h, fault %d at %h",
                  bram_reset, bram_retired_pc, bram_fault, bram_fault_pc);
         $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",

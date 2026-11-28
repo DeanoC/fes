@@ -23,7 +23,7 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         .nmi_request, .nmi_block_override(nmi_override),
         .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
         .selected(intc_selected), .rvalid(intc_rvalid), .rdata(intc_rdata),
-        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq, .watchdog_irq, .cpu_ack,
+        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq, .rtc_irq(3'b0), .watchdog_irq, .cpu_ack,
         .cpu_level, .cpu_event, .ext_ack
     );
 

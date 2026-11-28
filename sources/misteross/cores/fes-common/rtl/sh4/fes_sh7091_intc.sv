@@ -14,6 +14,7 @@ module fes_sh7091_intc (
     input  logic [3:0]  timer_irq,
     input  logic [1:0]  refresh_irq,
     input  logic [4:0]  dma_irq,
+    input  logic [2:0]  rtc_irq,
     input  logic        watchdog_irq, cpu_ack,
     output logic [3:0]  cpu_level,
     output logic [11:0] cpu_event,
@@ -23,9 +24,9 @@ module fes_sh7091_intc (
     logic [14:0] icr;
     logic nmi_previous, write_icr, change_nmi_edge;
     logic [2:0] nmi_inhibit;
-    logic [3:0] levels [0:6];
-    logic [11:0] events [0:6];
-    logic [6:0] active;
+    logic [3:0] levels [0:9];
+    logic [11:0] events [0:9];
+    logic [9:0] active;
     logic [3:0] selected_level;
     logic [11:0] selected_event;
     logic next_external, cpu_external, ack_external;
@@ -34,21 +35,27 @@ module fes_sh7091_intc (
     assign write_icr = request && selected && address[3:2] == 0 && wstrb == 4'h3;
     assign change_nmi_edge = write_icr && wdata[8] != icr[8];
     assign nmi_block_override = icr[9];
-    assign active = {refresh_irq, watchdog_irq, timer_irq};
+    assign active = {refresh_irq, watchdog_irq, rtc_irq, timer_irq};
     assign levels[0] = ipra[15:12];
     assign levels[1] = ipra[11:8];
     assign levels[2] = ipra[7:4];
     assign levels[3] = ipra[7:4];
-    assign levels[4] = iprb[15:12];
-    assign levels[5] = iprb[11:8];
-    assign levels[6] = iprb[11:8];
+    assign levels[4] = ipra[3:0];
+    assign levels[5] = ipra[3:0];
+    assign levels[6] = ipra[3:0];
+    assign levels[7] = iprb[15:12];
+    assign levels[8] = iprb[11:8];
+    assign levels[9] = iprb[11:8];
     assign events[0] = 12'h400;
     assign events[1] = 12'h420;
     assign events[2] = 12'h440;
     assign events[3] = 12'h460;
-    assign events[4] = 12'h560;
-    assign events[5] = 12'h580;
-    assign events[6] = 12'h5a0;
+    assign events[4] = 12'h480;
+    assign events[5] = 12'h4a0;
+    assign events[6] = 12'h4c0;
+    assign events[7] = 12'h560;
+    assign events[8] = 12'h580;
+    assign events[9] = 12'h5a0;
     assign ext_ack = cpu_ack && ack_external;
 
     always_comb begin
@@ -84,7 +91,7 @@ module fes_sh7091_intc (
             endcase
             next_external = 0;
         end
-        for (int i = 0; i < 7; i++) begin
+        for (int i = 0; i < 10; i++) begin
             if (active[i] && levels[i] > selected_level) begin
                 selected_level = levels[i];
                 selected_event = events[i];

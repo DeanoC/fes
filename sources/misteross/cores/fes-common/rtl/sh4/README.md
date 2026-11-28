@@ -293,6 +293,16 @@ control, standby clock sequencing and reset of external devices are
 outside this wrapper. See the watchdog and interrupt controller chapters
 of the [Renesas SH7750-series hardware manual](https://www.renesas.com/en/document/mah/sh7750-sh7750s-sh7750r-group-users-manual-hardware?r=1055161).
 
+## Real-time clock
+
+The RTC takes a synchronous 32.768 kHz enable on `rtc_tick`. It supplies
+the TMU and TCLK output from the oscillator divider and exposes the BCD
+calendar, alarm and control registers through P4. Alarm, periodic and
+carry requests use the RTC priority in IPRA. The calendar survives
+processor reset. Divider reset and 30-second adjustment are available
+through RCR2. The board supplies oscillator startup and persistence
+across FPGA reconfiguration.
+
 ## DMA controller
 
 The four-channel DMAC exposes SAR, DAR, DMATCR, CHCR and DMAOR through
@@ -411,6 +421,9 @@ ICR regressions cover both NMI edges, masking and independent IRL input.
 A guest uses NMIB to accept NMI with SR.BL set and reads the cleared NMIB.
 Watchdog checks cover keyed accesses, divider timing, interrupt priority,
 and a guest that restarts at the reset vector and reads WOVF and EXPEVT.
+RTC checks cover all three interrupt sources, leap and ordinary calendar
+rollover, time adjustment and reset retention. A guest wakes on an RTC
+periodic interrupt and resumes through RTE.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
