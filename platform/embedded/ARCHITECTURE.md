@@ -59,9 +59,11 @@ two clean injection seams:
    `modelbackend.Backend` on QEMU) — serves catalog, launch, stop, and install
    API calls in-process.
 2. **`tenfoot.Platform`** (layered decorators in `cmd/fpgaload/tenfoot.go`) —
-   supplies frame presentation (`ProgramMenuPlatform`), USB input
-   (`ProgramInputPlatform` / `ProgramGamepadPlatform`), and serial control/exit
-   (`ProgramSerialPlatform`).
+   supplies frame presentation (`ProgramMenuPlatform`), USB/Bluetooth input
+   (`ProgramInputPlatform` / `ProgramGamepadPlatform` /
+   `ProgramMultiInputPlatform`, wiring `input/usbhub`, `input/controllers`
+   family glyphs & per-pad Settings › Controllers profiles, and `bt/`), and
+   serial control/exit (`ProgramSerialPlatform`).
 
 ```mermaid
 flowchart LR
@@ -71,7 +73,7 @@ flowchart LR
 
   subgraph Decorators["Platform Decorators (cmd/fpgaload)"]
     MenuPlat["ProgramMenuPlatform\n(frame present)"]
-    InputPlat["ProgramInputPlatform /\nProgramGamepadPlatform"]
+    InputPlat["ProgramInputPlatform /\nProgramMultiInputPlatform\n(USB + BT + pad profiles)"]
     SerialPlat["ProgramSerialPlatform\n(UART + Quit -> Stop)"]
   end
 
@@ -83,9 +85,10 @@ flowchart LR
     Bridges["CPUHooks +\nFirmwareBridges"]
   end
 
-  subgraph Storage["Storage & Packages"]
+  subgraph Storage["Storage, Packages & OTA"]
     PkgStore["packagestore.Store\n(retain, link, install, prefs)"]
-    FS["storagepolicy / fat.Volume\n(FAT32 + CoW ReplaceFile)"]
+    OTA["ota.Manager\n(crash-safe A/B slots,\nFES/OTA/*)"]
+    FS["storagepolicy / fat.Volume\n(FAT32 + CoW ReplaceFile,\nRemoveFile, swappable SD)"]
     Cache["block.Cache\n(LRU write-through)"]
     SDCtrl["sdcontrol.Session\n(EL3 SD lease)"]
     SDHCI["sdhci.Device\n(Cadence SDHCI)"]
@@ -94,10 +97,11 @@ flowchart LR
   subgraph Peripherals["I/O, Display & Network"]
     USBCtrl["usbcontrol.Client/Source\n(EL3 USB lease)"]
     DWC2["dwc2 Host / MultiHost\n(16-ch PIO USB2)"]
-    HID["input + usb\n(HID decoders)"]
+    HID["input/usbhub + controllers\n+ bt (HCI/L2CAP/HIDP)"]
     Comp["computer\n(fes.computer GP mailbox)"]
     Scan["scanout\n(8 MiB 2-slot DDR menu)"]
-    Net["network.Interface\n(lneto + DHCP/DNS/SNTP)"]
+    HDMI["i2c + adv7513\n(DW APB I2C + HDMI TX/EDID)"]
+    Net["network (lneto, HTTPServer)\n+ agentapi + mdns"]
     XGMAC["xgmac.Device\n(opt-in / dormant on Nano)"]
   end
 
@@ -126,6 +130,7 @@ flowchart LR
   Bridges -->|"0xc2000301"| EL3
 
   PkgStore --> FS --> Cache --> SDCtrl --> SDHCI
+  OTA --> FS
   SDCtrl -->|"0xc2000302"| EL3
 
   InputPlat --> USBCtrl --> DWC2
@@ -133,6 +138,7 @@ flowchart LR
   USBCtrl -->|"0xc2000303"| EL3
 
   Net --> XGMAC
+  Net -. "QEMU cmd/tenfoot\n(/v1/ota*)" .-> OTA
   XGMAC -->|"0xc2000305"| EL3
 
   Board -. "IRQ, DMA pool, MMU verify, watchdog" .-> Control
@@ -145,14 +151,15 @@ flowchart LR
 | Layer | Owner package | Calls down to | Called by |
 | --- | --- | --- | --- |
 | UI & software renderer | `FogCast/ui/tenfoot`, `ui/gfx` | `http.RoundTripper`, `tenfoot.Platform`, `PreferenceStore` | `cmd/fpgaload`, `cmd/tenfoot` |
-| Platform decorators | `nativefabric` (`ProgramMenuPlatform`, `ProgramInputPlatform`, `ProgramSerialPlatform`) | `ProgramService`, `ProgramBackend`, `usbcontrol`, `serial`, `scanout` | `tenfoot.RunPlatform` |
+| Platform decorators | `nativefabric` (`ProgramMenuPlatform`, `ProgramInputPlatform`, `ProgramMultiInputPlatform`, `ProgramSerialPlatform`) | `ProgramService`, `ProgramBackend`, `usbcontrol`, `input/usbhub`, `input/controllers`, `serial`, `scanout` | `tenfoot.RunPlatform` |
 | Session actor & API | `nativefabric` (`ProgramBackend`, `ProgramService`, `ProgramLoader`) | `packagestore.Store`, `ConfigurationTransfer`, `FirmwareBridges`, `computer`, `scanout`, `network` | `tenfoot.Client`, `Program*Platform` |
-| Package & media store | `packagestore` | `FogCast/corepackage`, `storagepolicy`, `fat.Volume`, `sdcontrol.Session` | `nativefabric` (`ProgramService`, `ReadProgramStartup`) |
-| FAT32 & block stack | `storagepolicy` → `fat` → `block` → `sdcontrol` → `sdhci` | `dmaops` (ADMA2), `gic`, EL3 SMC `0xc2000302` | `packagestore`, `cmd/fpgaload` |
+| Package, media & OTA store | `packagestore`, `ota` | `FogCast/corepackage`, `storagepolicy`, `fat.Volume`, `sdcontrol.Session` | `nativefabric` (`ProgramService`, `ReadProgramStartup`), `agentapi` (QEMU `cmd/tenfoot`) |
+| FAT32 & block stack | `storagepolicy` (incl. swappable SD appliance mode) → `fat` → `block` → `sdcontrol` → `sdhci` | `dmaops` (ADMA2), `gic`, EL3 SMC `0xc2000302` | `packagestore`, `ota`, `cmd/fpgaload` |
 | FPGA config & bridges | `nativefabric` (`ConfigurationTransfer`, `FirmwareBridges`, `CPUHooks`) | `board/arm64map`, EL3 SMC `0xc2000301` | `ProgramService`, `ProgramLoader` |
 | Core mailbox & display | `computer`, `scanout` | `CPUHooks` (Avalon CSRs), `dmaops` / pinned DDR menu slots | `ProgramService`, `MenuSession` |
-| USB input | `usbcontrol` → `dwc2` (Nano) / `usb` (QEMU) → `input` | `gic`, EL3 SMC `0xc2000303` | `cmd/fpgaload`, `ProgramInputPlatform`, `ProgramKeyboard` |
-| Networking | `network` (`lneto`, DHCPv4, DNSv4, SNTP) → `xgmac` (Nano) / VirtIO (QEMU) | `dmaops`, `gic`, EL3 SMC `0xc2000305` | `cmd/tenfoot`, `cmd/network`, `cmd/fpgaload` (dormant) |
+| HDMI TX & I2C | `adv7513` (HDMI TX + EDID 1.4/CEA-861) → `i2c` (DesignWare APB I2C) | Agilex 5 HPS I2C MMIO (`0x10c02800..0x10c02c00`) | Standalone bare-metal driver packages (host-tested, ready for board HDMI bring-up) |
+| USB & Bluetooth input | `usbcontrol` → `dwc2` (Nano) / `usb` (QEMU) → `input/usbhub` + `input/controllers` (DualSense, DS4, XInput, Xbox GIP, Switch Pro, generic HID) + `bt` (`hci`/`l2cap`/`hidp`, e.g. RTL8761BU) | `gic`, EL3 SMC `0xc2000303` | `cmd/fpgaload`, `ProgramInputPlatform`, `ProgramMultiInputPlatform`, `ProgramKeyboard` |
+| Networking & target API | `agentapi` (`FogCast/targethttp`, `/v1/ota*`) + `mdns` (RFC 6762/6763 `_fogcast._tcp`) + `network` (`lneto`, `HTTPServer`/`HTTPClient`, DHCPv4/DNSv4/SNTP) → `xgmac` (Nano) / VirtIO (QEMU) | `dmaops`, `gic`, EL3 SMC `0xc2000305`, `ota.Manager` | `cmd/tenfoot` (QEMU opt-in `agent_listen`/`agent_mdns`/`agent_ota`), `cmd/network`, `cmd/fpgaload` (dormant) |
 | Board & core services | `board` (`de25nano` / `qemuvirt`), `arm64map`, `gic`, `dmaops`, `fpgairq`, `wdt`, `rtc`, `psci`, `serial` | ARMv8 sysregs, GIC-600/GICv3, MMIO, EL3 PSCI/SMCs | All packages above |
 
 ---
@@ -221,11 +228,11 @@ flowchart LR
   subgraph Shared["Shared Go Code (host-tested with go test -race)"]
     S1["FogCast Tenfoot UI & gfx.Software"]
     S2["FogCast corepackage validator & ROM linker"]
-    S3["fat | block | input | usb HID | network (lneto) | gic | dmaops | runtimeadmission"]
+    S3["fat | block | ota | input/usbhub + controllers | bt | network (lneto) | agentapi | mdns | gic | dmaops | runtimeadmission"]
   end
 
   subgraph QEMU["QEMU virt (default build, off-board CI)"]
-    Q1["cmd/tenfoot, cmd/fabric, cmd/packages, cmd/admission, cmd/network..."]
+    Q1["cmd/tenfoot (+ opt-in agentapi/mdns/ota), cmd/fabric, cmd/packages, cmd/admission, cmd/network..."]
     Q2["modelbackend + fabricmodel + sdm.ConfigModel"]
     Q3["VirtIO block/net | xHCI USB | ramfb display | PL011 UART | PL031 RTC"]
   end
@@ -233,7 +240,7 @@ flowchart LR
   subgraph Nano["DE25-Nano (-tags de25nano + schema-8 JSON profile)"]
     N1["cmd/fpgaload (+ de25tenfootserial), cmd/usbcheck, cmd/sdfile, cmd/sdwrite"]
     N2["nativefabric + computer + scanout"]
-    N3["Cadence SDHCI | DWC2 PIO USB2 | XGMAC 2.10 | 16550 UART | L4WD | BL31 SMCs"]
+    N3["Cadence SDHCI | DWC2 PIO USB2 | XGMAC 2.10 | DW APB I2C + ADV7513 | 16550 UART | L4WD | BL31 SMCs"]
   end
 
   Shared --> QEMU
@@ -244,11 +251,11 @@ flowchart LR
 | --- | --- | --- |
 | Primary app | `cmd/tenfoot` | `cmd/fpgaload` (with `-tags de25tenfootserial`) |
 | Boot memory map | Fixed `virt` layout (`0x40000000` Go RAM, `0x50000000` DMA) | Generated from schema-8 JSON profile (disjoint Go RAM + reserved regions) |
-| Storage | VirtIO block + `fat` | Owned Cadence SDHCI (`0x10808000`) + `sdcontrol` + `block.Cache` + `storagepolicy`/`fat` |
-| USB input | xHCI (`usb/`) | Owned DWC2 PIO (`0x10b00000`) via `usbcontrol` + `dwc2` (single or 16-ch `MultiHost`) |
-| Display | `ramfb` framebuffer | 8 MiB two-slot DDR `scanout` through paired MENU FPGA shell |
+| Storage & OTA | VirtIO block + `fat` + opt-in `ota.Manager` (`FES/OTA/*`) | Owned Cadence SDHCI (`0x10808000`) + `sdcontrol` + `block.Cache` + `storagepolicy` (incl. swappable SD mode) + `fat` |
+| USB & BT input | xHCI (`usb/`) | Owned DWC2 PIO (`0x10b00000`) via `usbcontrol` + `dwc2` (single or 16-ch `MultiHost`) + `input/usbhub` + `input/controllers` + `bt/` |
+| Display & HDMI TX | `ramfb` framebuffer | 8 MiB two-slot DDR `scanout` through paired MENU FPGA shell; standalone `i2c` + `adv7513` driver packages for HDMI TX/EDID |
 | FPGA lifecycle | `modelbackend` + `fabricmodel` (software model) | `nativefabric` + `computer` + EL3 BL31 SMCs (`firmware/`) |
-| Network | VirtIO-net + `network` (`lneto` + DHCPv4/DNSv4/SNTP) | `xgmac` + `network` (disabled/dormant in default Nano SD profile) |
+| Network & target API | VirtIO-net + `network` (`lneto`, `HTTPServer`, DHCPv4/DNSv4/SNTP) + opt-in `agentapi` (`targethttp`, `/v1/ota*`) & `mdns` | `xgmac` + `network` (disabled/dormant in default Nano SD profile) |
 | Watchdog / RTC | PL031 RTC (`rtc/`) | DesignWare APB `L4WD0`/`L4WD1` (`wdt/`), optional SNTP wall clock |
 
 ---
