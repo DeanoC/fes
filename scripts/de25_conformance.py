@@ -618,9 +618,12 @@ def run(core: str, steps: list[dict], interfaces: list[str], host: Host, video: 
                     if "shelf_kept" in expect:
                         game = expect["shelf_kept"].format(**variables)
                         disks = {d.get("game_id"): d for d in value.get("disks", []) if isinstance(d, dict)}
-                        kept = (disks.get(game) or {}).get("kept_revision", "")
-                        ok = ok and bool(kept)
-                        detail.append(f"shelf {game} kept_revision={kept or 'none'}")
+                        # The shelf marks a disk "changes" only when the saved
+                        # image differs from the one inserted: the core wrote.
+                        disk = disks.get(game) or {}
+                        kept, revision = disk.get("kept", ""), disk.get("kept_revision", "")
+                        ok = ok and kept == "changes" and bool(revision)
+                        detail.append(f"shelf {game} kept={kept or 'none'} kept_revision={revision or 'none'}")
                     detail.append(f"{' '.join(args)} rc={rc} {text[:160]}")
                 time.sleep(step.get("settle", 1))
                 after = out / f"f{index:02d}-{name}.png"

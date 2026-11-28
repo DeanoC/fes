@@ -317,7 +317,7 @@
         {
           "name": "shelf_disk_mounts",
           "covers": [
-            "fes.media.atari-st-floppy"
+            "fes.media.atari-st-floppy-write"
           ],
           "cli": [
             "insert-library-disk",
@@ -339,6 +339,9 @@
         },
         {
           "name": "options_menu_opens",
+          "covers": [
+            "fes.mouse.relative"
+          ],
           "mouse": [
             195,
             5,
@@ -350,76 +353,60 @@
           }
         },
         {
-          "name": "explore0",
           "mouse": [
             0,
-            8,
+            42,
             0
           ],
           "settle": 1
         },
         {
-          "name": "explore1",
           "mouse": [
             0,
-            8,
-            0
+            0,
+            1
           ],
           "settle": 1
         },
         {
-          "name": "explore2",
           "mouse": [
             0,
-            8,
+            0,
             0
           ],
-          "settle": 1
+          "settle": 2
         },
         {
-          "name": "explore3",
-          "mouse": [
-            0,
-            8,
-            0
+          "name": "desktop_saved",
+          "keys": [
+            "enter"
           ],
-          "settle": 1
+          "settle": 8,
+          "expect": {
+            "change": 0.0001
+          }
         },
         {
-          "name": "explore4",
-          "mouse": [
-            0,
-            8,
-            0
+          "name": "floppy_saves",
+          "covers": [
+            "fes.media.atari-st-floppy-write"
           ],
-          "settle": 1
+          "cli": [
+            "save-disk"
+          ]
         },
         {
-          "name": "explore5",
-          "mouse": [
-            0,
-            8,
-            0
+          "name": "save_kept",
+          "covers": [
+            "fes.media.atari-st-floppy-write"
           ],
-          "settle": 1
-        },
-        {
-          "name": "explore6",
-          "mouse": [
-            0,
-            8,
-            0
+          "cli": [
+            "shelf",
+            "{core_id}"
           ],
-          "settle": 1
-        },
-        {
-          "name": "explore7",
-          "mouse": [
-            0,
-            8,
-            0
-          ],
-          "settle": 1
+          "expect": {
+            "shelf_kept": "{game}"
+          }
         }
       ]
     },
