@@ -248,12 +248,14 @@ def artifact_identity(prepared):
             prepared.get("video_parts", {}).get("sha256"))
 
 
-def qualify(store, sha, recipe, accept, key, previous):
+def qualify(store, sha, recipe, accept, key, previous, *, replaces=None, spool_only=False):
     # Keep the prepared bytes for an offline HIL worker and retry an identical
     # input without moving the evidence request to the next day's main SHA.
     slot = digest(encoded([recipe.board, recipe.core_id, key]))
     candidate = store / "candidates" / slot
     if not candidate.exists():
+        if replaces is not None:
+            raise ValueError("staged qualification candidate missing")
         with tempfile.TemporaryDirectory(dir=candidate.parent) as tmp:
             root = Path(tmp) / "result"
             result = core_dev.prepare(recipe.core_id, root, board=recipe.board)
@@ -274,7 +276,7 @@ def qualify(store, sha, recipe, accept, key, previous):
     if result["core_id"] != recipe.core_id:
         raise ValueError("prepared candidate names a different core")
     hil = hil_requirements(recipe)
-    if previous:
+    if previous and replaces is None:
         prior = store / "objects" / hex_digest(previous)
         if (read(prior / "qualification.json")["request"].get("hil") == hil and
                 artifact_identity(read(prior / "prepared.json")) == artifact_identity(result)):
@@ -286,6 +288,18 @@ def qualify(store, sha, recipe, accept, key, previous):
                    package_id=result["package_id"], prepared_sha256=provenance["prepared_sha256"],
                    archive_sha256=provenance["archive_sha256"], inputs=key,
                    simulations_sha256=digest((candidate / "simulations.json").read_bytes()))
+    if replaces is not None:
+        original = read(store / "requests" / hex_digest(replaces))["request"]
+        if (digest(encoded(original)) != replaces or original["main"] != sha
+                or dict(request, hil=original["hil"]) != original):
+            raise ValueError("superseded request does not match the staged candidate")
+        request["replaces"] = replaces
+        request["policy_main"] = git("rev-parse", "HEAD")
+        if spool_only:
+            binding = digest(encoded(request))
+            write(store / "requests" / binding, encoded(dict(request=request,
+                  locations=dict(FES_NIGHTLY_PREPARED=str(prepared)))))
+            return binding
     receipt = gate(store, accept, request, FES_NIGHTLY_PREPARED=str(prepared))
     if receipt.get("kit") not in hil["kits"] or (
             receipt["kit"] != "N/A" and receipt.get("restored") is not True):
@@ -468,34 +482,78 @@ def batch(store, sha, config, simulations=None):
                     print(f"{name}: {error}", file=sys.stderr, flush=True)
                     failed = True
                 write(state_path, encoded(state))
-        boards = state.setdefault("boards", {})
-        for board in recipes.BOARDS:
-            current = {}
-            for core in registry[board]:
-                cell = state["cells"].get(board + "/" + core, {})
-                if "object" in cell:
-                    current[core] = cell["object"]
-            history = boards.setdefault(board, [])
-            if current and (not history or current != history[-1]):
-                history.append(current)
-        for name, release in config["releases"].items():
-            bootstrap = config.get("linux_bootstrap_artifacts", {}).get(name)
-            track = state["releases"].setdefault(name, {"history": []})
-            try:
-                identity = release_set(store, release, reversed(boards[release["board"]]),
-                                       config.get("admit"), bootstrap)
-                if not track["history"] or track["history"][-1] != identity:
-                    track["history"].append(identity)
-                track["current"] = identity
-                print(f"{name}: {store / 'sets' / identity}", flush=True)
-                track.pop("pending", None)
-            except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
-                track["pending"] = dict(main=sha, release=release, error=str(error),
-                                        incompatible=isinstance(error, NoCompatibleSet))
-                print(f"{name}: {error}", file=sys.stderr, flush=True)
-                failed = True
-            write(state_path, encoded(state))
-        return 1 if failed else 0
+        return int(publish_releases(store, sha, config, state, registry) or failed)
+
+
+def publish_releases(store, sha, config, state, registry):
+    failed = False
+    state_path = store / "state.json"
+    boards = state.setdefault("boards", {})
+    for board in recipes.BOARDS:
+        current = {}
+        for core in registry[board]:
+            cell = state["cells"].get(board + "/" + core, {})
+            if "object" in cell:
+                current[core] = cell["object"]
+        history = boards.setdefault(board, [])
+        if current and (not history or current != history[-1]):
+            history.append(current)
+    for name, release in config["releases"].items():
+        bootstrap = config.get("linux_bootstrap_artifacts", {}).get(name)
+        track = state["releases"].setdefault(name, {"history": []})
+        try:
+            identity = release_set(store, release, reversed(boards[release["board"]]),
+                                   config.get("admit"), bootstrap)
+            if not track["history"] or track["history"][-1] != identity:
+                track["history"].append(identity)
+            track["current"] = identity
+            print(f"{name}: {store / 'sets' / identity}", flush=True)
+            track.pop("pending", None)
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
+            track["pending"] = dict(main=sha, release=release, error=str(error),
+                                    incompatible=isinstance(error, NoCompatibleSet))
+            print(f"{name}: {error}", file=sys.stderr, flush=True)
+            failed = True
+        write(state_path, encoded(state))
+    return failed
+
+
+def retry_staged(store, binding, config):
+    """Spool a replacement kit gate; replay its trusted verdict after restore."""
+    original = read(store / "requests" / hex_digest(binding))["request"]
+    if digest(encoded(original)) != binding:
+        raise ValueError("damaged original request")
+    sha = original["main"]
+    subprocess.run(["git", "-C", ROOT, "merge-base", "--is-ancestor", sha, "HEAD"], check=True)
+    subprocess.run(["git", "-C", ROOT, "merge-base", "--is-ancestor", "HEAD", "origin/main"], check=True)
+    if git("status", "--porcelain"):
+        raise ValueError("staged retries require a clean policy checkout")
+    for release in config["releases"].values():
+        validate_release(release)
+    registry = {board: recipes.load_recipes(board=board) for board in recipes.BOARDS}
+    board, core = original["board"], original["core"]
+    recipe = registry[board][core]
+    # Preserve the old logical production slot. A new kit policy has its own
+    # request, evidence and state key even when the archive is byte-identical.
+    args = (store, sha, recipe, None, original["inputs"], None)
+    replacement = qualify(*args, replaces=binding, spool_only=True)
+    if not (store / "verdicts" / replacement).is_file():
+        print("awaiting farm verdict for " + replacement, flush=True)
+        return 4
+    with (store / "lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = read(store / "state.json")
+        if state["main"] != sha:
+            raise ValueError("nightly checkpoint changed since the staged request")
+        obj = qualify(*args, replaces=binding)
+        cell = state["cells"][board + "/" + core]
+        if cell.get("object") != obj:
+            cell.update(object=obj, main=sha, previous_main=cell.get("main"),
+                        key=digest(encoded([original["inputs"], hil_requirements(recipe)])))
+        cell.pop("pending", None)
+        write(store / "state.json", encoded(state))
+        return int(publish_releases(store, sha, config, state, registry))
+
 
 
 def main():
@@ -506,6 +564,9 @@ def main():
     run.add_argument("--sha", required=True)
     run.add_argument("--simulations", type=Path, help="trusted nightly CI receipt; retries use the stored receipt")
     run.add_argument("--config", type=Path, required=True)
+    retry = commands.add_parser("retry-staged")
+    retry.add_argument("--request", required=True)
+    retry.add_argument("--config", required=True, type=Path)
     record = commands.add_parser("record")
     record.add_argument("--verdict", required=True, type=Path)
     record.add_argument("--evidence", required=True, type=Path)
@@ -517,6 +578,8 @@ def main():
     store = args.store.resolve()
     if args.command == "run":
         return batch(store, args.sha, read(args.config), args.simulations)
+    if args.command == "retry-staged":
+        return retry_staged(store, args.request, read(args.config))
     if args.command == "record":
         record_verdict(store, args.verdict, args.evidence)
         return 0

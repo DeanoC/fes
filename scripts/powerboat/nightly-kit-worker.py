@@ -65,7 +65,7 @@ def fetch(relative):
     return subprocess.check_output(["ssh", "-oBatchMode=yes", FARM, "cat", STORE + "/" + relative])
 
 
-def stage_hil_check(head, hil, root):
+def stage_hil_check(head, policy_head, hil, root):
     if not hil["check"]:
         return None
     if hil["check"] != "scripts/pcxt_dos_hil_acceptance.py":
@@ -75,7 +75,8 @@ def stage_hil_check(head, hil, root):
     for name in (hil["check"], firmware + "hardware-dos.json", firmware + "cga-font-8x8.bin"):
         dest = root / name
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(subprocess.check_output(["git", "-C", REPO, "show", head + ":" + name]))
+        revision = policy_head if name == hil["check"] else head
+        dest.write_bytes(subprocess.check_output(["git", "-C", REPO, "show", revision + ":" + name]))
     checker = root / hil["check"]
     if sha(checker.read_bytes()) != hil["sha256"]:
         raise ValueError("registered HIL checker differs from request")
@@ -149,7 +150,7 @@ def accept(binding):
         (build / "build.result").write_text(line)
         if board == "de25-nano":
             (build / "core-build.result").write_text(line)
-        checker = stage_hil_check(head, req["hil"], run / "checker")
+        checker = stage_hil_check(head, req.get("policy_main", head), req["hil"], run / "checker")
         wait_seconds, poll_seconds = kit_wait_settings()
         kits = ["D25" if name == "TRWU8J8G" else name for name in req["hil"]["kits"]]
         kit_log(f"wait start: kits={', '.join(kits)} timeout={wait_seconds}s interval={poll_seconds}s")

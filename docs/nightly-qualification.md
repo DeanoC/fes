@@ -143,9 +143,11 @@ their configured peer. Powerboat also needs read access to the repository's
 Actions runs through `gh`.
 
 Install the two client-side executables from `scripts/powerboat/` on chip.
-Install `nightly-kit-worker.py`, `nightly-de10-smoke.py` and
-`nightly-menu-smoke.py` together in Powerboat's
-`~/.local/share/fes-qualification/bin/`. HILQ owns the kit claims and restore.
+On Powerboat install `nightly-kit-launch.py` at the client's SSH entry point,
+`~/.local/share/fes-qualification/bin/nightly-kit-worker.py`. For each request
+the launcher checks the binding and main ancestry, then loads the worker,
+receipt validator and smoke adapters from a private checkout of that SHA.
+HILQ owns the kit claims and restore.
 DE10 tries B then A. DE25 uses the serial-bound D25 watcher. A digest-specific
 run directory retains the raw kit evidence and verified sealed package for
 retries. If all designated kits are busy, the worker checks again for up to 45
@@ -167,3 +169,18 @@ the coordinator consider earlier complete sets. The release owner may also
 submit an exact request-bound verdict using `record` after a separate
 release-matched kit run. The bootstrap-only release uses its existing
 Linux MENU admission path.
+
+For an operator-approved correction to a kit gate, run
+`retry-staged --request OLD_KIT_REQUEST_SHA256 --config /absolute/releases.json`
+with the protected store and a clean checkout of the corrected policy from main.
+It validates the original request against its staged files and spools a distinct request with a
+`replaces` reference. The launcher loads receipt validation from the original
+artifact `main` and the worker, smoke adapters and registered checker from
+the replacement’s `policy_main`. Both revisions must be in protected main
+history, with the artifact revision an ancestor of the policy. Exit 4 identifies
+the replacement waiting for hardware.
+Run its registered check on the designated kit, restore the baseline and import
+the exact request-bound evidence with `record`. Repeat `retry-staged` to promote
+the retained bytes under the corrected gate. The store checkpoint must still
+match the staged main. DE10 MENU acceptance uses the image's booted idle MENU,
+both installed member digests, the runtime process arguments and visible HDMI.
