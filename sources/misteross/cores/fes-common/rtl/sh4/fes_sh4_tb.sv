@@ -30,6 +30,8 @@ module fes_sh4_tb;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
+    logic dma_finished;
+    fes_sh7091_dmac_tb dma_test (.clk, .finished(dma_finished));
     fes_sh7091_tmu_tb tmu_test (.clk, .finished(tmu_finished));
     fes_sh7091_bsc_tb bsc_test (.clk, .finished(bsc_finished));
     fes_sh4_fp_arithmetic_tb fp_arith_test (.clk, .finished(fp_arith_finished));
@@ -2084,8 +2086,8 @@ module fes_sh4_tb;
         literal('h02, 2, 'h84);
         emit('h04, 'h2121); // IPRA: TMU0 priority 5
         literal('h06, 3, 'h88);
-        emit('h08, 'he207);
-        emit('h0a, 'h1323); // TCNT0 = 7
+        emit('h08, 'he210);
+        emit('h0a, 'h1323); // TCNT0 = 16, allowing SLEEP to retire even with bus arbitration
         literal('h0c, 4, 'h8c);
         emit('h0e, 'he220);
         emit('h10, 'h2421); // TCR0: interrupt enable, peripheral clock /4
@@ -2131,18 +2133,80 @@ module fes_sh4_tb;
                         bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[14]);
         bram_reset = 1;
 
+        // Program the DMAC through P4, then take its completion interrupt.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2121); // IPRC: DMAC priority 5
+        literal('h06, 1, 'h88);
+        literal('h08, 2, 'h8c);
+        emit('h0a, 'h2122); // SAR0
+        literal('h0c, 2, 'h90);
+        emit('h0e, 'h1121); // DAR0
+        emit('h10, 'he201);
+        emit('h12, 'h1122); // DMATCR0
+        literal('h14, 3, 'h94);
+        emit('h16, 'h1133); // CHCR0
+        literal('h18, 4, 'h98);
+        emit('h1a, 'h440e); // Enable interrupts
+        literal('h1c, 1, 'h9c);
+        emit('h1e, 'he201);
+        emit('h20, 'h2122); // DMAOR: start
+        emit('h22, 'h001b); // SLEEP
+        literal('h24, 1, 'ha0);
+        emit('h26, 'h6e12); // Read the destination for the first time
+        image['h80 >> 2] = 'hffd0_000c;
+        image['h84 >> 2] = 'h0500;
+        image['h88 >> 2] = 'hffa0_0000;
+        image['h8c >> 2] = 'h0100;
+        image['h90 >> 2] = 'h0140;
+        image['h94 >> 2] = 'h5445;
+        image['h98 >> 2] = 'h4000_0000;
+        image['h9c >> 2] = 'hffa0_0040;
+        image['ha0 >> 2] = 'h0140;
+        image['h100 >> 2] = 'h0929_3aec;
+        literal('h600, 1, 'h640);
+        emit('h602, 'h6212); // Read CHCR0 before clearing TE
+        emit('h604, 'he200);
+        emit('h606, 'h2122);
+        literal('h608, 3, 'h644);
+        emit('h60a, 'h6d32); // Read INTEVT
+        emit('h60c, 'h002b);
+        emit('h60e, 'h0009);
+        image['h640 >> 2] = 'hffa0_000c;
+        image['h644 >> 2] = 'hff00_0028;
+        for (int word = 0; word <= 'h644 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h26));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h640 &&
+                bram.system_cpu.cpu.gpr[14] == 'h0929_3aec)
+            else $fatal(1, "DMA guest fault %d at %h, INTEVT %h, destination %h",
+                        bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[14]);
+        bram_reset = 1;
+
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
         assert (tmu_finished) else $fatal(1, "TMU/INTC regression timed out");
+        assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, and priority arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, and bus and interrupt arbitration");
         $finish;
     end
 
     initial begin
-        #340000;
+        #355000;
+        $display("Diagnostic BRAM reset %b, last retirement %h, fault %d at %h",
+                 bram_reset, bram_retired_pc, bram_fault, bram_fault_pc);
         $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",
                dut.pc, retired_pc, fault, fault_pc);
     end

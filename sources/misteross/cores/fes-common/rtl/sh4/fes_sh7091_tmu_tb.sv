@@ -1,7 +1,7 @@
 module fes_sh7091_tmu_tb(input logic clk, output logic finished);
     logic reset, request, peripheral_tick, rtc_tick, tclk, capture_ack;
     logic [31:2] address;
-    logic [31:0] wdata, tmu_rdata, intc_rdata;
+    logic [31:0] wdata, tmu_rdata, intc_rdata, capture_value;
     logic [3:0] rmask, wstrb, timer_irq, cpu_level, ext_level;
     logic [11:0] ext_event, cpu_event;
     logic [1:0] refresh_irq;
@@ -11,12 +11,12 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
     fes_sh7091_tmu tmu (
         .clk, .reset, .peripheral_tick, .rtc_tick, .tclk, .request, .address,
         .rmask, .wstrb, .wdata, .selected(tmu_selected), .rvalid(tmu_rvalid), .rdata(tmu_rdata),
-        .timer_irq, .tclk_output_enable, .capture_dma, .capture_ack
+        .timer_irq, .tclk_output_enable, .capture_dma, .capture_ack, .capture_value
     );
     fes_sh7091_intc intc (
         .clk, .reset, .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
         .selected(intc_selected), .rvalid(intc_rvalid), .rdata(intc_rdata),
-        .ext_level, .ext_event, .timer_irq, .refresh_irq, .cpu_ack,
+        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq(5'b0), .cpu_ack,
         .cpu_level, .cpu_event, .ext_ack
     );
 
@@ -86,7 +86,7 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         write_reg('hffd8_0004, 5, 4'h1);
         tclk = 1;
         repeat (4) @(negedge clk);
-        assert (capture_dma && cpu_level == 6 && cpu_event == 'h460)
+        assert (capture_dma && capture_value == 'h1234_5678 && cpu_level == 6 && cpu_event == 'h460)
             else $fatal(1, "TMU2 capture did not request service");
         read_reg('hffd8_002c, 'h1234_5678, 4'hf);
         read_reg('hffd8_0024, 'h1234_5677, 4'hf);

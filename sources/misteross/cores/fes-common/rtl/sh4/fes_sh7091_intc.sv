@@ -12,6 +12,7 @@ module fes_sh7091_intc (
     input  logic [11:0] ext_event,
     input  logic [3:0]  timer_irq,
     input  logic [1:0]  refresh_irq,
+    input  logic [4:0]  dma_irq,
     input  logic        cpu_ack,
     output logic [3:0]  cpu_level,
     output logic [11:0] cpu_event,
@@ -58,6 +59,17 @@ module fes_sh7091_intc (
                 selected_event = events[i];
                 next_external = 0;
             end
+        end
+        if ((|dma_irq) && iprc[11:8] > selected_level) begin
+            selected_level = iprc[11:8];
+            casez (dma_irq)
+                5'b????1: selected_event = 12'h640;
+                5'b???10: selected_event = 12'h660;
+                5'b??100: selected_event = 12'h680;
+                5'b?1000: selected_event = 12'h6a0;
+                default: selected_event = 12'h6c0;
+            endcase
+            next_external = 0;
         end
     end
 

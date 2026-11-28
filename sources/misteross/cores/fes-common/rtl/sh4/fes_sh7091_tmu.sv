@@ -11,12 +11,12 @@ module fes_sh7091_tmu (
     output logic [3:0]  timer_irq,
     output logic        tclk_output_enable,
     output logic        capture_dma,
+    output logic [31:0] capture_value,
     input  logic        capture_ack
 );
     logic [2:0] running, underflow;
     logic [31:0] constant_value [0:2], count [0:2];
     logic [7:0] control [0:2];
-    logic [31:0] captured_count;
     logic captured, tclk_sync, tclk_sample, tclk_previous;
     logic [9:0] prescaler;
     logic [3:0] reg_number, read_mask;
@@ -106,7 +106,7 @@ module fes_sh7091_tmu (
                 captured <= 1;
                 capture_dma <= 1;
                 if (!captured)
-                    captured_count <= count[2];
+                    capture_value <= count[2];
             end
             rvalid <= request && selected && wstrb == 0;
             if (request && selected && wstrb == 0) begin
@@ -123,7 +123,7 @@ module fes_sh7091_tmu (
                     8: rdata <= constant_value[2];
                     9: rdata <= count[2];
                     10: rdata <= {22'b0, captured, underflow[2], control[2]};
-                    11: rdata <= captured_count;
+                    11: rdata <= capture_value;
                     default: ;
                 endcase
             end

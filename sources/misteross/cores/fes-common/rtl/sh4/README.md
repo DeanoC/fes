@@ -272,6 +272,22 @@ request. Acknowledgement returns to the external device only for
 an external interrupt. The board continues to supply NMI and the
 external input routing.
 
+## DMA controller
+
+The four-channel DMAC exposes SAR, DAR, DMATCR, CHCR and DMAOR through
+the SH7091 P4 register window. It supports dual-address memory copies,
+dual-address DREQ transfers on channels 0 and 1, and transfers triggered
+by TMU2 capture. Capture data can also be used as the source of a 32-bit
+transfer. The external request ports take active-low requests and acknowledge
+each accepted unit with an active-high pulse.
+
+The DMA engine buffers each 1-, 2-, 4-, 8- or 32-byte transfer unit and
+moves it through the shared 32-bit port. Completion and address errors
+feed INTC. DMA accesses physical memory and software manages cache
+coherency around DMA buffers. The board supplies physical DMA handshake
+timing. Single-address DMA, direct data transfer mode and other peripheral
+requests remain unimplemented.
+
 ## Memory contract
 
 `mem_valid && mem_ready` accepts one aligned byte-addressed request.
@@ -294,7 +310,8 @@ acceptance of the matching byte write. A shared-bus arbiter must preserve
 exclusive ownership from acceptance of the locked read until the locked
 write is accepted. The core defers intervening instruction reads. Any dirty TAS.B line is
 written back before the lock begins. The
-diagnostic RAM has a single master and no read side effects.
+SH7091 arbiter preserves TAS ownership and keeps all eight store-queue
+writes together. The diagnostic RAM has no read side effects.
 
 The diagnostic top resets to address zero and exposes a host-side word loader
 while reset is asserted. It uses four synchronous byte banks for a 2 KiB
@@ -364,6 +381,11 @@ and the address carried by an SDRAM mode write. TMU checks cover
 underflow and reload, capture and DMA request acknowledgement, and
 priority tie handling. A guest program wakes from SLEEP on a TMU0
 interrupt, clears the source in its handler, and resumes through RTE.
+DMA checks cover a stalled read, a 32-byte unit, byte lane steering, register
+writeback, sticky flag acknowledgement, an alignment error, a capture
+transfer and an external request. The shared-bus tests check that DMA
+respects TAS and store-queue ownership. A guest configures a DMA copy,
+wakes on the completion interrupt, and reads the destination after RTE.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
