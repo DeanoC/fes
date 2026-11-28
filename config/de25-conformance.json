@@ -317,7 +317,7 @@
         {
           "name": "shelf_disk_mounts",
           "covers": [
-            "fes.media.atari-st-floppy-write"
+            "fes.media.atari-st-floppy"
           ],
           "cli": [
             "insert-library-disk",
@@ -369,12 +369,19 @@
           "settle": 1
         },
         {
+          "name": "save_desktop_asks",
+          "covers": [
+            "fes.mouse.relative"
+          ],
           "mouse": [
             0,
             0,
             0
           ],
-          "settle": 2
+          "settle": 2,
+          "expect": {
+            "ocr": "Save Desktop"
+          }
         },
         {
           "name": "desktop_saved",
