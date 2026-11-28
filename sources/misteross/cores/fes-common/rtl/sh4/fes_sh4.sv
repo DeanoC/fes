@@ -73,7 +73,7 @@ module fes_sh4 #(
     logic [31:0] alu_result;
     logic [3:0] alu_flag_mask, alu_flag_value;
     logic [11:0] expevt, intevt, exception_event;
-    logic nmi_previous, nmi_pending, nmi_edge, nmi_ready, irq_ready, take_interrupt;
+    logic nmi_previous, nmi_pending, nmi_edge, nmi_ready, irq_ready, take_interrupt, interrupt_pending;
     logic [7:0] tra, trap_imm;
     logic [3:0] exception_cause;
     logic take_exception, address_exception, privileged_op, is_store;
@@ -310,7 +310,7 @@ module fes_sh4 #(
                 if (ir[3:0] == 4'h7)
                     dec_offset = gpr[0];
             end
-            16'hf??0, 16'hf??1, 16'hf??2: decoded = FLOAT_ARITH;
+            16'hf??0, 16'hf??1, 16'hf??2, 16'hf??3, 16'hf?6d: decoded = FLOAT_ARITH;
             16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
             16'hf3fd, 16'hfbfd: decoded = FLOAT_OP;
 
@@ -559,7 +559,8 @@ module fes_sh4 #(
     );
 
     fes_sh4_fp_arithmetic fp_arithmetic (
-        .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[0]), .multiply(ir[1]),
+        .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
+        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[3:0] == 4'hd),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source),
         .done(fp_arith_done), .value(fp_arith_value), .causes(fp_causes), .normal_operands(fp_normal_operands)
     );
@@ -600,7 +601,7 @@ module fes_sh4 #(
                     exception_cause = TRAP;
             end
             FP_RETIRE: if (fp_causes[5] || |(fp_causes[4:0] & fpscr[11:7]) ||
-                           (fp_normal_operands && |fpscr[9:7]))
+                           (fp_normal_operands && (ir[3:0] == 4'hd ? fpscr[7] : |fpscr[9:7])))
                 exception_cause = FPU_EXCEPTION;
             MAC_READ: if (!mac_second && (mac_second_addr[0] || (!mac_word && mac_second_addr[1]))) begin
                 exception_cause = DATA_ALIGN;
@@ -651,8 +652,8 @@ module fes_sh4 #(
     assign nmi_edge = nmi && !nmi_previous;
     assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked);
     assign irq_ready = !sr[28] && irq_level > sr[7:4];
-    assign take_interrupt = (stage == ISSUE || stage == ASLEEP) && !in_slot &&
-                            !fetch_tlb_pending && exception_cause == 0 && (nmi_ready || irq_ready);
+    assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
+    assign take_interrupt = (stage == ISSUE || stage == ASLEEP) && interrupt_pending && exception_cause == 0;
 
     assign redirect = stage == COMMIT && fetch_pc != next_pc;
     assign privilege_write = stage == COMMIT && writes_sr;
@@ -672,7 +673,7 @@ module fes_sh4 #(
     assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write || cache_array_barrier ||
                          privilege_write || exception_cause != 0 || take_interrupt ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
-    assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !take_interrupt) ||
+    assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !interrupt_pending) ||
                                            (stage == COMMIT && !redirect && !privilege_write && !mmu_ldtlb &&
                                             !irq_ready && !nmi_ready && op != SLEEP));
     assign store_accepted = mem_valid && mem_ready && mem_wstrb != 0;

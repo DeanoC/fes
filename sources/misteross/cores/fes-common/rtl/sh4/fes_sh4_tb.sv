@@ -1425,14 +1425,28 @@ module fes_sh4_tb;
         emit('h2a, 'h7708);
         emit('h2c, 'hf022); // FMUL DR2,DR0
         emit('h2e, 'hf70a);
-        emit('h30, 'he000);
-        emit('h32, 'h406a); // PR=0, SZ=0
-        emit('h34, 'hf09d); // 1.0
-        emit('h36, 'hf19d);
-        emit('h38, 'hf110); // FR1 = 2.0
-        emit('h3a, 'hf012); // FMUL FR1,FR0
-        emit('h3c, 'hf01d);
-        emit('h3e, 'h0a5a);
+        emit('h30, 'h7708);
+        emit('h32, 'hf023); // FDIV DR2,DR0
+        emit('h34, 'hf70a);
+        emit('h36, 'h7708);
+        emit('h38, 'hf019); // Load 4.0 into DR0
+        emit('h3a, 'hf06d); // FSQRT DR0
+        emit('h3c, 'hf70a);
+        emit('h3e, 'he000);
+        emit('h40, 'h406a); // PR=0, SZ=0
+        emit('h42, 'hf09d); // 1.0
+        emit('h44, 'hf19d);
+        emit('h46, 'hf110); // FR1 = 2.0
+        emit('h48, 'hf012); // FMUL FR1,FR0
+        emit('h4a, 'hf01d);
+        emit('h4c, 'h0a5a);
+        emit('h4e, 'hf013); // FDIV FR1,FR0
+        emit('h50, 'hf01d);
+        emit('h52, 'h0b5a);
+        emit('h54, 'hf112); // FMUL FR1,FR1, producing 4.0
+        emit('h56, 'hf16d); // FSQRT FR1
+        emit('h58, 'hf11d);
+        emit('h5a, 'h0c5a);
         image['h80 >> 2] = 'h0018_0000;
         image['h84 >> 2] = 'h200;
         image['h88 >> 2] = 'h300;
@@ -1440,12 +1454,17 @@ module fes_sh4_tb;
         image['h204 >> 2] = 'h3ff8_0000;
         image['h208 >> 2] = 0;
         image['h20c >> 2] = 'h4002_0000;
+        image['h210 >> 2] = 0;
+        image['h214 >> 2] = 'h4010_0000;
         start_bus();
-        expect_stop(1, 'h40);
+        expect_stop(1, 'h5c);
         assert (dut.gpr[8] == 'h4000_0000 && dut.gpr[9] == 'h3f80_0000 && dut.gpr[10] == 'h4000_0000 &&
+                dut.gpr[11] == 'h3f80_0000 && dut.gpr[12] == 'h4000_0000 &&
                 ext_mem['h300 >> 2] == 0 && ext_mem['h304 >> 2] == 'h400e_0000 &&
                 ext_mem['h308 >> 2] == 0 && ext_mem['h30c >> 2] == 'h3ff8_0000 &&
-                ext_mem['h310 >> 2] == 0 && ext_mem['h314 >> 2] == 'h400b_0000)
+                ext_mem['h310 >> 2] == 0 && ext_mem['h314 >> 2] == 'h400b_0000 &&
+                ext_mem['h318 >> 2] == 0 && ext_mem['h31c >> 2] == 'h3ff8_0000 &&
+                ext_mem['h320 >> 2] == 0 && ext_mem['h324 >> 2] == 'h4000_0000)
             else $fatal(1, "Floating-point arithmetic was not committed to the guest destination");
 
         // An enabled invalid exception in a branch delay slot must leave
@@ -1494,6 +1513,36 @@ module fes_sh4_tb;
         expect_stop(13, 'h08);
         assert (dut.expevt == 'h120 && dut.fpscr == 'h80 && dut.fpu_regs.fr_even[0] == 'h3f80_0000)
             else $fatal(1, "Enabled FADD exact-result software trap was not precise");
+
+        // The divider raises FPSCR.Z and leaves the destination intact
+        // when a zero divisor trap is enabled.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 0, 'h80);
+        emit('h02, 'h406a);
+        emit('h04, 'hf09d);
+        emit('h06, 'hf18d);
+        emit('h08, 'hf013);
+        image['h80 >> 2] = 'h400; // FPSCR.EN.Z
+        start_bus();
+        expect_stop(13, 'h08);
+        assert (dut.expevt == 'h120 && dut.fpscr == 'h8420 && dut.fpu_regs.fr_even[0] == 'h3f80_0000)
+            else $fatal(1, "FDIV did not trap before updating FR0");
+
+        // FSQRT software completion is controlled by EN.I alone.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 0, 'h80);
+        emit('h02, 'h406a);
+        emit('h04, 'hf09d);
+        emit('h06, 'hf06d);
+        literal('h08, 0, 'h84);
+        emit('h0a, 'h406a);
+        emit('h0c, 'hf06d);
+        image['h80 >> 2] = 'h200; // EN.O must let the exact square root retire.
+        image['h84 >> 2] = 'h80; // EN.I traps even for an exact result.
+        start_bus();
+        expect_stop(13, 'h0c);
+        assert (dut.expevt == 'h120 && dut.fpscr == 'h80 && dut.fpu_regs.fr_even[0] == 'h3f80_0000)
+            else $fatal(1, "FSQRT exact-result software trap was not precise");
 
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
@@ -1687,7 +1736,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers and FADD/FSUB/FMUL");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers and FADD/FSUB/FMUL/FDIV/FSQRT");
         $finish;
     end
 

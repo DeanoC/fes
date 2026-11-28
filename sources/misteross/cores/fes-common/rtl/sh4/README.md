@@ -117,13 +117,17 @@ The SR.FD gate distinguishes a general FPU-disable exception (0x800)
 from a delay-slot FPU-disable exception (0x820). The handler may clear FD
 in SSR and use RTE to retry.
 
-FADD, FSUB, and FMUL share classification, rounding, and result packing
+FADD, FSUB, FMUL, FDIV, and FSQRT share classification, rounding, and result packing
 for single and double precision. FMUL uses registered 18-bit DSP partial
-products and carry propagation between their columns. The arithmetic supports nearest-even and toward-zero rounding, FPSCR denormal handling,
+products and carry propagation between their columns. FDIV and FSQRT use a
+restoring digit step with a registered trial subtraction. Single precision
+generates 26 quotient or root bits, and double precision generates 55,
+followed by a sticky bit from the remainder. The arithmetic supports nearest-even and toward-zero rounding, FPSCR denormal handling,
 and the SH-4 NaN encodings. An arithmetic exception updates FPSCR cause
 and sticky flags and enters VBR + 0x100 with EXPEVT 0x120 before changing the
 destination. When enabled, the SH-4's O/U/I software-completion traps also
-apply to normal operands with an exact result. The remaining floating-point
+apply to normal operands with an exact result. FSQRT uses only the inexact
+enable for this behavior. The remaining floating-point
 arithmetic and conversion instructions still need execution units.
 
 ## Prefetch and store queues
@@ -264,7 +268,7 @@ write-back on an operand retag. Floating-point transfer tests cover both
 banks, single and paired moves, endian order, alignment, system-register
 stack transfers, a TLB retry, and FPU-disable exception return. Arithmetic tests
 cover signed cancellation, normalization, ties, overflow, subnormal results,
-NaNs, and precise arithmetic traps with delay-slot replay.
+NaNs, divide by zero, and precise arithmetic traps with delay-slot replay.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

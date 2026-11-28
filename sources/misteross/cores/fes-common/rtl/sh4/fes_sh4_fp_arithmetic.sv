@@ -7,6 +7,8 @@ module fes_sh4_fp_arithmetic (
     input  logic        wide,
     input  logic        subtract,
     input  logic        multiply,
+    input  logic        divide,
+    input  logic        square_root,
     input  logic        toward_zero,
     input  logic        flush_denormals,
     input  logic [63:0] lhs, rhs,
@@ -19,7 +21,8 @@ module fes_sh4_fp_arithmetic (
         IDLE, CLASSIFY, ORDER, ALIGN_COARSE, ALIGN_FINE, SUM,
         SHIFT_CARRY, NORMALIZE, ROUND, PACK, DONE,
         PRODUCT, DIAGONALS, MIDDLE, COLUMN_1, COLUMN_2, COLUMN_3,
-        COLUMN_4, PRODUCT_NORMALIZE
+        COLUMN_4, PRODUCT_NORMALIZE, DIVIDE_PREP, ROOT_PREP,
+        DIGIT_TEST, DIGIT_NEXT, DIGIT_RESULT
     } state_t;
     state_t state;
 
@@ -44,8 +47,20 @@ module fes_sh4_fp_arithmetic (
     logic [33:0] column_4;
     logic [105:0] product_result;
     logic signed [12:0] product_exponent, normalized_product_exponent;
-    logic [12:0] denormal_shift;
+
     logic [55:0] product_significand;
+    logic signed [12:0] quotient_exponent, unrounded_exponent;
+    logic [12:0] tiny_shift;
+    logic [10:0] root_biased_exponent;
+    logic [10:0] bias;
+    logic [109:0] radicand;
+    logic [54:0] digit_value;
+    logic [52:0] divisor;
+    logic [56:0] remainder, trial_dividend, trial_subtrahend, trial_original, digit_remainder;
+    logic [57:0] trial_difference;
+    logic [5:0] digits_left;
+    logic digit, digit_sticky;
+    logic [55:0] digit_significand;
     logic [56:0] sum;
     logic [3:0] leading, left_count;
     logic guard_bit, rest, discarded, round_up;
@@ -105,7 +120,22 @@ module fes_sh4_fp_arithmetic (
     assign column_3 = {1'b0, diagonal_3} + {18'b0, column_carry};
     assign column_4 = partial[2][2][33:0] + {14'b0, column_carry};
     assign normalized_product_exponent = product_exponent + $signed({12'b0, product_result[105]});
-    assign denormal_shift = $unsigned(13'sd1 - normalized_product_exponent);
+    assign bias = wide ? 11'd1023 : 11'd127;
+    assign root_biased_exponent = {1'b0, a_exponent[10:1]} + {1'b0, bias[10:1]} + {10'b0, a_exponent[0]};
+    assign quotient_exponent = $signed({2'b0, a_exponent}) - $signed({2'b0, b_exponent}) +
+                               $signed({2'b0, bias}) - $signed({12'b0, a_sig < b_sig});
+
+    // A restoring quotient or square-root digit uses a registered
+    // trial subtraction. The following cycle accepts or restores it.
+    assign trial_dividend = square_root ? {remainder[54:0], radicand[109:108]} : remainder;
+    assign trial_subtrahend = square_root ? {digit_value, 2'b01} : {4'b0, divisor};
+    assign digit = !trial_difference[57];
+    assign digit_remainder = digit ? trial_difference[56:0] : trial_original;
+    assign digit_sticky = |remainder || (square_root && (|radicand));
+    assign digit_significand = wide ? {digit_value, digit_sticky} :
+                                     {digit_value[25:0], 29'b0, digit_sticky};
+    assign unrounded_exponent = multiply ? normalized_product_exponent : product_exponent;
+    assign tiny_shift = $unsigned(13'sd1 - unrounded_exponent);
     assign product_significand = product_result[105] ?
                                  {product_result[105:51], |product_result[50:0]} :
                                  {product_result[104:50], |product_result[49:0]};
@@ -150,19 +180,44 @@ module fes_sh4_fp_arithmetic (
                 state <= CLASSIFY;
             end
             CLASSIFY: begin
-                normal_operands <= a_class == NORMAL && b_class == NORMAL;
+                normal_operands <= square_root ? a_class == NORMAL && !a_sign :
+                                                  a_class == NORMAL && b_class == NORMAL;
                 state <= DONE;
-                if (a_class == SIGNALING_NAN || b_class == SIGNALING_NAN ||
-                    (!multiply && a_class == INFINITY && b_class == INFINITY && a_sign != b_sign) ||
-                    (multiply && ((a_class == INFINITY && b_class == ZERO) ||
-                                  (b_class == INFINITY && a_class == ZERO)))) begin
+                if (a_class == SIGNALING_NAN || (!square_root && b_class == SIGNALING_NAN)) begin
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
                     causes[4] <= 1'b1;
-                end else if (a_class == QUIET_NAN || b_class == QUIET_NAN)
+                end else if (a_class == QUIET_NAN || (!square_root && b_class == QUIET_NAN))
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
-                else if (a_class == SUBNORMAL || b_class == SUBNORMAL)
+                else if (square_root) begin
+                    if (a_sign && a_class != ZERO) begin
+                        value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
+                        causes[4] <= 1'b1;
+                    end else if (a_class == SUBNORMAL)
+                        causes[5] <= 1'b1;
+                    else if (a_class == NORMAL)
+                        state <= ROOT_PREP;
+                    else
+                        value <= pack(a_sign, a_exponent, 52'b0);
+                end else if ((!(multiply || divide) && a_class == INFINITY &&
+                              b_class == INFINITY && a_sign != b_sign) ||
+                             (multiply && ((a_class == INFINITY && b_class == ZERO) ||
+                                           (b_class == INFINITY && a_class == ZERO))) ||
+                             (divide && a_class == b_class && (a_class inside {ZERO, INFINITY}))) begin
+                    value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
+                    causes[4] <= 1'b1;
+                end else if (a_class == SUBNORMAL || b_class == SUBNORMAL)
                     causes[5] <= 1'b1;
-                else if (a_class == INFINITY || b_class == INFINITY)
+                else if (divide) begin
+                    if (a_class == INFINITY)
+                        value <= pack(a_sign ^ b_sign, max_exponent, 52'b0);
+                    else if (b_class == ZERO) begin
+                        value <= pack(a_sign ^ b_sign, max_exponent, 52'b0);
+                        causes[3] <= 1'b1;
+                    end else if (a_class == ZERO || b_class == INFINITY)
+                        value <= pack(a_sign ^ b_sign, 11'b0, 52'b0);
+                    else
+                        state <= DIVIDE_PREP;
+                end else if (a_class == INFINITY || b_class == INFINITY)
                     value <= pack(multiply ? a_sign ^ b_sign : a_class == INFINITY ? a_sign : b_sign,
                                   max_exponent, 52'b0);
                 else if (multiply && (a_class == ZERO || b_class == ZERO))
@@ -195,9 +250,9 @@ module fes_sh4_fp_arithmetic (
             end
             ALIGN_FINE: begin
                 small_sig <= fine_shifted;
-                if (multiply)
+                if (multiply || divide)
                     norm_sig <= fine_shifted;
-                state <= multiply ? ROUND : SUM;
+                state <= multiply || divide ? ROUND : SUM;
             end
             SUM: begin
                 sum <= subtract_magnitude ? {1'b0, large_sig} - {1'b0, small_sig} :
@@ -239,16 +294,49 @@ module fes_sh4_fp_arithmetic (
                 product_result[105:72] <= column_4;
                 state <= PRODUCT_NORMALIZE;
             end
-            PRODUCT_NORMALIZE: begin
-                if (normalized_product_exponent <= 0) begin
+            DIVIDE_PREP: begin
+                negative <= a_sign ^ b_sign;
+                product_exponent <= quotient_exponent;
+                divisor <= b_sig;
+                remainder <= a_sig < b_sig ? {3'b0, a_sig, 1'b0} : {4'b0, a_sig};
+                digit_value <= 0;
+                digits_left <= wide ? 6'd55 : 6'd26;
+                state <= DIGIT_TEST;
+            end
+            ROOT_PREP: begin
+                negative <= 0;
+                product_exponent <= $signed({2'b0, root_biased_exponent});
+                radicand <= a_exponent[0] ? {1'b0, a_sig, 56'b0} : {a_sig, 57'b0};
+                remainder <= 0;
+                digit_value <= 0;
+                digits_left <= wide ? 6'd55 : 6'd26;
+                state <= DIGIT_TEST;
+            end
+            DIGIT_TEST: begin
+                trial_difference <= {1'b0, trial_dividend} - {1'b0, trial_subtrahend};
+                trial_original <= trial_dividend;
+                state <= DIGIT_NEXT;
+            end
+            DIGIT_NEXT: begin
+                digit_value <= {digit_value[53:0], digit};
+                if (square_root) begin
+                    remainder <= digit_remainder;
+                    radicand <= {radicand[107:0], 2'b0};
+                end else
+                    remainder <= {digit_remainder[55:0], 1'b0};
+                digits_left <= digits_left - 6'd1;
+                state <= digits_left == 6'd1 ? DIGIT_RESULT : DIGIT_TEST;
+            end
+            DIGIT_RESULT, PRODUCT_NORMALIZE: begin
+                if (unrounded_exponent <= 0) begin
                     exp_result <= 11'd1;
-                    distance <= denormal_shift >= 13'd56 ? 6'd56 : denormal_shift[5:0];
-                    small_sig <= product_significand;
+                    distance <= tiny_shift >= 13'd56 ? 6'd56 : tiny_shift[5:0];
+                    small_sig <= multiply ? product_significand : digit_significand;
                     state <= ALIGN_COARSE;
                 end else begin
-                    exp_result <= normalized_product_exponent >= $signed({2'b0, max_exponent}) ?
-                                  max_exponent : normalized_product_exponent[10:0];
-                    norm_sig <= product_significand;
+                    exp_result <= unrounded_exponent >= $signed({2'b0, max_exponent}) ?
+                                  max_exponent : unrounded_exponent[10:0];
+                    norm_sig <= multiply ? product_significand : digit_significand;
                     state <= ROUND;
                 end
             end
