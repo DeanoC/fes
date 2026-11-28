@@ -7,6 +7,7 @@ module fes_sh4_mmu (
     output logic        ready,
     input  logic        instruction,
     input  logic        array_access,
+    input  logic        tag_probe,
     input  logic        write,
     input  logic        quiet,
     input  logic        supervisor,
@@ -57,7 +58,7 @@ module fes_sh4_mmu (
     logic array_active, associative, indexed, unified, data_array, data_array_two, array_valid;
     logic [5:0] uindex;
     logic [1:0] iindex;
-    logic fetch, store, privileged, suppress_fault_state;
+    logic fetch, store, privileged, suppress_fault_state, probing;
     logic [7:0] group_hit, group_multi;
     entry_t group_entry [0:7];
     entry_t ientry, uentry, selected;
@@ -126,7 +127,7 @@ module fes_sh4_mmu (
     assign iindex = va[9:8];
     assign response = state == RESPOND;
     assign ihit = fetch && |imatch;
-    assign result_fault = multiple ? MULTIPLE : !found ? MISS :
+    assign result_fault = multiple ? MULTIPLE : !found ? MISS : probing ? 4'b0 :
                           (!privileged && !selected.prot[1]) ||
                           (store && !selected.prot[0]) ? PROTECTION :
                           store && !selected.dirty ? INITIAL_WRITE : 4'b0;
@@ -203,6 +204,7 @@ module fes_sh4_mmu (
                         array_valid <= virtual_addr[26] ? utlb_valid[virtual_addr[13:8]] :
                                                         itlb_valid[virtual_addr[9:8]];
                         fetch <= instruction;
+                        probing <= tag_probe;
                         store <= write;
                         suppress_fault_state <= quiet;
                         privileged <= supervisor;
@@ -222,11 +224,11 @@ module fes_sh4_mmu (
                 end
                 GROUP: state <= SELECT;
                 SELECT: begin
-                    use_utlb <= !ihit;
+                    use_utlb <= !ihit && !(probing && fetch);
                     selected <= ihit || (indexed && !unified) ? ientry : uentry;
                     selected_way <= ihit ? iway : victim;
-                    found <= ihit || |group_hit;
-                    multiple <= ihit ? |(imatch & (imatch - 4'd1)) :
+                    found <= ihit || (!(probing && fetch) && |group_hit);
+                    multiple <= (ihit || (probing && fetch)) ? |(imatch & (imatch - 4'd1)) :
                                 |group_multi || |(group_hit & (group_hit - 8'd1));
                     state <= array_active ? ARRAY_RESULT : RESULT;
                 end
@@ -240,11 +242,11 @@ module fes_sh4_mmu (
                     fault <= result_fault;
                     if (use_utlb)
                         urc <= urb != 0 && urc + 6'd1 == urb ? 6'd0 : urc + 6'd1;
-                    if (result_fault != 0 && !suppress_fault_state) begin
+                    if (result_fault != 0 && (!suppress_fault_state || (probing && multiple))) begin
                         tea <= va;
                         pteh_vpn <= va[31:10];
                     end
-                    if (fetch && found && !multiple) begin
+                    if (fetch && found && !multiple && !probing) begin
                         lrui <= touch(lrui, selected_way);
                         if (use_utlb) begin
                             itlb[selected_way] <= selected;

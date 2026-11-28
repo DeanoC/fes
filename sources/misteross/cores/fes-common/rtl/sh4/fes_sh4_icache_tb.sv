@@ -7,7 +7,12 @@ module fes_sh4_icache_tb(input logic clk, output logic done);
     logic [31:0] lookup_pc, read_addr, response_data;
     logic [15:0] instruction;
 
+    logic unused_array_ready, unused_array_complete;
+    logic [31:0] unused_array_rdata;
     fes_sh4_icache dut (
+        .lookup_index(lookup_pc[12:5]), .array_request(1'b0), .array_data(1'b0), .array_assoc(1'b0),
+        .array_write(1'b0), .array_address(11'b0), .array_wdata(32'b0),
+        .array_ready(unused_array_ready), .array_complete(unused_array_complete), .array_rdata(unused_array_rdata),
         .invalidate_all(1'b0),
         .clk, .reset, .flush, .invalidate(1'b0), .invalidate_index(8'b0),
         .lookup, .lookup_pc, .cacheable(1'b1), .instruction_valid, .instruction, .consume,

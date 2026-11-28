@@ -85,6 +85,10 @@ module fes_sh4 #(
     logic [31:0] wb_value, next_pc, link_value, writeback_base;
     logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
     logic [31:2] data_addr;
+    logic [13:2] data_index;
+    logic cache_array, ic_array, cache_data_array, cache_assoc, ic_array_active, cache_array_barrier;
+    logic ic_array_ready, ic_array_complete;
+    logic [31:0] ic_array_rdata;
     logic [31:0] data_wdata;
     logic [3:0] data_wstrb, operand_read_mask;
     logic byte_access, byte_writes, ordinary_store, cache_maintenance;
@@ -529,14 +533,14 @@ module fes_sh4 #(
                 fault_address = mac_second_addr;
             end
             DATA_TRANSLATE: if (!plain_prefetch && (bad_data_region ||
-                ((mmu_register || event_register || ccr_register || qacr_register || mmu_array) && size != LONGWORD) ||
+                ((mmu_register || event_register || ccr_register || qacr_register || mmu_array || cache_array) && size != LONGWORD) ||
                 (sq_region && (!sq_store && op != PREF || (!mmu_enabled && !supervisor && sqmd))))) begin
                 exception_cause = ADDRESS_ERROR;
                 address_exception = 1'b1;
                 fault_address = {data_addr, data_addr_lane};
             end
             DATA_TLB_WAIT: if (mmu_response && !plain_prefetch) begin
-                exception_cause = mmu_fault;
+                exception_cause = cache_assoc && mmu_fault != TLB_MULTIPLE ? 4'b0 : mmu_fault;
                 if (sq_region && mmu_fault == 0 && !supervisor && sqmd) begin
                     exception_cause = ADDRESS_ERROR;
                     address_exception = 1'b1;
@@ -585,9 +589,9 @@ module fes_sh4 #(
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
     assign data_mapped = mmu_enabled && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
     assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
-    assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region &&
+    assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region && !ic_array_active &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
-    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write ||
+    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write || cache_array_barrier ||
                          privilege_write || exception_cause != 0 || take_interrupt ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
     assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !take_interrupt) ||
@@ -598,6 +602,12 @@ module fes_sh4 #(
     assign mmu_register_index = data_addr[5:2];
     assign mmu_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                           (mmu_register_index inside {4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd13});
+    assign cache_array = data_addr[31:24] inside {8'hf0, 8'hf1, 8'hf4, 8'hf5};
+    assign ic_array = cache_array && !data_addr[26];
+    assign cache_data_array = data_addr[24];
+    assign cache_assoc = cache_array && !cache_data_array && data_addr[3] && is_store;
+    assign ic_array_active = ic_array && (stage inside {DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT});
+    assign cache_array_barrier = stage == DATA_TRANSLATE && ic_array && !plain_prefetch;
     assign mmu_array = data_addr[31:24] inside {8'hf2, 8'hf3, 8'hf6, 8'hf7};
     assign mmu_array_write = stage == DATA_TLB_WAIT && mmu_response && mmu_array && is_store;
     assign qacr_register = data_addr[31:3] == 29'h1fe0_0007;
@@ -609,16 +619,19 @@ module fes_sh4 #(
     assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
                            size == LONGWORD && is_store;
     assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region &&
-                          (mmu_array ? size == LONGWORD : data_mapped) &&
+                          ((mmu_array || (cache_assoc && mmu_enabled)) ? size == LONGWORD : data_mapped) &&
                           (!plain_prefetch || oc_enable) && (!sq_region || sq_store || op == PREF)) ||
                          (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt &&
                           !bad_fetch_region && !fetch_pc[0]);
-    assign mmu_va = stage == DATA_TRANSLATE ? {data_addr, data_addr_lane} : fetch_pc;
+    assign mmu_va = stage != DATA_TRANSLATE ? fetch_pc :
+                    cache_assoc ? {data_wdata[31:10], 10'b0} : {data_addr, data_addr_lane};
 
     fes_sh4_mmu mmu (
         .clk, .reset, .request(mmu_request), .ready(mmu_ready),
-        .instruction(stage == ISSUE), .array_access(stage == DATA_TRANSLATE && mmu_array), .write(stage == DATA_TRANSLATE && is_store),
-        .quiet(stage == DATA_TRANSLATE && plain_prefetch), .sqmd,
+        .instruction(stage == ISSUE || (stage == DATA_TRANSLATE && cache_assoc && ic_array)),
+        .array_access(stage == DATA_TRANSLATE && mmu_array), .tag_probe(stage == DATA_TRANSLATE && cache_assoc),
+        .write(stage == DATA_TRANSLATE && is_store),
+        .quiet(stage == DATA_TRANSLATE && (plain_prefetch || cache_assoc)), .sqmd,
         .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
         .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
         .cacheable(mmu_cacheable), .write_through(mmu_write_through), .fault(mmu_fault), .enabled(mmu_enabled),
@@ -629,15 +642,20 @@ module fes_sh4 #(
     fes_sh4_icache icache (
         .clk, .reset, .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
         .invalidate(store_accepted), .invalidate_index(mem_addr[12:5]),
-        .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .cacheable(fetch_cacheable),
+        .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .lookup_index(fetch_pc[12:5]),
+        .array_request(stage == DATA_REQ && ic_array), .array_data(cache_data_array),
+        .array_assoc(cache_assoc), .array_write(is_store), .array_address(data_index[12:2]),
+        .array_wdata(data_wdata), .array_ready(ic_array_ready), .array_complete(ic_array_complete),
+        .array_rdata(ic_array_rdata), .cacheable(fetch_cacheable),
         .instruction_valid(fetch_valid), .instruction(fetch_instruction), .consume(fetch_consume),
         .read_valid(fetch_read), .read_addr(fetch_read_addr), .read_ready(fetch_read_ready),
         .response_valid(fetch_response), .response_data(mem_rdata)
     );
 
     fes_sh4_dcache dcache (
-        .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ), .ready(data_ready),
-        .address(data_addr), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
+        .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ && !ic_array), .ready(data_ready),
+        .address(data_addr), .index(data_index),
+        .array_access(cache_array), .array_data(cache_data_array), .array_assoc(cache_assoc), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
         .purge_before_read(op == TAS), .maintenance(cache_command), .allocate_without_read(op == MOVCA),
         .wstrb(data_wstrb), .wdata(data_wdata),
         .complete(data_complete), .rdata(data_read_word),
@@ -843,6 +861,7 @@ module fes_sh4 #(
                     mac_second <= 1'b0;
                     if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance || op == PREF) begin
                         data_addr <= effective_addr[31:2];
+                        data_index <= effective_addr[13:2];
                         data_addr_lane <= effective_addr[1:0];
                         data_wdata <= store_value << {effective_addr[1:0], 3'b000};
                         case (size)
@@ -873,6 +892,7 @@ module fes_sh4 #(
                     if (!mac_second) begin
                         a <= wb_value;
                         {data_addr, data_addr_lane} <= mac_second_addr;
+                        data_index <= mac_second_addr[13:2];
                         offset <= mac_second_addr + (32'd1 << size);
                         mac_second <= 1'b1;
                         stage <= DATA_TRANSLATE;
@@ -900,6 +920,11 @@ module fes_sh4 #(
                     if (plain_prefetch && (!oc_enable || bad_data_region ||
                                           (data_addr[31:29] inside {3'b101, 3'b111}))) begin
                         stage <= COMMIT;
+                    end else if (cache_array) begin
+                        if (!cache_assoc || !mmu_enabled)
+                            stage <= DATA_REQ;
+                        else if (mmu_ready)
+                            stage <= DATA_TLB_WAIT;
                     end else if (qacr_register) begin
                         if (ordinary_store)
                             qacr[data_addr[2]] <= data_wdata[4:2];
@@ -933,7 +958,13 @@ module fes_sh4 #(
                     end
                 end
                 DATA_TLB_WAIT: if (mmu_response) begin
-                    if (mmu_array) begin
+                    if (cache_assoc) begin
+                        if (mmu_fault == 0) begin
+                            data_wdata[28:10] <= mmu_pa[28:10];
+                            stage <= DATA_REQ;
+                        end else
+                            stage <= COMMIT;
+                    end else if (mmu_array) begin
                         wb_gpr <= op == LOAD && load_gpr;
                         wb_value <= mmu_array_rdata;
                         stage <= COMMIT;
@@ -967,12 +998,12 @@ module fes_sh4 #(
                     sq_word_index <= sq_word_index + 3'd1;
                     stage <= sq_word_index == 3'd7 ? COMMIT : SQ_WORD;
                 end
-                DATA_REQ: if (data_ready)
+                DATA_REQ: if (ic_array ? ic_array_ready : data_ready)
                     stage <= DATA_WAIT;
-                DATA_WAIT: if (data_complete) begin
+                DATA_WAIT: if (ic_array ? ic_array_complete : data_complete) begin
                     if (op == LOAD || op == MAC || (byte_access && data_wstrb == 0)) begin
                         wb_gpr <= op == LOAD && load_gpr;
-                        wb_value <= load_value;
+                        wb_value <= ic_array ? ic_array_rdata : load_value;
                     end
                     stage <= op == MAC ? MAC_READ :
                              byte_access && data_wstrb == 0 ? BYTE_MODIFY : COMMIT;

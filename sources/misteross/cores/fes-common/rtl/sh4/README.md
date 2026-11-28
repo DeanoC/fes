@@ -51,8 +51,8 @@ single-virtual mode, permissions, the dirty bit and cacheability.
 Longword accesses to the P4 control registers at `0xff000000` through
 `0xff000010` and `0xff000034` expose PTEH, PTEL, TTB, TEA, MMUCR and PTEA.
 `LDTLB` installs an entry at MMUCR.URC and MMUCR.TI clears both TLBs. P0/U0
-and P3 translate when MMUCR.AT is set. Translated accesses use physical cache
-addresses and the entry's C bit. Translated instruction lookups wait for the
+and P3 translate when MMUCR.AT is set. The caches use virtual indexes,
+physical tags, and the entry's C bit. Translated instruction lookups wait for the
 architectural fetch PC to avoid speculative TLB changes. Direct-address
 fetches still overlap execution.
 
@@ -87,6 +87,19 @@ defines instruction encodings and behavior. The implemented slice includes:
 - LDTLB, TRAPA, RTE, SLEEP, and register and stack forms of LDC/STC for SR,
   GBR, VBR, SSR, SPC, DBR and the inactive R0–R7 bank. STC also reads and
   stacks SGR. STS/LDS support PR register and stack transfers.
+
+## Cache arrays
+
+Privileged longword accesses can read and write instruction cache tags
+and words at `0xf0000000` and `0xf1000000`, and operand cache tags and
+words at `0xf4000000` and `0xf5000000`. Indexed tag writes set the physical
+tag and valid bit, plus the dirty bit for the operand cache. An operand
+retag writes back a valid dirty victim before replacing the tag.
+Associative writes leave a mismatched or invalid line alone. With
+translation enabled they compare the supplied virtual tag through the
+ITLB for instructions or UTLB for operands. Translation misses leave
+the line intact. Software is responsible for maintaining coherence
+between distinct virtual indexes that alias the same physical address.
 
 ## Prefetch and store queues
 
@@ -139,7 +152,7 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 FPU, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, cache arrays, area-7 MMU register aliases, board
+arbitration and peripherals, standby power controls, cache index and RAM modes, area-7 MMU register aliases, board
 buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -220,7 +233,9 @@ privilege and initial-write faults, and PREF misses both inside and outside
 the queue window. TLB array tests cover indexed data and attributes, ITLB
 refill, associative invalidation and refresh, ASID matching, and multiple
 matches. A guest also enables translation using mappings installed through
-the P4 arrays.
+the P4 arrays. Cache-array regressions exercise injected instruction
+words, associative invalidation, translated operand tags, and dirty
+write-back on an operand retag.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

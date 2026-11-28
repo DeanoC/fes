@@ -5,7 +5,7 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
     logic [31:0] virtual_addr, physical_addr, reg_wdata, reg_rdata;
 
     logic unused_write_through, unused_sqmd;
-    logic array_access = 0;
+    logic array_access = 0, tag_probe = 0;
     logic [31:0] array_rdata;
     fes_sh4_mmu dut (.write_through(unused_write_through), .sqmd(unused_sqmd), .quiet(1'b0), .address_exception(1'b0), .fault_address(32'b0), .*);
 
@@ -172,6 +172,14 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
         array_transfer('hf600_0800, 'h4000_0307, 0, 0);
         array_transfer('hf600_3d00, 'h4000_0307, 0, 0);
 
+        install(12, 'h3000_0000, 'h0000_3000, 7, 9'h168);
+        tag_probe = 1;
+        translate('h3000_0010, 0, 1, 0, 1, 0, 5); // IC probe uses ITLB only.
+        translate('h3000_0010, 'h0000_3010, 0, 1, 1, 1, 0); // OC probe ignores dirty bit.
+        tag_probe = 0;
+        translate('h3000_0010, 'h0000_3010, 1, 0, 1, 1, 0); // Architectural fetch fills ITLB.
+        tag_probe = 1;
+        translate('h3000_0010, 'h0000_3010, 1, 0, 1, 1, 0);
         done = 1;
     end
 endmodule

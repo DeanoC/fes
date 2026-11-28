@@ -1175,6 +1175,11 @@ module fes_sh4_tb;
         emit('h28, 'h2122); // MMUCR.AT
         literal('h2a, 7, 'ha8);
         emit('h2c, 'h6c72);
+        literal('h2e, 1, 'hac);
+        emit('h30, 'h6d12); // Read the OC tag at the virtual cache index.
+        literal('h32, 2, 'hb0);
+        emit('h34, 'h1122); // Associative clear using virtual VA 0x400
+        emit('h36, 'h6e12);
         image['h80 >> 2] = 'hf600_0000;
         image['h84 >> 2] = 'h100;
         image['h88 >> 2] = 'hf700_0000;
@@ -1186,12 +1191,97 @@ module fes_sh4_tb;
         image['ha0 >> 2] = 'hf780_0100;
         image['ha4 >> 2] = 'hff00_0010;
         image['ha8 >> 2] = 'h410;
+        image['hac >> 2] = 'hf400_0400;
+        image['hb0 >> 2] = 'h400;
         image['h1010 >> 2] = 'hca5e_0010;
         start_bus();
-        expect_stop(1, 'h2e);
+        expect_stop(1, 'h38);
         assert (dut.gpr[8] == 'h500 && dut.gpr[9] == 'h116d && dut.gpr[10] == 'hf &&
-                dut.gpr[12] == 'hca5e_0010)
+                dut.gpr[12] == 'hca5e_0010 && dut.gpr[13] == 'h1001 && dut.gpr[14] == 'h1000)
             else $fatal(1, "Guest TLB array values did not configure instruction and data translation");
+
+        // Write executable data to the instruction cache. The first
+        // call hits the injected line, and the second reads external RAM
+        // after an associative invalidation.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // IC data word 0
+        emit('h06, 'h6812); // Read injected data back
+        emit('h08, 'he209);
+        emit('h0a, 'h1121); // IC data word 1 supplies the RTS delay slot
+        literal('h0c, 1, 'h88);
+        emit('h0e, 'he201);
+        emit('h10, 'h2122); // IC tag valid, PA in the first 1 KiB
+        literal('h12, 2, 'h8c);
+        emit('h14, 'h1122); // Associative miss must preserve validity
+        emit('h16, 'h6a12);
+        literal('h18, 6, 'h90);
+        emit('h1a, 'h460b); // JSR @R6
+        emit('h1c, 'h0009);
+        emit('h1e, 'h6b93);
+        emit('h20, 'he200);
+        emit('h22, 'h1122); // Associative invalidate of the correct IC tag
+        emit('h24, 'h6d12);
+        emit('h26, 'h460b);
+        emit('h28, 'h0009);
+        image['h80 >> 2] = 'hf100_0200;
+        image['h84 >> 2] = 'h000b_e94d;
+        image['h88 >> 2] = 'hf000_0200;
+        image['h8c >> 2] = 'h400;
+        image['h90 >> 2] = 'h200;
+        image['h200 >> 2] = 'h000b_e92b;
+        emit('h204, 'h0009);
+        start_bus();
+        expect_stop(1, 'h2a);
+        assert (dut.gpr[8] == 'h000b_e94d && dut.gpr[10] == 1 && dut.gpr[11] == 'h4d &&
+                dut.gpr[13] == 0 && dut.gpr[9] == 'h2b && resident_reads == 8)
+            else $fatal(1, "IC array write, associative invalidate, or execution was incorrect");
+
+        // A tag write must write back a valid dirty OC victim before
+        // retagging it. An associative miss must leave both data and U/V alone.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 5, 'h80);
+        emit('h02, 'h6852); // Fill the line, so every victim word is initialized
+        literal('h04, 1, 'h84);
+        literal('h06, 2, 'h88);
+        emit('h08, 'h2122); // Replace OC data word 1
+        emit('h0a, 'h6912);
+        literal('h0c, 4, 'h8c);
+        emit('h0e, 'he203);
+        emit('h10, 'h2422); // Set V and U in address array
+        emit('h12, 'h6a42);
+        literal('h14, 2, 'h90);
+        emit('h16, 'h1422); // Associative miss
+        emit('h18, 'he201);
+        emit('h1a, 'h1422); // Clean and preserve the tag using association
+        emit('h1c, 'h6b42);
+        emit('h1e, 'he203);
+        emit('h20, 'h2422); // Mark resident line dirty again
+        literal('h22, 2, 'h94);
+        emit('h24, 'h2122);
+        literal('h26, 2, 'h90);
+        emit('h28, 'h2422); // Indexed retag, writing back old line
+        emit('h2a, 'h6c42);
+        image['h80 >> 2] = 'h204;
+        image['h84 >> 2] = 'hf500_0204;
+        image['h88 >> 2] = 'h6789_abcd;
+        image['h8c >> 2] = 'hf400_0200;
+        image['h90 >> 2] = 'h400;
+        image['h94 >> 2] = 'h89ab_cdef;
+        image['h204 >> 2] = 'h1234_5678;
+        start_bus();
+        wait (retired && retired_pc == 'h16);
+        assert (resident_writes == 0 && ext_mem['h204 >> 2] == 'h1234_5678)
+            else $fatal(1, "OC associative mismatch wrote memory");
+        wait (retired && retired_pc == 'h1c);
+        assert (resident_writes == 8 && ext_mem['h204 >> 2] == 'h6789_abcd)
+            else $fatal(1, "OC associative clean did not preserve the dirty data");
+        expect_stop(1, 'h2c);
+        assert (dut.gpr[8] == 'h1234_5678 && dut.gpr[9] == 'h6789_abcd &&
+                dut.gpr[10] == 3 && dut.gpr[11] == 1 && dut.gpr[12] == 'h400 &&
+                resident_writes == 16 && ext_mem['h204 >> 2] == 'h89ab_cdef)
+            else $fatal(1, "OC array data or dirty victim retagging was incorrect");
 
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
@@ -1384,12 +1474,12 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues and TLB arrays");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays and cache arrays");
         $finish;
     end
 
     initial begin
-        #250000;
+        #300000;
         $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",
                dut.pc, retired_pc, fault, fault_pc);
     end

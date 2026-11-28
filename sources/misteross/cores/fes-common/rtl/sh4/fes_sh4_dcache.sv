@@ -6,6 +6,10 @@ module fes_sh4_dcache (
     input  logic        request,
     output logic        ready,
     input  logic [31:2] address,
+    input  logic [13:2] index,
+    input  logic        array_access,
+    input  logic        array_data,
+    input  logic        array_assoc,
     input  logic        address_cacheable,
     input  logic        address_copyback,
     input  logic        purge_before_read,
@@ -24,16 +28,18 @@ module fes_sh4_dcache (
     input  logic        bus_response,
     input  logic [31:0] bus_rdata
 );
-    typedef enum logic [3:0] {IDLE, CHECK, WB_READ, WB_SEND, REQUEST, REPLY, UPDATE, ALLOCATE, DONE} state_t;
+    typedef enum logic [3:0] {IDLE, CHECK, WB_READ, WB_SEND, REQUEST, REPLY, UPDATE, ALLOCATE, ARRAY_WRITE, DONE} state_t;
 
     state_t state;
     (* ramstyle = "M20K" *) logic [31:0] words [0:4095];
-    (* ramstyle = "M20K" *) logic [17:0] tags [0:511];
+    (* ramstyle = "M20K" *) logic [21:0] tags [0:511];
     logic [511:0] valid_lines, dirty_lines;
     logic [31:2] saved_addr;
+    logic [13:2] saved_index;
+    logic saved_array, saved_data_array, saved_assoc, array_tag_write;
     logic [3:0] saved_wstrb;
     logic [31:0] saved_wdata, word_q;
-    logic [17:0] tag_q;
+    logic [21:0] tag_q;
     logic [2:0] line_word;
     logic lookup, line_valid_q, line_dirty_q, use_cache, copyback, purge, hit, alias_hit, store_hit;
     logic write_access, fills_line, discard_line, write_back;
@@ -47,11 +53,11 @@ module fes_sh4_dcache (
     assign ready = state == IDLE;
     assign complete = state == DONE;
     assign lookup = request && ready;
-    assign hit = line_valid_q && tag_q == saved_addr[31:14];
+    assign hit = line_valid_q && tag_q == saved_addr[31:10];
     // Direct P1/P2 aliases and translated physical addresses can name the same
     // external memory. P4 device addresses retain their full tags.
-    assign alias_hit = hit || (line_valid_q && tag_q[17:15] != 3'b111 &&
-                               saved_addr[31:29] != 3'b111 && tag_q[14:0] == saved_addr[28:14]);
+    assign alias_hit = hit || (line_valid_q && tag_q[21:19] != 3'b111 &&
+                               saved_addr[31:29] != 3'b111 && tag_q[18:0] == saved_addr[28:10]);
     assign write_access = saved_wstrb != 0;
     assign fills_line = use_cache && (!write_access || copyback);
     assign discard_line = !hit && fills_line ||
@@ -66,7 +72,7 @@ module fes_sh4_dcache (
 
     assign bus_writeback = state == WB_SEND;
     assign bus_request = state == REQUEST || bus_writeback;
-    assign bus_address = bus_writeback ? {tag_q, saved_addr[13:5], line_word, 2'b00} :
+    assign bus_address = bus_writeback ? {tag_q, saved_addr[9:5], line_word, 2'b00} :
                          fills_line ? {saved_addr[31:5], line_word, 2'b00} : {saved_addr, 2'b00};
     assign bus_wstrb = bus_writeback ? 4'b1111 : fills_line ? 4'b0 : saved_wstrb;
     assign bus_wdata = bus_writeback ? word_q : saved_wdata;
@@ -74,30 +80,31 @@ module fes_sh4_dcache (
     assign refill = state == REPLY && bus_response && fills_line;
     assign last_refill = refill && line_word == 3'd7;
     assign store_complete = state == REQUEST && bus_ready && write_access && !fills_line;
-    assign ram_read_addr = state == WB_READ ? {saved_addr[13:5], line_word} : address[13:2];
-    assign ram_write_addr = refill || allocate_word ? {saved_addr[13:5], line_word} : saved_addr[13:2];
+    assign array_tag_write = state == ARRAY_WRITE && !saved_data_array && !saved_assoc;
+    assign ram_read_addr = state == WB_READ ? {saved_index[13:5], line_word} : index;
+    assign ram_write_addr = refill || allocate_word ? {saved_index[13:5], line_word} : saved_index;
     // Initialize undefined words on MOVCA allocation so a dirty line never
     // writes words left over from an unrelated physical address.
     assign ram_write_data = refill ? bus_rdata :
                             allocate_word && line_word != saved_addr[4:2] ? 32'b0 : saved_wdata;
-    assign ram_write_mask = refill || allocate_word ? 4'b1111 :
+    assign ram_write_mask = refill || allocate_word || (state == ARRAY_WRITE && saved_data_array) ? 4'b1111 :
                             (state == UPDATE || (store_complete && store_hit)) ? saved_wstrb : 4'b0000;
 
     always_ff @(posedge clk) begin
         if (lookup || state == WB_READ)
             word_q <= words[ram_read_addr];
         if (lookup) begin
-            tag_q <= tags[address[13:5]];
-            line_valid_q <= valid_lines[address[13:5]];
-            line_dirty_q <= dirty_lines[address[13:5]];
+            tag_q <= tags[index[13:5]];
+            line_valid_q <= valid_lines[index[13:5]];
+            line_dirty_q <= dirty_lines[index[13:5]];
         end
 
         for (int lane = 0; lane < 4; lane++) begin
             if (ram_write_mask[lane])
                 words[ram_write_addr][8*lane +: 8] <= ram_write_data[8*lane +: 8];
         end
-        if (last_refill || last_allocate)
-            tags[saved_addr[13:5]] <= saved_addr[31:14];
+        if (last_refill || last_allocate || array_tag_write)
+            tags[saved_index[13:5]] <= array_tag_write ? {3'b0, saved_wdata[28:10]} : saved_addr[31:10];
     end
 
     always_ff @(posedge clk) begin
@@ -109,6 +116,10 @@ module fes_sh4_dcache (
             case (state)
                 IDLE: if (request) begin
                     saved_addr <= address;
+                    saved_index <= index;
+                    saved_array <= array_access;
+                    saved_data_array <= array_data;
+                    saved_assoc <= array_assoc;
                     saved_wstrb <= wstrb;
                     saved_wdata <= wdata;
                     use_cache <= address_cacheable;
@@ -121,13 +132,26 @@ module fes_sh4_dcache (
                     state <= CHECK;
                 end
                 CHECK: begin
-                    if (line_maintenance != 0) begin
+                    if (saved_array) begin
+                        if (!write_access) begin
+                            rdata <= saved_data_array ? word_q : {3'b0, tag_q[18:0], 8'b0,
+                                                                 line_dirty_q, line_valid_q};
+                            state <= DONE;
+                        end else if (saved_data_array)
+                            state <= ARRAY_WRITE;
+                        else if (saved_assoc && (!line_valid_q || tag_q[18:0] != saved_wdata[28:10]))
+                            state <= DONE;
+                        else if (line_valid_q && line_dirty_q && (!saved_assoc || saved_wdata[1:0] != 2'b11))
+                            state <= WB_READ;
+                        else
+                            state <= ARRAY_WRITE;
+                    end else if (line_maintenance != 0) begin
                         if (maintenance_hit && line_maintenance[1] && line_dirty_q)
                             state <= WB_READ;
                         else begin
                             if (maintenance_hit && line_maintenance[0]) begin
-                                valid_lines[saved_addr[13:5]] <= 1'b0;
-                                dirty_lines[saved_addr[13:5]] <= 1'b0;
+                                valid_lines[saved_index[13:5]] <= 1'b0;
+                                dirty_lines[saved_index[13:5]] <= 1'b0;
                             end
                             state <= DONE;
                         end
@@ -141,8 +165,8 @@ module fes_sh4_dcache (
                     else begin
                         store_hit <= use_cache && hit;
                         if (discard_line) begin
-                            valid_lines[saved_addr[13:5]] <= 1'b0;
-                            dirty_lines[saved_addr[13:5]] <= 1'b0;
+                            valid_lines[saved_index[13:5]] <= 1'b0;
+                            dirty_lines[saved_index[13:5]] <= 1'b0;
                         end
                         state <= allocate ? ALLOCATE : REQUEST;
                     end
@@ -151,10 +175,12 @@ module fes_sh4_dcache (
                 WB_SEND: if (bus_ready) begin
                     line_word <= line_word + 3'd1;
                     if (line_word == 3'd7) begin
-                        dirty_lines[saved_addr[13:5]] <= 1'b0;
+                        dirty_lines[saved_index[13:5]] <= 1'b0;
                         if (line_maintenance == 0 || line_maintenance[0])
-                            valid_lines[saved_addr[13:5]] <= 1'b0;
-                        if (line_maintenance != 0)
+                            valid_lines[saved_index[13:5]] <= 1'b0;
+                        if (saved_array)
+                            state <= ARRAY_WRITE;
+                        else if (line_maintenance != 0)
                             state <= DONE;
                         else
                             state <= allocate ? ALLOCATE : REQUEST;
@@ -168,7 +194,7 @@ module fes_sh4_dcache (
                         rdata <= bus_rdata;
                     if (!fills_line || last_refill) begin
                         if (last_refill)
-                            valid_lines[saved_addr[13:5]] <= 1'b1;
+                            valid_lines[saved_index[13:5]] <= 1'b1;
                         state <= write_access ? UPDATE : DONE;
                     end else begin
                         line_word <= line_word + 3'd1;
@@ -176,16 +202,23 @@ module fes_sh4_dcache (
                     end
                 end
                 UPDATE: begin
-                    dirty_lines[saved_addr[13:5]] <= 1'b1;
+                    dirty_lines[saved_index[13:5]] <= 1'b1;
                     state <= DONE;
                 end
                 ALLOCATE: begin
                     line_word <= line_word + 3'd1;
                     if (last_allocate) begin
-                        valid_lines[saved_addr[13:5]] <= 1'b1;
-                        dirty_lines[saved_addr[13:5]] <= 1'b1;
+                        valid_lines[saved_index[13:5]] <= 1'b1;
+                        dirty_lines[saved_index[13:5]] <= 1'b1;
                         state <= DONE;
                     end
+                end
+                ARRAY_WRITE: begin
+                    if (!saved_data_array) begin
+                        valid_lines[saved_index[13:5]] <= saved_wdata[0];
+                        dirty_lines[saved_index[13:5]] <= saved_wdata[1];
+                    end
+                    state <= DONE;
                 end
                 DONE: state <= IDLE;
                 default: state <= IDLE;
