@@ -47,6 +47,13 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	if err != nil {
 		return err
 	}
+	if bt := startLinuxBluetooth(ctx, opts); bt != nil {
+		if err := app.SetBluetooth(bt); err != nil {
+			bt.Close()
+			return err
+		}
+		defer bt.Close()
+	}
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		app.SetMenuDisplay(display)
 		if !opts.Smoke {

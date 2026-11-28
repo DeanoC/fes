@@ -100,6 +100,31 @@ func oneControllerUUID(id string) bool {
 	return strings.EqualFold(id, hidUUID) || strings.EqualFold(id, hogUUID)
 }
 
+func controllerKindLabel(dev devInfo) string {
+	_, rest, ok := strings.Cut(strings.ToLower(dev.Modalias), ":v")
+	if ok && len(rest) >= 4 {
+		switch rest[:4] {
+		case "054c":
+			return "PlayStation"
+		case "045e":
+			return "Xbox"
+		case "057e":
+			return "Nintendo"
+		}
+	}
+	lower := strings.ToLower(dev.Name)
+	switch {
+	case strings.Contains(lower, "dualsense"), strings.Contains(lower, "dualshock"), strings.Contains(lower, "playstation"):
+		return "PlayStation"
+	case strings.Contains(lower, "xbox"):
+		return "Xbox"
+	case strings.Contains(lower, "pro controller"), strings.Contains(lower, "joy-con"), strings.Contains(lower, "nintendo"):
+		return "Nintendo"
+	default:
+		return "Gamepad"
+	}
+}
+
 func decide(dev devInfo) action {
 	if !isGamepad(dev) || dev.Connected {
 		return actionIgnore

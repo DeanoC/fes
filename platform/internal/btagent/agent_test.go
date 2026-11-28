@@ -8,19 +8,39 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
+func tempSocketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "btagent-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "s.sock")
+}
+
 func TestRunRecoversStaleBondReconnectsWithoutRePairAndRestoresAfterBlueZRestart(t *testing.T) {
 	client, server := net.Pipe()
+	sock := tempSocketPath(t)
+	ctrl, err := ListenControl(sock)
+	if err != nil {
+		t.Fatalf("ListenControl: %v", err)
+	}
+	defer ctrl.Close()
+
 	errc := make(chan error, 1)
-	go func() { errc <- fakeBlueZ(server) }()
+	go func() { errc <- fakeBlueZ(server, ctrl) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	runErr := Run(ctx, client)
+	runErr := RunWithControl(ctx, client, ctrl)
 	peerErr := <-errc
 	if peerErr != nil {
 		t.Fatal(peerErr)
@@ -57,9 +77,13 @@ func TestAdapterNeedsSetupOnlyForUndesiredProperties(t *testing.T) {
 		"discoverable":         {"Discoverable": true},
 		"discovery stopped":    {"Discovering": false},
 	} {
-		want := name == "powered off" || name == "pairable" || name == "discoverable" || name == "discovery stopped"
-		if got := adapterNeedsSetup(props); got != want {
-			t.Errorf("%s: adapterNeedsSetup() = %v, want %v", name, got, want)
+		wantPairing := name == "powered off" || name == "pairable" || name == "discoverable" || name == "discovery stopped"
+		if got := adapterNeedsSetup(props, true); got != wantPairing {
+			t.Errorf("%s (pairingActive=true): adapterNeedsSetup() = %v, want %v", name, got, wantPairing)
+		}
+		wantIdle := name == "powered off" || name == "pairable" || name == "discoverable" || name == "discovering"
+		if got := adapterNeedsSetup(props, false); got != wantIdle {
+			t.Errorf("%s (pairingActive=false): adapterNeedsSetup() = %v, want %v", name, got, wantIdle)
 		}
 	}
 }
@@ -68,7 +92,7 @@ func TestBlueZOwnerChangeIsIdempotent(t *testing.T) {
 	a := &agent{
 		bluezOwner:         ":1.2",
 		registeredOwner:    ":1.2",
-		adapters:           map[string]struct{}{"/org/bluez/hci0": {}},
+		adapters:           map[string]adapterInfo{"/org/bluez/hci0": {Path: "/org/bluez/hci0"}},
 		configuredAdapters: map[string]struct{}{"/org/bluez/hci0": {}},
 	}
 	msg := &Message{Member: "NameOwnerChanged", Body: bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")}
@@ -259,7 +283,9 @@ func TestPairTimeoutCancelsBeforeRestoringPairability(t *testing.T) {
 
 			peerErr := make(chan error, 1)
 			go func() { peerErr <- fakePairTimeoutBlueZ(server, tc.cancelFails) }()
-			err := a.pairDeviceWithTimeout(context.Background(), devInfo{Path: gamepadPath}, 100*time.Millisecond)
+			res := a.runPairDevice(context.Background(), bluezDest, devInfo{Path: gamepadPath}, 100*time.Millisecond)
+			a.applyPairOutcome(res)
+			err := res.pairErr
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("Pair error = %v, want client timeout", err)
 			}
@@ -316,6 +342,7 @@ func TestPendingPairingCancellationBlocksPairAttemptsOnAdapter(t *testing.T) {
 			a := &agent{
 				attempts:             newAttempts(),
 				pendingPairingCancel: map[string]struct{}{gamepadPath: {}},
+				pairingUntil:         time.Now().Add(30 * time.Second),
 			}
 
 			// No D-Bus call is expected while cancellation and pairability
@@ -367,14 +394,6 @@ func fakePendingPairingCleanupBlueZ(conn net.Conn) error {
 		return err
 	}
 	if err := respond(discoverable, "Discoverable", false); err != nil {
-		return err
-	}
-	discovery, err := readCall("StartDiscovery")
-	if err != nil || discovery.Path != "/org/bluez/hci0" || discovery.Iface != adapterIface {
-		return fmt.Errorf("StartDiscovery call = %#v (error %v)", discovery, err)
-	}
-	serial++
-	if err := reply(conn, serial, discovery.Serial, "", nil); err != nil {
 		return err
 	}
 	cancel, err := readCall("CancelPairing")
@@ -476,7 +495,7 @@ func fakePairTimeoutBlueZ(conn net.Conn, cancelFails bool) error {
 	return replyVoid(setOff)
 }
 
-func fakeBlueZ(conn net.Conn) error {
+func fakeBlueZ(conn net.Conn, ctrl *ControlServer) error {
 	defer conn.Close()
 	r := bufio.NewReader(conn)
 	line, err := r.ReadString('\n')
@@ -524,6 +543,16 @@ func fakeBlueZ(conn net.Conn) error {
 			return nil, err
 		}
 		return readMessage(r)
+	}
+	postStartPairing := func() {
+		tr := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", ctrl.socketPath)
+		}}
+		defer tr.CloseIdleConnections()
+		resp, err := (&http.Client{Transport: tr, Timeout: 2 * time.Second}).Post("http://fes-bluetooth/pairing/start", "application/json", strings.NewReader(`{"duration_ms":30000}`))
+		if err == nil {
+			_ = resp.Body.Close()
+		}
 	}
 	for {
 		msg, err := readMessage(r)
@@ -617,6 +646,33 @@ func fakeBlueZ(conn net.Conn) error {
 					if values[2] != false {
 						return errors.New("adapter remains discoverable")
 					}
+					if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+						return err
+					}
+					// After idle setup on owner :1.1, announce an existing stale-bonded
+					// pad so Connect fails with Key missing -> RemoveDevice without
+					// starting discovery while idle. After BlueZ owner :1.2 takes over,
+					// verify setup counts and end cleanly.
+					if discoverableSets == 1 && !bonded && !devicePresent {
+						signal := &Message{
+							Type:      msgSignal,
+							Serial:    next(),
+							Path:      "/",
+							Iface:     objectsIface,
+							Member:    "InterfacesAdded",
+							Signature: "oa{sa{sv}}",
+						}
+						bonded, devicePresent, paired = true, true, true
+						if err := writeMessage(conn, signal, encodeDeviceAddedState(gamepadPath, true)); err != nil {
+							return err
+						}
+					} else if discoverableSets == 3 {
+						if registerCount != 2 || poweredSets != 3 || pairableSets != 6 || discoverableSets != 3 {
+							return fmt.Errorf("BlueZ restart setup counts: register=%d powered=%d pairable=%d discoverable=%d", registerCount, poweredSets, pairableSets, discoverableSets)
+						}
+						return nil
+					}
+					continue
 				}
 			case deviceIface:
 				if values[1] == "Trusted" && values[2] != true {
@@ -642,27 +698,7 @@ func fakeBlueZ(conn net.Conn) error {
 				return err
 			}
 			startDiscoveryCount++
-			if startDiscoveryCount == 2 {
-				if registerCount != 2 || poweredSets != 2 || pairableSets != 5 || discoverableSets != 2 {
-					return fmt.Errorf("BlueZ restart setup counts: register=%d powered=%d pairable=%d discoverable=%d", registerCount, poweredSets, pairableSets, discoverableSets)
-				}
-				if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {
-					return err
-				}
-				return nil
-			}
-			signal := &Message{
-				Type:      msgSignal,
-				Serial:    next(),
-				Path:      "/",
-				Iface:     objectsIface,
-				Member:    "InterfacesAdded",
-				Signature: "oa{sa{sv}}",
-			}
-			bonded, devicePresent, paired = true, true, true
-			if err := writeMessage(conn, signal, encodeDeviceAddedState(gamepadPath, true)); err != nil {
-				return err
-			}
+			_ = startDiscoveryCount
 		case "GetManagedObjects":
 			body := sampleObjects()
 			if err := reply(conn, next(), msg.Serial, "a{oa{sa{sv}}}", body); err != nil {
@@ -779,6 +815,7 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesAdded", Signature: "oa{sa{sv}}"}, encodeDeviceAddedState(gamepadPath, false)); err != nil {
 				return err
 			}
+			go postStartPairing()
 		case "Connect":
 			if msg.Path != gamepadPath {
 				return errors.New("connected " + msg.Path)
