@@ -137,13 +137,15 @@ static void run(const char *name)
 {
     struct fes_nano_jitter_metrics m = {0};
     uint64_t delta = UINT64_MAX;
-    seconds = 1200;
+    seconds = 3U * 60U * 60U;
     assert(fes_nano_jitter_record_sample(&delta) == BAD_CALL && delta == UINT64_MAX);
     assert(fes_nano_jitter_record_close(&m) == BAD_CALL);
     assert(fes_nano_jitter_record_open() == 0);
     assert(fes_nano_jitter_record_open() == BAD_CALL);
     assert(fes_nano_jitter_record_sample(NULL) == BAD_CALL);
     if (strcmp(name,"raw") == 0) {
+        /* A progressing raw collector can cross the previous 20-minute deadline. */
+        tick += UINT64_C(1201) * FES_JITTER_TIMER_HZ;
         style = HELD;
         assert(fes_nano_jitter_record_sample(&delta) == 0);
         delta = UINT64_MAX;
