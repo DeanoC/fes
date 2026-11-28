@@ -9,6 +9,8 @@ module fes_sh4_dcache (
     input  logic        address_cacheable,
     input  logic        address_copyback,
     input  logic        purge_before_read,
+    input  logic [1:0]  maintenance,
+    input  logic        allocate_without_read,
     input  logic [3:0]  wstrb,
     input  logic [31:0] wdata,
     output logic        complete,
@@ -22,7 +24,7 @@ module fes_sh4_dcache (
     input  logic        bus_response,
     input  logic [31:0] bus_rdata
 );
-    typedef enum logic [3:0] {IDLE, CHECK, WB_READ, WB_SEND, REQUEST, REPLY, UPDATE, DONE} state_t;
+    typedef enum logic [3:0] {IDLE, CHECK, WB_READ, WB_SEND, REQUEST, REPLY, UPDATE, ALLOCATE, DONE} state_t;
 
     state_t state;
     (* ramstyle = "M20K" *) logic [31:0] words [0:4095];
@@ -35,6 +37,8 @@ module fes_sh4_dcache (
     logic [2:0] line_word;
     logic lookup, line_valid_q, line_dirty_q, use_cache, copyback, purge, hit, alias_hit, store_hit;
     logic write_access, fills_line, discard_line, write_back;
+    logic [1:0] line_maintenance;
+    logic allocate, maintenance_hit, allocate_word, last_allocate;
     logic refill, last_refill, store_complete;
     logic [11:0] ram_read_addr, ram_write_addr;
     logic [31:0] ram_write_data;
@@ -56,6 +60,10 @@ module fes_sh4_dcache (
     assign write_back = line_valid_q && line_dirty_q &&
                         ((!use_cache && alias_hit) || discard_line);
 
+    assign maintenance_hit = use_cache && alias_hit;
+    assign allocate_word = state == ALLOCATE;
+    assign last_allocate = allocate_word && line_word == 3'd7;
+
     assign bus_writeback = state == WB_SEND;
     assign bus_request = state == REQUEST || bus_writeback;
     assign bus_address = bus_writeback ? {tag_q, saved_addr[13:5], line_word, 2'b00} :
@@ -67,9 +75,12 @@ module fes_sh4_dcache (
     assign last_refill = refill && line_word == 3'd7;
     assign store_complete = state == REQUEST && bus_ready && write_access && !fills_line;
     assign ram_read_addr = state == WB_READ ? {saved_addr[13:5], line_word} : address[13:2];
-    assign ram_write_addr = refill ? {saved_addr[13:5], line_word} : saved_addr[13:2];
-    assign ram_write_data = refill ? bus_rdata : saved_wdata;
-    assign ram_write_mask = refill ? 4'b1111 :
+    assign ram_write_addr = refill || allocate_word ? {saved_addr[13:5], line_word} : saved_addr[13:2];
+    // Initialize undefined words on MOVCA allocation so a dirty line never
+    // writes words left over from an unrelated physical address.
+    assign ram_write_data = refill ? bus_rdata :
+                            allocate_word && line_word != saved_addr[4:2] ? 32'b0 : saved_wdata;
+    assign ram_write_mask = refill || allocate_word ? 4'b1111 :
                             (state == UPDATE || (store_complete && store_hit)) ? saved_wstrb : 4'b0000;
 
     always_ff @(posedge clk) begin
@@ -85,7 +96,7 @@ module fes_sh4_dcache (
             if (ram_write_mask[lane])
                 words[ram_write_addr][8*lane +: 8] <= ram_write_data[8*lane +: 8];
         end
-        if (last_refill)
+        if (last_refill || last_allocate)
             tags[saved_addr[13:5]] <= saved_addr[31:14];
     end
 
@@ -103,12 +114,24 @@ module fes_sh4_dcache (
                     use_cache <= address_cacheable;
                     copyback <= address_copyback;
                     purge <= purge_before_read;
+                    line_maintenance <= maintenance;
+                    allocate <= allocate_without_read && address_cacheable && address_copyback;
                     line_word <= 3'd0;
                     store_hit <= 1'b0;
                     state <= CHECK;
                 end
                 CHECK: begin
-                    if (use_cache && hit && !write_access) begin
+                    if (line_maintenance != 0) begin
+                        if (maintenance_hit && line_maintenance[1] && line_dirty_q)
+                            state <= WB_READ;
+                        else begin
+                            if (maintenance_hit && line_maintenance[0]) begin
+                                valid_lines[saved_addr[13:5]] <= 1'b0;
+                                dirty_lines[saved_addr[13:5]] <= 1'b0;
+                            end
+                            state <= DONE;
+                        end
+                    end else if (use_cache && hit && !write_access) begin
                         rdata <= word_q;
                         state <= DONE;
                     end else if (use_cache && hit && copyback) begin
@@ -121,16 +144,20 @@ module fes_sh4_dcache (
                             valid_lines[saved_addr[13:5]] <= 1'b0;
                             dirty_lines[saved_addr[13:5]] <= 1'b0;
                         end
-                        state <= REQUEST;
+                        state <= allocate ? ALLOCATE : REQUEST;
                     end
                 end
                 WB_READ: state <= WB_SEND;
                 WB_SEND: if (bus_ready) begin
                     line_word <= line_word + 3'd1;
                     if (line_word == 3'd7) begin
-                        valid_lines[saved_addr[13:5]] <= 1'b0;
                         dirty_lines[saved_addr[13:5]] <= 1'b0;
-                        state <= REQUEST;
+                        if (line_maintenance == 0 || line_maintenance[0])
+                            valid_lines[saved_addr[13:5]] <= 1'b0;
+                        if (line_maintenance != 0)
+                            state <= DONE;
+                        else
+                            state <= allocate ? ALLOCATE : REQUEST;
                     end else
                         state <= WB_READ;
                 end
@@ -151,6 +178,14 @@ module fes_sh4_dcache (
                 UPDATE: begin
                     dirty_lines[saved_addr[13:5]] <= 1'b1;
                     state <= DONE;
+                end
+                ALLOCATE: begin
+                    line_word <= line_word + 3'd1;
+                    if (last_allocate) begin
+                        valid_lines[saved_addr[13:5]] <= 1'b1;
+                        dirty_lines[saved_addr[13:5]] <= 1'b1;
+                        state <= DONE;
+                    end
                 end
                 DONE: state <= IDLE;
                 default: state <= IDLE;

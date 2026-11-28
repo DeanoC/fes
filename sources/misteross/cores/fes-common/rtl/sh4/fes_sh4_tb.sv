@@ -23,7 +23,7 @@ module fes_sh4_tb;
     logic lock_open;
     logic [31:0] lock_addr;
     logic [3:0] lock_lane;
-    int resident_reads, conflict_reads, cold_store_line_reads, alias_reads;
+    int resident_reads, resident_writes, conflict_reads, cold_store_line_reads, alias_reads;
     logic check_data_cache = 0;
     logic cache_cancel_done, mmu_done;
 
@@ -65,6 +65,7 @@ module fes_sh4_tb;
             locked_writes <= 0;
             lock_open <= 0;
             resident_reads <= 0;
+            resident_writes <= 0;
             conflict_reads <= 0;
             cold_store_line_reads <= 0;
             alias_reads <= 0;
@@ -127,6 +128,8 @@ module fes_sh4_tb;
                     if (check_data_cache && addr == 32'h604)
                         assert (cold_store_line_reads == 0)
                             else $fatal(1, "A store miss fetched a line before writing through");
+                    if (addr[31:5] == 27'h10)
+                        resident_writes <= resident_writes + 1;
                     if (addr == 32'h1010)
                         retried_word_writes <= retried_word_writes + 1;
                     for (int lane = 0; lane < 4; lane++)
@@ -432,6 +435,21 @@ module fes_sh4_tb;
         assert (dut.expevt == 'h0c0 && dut.mmu.tea == 'h410 && dut.sr[0] == 0 &&
                 mapped_operand_reads == 0 && locked_reads == 0 && ext_mem['h810 >> 2] == 'h1122_3300)
             else $fatal(1, "Protected TAS.B issued a memory access or changed T");
+
+        // OCBI uses write permission even on a cache miss. OCBP and
+        // OCBWB use read permission and issue no fills on a cache miss.
+        emit('h20, 'h0593); // OCBI @R5
+        start_bus();
+        expect_stop(7, 'h20);
+        assert (dut.expevt == 'h0c0 && dut.mmu.tea == 'h410 && mapped_operand_reads == 0)
+            else $fatal(1, "OCBI did not check store permission on a cache miss");
+        emit('h20, 'h05a3); // OCBP @R5
+        emit('h22, 'h05b3); // OCBWB @R5
+        emit('h24, 'hfffd);
+        start_bus();
+        expect_stop(1, 'h24);
+        assert (mapped_operand_reads == 0 && ext_mem['h810 >> 2] == 'h1122_3300)
+            else $fatal(1, "OCBP or OCBWB rejected a read-only page or performed a refill");
 
         // Read-only byte test still succeeds through that same mapping.
         emit('h20, 'h451e); // LDC R5,GBR
@@ -905,6 +923,86 @@ module fes_sh4_tb;
                 ext_mem['h200 >> 2] == 'h25 && cold_store_line_reads == 1)
             else $fatal(1, "Cache enable bits or dirty-data preservation was incorrect");
 
+        // Line operations accept byte addresses, ignore misses, and
+        // distinguish clean write-back from invalidation and purge.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122);
+        literal('h06, 3, 'h88);
+        literal('h08, 4, 'h8c);
+        literal('h0a, 5, 'h90);
+        emit('h0c, 'he660);
+        emit('h0e, 'h2360); // Dirty the 0x200 line
+        emit('h10, 'h04a3); // OCBP @R4 misses on a different tag at the same index
+        emit('h12, 'h0593); // OCBI @R5 is uncached and must leave the line alone
+        emit('h14, 'h03b3); // OCBWB @R3
+        emit('h16, 'h6830); // Remains a hit after write-back
+        emit('h18, 'h03b3); // No writes for an already clean line
+        emit('h1a, 'he627);
+        emit('h1c, 'h2360);
+        emit('h1e, 'h0393); // OCBI @R3 discards the dirty data
+        emit('h20, 'h6930); // Refill should see the old data
+        emit('h22, 'he643);
+        emit('h24, 'h2360);
+        emit('h26, 'h03a3); // OCBP @R3 writes back and invalidates
+        emit('h28, 'h6a30);
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h101;
+        image['h88 >> 2] = 'h203;
+        image['h8c >> 2] = 'h4203;
+        image['h90 >> 2] = 'ha000_0203;
+        image['h200 >> 2] = 'h1122_3344;
+        start_bus();
+        wait (retired && retired_pc == 'h12);
+        assert (ext_mem['h200 >> 2] == 'h1122_3344 && resident_reads == 8)
+            else $fatal(1, "Missed or uncached maintenance touched the resident dirty line");
+        wait (retired && retired_pc == 'h16);
+        assert (ext_mem['h200 >> 2] == 'h6022_3344 && resident_reads == 8)
+            else $fatal(1, "OCBWB did not clean the line and keep it resident");
+        expect_stop(1, 'h2a);
+        assert (dut.gpr[8] == 'h60 && dut.gpr[9] == 'h60 && dut.gpr[10] == 'h43 &&
+                ext_mem['h200 >> 2] == 'h4322_3344 && resident_reads == 24 && resident_writes == 16)
+            else $fatal(1, "OCBI and OCBP did not discard or purge correctly");
+
+        // MOVCA.L allocates a copy-back line with no fill traffic, even
+        // when it must evict a dirty victim. In write-through mode it stores
+        // directly to memory without allocating.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122);
+        literal('h06, 3, 'h88);
+        literal('h08, 4, 'h8c);
+        literal('h0a, 5, 'h90);
+        emit('h0c, 'he017);
+        emit('h0e, 'h2302); // Dirty the victim
+        emit('h10, 'he02e);
+        emit('h12, 'h04c3); // MOVCA.L R0,@R4
+        emit('h14, 'h6842);
+        emit('h16, 'h04b3); // Write back the allocated line
+        literal('h18, 2, 'h94);
+        emit('h1a, 'h2122); // Enable WT for direct P0
+        emit('h1c, 'h05c3); // Ordinary write-through store behavior
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h101;
+        image['h88 >> 2] = 'h200;
+        image['h8c >> 2] = 'h4204;
+        image['h90 >> 2] = 'h600;
+        image['h94 >> 2] = 'h103;
+        image['h200 >> 2] = 'h1234_5678;
+        image['h4204 >> 2] = 'h3b;
+        start_bus();
+        wait (retired && retired_pc == 'h12);
+        assert (ext_mem['h200 >> 2] == 'h17 && ext_mem['h4204 >> 2] == 'h3b &&
+                conflict_reads == 0)
+            else $fatal(1, "MOVCA.L failed to evict or performed an unwanted refill");
+        expect_stop(1, 'h1e);
+        assert (dut.gpr[8] == 'h2e && ext_mem['h4204 >> 2] == 'h2e &&
+                ext_mem['h4208 >> 2] == 0 && ext_mem['h600 >> 2] == 'h2e &&
+                conflict_reads == 0 && cold_store_line_reads == 0)
+            else $fatal(1, "MOVCA.L write-back data or write-through fallback was incorrect");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1096,12 +1194,13 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations and copy-back");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back and cache maintenance");
         $finish;
     end
 
     initial begin
-        #180000;
-        $fatal(1, "Timed out");
+        #250000;
+        $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",
+               dut.pc, retired_pc, fault, fault_pc);
     end
 endmodule

@@ -35,6 +35,12 @@ parameter to enable both caches in write-through mode for its SRAM tests.
 Data traffic, cache write-backs and instruction refills share the registered
 single-outstanding bus.
 
+OCBI discards a matching line, OCBWB writes a dirty line back and leaves it
+resident, and OCBP writes back and invalidates. OCBI checks store permission,
+while OCBWB and OCBP check load permission. MOVCA.L allocates a copy-back line
+without a fill read. It initializes the other words to zero on allocation.
+Software must treat those words as undefined, as on SH-4 hardware.
+
 The MMU adds a fully associative 64-entry unified TLB and a four-entry
 instruction TLB. Instruction misses search the UTLB and fill the ITLB using
 the SH-4 LRUI state. Operand translations use the UTLB. The lookup pipeline
@@ -101,8 +107,7 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 FPU, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, cache maintenance
-instructions and arrays, raw TLB arrays, area-7 MMU register aliases, board
+arbitration and peripherals, standby power controls, cache prefetch and arrays, raw TLB arrays, area-7 MMU register aliases, board
 buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -176,6 +181,8 @@ T-bit behavior, lock duration, and a TAS.B retry after a TLB miss. Read-only
 and initial-write faults must precede any TAS.B bus request. Copy-back tests
 cover partial-byte store allocation, eviction to the victim's address, PTEL.WT
 selection, TAS.B on a dirty P2 alias, and dirty-line discard through CCR.OCI.
+Line-operation tests cover permission checks on misses, preserving or
+discarding resident lines, and MOVCA.L allocation without refill traffic.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

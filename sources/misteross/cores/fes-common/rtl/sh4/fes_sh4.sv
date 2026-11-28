@@ -33,7 +33,7 @@ module fes_sh4 #(
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
@@ -86,7 +86,8 @@ module fes_sh4 #(
     logic [31:2] data_addr;
     logic [31:0] data_wdata;
     logic [3:0] data_wstrb, operand_read_mask;
-    logic byte_access, byte_writes;
+    logic byte_access, byte_writes, ordinary_store, cache_maintenance;
+    logic [1:0] cache_command;
     logic [7:0] byte_result;
     logic [31:0] load_word, load_value, local_read_value;
     logic [1:0] data_addr_lane;
@@ -326,6 +327,14 @@ module fes_sh4 #(
                 dec_a = ir[3] ? gpr[m] : gpr[n];
                 dec_offset = gpr[0];
             end
+            16'h0?93: decoded = OCBI;
+            16'h0?a3: decoded = OCBP;
+            16'h0?b3: decoded = OCBWB;
+            16'h0?c3: begin
+                decoded = MOVCA;
+                dec_size = LONGWORD;
+                dec_b = gpr[0];
+            end
             16'h4?1b: decoded = TAS;
             16'hcc??, 16'hcd??, 16'hce??, 16'hcf??: begin
                 decoded = MEMORY_BYTE;
@@ -456,7 +465,11 @@ module fes_sh4 #(
 
     assign byte_access = op == TAS || op == MEMORY_BYTE;
     assign byte_writes = op == TAS || (op == MEMORY_BYTE && ir[9:8] != 0);
-    assign is_store = op == STORE || byte_writes;
+    assign ordinary_store = op == STORE || op == MOVCA;
+    assign is_store = ordinary_store || byte_writes || op == OCBI;
+    // Bit 1 writes back a dirty line. Bit 0 invalidates a hit.
+    assign cache_command = op == OCBI ? 2'b01 : op == OCBWB ? 2'b10 : op == OCBP ? 2'b11 : 2'b00;
+    assign cache_maintenance = cache_command != 0;
     assign operand_read_mask = size == BYTE ? 4'b0001 << data_addr_lane :
                                size == WORD ? 4'b0011 << data_addr_lane : 4'b1111;
 
@@ -598,7 +611,8 @@ module fes_sh4 #(
     fes_sh4_dcache dcache (
         .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ), .ready(data_ready),
         .address(data_addr), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
-        .purge_before_read(op == TAS), .wstrb(data_wstrb), .wdata(data_wdata),
+        .purge_before_read(op == TAS), .maintenance(cache_command), .allocate_without_read(op == MOVCA),
+        .wstrb(data_wstrb), .wdata(data_wdata),
         .complete(data_complete), .rdata(data_read_word),
         .bus_request(data_bus_request), .bus_writeback(data_bus_writeback), .bus_ready(data_bus_ready),
         .bus_address(data_bus_addr), .bus_wstrb(data_bus_wstrb), .bus_wdata(data_bus_wdata),
@@ -789,14 +803,14 @@ module fes_sh4 #(
                     wb_base <= (op == STORE && pre) || (op == LOAD && post) || op == MAC;
                     writeback_base <= pre ? effective_addr : a + (32'd1 << size);
                     mac_second <= 1'b0;
-                    if (op == LOAD || op == MAC || byte_access || op == STORE) begin
+                    if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance) begin
                         data_addr <= effective_addr[31:2];
                         data_addr_lane <= effective_addr[1:0];
                         data_wdata <= store_value << {effective_addr[1:0], 3'b000};
                         case (size)
-                            BYTE: data_wstrb <= op == STORE ? 4'b0001 << effective_addr[1:0] : 4'b0;
-                            WORD: data_wstrb <= op == STORE ? 4'b0011 << effective_addr[1:0] : 4'b0;
-                            default: data_wstrb <= op == STORE ? 4'b1111 : 4'b0;
+                            BYTE: data_wstrb <= ordinary_store ? 4'b0001 << effective_addr[1:0] : 4'b0;
+                            WORD: data_wstrb <= ordinary_store ? 4'b0011 << effective_addr[1:0] : 4'b0;
+                            default: data_wstrb <= ordinary_store ? 4'b1111 : 4'b0;
                         endcase
                         stage <= DATA_TRANSLATE;
                     end else if (op == INTEGER) begin
