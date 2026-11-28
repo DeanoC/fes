@@ -1,6 +1,7 @@
 module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
     logic reset = 1, start = 0;
     logic wide, multiply = 0, divide = 0, square_root = 0, subtract, toward_zero, flush_denormals;
+    logic [2:0] transfer = 0;
     logic [63:0] lhs, rhs, value;
     logic [5:0] causes;
     logic done, unused_normal_operands;
@@ -108,6 +109,53 @@ module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
         check(8, 64'h4000_0000_0000_0000, 0, 64'h3ff6_a09e_667f_3bcd, 1);
         check(10, 64'h4000_0000_0000_0000, 0, 64'h3ff6_a09e_667f_3bcc, 1);
         check(8, 64'h4010_0000_0000_0000, 0, 64'h4000_0000_0000_0000, 0);
+        square_root = 0;
+        transfer = 1; // FCMP/EQ
+        check(0, 64'h8000_0000, 0, 1, 0);
+        check(0, 64'h7fbf_ffff, 64'h3f80_0000, 0, 0);
+        check(0, 64'h3f80_0000, 64'h7fc0_0000, 0, 16);
+        check(0, 64'h0000_0001, 0, 0, 0);
+        check(1, 64'h0000_0001, 0, 1, 0);
+        check(8, 64'h3ff0_0000_0000_0001, 64'h3ff0_0000_0000_0000, 0, 0);
+
+        transfer = 2; // FCMP/GT
+        check(0, 64'h7fbf_ffff, 64'h3f80_0000, 0, 16);
+        check(0, 64'hbf80_0000, 64'hc000_0000, 1, 0);
+        check(0, 64'h8000_0000, 0, 0, 0);
+        check(8, 64'h3ff0_0000_0000_0001, 64'h3ff0_0000_0000_0000, 1, 0);
+
+        transfer = 3; // FLOAT
+        check(0, 64'h0100_0001, 0, 64'h4b80_0000, 1);
+        check(0, 64'h0100_0003, 0, 64'h4b80_0002, 1);
+        check(2, 64'h0100_0003, 0, 64'h4b80_0001, 1);
+        check(0, 64'h8000_0000, 0, 64'hcf00_0000, 0);
+        check(8, 64'h8000_0000, 0, 64'hc1e0_0000_0000_0000, 0);
+
+        transfer = 4; // FTRC
+        check(0, 64'hbfff_ffff, 0, 64'hffff_ffff, 0);
+        check(0, 64'h7f80_0000, 0, 64'h7fff_ffff, 16);
+        check(0, 64'hff80_0000, 0, 64'h8000_0000, 16);
+        check(0, 64'h7fbf_ffff, 0, 64'h8000_0000, 16);
+        check(0, 64'h0000_0001, 0, 0, 0);
+        check(8, 64'hc1e0_0000_0000_0001, 0, 64'h8000_0000, 0);
+        check(8, 64'hc1e0_0000_0020_0000, 0, 64'h8000_0000, 16);
+        check(8, 64'h41e0_0000_0000_0000, 0, 64'h7fff_ffff, 16);
+
+        transfer = 5; // FCNVSD
+        check(8, 64'h3fc0_0000, 0, 64'h3ff8_0000_0000_0000, 0);
+        check(8, 64'h8000_0000, 0, 64'h8000_0000_0000_0000, 0);
+        check(8, 64'h7fc0_0000, 0, 64'h7ff7_ffff_ffff_ffff, 16);
+        check(8, 64'h8000_0001, 0, 0, 32);
+        check(9, 64'h8000_0001, 0, 64'h8000_0000_0000_0000, 0);
+
+        transfer = 6; // FCNVDS
+        check(8, 64'h3ff0_0000_1000_0000, 0, 64'h3f80_0000, 1);
+        check(8, 64'h3ff0_0000_3000_0000, 0, 64'h3f80_0002, 1);
+        check(10, 64'h3ff0_0000_3000_0000, 0, 64'h3f80_0001, 1);
+        check(8, 64'h36a0_0000_0000_0000, 0, 64'h0000_0001, 0);
+        check(9, 64'hb6a0_0000_0000_0000, 0, 64'h8000_0000, 3);
+        check(8, 64'h7fef_ffff_ffff_ffff, 0, 64'h7f80_0000, 5);
+        check(8, 64'h7ff7_ffff_ffff_ffff, 0, 64'h7fbf_ffff, 0);
         finished = 1;
     end
 endmodule

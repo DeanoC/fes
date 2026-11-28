@@ -9,6 +9,7 @@ module fes_sh4_fp_arithmetic (
     input  logic        multiply,
     input  logic        divide,
     input  logic        square_root,
+    input  logic [2:0]  transfer,
     input  logic        toward_zero,
     input  logic        flush_denormals,
     input  logic [63:0] lhs, rhs,
@@ -22,13 +23,23 @@ module fes_sh4_fp_arithmetic (
         SHIFT_CARRY, NORMALIZE, ROUND, PACK, DONE,
         PRODUCT, DIAGONALS, MIDDLE, COLUMN_1, COLUMN_2, COLUMN_3,
         COLUMN_4, PRODUCT_NORMALIZE, DIVIDE_PREP, ROOT_PREP,
-        DIGIT_TEST, DIGIT_NEXT, DIGIT_RESULT
+        DIGIT_TEST, DIGIT_NEXT, DIGIT_RESULT,
+        CONVERT, COMPARE, INTEGER_RESULT
     } state_t;
     state_t state;
+    localparam logic [2:0] ARITHMETIC = 0, CMP_EQ = 1, CMP_GT = 2, FROM_INT = 3,
+                           TO_INT = 4, TO_DOUBLE = 5, TO_SINGLE = 6;
 
     localparam logic [3:0] ZERO = 0, NORMAL = 1, SUBNORMAL = 2,
                            INFINITY = 3, QUIET_NAN = 4, SIGNALING_NAN = 5;
     logic [63:0] a_bits, b_bits;
+    logic input_wide, result_wide;
+    logic [10:0] input_max_exponent;
+    logic [31:0] integer_magnitude;
+    logic signed [12:0] single_exponent;
+    logic [5:0] integer_shift;
+    logic [62:0] compare_a, compare_b;
+    logic compare_a_sign, compare_b_sign, compare_equal, compare_greater;
     logic [3:0] a_class, b_class;
     logic [10:0] a_exponent, b_exponent, max_exponent;
     logic [52:0] a_sig, b_sig;
@@ -86,22 +97,31 @@ module fes_sh4_fp_arithmetic (
     function automatic logic [63:0] pack(
         input logic sign_bit, input logic [10:0] exponent, input logic [51:0] fraction
     );
-        return wide ? {sign_bit, exponent, fraction} : {32'b0, sign_bit, exponent[7:0], fraction[51:29]};
+        return result_wide ? {sign_bit, exponent, fraction} : {32'b0, sign_bit, exponent[7:0], fraction[51:29]};
     endfunction
 
-    assign max_exponent = wide ? 11'd2047 : 11'd255;
-    assign a_exponent = wide ? a_bits[62:52] : {3'b0, a_bits[30:23]};
-    assign b_exponent = wide ? b_bits[62:52] : {3'b0, b_bits[30:23]};
-    assign a_sig = {1'b1, wide ? a_bits[51:0] : {a_bits[22:0], 29'b0}};
-    assign b_sig = {1'b1, wide ? b_bits[51:0] : {b_bits[22:0], 29'b0}};
-    assign a_sign = wide ? a_bits[63] : a_bits[31];
-    assign b_sign = (wide ? b_bits[63] : b_bits[31]) ^ subtract;
-    assign a_class = classify(a_exponent, max_exponent, a_sig[51:0]);
-    assign b_class = classify(b_exponent, max_exponent, b_sig[51:0]);
+    assign input_wide = wide && transfer != TO_DOUBLE;
+    assign result_wide = wide && transfer != TO_SINGLE;
+    assign input_max_exponent = input_wide ? 11'd2047 : 11'd255;
+    assign max_exponent = result_wide ? 11'd2047 : 11'd255;
+    assign a_exponent = input_wide ? a_bits[62:52] : {3'b0, a_bits[30:23]};
+    assign b_exponent = input_wide ? b_bits[62:52] : {3'b0, b_bits[30:23]};
+    assign a_sig = {1'b1, input_wide ? a_bits[51:0] : {a_bits[22:0], 29'b0}};
+    assign b_sig = {1'b1, input_wide ? b_bits[51:0] : {b_bits[22:0], 29'b0}};
+    assign a_sign = input_wide ? a_bits[63] : a_bits[31];
+    assign b_sign = (input_wide ? b_bits[63] : b_bits[31]) ^ subtract;
+    assign a_class = classify(a_exponent, input_max_exponent, a_sig[51:0]);
+    assign b_class = classify(b_exponent, input_max_exponent, b_sig[51:0]);
+    assign integer_magnitude = a_bits[31] ? -a_bits[31:0] : a_bits[31:0];
+    assign single_exponent = $signed({2'b0, a_exponent}) - 13'sd896;
+    assign integer_shift = bias[5:0] + 6'd52 - a_exponent[5:0];
+    assign compare_equal = compare_a_sign == compare_b_sign && compare_a == compare_b;
+    assign compare_greater = compare_a_sign != compare_b_sign ? !compare_a_sign :
+                             compare_a_sign ? compare_a < compare_b : compare_a > compare_b;
 
     assign b_larger = {b_exponent, b_sig} > {a_exponent, a_sig};
     assign exp_distance = b_larger ? b_exponent - a_exponent : a_exponent - b_exponent;
-    assign fine_shifted = distance == 0 ? small_sig : (small_sig >> distance[2:0]) |
+    assign fine_shifted = distance == 0 || transfer == TO_INT ? small_sig >> distance[2:0] : (small_sig >> distance[2:0]) |
                           {55'b0, |(small_sig[7:0] & (8'hff >> (4'd8 - {1'b0, distance[2:0]})))};
 
     // Nine unsigned 18-bit products fit the FPGA's DSP lanes. Diagonal
@@ -134,7 +154,7 @@ module fes_sh4_fp_arithmetic (
     assign digit_sticky = |remainder || (square_root && (|radicand));
     assign digit_significand = wide ? {digit_value, digit_sticky} :
                                      {digit_value[25:0], 29'b0, digit_sticky};
-    assign unrounded_exponent = multiply ? normalized_product_exponent : product_exponent;
+    assign unrounded_exponent = transfer == TO_SINGLE ? single_exponent : multiply ? normalized_product_exponent : product_exponent;
     assign tiny_shift = $unsigned(13'sd1 - unrounded_exponent);
     assign product_significand = product_result[105] ?
                                  {product_result[105:51], |product_result[50:0]} :
@@ -157,15 +177,15 @@ module fes_sh4_fp_arithmetic (
     end
     assign left_count = exp_result > {7'b0, leading} ? leading : exp_result[3:0] - 4'd1;
 
-    assign guard_bit = wide ? norm_sig[2] : norm_sig[31];
-    assign rest = wide ? |norm_sig[1:0] : |norm_sig[30:0];
+    assign guard_bit = result_wide ? norm_sig[2] : norm_sig[31];
+    assign rest = result_wide ? |norm_sig[1:0] : |norm_sig[30:0];
     assign discarded = guard_bit || rest;
-    assign round_up = !toward_zero && guard_bit && (rest || (wide ? norm_sig[3] : norm_sig[32]));
-    assign carry = wide ? rounded[53] : rounded[24];
-    assign tiny = exp_result == 1 && !(wide ? (carry || rounded[52]) : (carry || rounded[23]));
+    assign round_up = !toward_zero && guard_bit && (rest || (result_wide ? norm_sig[3] : norm_sig[32]));
+    assign carry = result_wide ? rounded[53] : rounded[24];
+    assign tiny = exp_result == 1 && !(result_wide ? (carry || rounded[52]) : (carry || rounded[23]));
     assign overflow_result = exp_result >= max_exponent || packed_exponent >= max_exponent;
     assign packed_exponent = tiny ? 11'b0 : exp_result + {10'b0, carry};
-    assign packed_fraction = wide ? (carry ? rounded[52:1] : rounded[51:0]) :
+    assign packed_fraction = result_wide ? (carry ? rounded[52:1] : rounded[51:0]) :
                                     {(carry ? rounded[23:1] : rounded[22:0]), 29'b0};
     assign done = state == DONE;
 
@@ -181,9 +201,12 @@ module fes_sh4_fp_arithmetic (
             end
             CLASSIFY: begin
                 normal_operands <= square_root ? a_class == NORMAL && !a_sign :
-                                                  a_class == NORMAL && b_class == NORMAL;
+                                   transfer == FROM_INT || (transfer == TO_SINGLE && a_class == NORMAL) ||
+                                   (transfer == ARITHMETIC && a_class == NORMAL && b_class == NORMAL);
                 state <= DONE;
-                if (a_class == SIGNALING_NAN || (!square_root && b_class == SIGNALING_NAN)) begin
+                if (transfer != ARITHMETIC)
+                    state <= CONVERT;
+                else if (a_class == SIGNALING_NAN || (!square_root && b_class == SIGNALING_NAN)) begin
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
                     causes[4] <= 1'b1;
                 end else if (a_class == QUIET_NAN || (!square_root && b_class == QUIET_NAN))
@@ -231,6 +254,83 @@ module fes_sh4_fp_arithmetic (
                 else
                     state <= multiply ? PRODUCT : ORDER;
             end
+            CONVERT: begin
+                state <= DONE;
+                case (transfer)
+                    CMP_EQ, CMP_GT: begin
+                        if (a_class == SIGNALING_NAN || b_class == SIGNALING_NAN ||
+                            a_class == QUIET_NAN || b_class == QUIET_NAN) begin
+                            value <= 0;
+                            causes[4] <= transfer == CMP_GT || a_class == SIGNALING_NAN ||
+                                         b_class == SIGNALING_NAN;
+                        end else begin
+                            compare_a <= a_class == ZERO ? 63'b0 : {a_exponent, a_sig[51:0]};
+                            compare_b <= b_class == ZERO ? 63'b0 : {b_exponent, b_sig[51:0]};
+                            compare_a_sign <= a_class != ZERO && a_sign;
+                            compare_b_sign <= b_class != ZERO && b_sign;
+                            state <= COMPARE;
+                        end
+                    end
+                    FROM_INT: begin
+                        if (integer_magnitude == 0)
+                            value <= 0;
+                        else begin
+                            negative <= a_bits[31];
+                            norm_sig <= {integer_magnitude, 24'b0};
+                            exp_result <= bias + 11'd31;
+                            state <= NORMALIZE;
+                        end
+                    end
+                    TO_INT: begin
+                        if (a_class == QUIET_NAN || a_class == SIGNALING_NAN ||
+                            a_class == INFINITY || a_exponent >= bias + 11'd32) begin
+                            causes[4] <= 1'b1;
+                            value <= a_sign || a_class inside {QUIET_NAN, SIGNALING_NAN} ?
+                                     64'h8000_0000 : 64'h7fff_ffff;
+                        end else if (a_class == ZERO || a_class == SUBNORMAL || a_exponent < bias)
+                            value <= 0;
+                        else begin
+                            negative <= a_sign;
+                            small_sig <= {3'b0, a_sig};
+                            distance <= integer_shift;
+                            state <= ALIGN_COARSE;
+                        end
+                    end
+                    TO_DOUBLE, TO_SINGLE: begin
+                        case (a_class)
+                            ZERO: value <= pack(a_sign, '0, '0);
+                            INFINITY: value <= pack(a_sign, max_exponent, '0);
+                            QUIET_NAN, SIGNALING_NAN: begin
+                                value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
+                                causes[4] <= a_class == SIGNALING_NAN;
+                            end
+                            SUBNORMAL: causes[5] <= 1'b1;
+                            NORMAL: begin
+                                if (transfer == TO_DOUBLE)
+                                    value <= pack(a_sign, a_exponent + 11'd896, a_sig[51:0]);
+                                else begin
+                                    negative <= a_sign;
+                                    state <= PRODUCT_NORMALIZE;
+                                end
+                            end
+                            default: ;
+                        endcase
+                    end
+                    default: ;
+                endcase
+            end
+            COMPARE: begin
+                value <= {63'b0, transfer == CMP_EQ ? compare_equal : compare_greater};
+                state <= DONE;
+            end
+            INTEGER_RESULT: begin
+                if (norm_sig[31] && (!negative || norm_sig[30:0] != 0)) begin
+                    value <= negative ? 64'h8000_0000 : 64'h7fff_ffff;
+                    causes[4] <= 1'b1;
+                end else
+                    value <= {32'b0, negative ? -norm_sig[31:0] : norm_sig[31:0]};
+                state <= DONE;
+            end
             ORDER: begin
                 negative <= b_larger ? b_sign : a_sign;
                 subtract_magnitude <= a_sign != b_sign;
@@ -243,16 +343,21 @@ module fes_sh4_fp_arithmetic (
             ALIGN_COARSE: begin
                 // Iterative eight-bit shifts fold each group into sticky.
                 if (distance >= 8) begin
-                    small_sig <= {8'b0, small_sig[55:9], |small_sig[8:0]};
+                    small_sig <= transfer == TO_INT ? small_sig >> 8 :
+                                 {8'b0, small_sig[55:9], |small_sig[8:0]};
                     distance <= distance - 6'd8;
                 end else
                     state <= ALIGN_FINE;
             end
             ALIGN_FINE: begin
                 small_sig <= fine_shifted;
-                if (multiply || divide)
-                    norm_sig <= fine_shifted;
-                state <= multiply || divide ? ROUND : SUM;
+                norm_sig <= fine_shifted;
+                if (transfer == TO_INT)
+                    state <= INTEGER_RESULT;
+                else if (multiply || divide || transfer == TO_SINGLE)
+                    state <= ROUND;
+                else
+                    state <= SUM;
             end
             SUM: begin
                 sum <= subtract_magnitude ? {1'b0, large_sig} - {1'b0, small_sig} :
@@ -331,12 +436,12 @@ module fes_sh4_fp_arithmetic (
                 if (unrounded_exponent <= 0) begin
                     exp_result <= 11'd1;
                     distance <= tiny_shift >= 13'd56 ? 6'd56 : tiny_shift[5:0];
-                    small_sig <= multiply ? product_significand : digit_significand;
+                    small_sig <= transfer == TO_SINGLE ? {a_sig, 3'b0} : multiply ? product_significand : digit_significand;
                     state <= ALIGN_COARSE;
                 end else begin
                     exp_result <= unrounded_exponent >= $signed({2'b0, max_exponent}) ?
                                   max_exponent : unrounded_exponent[10:0];
-                    norm_sig <= multiply ? product_significand : digit_significand;
+                    norm_sig <= transfer == TO_SINGLE ? {a_sig, 3'b0} : multiply ? product_significand : digit_significand;
                     state <= ROUND;
                 end
             end
@@ -360,7 +465,7 @@ module fes_sh4_fp_arithmetic (
                     state <= ROUND;
             end
             ROUND: begin
-                rounded <= (wide ? {1'b0, norm_sig[55:3]} : {30'b0, norm_sig[55:32]}) +
+                rounded <= (result_wide ? {1'b0, norm_sig[55:3]} : {30'b0, norm_sig[55:32]}) +
                            {53'b0, round_up};
                 state <= PACK;
             end

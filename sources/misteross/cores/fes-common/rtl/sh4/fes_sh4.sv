@@ -59,6 +59,8 @@ module fes_sh4 #(
     logic [63:0] fp_lhs, fp_arith_value;
     logic fp_arith_done, fp_normal_operands;
     logic [5:0] fp_causes;
+    logic [2:0] dec_fp_transfer, fp_transfer;
+    logic fp_compare, fp_to_fpul, fp_completion_trap;
     control_reg_t dec_control_reg, control_reg;
     logic dec_control_transfer, control_transfer, control_write, writes_sr, load_gpr;
     logic [31:0] control_read_value, control_write_value;
@@ -310,7 +312,7 @@ module fes_sh4 #(
                 if (ir[3:0] == 4'h7)
                     dec_offset = gpr[0];
             end
-            16'hf??0, 16'hf??1, 16'hf??2, 16'hf??3, 16'hf?6d: decoded = FLOAT_ARITH;
+            16'hf??0, 16'hf??1, 16'hf??2, 16'hf??3, 16'hf??4, 16'hf??5, 16'hf?2d, 16'hf?3d, 16'hf?6d, 16'hf?ad, 16'hf?bd: decoded = FLOAT_ARITH;
             16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
             16'hf3fd, 16'hfbfd: decoded = FLOAT_OP;
 
@@ -535,18 +537,38 @@ module fes_sh4 #(
                        ((ir[15:12] == 4'h0 && ir[3:0] == 4'ha) ||
                         (ir[15:12] == 4'h4 && (ir[3:0] inside {4'h2, 4'h6, 4'ha})));
     assign fp_opcode = (ir[15:12] == 4'hf && ir != 16'hfffd) || fp_system;
-    assign fp_format_error = fpscr[19] &&
-                             ((decoded == FLOAT_ARITH && (n[0] || m[0])) ||
-                              (decoded == FLOAT_OP && ir[3:0] == 4'hd &&
-                               ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
-                                ((ir[7:4] inside {4'h4, 4'h5}) && n[0]))));
-    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_ARITH ||
+    always_comb begin
+        case (ir[3:0])
+            4: dec_fp_transfer = 3'd1; // FCMP/EQ
+            5: dec_fp_transfer = 3'd2; // FCMP/GT
+            13: case (ir[7:4])
+                2: dec_fp_transfer = 3'd3; // FLOAT
+                3: dec_fp_transfer = 3'd4; // FTRC
+                10: dec_fp_transfer = 3'd5; // FCNVSD
+                11: dec_fp_transfer = 3'd6; // FCNVDS
+                default: dec_fp_transfer = 0;
+            endcase
+            default: dec_fp_transfer = 0;
+        endcase
+    end
+    assign fp_compare = op == FLOAT_ARITH && (fp_transfer inside {3'd1, 3'd2});
+    assign fp_to_fpul = op == FLOAT_ARITH && (fp_transfer inside {3'd4, 3'd6});
+    assign fp_completion_trap = fp_normal_operands &&
+                               ((fp_transfer == 3 || (fp_transfer == 0 && ir[3:0] == 4'hd)) ? fpscr[7] :
+                                (fp_transfer inside {3'd0, 3'd6}) && (|fpscr[9:7]));
+    assign fp_format_error = (decoded == FLOAT_ARITH && (dec_fp_transfer inside {3'd5, 3'd6}) && !fpscr[19]) ||
+                             (fpscr[19] &&
+                              ((decoded == FLOAT_ARITH && (n[0] || (ir[3:0] != 4'hd && m[0]))) ||
+                               (decoded == FLOAT_OP && ir[3:0] == 4'hd &&
+                                ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
+                                 ((ir[7:4] inside {4'h4, 4'h5}) && n[0])))));
+    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) || (op == FLOAT_ARITH && !fp_compare && !fp_to_fpul) ||
                                (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf}))));
-    assign fp_write_fpul = stage == COMMIT && ((op == FLOAT_OP && ir[7:0] == 8'h1d) ||
+    assign fp_write_fpul = stage == COMMIT && (fp_to_fpul || (op == FLOAT_OP && ir[7:0] == 8'h1d) ||
                            (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
     assign fp_write_fpscr = stage == COMMIT && fp_system && ir[7:4] == 4'h6 &&
                             ((op == LDS) || (op == LOAD && sys_load));
-    assign fp_system_value = op == FLOAT_OP ? fp_source[31:0] : op == LDS ? a : wb_value;
+    assign fp_system_value = fp_to_fpul ? fp_result[31:0] : op == FLOAT_OP ? fp_source[31:0] : op == LDS ? a : wb_value;
 
     fes_sh4_fpu_regs fpu_regs (
         .clk, .reset, .read_number(fp_read_number), .read_pair(dec_fp_pair), .read_value(fp_read_value),
@@ -560,7 +582,7 @@ module fes_sh4 #(
 
     fes_sh4_fp_arithmetic fp_arithmetic (
         .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
-        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[3:0] == 4'hd),
+        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[7:0] == 8'h6d), .transfer(fp_transfer),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source),
         .done(fp_arith_done), .value(fp_arith_value), .causes(fp_causes), .normal_operands(fp_normal_operands)
     );
@@ -601,7 +623,7 @@ module fes_sh4 #(
                     exception_cause = TRAP;
             end
             FP_RETIRE: if (fp_causes[5] || |(fp_causes[4:0] & fpscr[11:7]) ||
-                           (fp_normal_operands && (ir[3:0] == 4'hd ? fpscr[7] : |fpscr[9:7])))
+                           fp_completion_trap)
                 exception_cause = FPU_EXCEPTION;
             MAC_READ: if (!mac_second && (mac_second_addr[0] || (!mac_word && mac_second_addr[1]))) begin
                 exception_cause = DATA_ALIGN;
@@ -907,6 +929,7 @@ module fes_sh4 #(
                 DECODE: begin
                     op <= fp_format_error ? BAD : decoded;
                     fp_instruction <= fp_opcode;
+                    fp_transfer <= dec_fp_transfer;
                     trap_imm <= ir[7:0];
                     size <= dec_size;
                     pre <= dec_pre;
@@ -968,7 +991,7 @@ module fes_sh4 #(
                     end
                 end
                 FP_LHS: begin
-                    fp_lhs <= fp_read_value;
+                    fp_lhs <= (fp_transfer inside {3'd3, 3'd5}) ? {32'b0, fpul} : fp_read_value;
                     stage <= FP_START;
                 end
                 FP_START: stage <= FP_WAIT;
@@ -1153,7 +1176,9 @@ module fes_sh4 #(
                         gpr_storage[base_index] <= writeback_base;
                     if (wb_gpr)
                         gpr_storage[dst_index] <= wb_value;
-                    if (wb_t)
+                    if (fp_compare)
+                        sr[0] <= fp_result[0];
+                    else if (wb_t)
                         sr[0] <= wb_t_value;
                     if (wb_pr) begin
                         pre_slot_pr <= pr;

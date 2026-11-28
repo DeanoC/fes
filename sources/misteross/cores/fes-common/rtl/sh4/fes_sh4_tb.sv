@@ -1544,6 +1544,56 @@ module fes_sh4_tb;
         assert (dut.expevt == 'h120 && dut.fpscr == 'h80 && dut.fpu_regs.fr_even[0] == 'h3f80_0000)
             else $fatal(1, "FSQRT exact-result software trap was not precise");
 
+        // Comparisons retire T, while conversions target the selected FR pair or FPUL.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he000);
+        emit('h02, 'h406a); // FPSCR.PR=0
+        emit('h04, 'he0fd);
+        emit('h06, 'h405a);
+        emit('h08, 'hf02d); // FLOAT FPUL,FR0
+        emit('h0a, 'hf19d); // FLDI1 FR1
+        emit('h0c, 'hf105); // FCMP/GT FR0,FR1
+        emit('h0e, 'h0829); // MOVT R8
+        emit('h10, 'hf014); // FCMP/EQ FR1,FR0
+        emit('h12, 'h0929);
+        emit('h14, 'hf03d); // FTRC FR0,FPUL
+        emit('h16, 'h0a5a);
+        literal('h18, 0, 'h80);
+        emit('h1a, 'h406a); // FPSCR.PR=1
+        literal('h1c, 0, 'h84);
+        emit('h1e, 'h405a);
+        emit('h20, 'hf2ad); // FCNVSD FPUL,DR2
+        emit('h22, 'he000);
+        emit('h24, 'h405a);
+        emit('h26, 'hf2bd); // FCNVDS DR2,FPUL
+        emit('h28, 'h0b5a);
+        emit('h2a, 'hf23d); // FTRC DR2,FPUL
+        emit('h2c, 'h0c5a);
+        image['h80 >> 2] = 'h0008_0000;
+        image['h84 >> 2] = 'h3fc0_0000;
+        start_bus();
+        wait (retired && retired_pc == 'h2c);
+        assert (dut.gpr[8] == 1 && dut.gpr[9] == 0 && dut.gpr[10] == 'hffff_fffd &&
+                dut.gpr[11] == 'h3fc0_0000 && dut.gpr[12] == 1)
+            else $fatal(1, "Floating-point comparison or conversion did not retire");
+
+        // A signaling NaN with enabled invalid leaves SR.T at its previous value.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 0, 'h80);
+        emit('h02, 'h406a);
+        literal('h04, 0, 'h84);
+        emit('h06, 'h405a);
+        emit('h08, 'hf00d); // FSTS FPUL,FR0
+        emit('h0a, 'hf19d);
+        emit('h0c, 'h0018); // SETT
+        emit('h0e, 'hf014);
+        image['h80 >> 2] = 'h800;
+        image['h84 >> 2] = 'h7fc0_0000;
+        start_bus();
+        expect_stop(13, 'h0e);
+        assert (dut.expevt == 'h120 && dut.fpscr == 'h10840 && dut.sr[0])
+            else $fatal(1, "FCMP/EQ invalid exception changed SR.T");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1736,7 +1786,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers and FADD/FSUB/FMUL/FDIV/FSQRT");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, and conversions");
         $finish;
     end
 
