@@ -33,6 +33,21 @@ RETIMED_FIT_ARTIFACTS = {
 }
 PRESENTER_SOURCE = 'cores/fes-pc386/rtl/pc386_presenter.sv'
 MODEL = '486sx'
+# method.md's control: main at its base, the 486SX at C0 = 34, seed 1, through the registered producer.
+CONTROL_REVISION = '17cbddbec2f7559e37467a975943828c766310f7'
+CONTROL_CLOCK_HZ = 92156863
+CONTROL_DRC = 'signoff/combined/hps/project/output_files/golden_top.tq.drc.signoff.rpt'
+
+
+def control_identity(control):
+    """The control fit's identity: its build record must be main's 486SX at C0 = 34, seed 1."""
+    build = json.loads((control / 'build-inputs.json').read_bytes())
+    parameters = build['parameters']
+    if (build['revision'], parameters['model'], parameters['machine_clock_hz'], parameters['seed']) != (
+            CONTROL_REVISION, MODEL, CONTROL_CLOCK_HZ, 1):
+        raise ValueError('the CDC control is not main\'s 486SX C0 = 34 seed 1 fit')
+    return {'build_inputs_sha256': file_sha256(control / 'build-inputs.json'),
+            'drc_sha256': file_sha256(control / CONTROL_DRC)}
 REVIEWED_PRESENTER_SHA256 = '7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167'
 REVIEWED_REARM_CYCLES = 8
 
@@ -216,11 +231,11 @@ def seed_result(output, logs, seed, divider, control):
         if any(route['total_ns'] > loaded_budget for route in routes.values()):
             failures.append('LOADED route exceeds the re-arm budget')
         # method.md F5: no CDC-* or RDC-* row the control fit lacks.
-        base = crossing_rows(control)
+        record['cdc_control'] = control_identity(control)
+        base = crossing_rows(control / 'signoff/combined/hps/project')
         mine = crossing_rows(output / 'signoff/combined/hps/project')
         new = {rule: sorted(rows - base.get(rule, set())) for rule, rows in mine.items()}
         new = {rule: rows for rule, rows in new.items() if rows}
-        record['cdc_control'] = str(control)
         record['cdc_new_rows'] = new
         if new:
             failures.append('CDC or RDC findings the control lacks')
@@ -238,6 +253,8 @@ def rung_result(divider, seeds):
         len(seeds) == 4 and {seed.get('seed') for seed in seeds} == {1, 2, 3, 4}
         and all(seed.get('c0') == divider and seed.get('passes') is True for seed in seeds)
         and all('cdc_new_rows' in seed for seed in seeds)
+        and len({json.dumps(seed.get('cdc_control'), sort_keys=True) for seed in seeds}) == 1
+        and seeds[0].get('cdc_control') is not None
         and len(revisions) == 1 and None not in revisions
         and len(netlists) == 1 and None not in netlists
     )}
@@ -251,7 +268,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--seed', type=int, choices=range(1, 5), help='emit one seed measurement from the builder')
     modes.add_argument('--seed-reports', type=Path, nargs=4, help='combine four builder measurements')
-    parser.add_argument('--control', type=Path, help="the control fit's project directory (method.md F5)")
+    parser.add_argument('--control', type=Path, help="the control fit's producer output directory (method.md F5)")
     args = parser.parse_args()
     if args.seed_reports:
         if args.build_directory or args.log_directory:
