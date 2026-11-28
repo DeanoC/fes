@@ -223,22 +223,21 @@ The guest TLB handler can read TEA and PTEH, load PTEL, execute LDTLB, then
 return and retry the faulting access.
 
 Maskable interrupts enter at VBR + 0x600 between instructions. A request
-must exceed SR.IMASK and SR.BL must be clear. Interrupt entry saves the next
+must exceed SR.IMASK. SR.BL masks requests during execution and ordinary
+sleep. Standby wake can enter with SR.BL set. Interrupt entry saves the next
 PC in SPC, saves SR and R15 in SSR and SGR, switches to the privileged register
 bank, and exposes the event in INTEVT at P4 address `0xff000028`. Delayed
 branches retire their slots before interrupts can enter. NMI latches a rising
 edge, takes priority over the maskable request, and uses event code 0x1c0.
 SLEEP suspends instruction issue until an eligible interrupt arrives.
 
-The board-side interrupt controller presents a synchronous selected priority
+The interrupt controller presents a synchronous selected priority
 in `irq_level` and event code in `irq_event` until the CPU pulses `irq_ack`.
 Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
-The remaining floating-point, integer and privileged instructions, interrupt
-source arbitration and peripherals, standby power controls,
-board buses and PTEA PCMCIA
-behavior remain outside this slice.
+Board bus signaling, PTEA PCMCIA behavior and instruction cases outside
+the supported sets still need integration.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
 
