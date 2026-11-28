@@ -1,0 +1,218 @@
+{
+  "pairing.json": {
+    "raw_sha256": "2930d929439407660941a91da840a87ba386ceb9412956e0c56bd207913a371c",
+    "prior_hold_cycles": 554542853,
+    "unattributed": 47166810,
+    "attributed": 507376043,
+    "top_forms": [
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 c9",
+        "clocks": 33873112
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 m/0",
+        "clocks": 16740406
+      },
+      {
+        "older": "d9 m/0",
+        "waiting": "d8 m/1",
+        "clocks": 15687699
+      },
+      {
+        "older": "d8 m/0",
+        "waiting": "d9 ca",
+        "clocks": 13206239
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "de c1",
+        "clocks": 12338183
+      },
+      {
+        "older": "db m/0",
+        "waiting": "db m/0",
+        "clocks": 12262808
+      },
+      {
+        "older": "d8 cb",
+        "waiting": "d9 c9",
+        "clocks": 10815516
+      },
+      {
+        "older": "d8 cc",
+        "waiting": "d9 c9",
+        "clocks": 9748434
+      },
+      {
+        "older": "de c1",
+        "waiting": "d9 m/0",
+        "clocks": 9738715
+      },
+      {
+        "older": "de c2",
+        "waiting": "d9 m/0",
+        "clocks": 8225303
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 m/0",
+        "clocks": 7353085
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 ca",
+        "clocks": 6590741
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 m/1",
+        "clocks": 6375270
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "de c2",
+        "clocks": 5990679
+      },
+      {
+        "older": "db m/0",
+        "waiting": "d9 m/2",
+        "clocks": 5892482
+      },
+      {
+        "older": "d8 m/2",
+        "waiting": "df e0",
+        "clocks": 5670019
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "db m/3",
+        "clocks": 5325607
+      },
+      {
+        "older": "d8 ca",
+        "waiting": "d9 c9",
+        "clocks": 5162190
+      },
+      {
+        "older": "d9 ca",
+        "waiting": "d8 m/1",
+        "clocks": 4948742
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 cb",
+        "clocks": 4941192
+      }
+    ]
+  },
+  "post-first-render.json": {
+    "raw_sha256": "c5792770ab18a966ce24477e3c90dafcb2558384e21fcf4dffccb1b2aef1839d",
+    "prior_hold_cycles": 498893130,
+    "unattributed": 42814078,
+    "attributed": 456079052,
+    "top_forms": [
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 c9",
+        "clocks": 31064223
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 m/0",
+        "clocks": 14621255
+      },
+      {
+        "older": "d9 m/0",
+        "waiting": "d8 m/1",
+        "clocks": 13253900
+      },
+      {
+        "older": "d8 m/0",
+        "waiting": "d9 ca",
+        "clocks": 11977975
+      },
+      {
+        "older": "db m/0",
+        "waiting": "db m/0",
+        "clocks": 11465853
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "de c1",
+        "clocks": 10344434
+      },
+      {
+        "older": "d8 cb",
+        "waiting": "d9 c9",
+        "clocks": 9778760
+      },
+      {
+        "older": "d8 cc",
+        "waiting": "d9 c9",
+        "clocks": 8751299
+      },
+      {
+        "older": "de c1",
+        "waiting": "d9 m/0",
+        "clocks": 8242932
+      },
+      {
+        "older": "de c2",
+        "waiting": "d9 m/0",
+        "clocks": 7504136
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 m/0",
+        "clocks": 6713453
+      },
+      {
+        "older": "d8 m/1",
+        "waiting": "d9 ca",
+        "clocks": 6314072
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 m/1",
+        "clocks": 5815503
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "de c2",
+        "clocks": 5408898
+      },
+      {
+        "older": "db m/0",
+        "waiting": "d9 m/2",
+        "clocks": 5288002
+      },
+      {
+        "older": "d8 ca",
+        "waiting": "d9 c9",
+        "clocks": 4862501
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "db m/3",
+        "clocks": 4809410
+      },
+      {
+        "older": "d9 ca",
+        "waiting": "d8 m/1",
+        "clocks": 4547570
+      },
+      {
+        "older": "d9 c9",
+        "waiting": "d8 cb",
+        "clocks": 4454008
+      },
+      {
+        "older": "db m/3",
+        "waiting": "db m/3",
+        "clocks": 4286828
+      }
+    ]
+  }
+}

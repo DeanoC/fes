@@ -2,6 +2,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <map>
 #include <ostream>
 #include <stdexcept>
 
@@ -16,6 +17,11 @@ struct PentiumX87Stalls {
     // control, store waiting for S_RDY, FNSAVE register-read port alignment.
     // A store behind an older ESC can assert both store_value and prior_op.
     std::array<std::uint64_t, 32> sole_masks{};
+
+    // Count only clocks with the prior-operation hold term asserted. The
+    // active bit distinguishes two different instructions from a stale opcode.
+    std::map<unsigned, std::uint64_t> prior_pairs;
+    std::uint64_t prior_pair_unknown = 0;
 
     void reset() { *this = {}; }
 
@@ -58,6 +64,10 @@ struct PentiumX87Stalls {
             ++sole_masks[reasons];
             const unsigned older = (pair_bits >> 11) & 0x7ffu;
             const unsigned head = pair_bits & 0x7ffu;
+            if (reasons & 2u) {
+                if (pair_bits & (1u << 22)) ++prior_pairs[(older << 11) | head];
+                else ++prior_pair_unknown;
+            }
             if ((pair_bits & (1u << 22)) && stable_register_arithmetic(older)
                                          && stable_register_arithmetic(head)) {
                 const unsigned dest = (older >> 8) == 0 ? 0 : older & 7u;
@@ -95,6 +105,15 @@ struct PentiumX87Stalls {
             }
             out << "\":" << sole_masks[mask];
         }
-        out << "}}";
+        out << "},\"prior_pair_unknown\":" << prior_pair_unknown
+            << ",\"prior_opcode_pairs\":[";
+        first = true;
+        for (const auto& entry : prior_pairs) {
+            if (!first) out << ',';
+            first = false;
+            out << '[' << (entry.first >> 11) << ',' << (entry.first & 0x7ffu)
+                << ',' << entry.second << ']';
+        }
+        out << "]}";
     }
 };

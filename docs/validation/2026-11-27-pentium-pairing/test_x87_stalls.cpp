@@ -35,6 +35,8 @@ int main() {
     assert(profile.held == 11 && profile.sole == 9 && profile.sole_fwait == 1);
     assert(profile.co_blocked == 1 && profile.discarded == 1);
     assert(profile.register_raw == 2 && profile.no_register_raw == 1);
+    assert(profile.prior_pair_unknown == 1 && profile.prior_pairs.size() == 6);
+    assert(profile.prior_pairs.at((0x4c1 << 11) | 0x114) == 1);
     std::ostringstream json;
     profile.write_json(json);
     assert(json.str().find("\"prior_operation+store_value\":1") != std::string::npos);
