@@ -545,7 +545,7 @@ sim-fes-zx81-variants:
 
 .PHONY: zx81-openrom sim-fes-zx81-openrom
 zx81-openrom:
-	@python3 scripts/build_zx81_openrom.py
+	@$(PYTHON) scripts/build_zx81_openrom.py
 
 # The open ROM on the real machine RTL. Machines (name:EXTERNAL_RAM:define):
 # 1, the 1 KiB fes.zx81; 0, with 16 KiB; ts1000, the 2 KiB NTSC TS1000. Each
@@ -564,13 +564,16 @@ sim-fes-zx81-openrom: zx81-openrom
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 			-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-			-GEXTERNAL_RAM=$$ram '-GFIRMWARE_INIT="build/zx81-openrom/zx81-openrom.hex"' $$define \
+			-GEXTERNAL_RAM=$$ram '-GFIRMWARE_INIT="$(CURDIR)/build/zx81-openrom/zx81-openrom.hex"' $$define \
 			-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
 			--Mdir "$(CURDIR)/$$dir" \
 			cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
 			$(FES_Z80_NMOS_RTL) \
 			cores/fes-zx81/rtl/zx81_dpram.v \
 			"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp" || exit 1; \
+	done
+	@for spec in 1 0 ts1000; do \
+		$(ZX81_OPENROM_SIM_DIR)-$$spec/Vzx81_machine new-boundary "$(CURDIR)/build/zx81-openrom/zx81-openrom.sym" || exit 1; \
 	done
 	@$(ZX81_OPENROM_SIM_DIR)-1/Vzx81_machine check & one=$$!; \
 		$(ZX81_OPENROM_SIM_DIR)-ts1000/Vzx81_machine check & ntsc=$$!; \

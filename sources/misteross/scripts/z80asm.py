@@ -139,7 +139,15 @@ class Assembler:
         text = re.sub(r"'(.)'", char, expr)
         text = re.sub(r'\$([0-9a-fA-F]+)\b', lambda m: str(int(m.group(1), 16)), text)
         text = re.sub(r'\b([0-9][0-9a-fA-F]*)h\b', lambda m: str(int(m.group(1), 16)), text)
-        text = re.sub(r'%([01]+)\b', lambda m: str(int(m.group(1), 2)), text)
+        # A percent sign starts a binary literal only where an operand may
+        # begin. After a value it is Python's modulo operator, even when the
+        # right operand starts with 0 or 1 or whitespace surrounds the sign.
+        def binary(m):
+            before = m.string[:m.start()].rstrip()
+            if before and before[-1] not in '([,+-*/%&|^~<>!=':
+                return m.group(0)
+            return str(int(m.group(1), 2))
+        text = re.sub(r'%([01]+)\b', binary, text)
         text = text.replace('$', str(self.pc))
         def name(m):
             word = m.group(0)
