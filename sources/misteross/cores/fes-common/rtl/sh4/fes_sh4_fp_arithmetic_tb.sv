@@ -1,11 +1,11 @@
-module fes_sh4_fp_add_tb(input logic clk, output logic finished);
+module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
     logic reset = 1, start = 0;
-    logic wide, subtract, toward_zero, flush_denormals;
+    logic wide, multiply = 0, subtract, toward_zero, flush_denormals;
     logic [63:0] lhs, rhs, value;
     logic [5:0] causes;
     logic done, unused_normal_operands;
 
-    fes_sh4_fp_add dut (.normal_operands(unused_normal_operands), .*);
+    fes_sh4_fp_arithmetic dut (.normal_operands(unused_normal_operands), .*);
 
     task automatic check(
         input logic [3:0] mode,
@@ -21,7 +21,7 @@ module fes_sh4_fp_add_tb(input logic clk, output logic finished);
         start = 0;
         wait (done);
         assert (causes == expected_causes && (expected_causes[5] || value == expected))
-            else $fatal(1, "FP add mode %h %h %h: got %h/%h expected %h/%h",
+            else $fatal(1, "FP arithmetic mode %h %h %h: got %h/%h expected %h/%h",
                         mode, a, b, value, causes, expected, expected_causes);
         wait (!done);
     endtask
@@ -57,6 +57,27 @@ module fes_sh4_fp_add_tb(input logic clk, output logic finished);
         check(12, 64'h0010_0000_0000_0001, 64'h0010_0000_0000_0000, 64'h0000_0000_0000_0001, 0);
         check(8, 64'h7fef_ffff_ffff_ffff, 64'h7fef_ffff_ffff_ffff, 64'h7ff0_0000_0000_0000, 5);
         check(8, 64'h7ff8_0000_0000_0000, 64'h3ff0_0000_0000_0000, 64'h7ff7_ffff_ffff_ffff, 16);
+        multiply = 1;
+        check(0, 64'h3fc0_0000, 64'h4000_0000, 64'h4040_0000, 0);
+        check(0, 64'hbfc0_0000, 64'h4020_0000, 64'hc070_0000, 0);
+        check(0, 64'h3f80_0001, 64'h3f80_0001, 64'h3f80_0002, 1);
+        check(0, 64'h0080_0000, 64'h3f00_0000, 64'h0040_0000, 0);
+        check(1, 64'h8080_0000, 64'h3f00_0000, 64'h8000_0000, 3);
+        check(0, 64'h0080_0000, 64'h0080_0000, 0, 3);
+        check(0, 64'h0080_0000, 64'h3f7f_ffff, 64'h0080_0000, 1);
+        check(2, 64'h0080_0000, 64'h3f7f_ffff, 64'h007f_ffff, 3);
+        check(0, 64'h7f7f_ffff, 64'h4000_0000, 64'h7f80_0000, 5);
+        check(2, 64'h7f7f_ffff, 64'h4000_0000, 64'h7f7f_ffff, 5);
+        check(0, 64'h8000_0000, 64'h3f80_0000, 64'h8000_0000, 0);
+        check(0, 64'h8000_0000, 64'h7f80_0000, 64'h7fbf_ffff, 16);
+        check(0, 64'hff80_0000, 64'hbf80_0000, 64'h7f80_0000, 0);
+        check(0, 64'h0000_0001, 64'hff80_0000, 0, 32);
+        check(1, 64'h0000_0001, 64'hff80_0000, 64'h7fbf_ffff, 16);
+        check(8, 64'h3ff8_0000_0000_0000, 64'h4002_0000_0000_0000, 64'h400b_0000_0000_0000, 0);
+        check(8, 64'h3fff_ffff_ffff_ffff, 64'h3fff_ffff_ffff_ffff, 64'h400f_ffff_ffff_fffe, 1);
+        check(8, 64'h0010_0000_0000_0000, 64'h3fe0_0000_0000_0000, 64'h0008_0000_0000_0000, 0);
+        check(9, 64'h8010_0000_0000_0000, 64'h3fe0_0000_0000_0000, 64'h8000_0000_0000_0000, 3);
+        check(8, 64'h7fef_ffff_ffff_ffff, 64'h4000_0000_0000_0000, 64'h7ff0_0000_0000_0000, 5);
         finished = 1;
     end
 endmodule

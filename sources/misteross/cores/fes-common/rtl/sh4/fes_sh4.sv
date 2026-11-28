@@ -34,7 +34,7 @@ module fes_sh4 #(
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ADD
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ARITH
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD, QUADWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
@@ -56,8 +56,8 @@ module fes_sh4 #(
     logic [3:0] fp_read_number;
     logic [63:0] fp_read_value, fp_source, fp_result;
     logic [31:0] fp_system_value;
-    logic [63:0] fp_lhs, fp_add_value;
-    logic fp_add_done, fp_normal_operands;
+    logic [63:0] fp_lhs, fp_arith_value;
+    logic fp_arith_done, fp_normal_operands;
     logic [5:0] fp_causes;
     control_reg_t dec_control_reg, control_reg;
     logic dec_control_transfer, control_transfer, control_write, writes_sr, load_gpr;
@@ -310,7 +310,7 @@ module fes_sh4 #(
                 if (ir[3:0] == 4'h7)
                     dec_offset = gpr[0];
             end
-            16'hf??0, 16'hf??1: decoded = FLOAT_ADD;
+            16'hf??0, 16'hf??1, 16'hf??2: decoded = FLOAT_ARITH;
             16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
             16'hf3fd, 16'hfbfd: decoded = FLOAT_OP;
 
@@ -528,7 +528,7 @@ module fes_sh4 #(
             3: byte_result = wb_value[7:0] | ir[7:0];
         endcase
     end
-    assign dec_fp_pair = decoded == FLOAT_ADD ? fpscr[19] :
+    assign dec_fp_pair = decoded == FLOAT_ARITH ? fpscr[19] :
                          ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
     assign fp_read_number = stage == FP_LHS || ir[3:0] == 4'hd ? n : m;
     assign fp_system = (ir[7:4] inside {4'h5, 4'h6}) &&
@@ -536,11 +536,11 @@ module fes_sh4 #(
                         (ir[15:12] == 4'h4 && (ir[3:0] inside {4'h2, 4'h6, 4'ha})));
     assign fp_opcode = (ir[15:12] == 4'hf && ir != 16'hfffd) || fp_system;
     assign fp_format_error = fpscr[19] &&
-                             ((decoded == FLOAT_ADD && (n[0] || m[0])) ||
+                             ((decoded == FLOAT_ARITH && (n[0] || m[0])) ||
                               (decoded == FLOAT_OP && ir[3:0] == 4'hd &&
                                ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
                                 ((ir[7:4] inside {4'h4, 4'h5}) && n[0]))));
-    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_ADD ||
+    assign fp_write_register = stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_ARITH ||
                                (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf}))));
     assign fp_write_fpul = stage == COMMIT && ((op == FLOAT_OP && ir[7:0] == 8'h1d) ||
                            (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
@@ -558,10 +558,10 @@ module fes_sh4 #(
         .system_value(fp_system_value), .fpul, .fpscr
     );
 
-    fes_sh4_fp_add fp_add (
-        .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[0]),
+    fes_sh4_fp_arithmetic fp_arithmetic (
+        .clk, .reset, .start(stage == FP_START), .wide(fp_pair), .subtract(ir[0]), .multiply(ir[1]),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source),
-        .done(fp_add_done), .value(fp_add_value), .causes(fp_causes), .normal_operands(fp_normal_operands)
+        .done(fp_arith_done), .value(fp_arith_value), .causes(fp_causes), .normal_operands(fp_normal_operands)
     );
 
     assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
@@ -956,7 +956,7 @@ module fes_sh4 #(
                         stage <= DATA_TRANSLATE;
                     end else if (op == FLOAT_OP) begin
                         stage <= FP_RESULT;
-                    end else if (op == FLOAT_ADD) begin
+                    end else if (op == FLOAT_ARITH) begin
                         stage <= FP_LHS;
                     end else if (op == INTEGER) begin
                         stage <= INTEGER_RESULT;
@@ -971,8 +971,8 @@ module fes_sh4 #(
                     stage <= FP_START;
                 end
                 FP_START: stage <= FP_WAIT;
-                FP_WAIT: if (fp_add_done) begin
-                    fp_result <= fp_add_value;
+                FP_WAIT: if (fp_arith_done) begin
+                    fp_result <= fp_arith_value;
                     stage <= FP_RETIRE;
                 end
                 FP_RETIRE: stage <= COMMIT;

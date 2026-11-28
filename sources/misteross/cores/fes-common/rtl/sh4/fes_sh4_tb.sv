@@ -29,8 +29,8 @@ module fes_sh4_tb;
     logic check_data_cache = 0;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
-    logic cache_cancel_done, mmu_done, fp_add_finished;
-    fes_sh4_fp_add_tb fp_add_test (.clk, .finished(fp_add_finished));
+    logic cache_cancel_done, mmu_done, fp_arith_finished;
+    fes_sh4_fp_arithmetic_tb fp_arith_test (.clk, .finished(fp_arith_finished));
 
     fes_sh4_mmu_tb mmu_test (.clk, .done(mmu_done));
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
@@ -1422,6 +1422,17 @@ module fes_sh4_tb;
         emit('h24, 'h7708);
         emit('h26, 'hf021); // FSUB DR2,DR0
         emit('h28, 'hf70a);
+        emit('h2a, 'h7708);
+        emit('h2c, 'hf022); // FMUL DR2,DR0
+        emit('h2e, 'hf70a);
+        emit('h30, 'he000);
+        emit('h32, 'h406a); // PR=0, SZ=0
+        emit('h34, 'hf09d); // 1.0
+        emit('h36, 'hf19d);
+        emit('h38, 'hf110); // FR1 = 2.0
+        emit('h3a, 'hf012); // FMUL FR1,FR0
+        emit('h3c, 'hf01d);
+        emit('h3e, 'h0a5a);
         image['h80 >> 2] = 'h0018_0000;
         image['h84 >> 2] = 'h200;
         image['h88 >> 2] = 'h300;
@@ -1430,10 +1441,11 @@ module fes_sh4_tb;
         image['h208 >> 2] = 0;
         image['h20c >> 2] = 'h4002_0000;
         start_bus();
-        expect_stop(1, 'h2a);
-        assert (dut.gpr[8] == 'h4000_0000 && dut.gpr[9] == 'h3f80_0000 &&
+        expect_stop(1, 'h40);
+        assert (dut.gpr[8] == 'h4000_0000 && dut.gpr[9] == 'h3f80_0000 && dut.gpr[10] == 'h4000_0000 &&
                 ext_mem['h300 >> 2] == 0 && ext_mem['h304 >> 2] == 'h400e_0000 &&
-                ext_mem['h308 >> 2] == 0 && ext_mem['h30c >> 2] == 'h3ff8_0000)
+                ext_mem['h308 >> 2] == 0 && ext_mem['h30c >> 2] == 'h3ff8_0000 &&
+                ext_mem['h310 >> 2] == 0 && ext_mem['h314 >> 2] == 'h400b_0000)
             else $fatal(1, "Floating-point arithmetic was not committed to the guest destination");
 
         // An enabled invalid exception in a branch delay slot must leave
@@ -1447,7 +1459,7 @@ module fes_sh4_tb;
         literal('h0a, 1, 'h88);
         emit('h0c, 'hf118); // FMOV @R1,FR1 (SH-4 signaling NaN)
         emit('h0e, 'ha002); // BRA 0x16
-        emit('h10, 'hf010); // FADD FR1,FR0 in the delay slot
+        emit('h10, 'hf012); // FMUL FR1,FR0 in the delay slot
         literal('h100, 2, 'h140);
         emit('h102, 'h6822); // EXPEVT
         emit('h104, 'h096a); // FPSCR
@@ -1671,11 +1683,11 @@ module fes_sh4_tb;
         nmi = 0;
         nmi_while_blocked = 0;
 
-        assert (fp_add_finished) else $fatal(1, "Floating-point adder check did not finish");
+        assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers and FADD/FSUB");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers and FADD/FSUB/FMUL");
         $finish;
     end
 

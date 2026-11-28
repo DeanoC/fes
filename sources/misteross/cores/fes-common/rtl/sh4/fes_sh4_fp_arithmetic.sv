@@ -1,11 +1,12 @@
-// Shared binary32/binary64 adder. Single significands use the high 24 bits
+// Shared binary32/binary64 arithmetic datapath. Single significands use the high 24 bits
 // of the double datapath. The low three bits carry guard, round, and sticky.
-module fes_sh4_fp_add (
+module fes_sh4_fp_arithmetic (
     input  logic        clk,
     input  logic        reset,
     input  logic        start,
     input  logic        wide,
     input  logic        subtract,
+    input  logic        multiply,
     input  logic        toward_zero,
     input  logic        flush_denormals,
     input  logic [63:0] lhs, rhs,
@@ -14,9 +15,11 @@ module fes_sh4_fp_add (
     output logic [5:0]  causes, // E V Z O U I
     output logic        normal_operands
 );
-    typedef enum logic [3:0] {
+    typedef enum logic [4:0] {
         IDLE, CLASSIFY, ORDER, ALIGN_COARSE, ALIGN_FINE, SUM,
-        SHIFT_CARRY, NORMALIZE, ROUND, PACK, DONE
+        SHIFT_CARRY, NORMALIZE, ROUND, PACK, DONE,
+        PRODUCT, DIAGONALS, MIDDLE, COLUMN_1, COLUMN_2, COLUMN_3,
+        COLUMN_4, PRODUCT_NORMALIZE
     } state_t;
     state_t state;
 
@@ -31,7 +34,18 @@ module fes_sh4_fp_add (
     logic [5:0] distance;
     logic [10:0] exp_result;
     logic [10:0] exp_distance;
-    logic [55:0] large_sig, small_sig, norm_sig;
+    logic [55:0] large_sig, small_sig, norm_sig, fine_shifted;
+    logic [53:0] product_a, product_b;
+    (* multstyle = "dsp" *) logic [35:0] partial [0:2][0:2];
+    logic [36:0] diagonal_1, diagonal_2_first, diagonal_3;
+    logic [37:0] diagonal_2;
+    logic [19:0] column_carry;
+    logic [37:0] column_1, column_2, column_3;
+    logic [33:0] column_4;
+    logic [105:0] product_result;
+    logic signed [12:0] product_exponent, normalized_product_exponent;
+    logic [12:0] denormal_shift;
+    logic [55:0] product_significand;
     logic [56:0] sum;
     logic [3:0] leading, left_count;
     logic guard_bit, rest, discarded, round_up;
@@ -72,6 +86,29 @@ module fes_sh4_fp_add (
 
     assign b_larger = {b_exponent, b_sig} > {a_exponent, a_sig};
     assign exp_distance = b_larger ? b_exponent - a_exponent : a_exponent - b_exponent;
+    assign fine_shifted = distance == 0 ? small_sig : (small_sig >> distance[2:0]) |
+                          {55'b0, |(small_sig[7:0] & (8'hff >> (4'd8 - {1'b0, distance[2:0]})))};
+
+    // Nine unsigned 18-bit products fit the FPGA's DSP lanes. Diagonal
+    // sums and the base-2^18 carry chain each have registered boundaries.
+    assign product_a = {1'b0, a_sig};
+    assign product_b = {1'b0, b_sig};
+    for (genvar i = 0; i < 3; i++) begin : product_rows
+        for (genvar j = 0; j < 3; j++) begin : product_columns
+            always_ff @(posedge clk)
+                if (state == PRODUCT)
+                    partial[i][j] <= product_a[18*i +: 18] * product_b[18*j +: 18];
+        end
+    end
+    assign column_1 = {1'b0, diagonal_1} + {20'b0, partial[0][0][35:18]};
+    assign column_2 = diagonal_2 + {18'b0, column_carry};
+    assign column_3 = {1'b0, diagonal_3} + {18'b0, column_carry};
+    assign column_4 = partial[2][2][33:0] + {14'b0, column_carry};
+    assign normalized_product_exponent = product_exponent + $signed({12'b0, product_result[105]});
+    assign denormal_shift = $unsigned(13'sd1 - normalized_product_exponent);
+    assign product_significand = product_result[105] ?
+                                 {product_result[105:51], |product_result[50:0]} :
+                                 {product_result[104:50], |product_result[49:0]};
 
     // Shift by up to eight bits per normalize cycle. Close cancellation
     // may take several cycles, keeping the leading-zero path short.
@@ -96,7 +133,7 @@ module fes_sh4_fp_add (
     assign round_up = !toward_zero && guard_bit && (rest || (wide ? norm_sig[3] : norm_sig[32]));
     assign carry = wide ? rounded[53] : rounded[24];
     assign tiny = exp_result == 1 && !(wide ? (carry || rounded[52]) : (carry || rounded[23]));
-    assign overflow_result = packed_exponent >= max_exponent;
+    assign overflow_result = exp_result >= max_exponent || packed_exponent >= max_exponent;
     assign packed_exponent = tiny ? 11'b0 : exp_result + {10'b0, carry};
     assign packed_fraction = wide ? (carry ? rounded[52:1] : rounded[51:0]) :
                                     {(carry ? rounded[23:1] : rounded[22:0]), 29'b0};
@@ -116,7 +153,9 @@ module fes_sh4_fp_add (
                 normal_operands <= a_class == NORMAL && b_class == NORMAL;
                 state <= DONE;
                 if (a_class == SIGNALING_NAN || b_class == SIGNALING_NAN ||
-                    (a_class == INFINITY && b_class == INFINITY && a_sign != b_sign)) begin
+                    (!multiply && a_class == INFINITY && b_class == INFINITY && a_sign != b_sign) ||
+                    (multiply && ((a_class == INFINITY && b_class == ZERO) ||
+                                  (b_class == INFINITY && a_class == ZERO)))) begin
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
                     causes[4] <= 1'b1;
                 end else if (a_class == QUIET_NAN || b_class == QUIET_NAN)
@@ -124,7 +163,10 @@ module fes_sh4_fp_add (
                 else if (a_class == SUBNORMAL || b_class == SUBNORMAL)
                     causes[5] <= 1'b1;
                 else if (a_class == INFINITY || b_class == INFINITY)
-                    value <= pack(a_class == INFINITY ? a_sign : b_sign, max_exponent, 52'b0);
+                    value <= pack(multiply ? a_sign ^ b_sign : a_class == INFINITY ? a_sign : b_sign,
+                                  max_exponent, 52'b0);
+                else if (multiply && (a_class == ZERO || b_class == ZERO))
+                    value <= pack(a_sign ^ b_sign, 11'b0, 52'b0);
                 else if (a_class == ZERO && b_class == ZERO)
                     value <= pack(a_sign && b_sign, 11'b0, 52'b0);
                 else if (a_class == ZERO)
@@ -132,7 +174,7 @@ module fes_sh4_fp_add (
                 else if (b_class == ZERO)
                     value <= pack(a_sign, a_exponent, a_sig[51:0]);
                 else
-                    state <= ORDER;
+                    state <= multiply ? PRODUCT : ORDER;
             end
             ORDER: begin
                 negative <= b_larger ? b_sign : a_sign;
@@ -152,15 +194,63 @@ module fes_sh4_fp_add (
                     state <= ALIGN_FINE;
             end
             ALIGN_FINE: begin
-                if (distance != 0)
-                    small_sig <= (small_sig >> distance[2:0]) |
-                                 {55'b0, |(small_sig[7:0] & (8'hff >> (4'd8 - {1'b0, distance[2:0]})))};
-                state <= SUM;
+                small_sig <= fine_shifted;
+                if (multiply)
+                    norm_sig <= fine_shifted;
+                state <= multiply ? ROUND : SUM;
             end
             SUM: begin
                 sum <= subtract_magnitude ? {1'b0, large_sig} - {1'b0, small_sig} :
                                             {1'b0, large_sig} + {1'b0, small_sig};
                 state <= SHIFT_CARRY;
+            end
+            PRODUCT: begin
+                negative <= a_sign ^ b_sign;
+                product_exponent <= $signed({2'b0, a_exponent}) + $signed({2'b0, b_exponent}) -
+                                    (wide ? 13'sd1023 : 13'sd127);
+                state <= DIAGONALS;
+            end
+            DIAGONALS: begin
+                diagonal_1 <= {1'b0, partial[0][1]} + {1'b0, partial[1][0]};
+                diagonal_2_first <= {1'b0, partial[0][2]} + {1'b0, partial[1][1]};
+                diagonal_3 <= {1'b0, partial[1][2]} + {1'b0, partial[2][1]};
+                state <= MIDDLE;
+            end
+            MIDDLE: begin
+                diagonal_2 <= {1'b0, diagonal_2_first} + {2'b0, partial[2][0]};
+                state <= COLUMN_1;
+            end
+            COLUMN_1: begin
+                product_result[35:0] <= {column_1[17:0], partial[0][0][17:0]};
+                column_carry <= column_1[37:18];
+                state <= COLUMN_2;
+            end
+            COLUMN_2: begin
+                product_result[53:36] <= column_2[17:0];
+                column_carry <= column_2[37:18];
+                state <= COLUMN_3;
+            end
+            COLUMN_3: begin
+                product_result[71:54] <= column_3[17:0];
+                column_carry <= column_3[37:18];
+                state <= COLUMN_4;
+            end
+            COLUMN_4: begin
+                product_result[105:72] <= column_4;
+                state <= PRODUCT_NORMALIZE;
+            end
+            PRODUCT_NORMALIZE: begin
+                if (normalized_product_exponent <= 0) begin
+                    exp_result <= 11'd1;
+                    distance <= denormal_shift >= 13'd56 ? 6'd56 : denormal_shift[5:0];
+                    small_sig <= product_significand;
+                    state <= ALIGN_COARSE;
+                end else begin
+                    exp_result <= normalized_product_exponent >= $signed({2'b0, max_exponent}) ?
+                                  max_exponent : normalized_product_exponent[10:0];
+                    norm_sig <= product_significand;
+                    state <= ROUND;
+                end
             end
             SHIFT_CARRY: begin
                 if (sum == 0) begin
