@@ -82,7 +82,7 @@ module fes_sh4 #(
     logic [11:0] expevt, intevt, exception_event;
     logic nmi_previous, nmi_pending, nmi_edge, nmi_ready, irq_ready, take_interrupt, interrupt_pending;
     logic [7:0] tra, trap_imm;
-    logic [3:0] exception_cause;
+    logic [3:0] exception_cause, fetch_issue_cause;
     logic take_exception, address_exception, privileged_op, is_store;
     logic [31:0] fault_address;
     logic t, in_slot, supervisor, fetch_supervisor, bank_one, rte_slot, slot_wrote_pr;
@@ -123,7 +123,7 @@ module fes_sh4 #(
     logic [2:0] sq_word_index;
     logic [31:0] fetch_pc, fetch_read_addr;
     logic [15:0] fetch_instruction;
-    logic fetch_valid, fetch_consume, fetch_read, fetch_read_ready, fetch_response;
+    logic fetch_valid, fetch_consume, serialize_fetch, fetch_read, fetch_read_ready, fetch_response;
     logic fetch_lookup, fetch_cacheable, fetch_flush, redirect, store_accepted;
     logic data_ready, data_complete, data_bus_request, data_bus_ready, data_bus_response;
     logic [31:0] data_read_word, data_bus_addr, data_bus_wdata;
@@ -659,14 +659,8 @@ module fes_sh4 #(
         fault_address = pc;
         case (stage)
             ISSUE: begin
-                if (pc[0]) begin
-                    exception_cause = FETCH_ALIGN;
-                    address_exception = 1'b1;
-                end else if (bad_fetch_region) begin
-                    exception_cause = ADDRESS_ERROR;
-                    address_exception = 1'b1;
-                end else if (fetch_tlb_pending && mmu_response)
-                    exception_cause = mmu_fault;
+                exception_cause = fetch_issue_cause;
+                address_exception = pc[0] || bad_fetch_region;
             end
             EXECUTE: begin
                 if (fp_instruction && sr[15])
@@ -734,7 +728,20 @@ module fes_sh4 #(
     assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked);
     assign irq_ready = !sr[28] && irq_level > sr[7:4];
     assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
-    assign take_interrupt = (stage == ISSUE || stage == ASLEEP) && interrupt_pending && exception_cause == 0;
+    assign fetch_issue_cause = pc[0] ? FETCH_ALIGN : bad_fetch_region ? ADDRESS_ERROR :
+                               fetch_tlb_pending && mmu_response ? mmu_fault : 4'b0;
+    assign take_interrupt = interrupt_pending && (stage == ASLEEP || (stage == ISSUE && fetch_issue_cause == 0));
+
+    // These instructions serialize fetch at retirement. Decode them before
+    // entering the execution and memory stages.
+    always_ff @(posedge clk) begin
+        if (stage == DECODE) begin
+            casez (ir)
+                16'h001b, 16'h0038, 16'h4?0e, 16'h4?07: serialize_fetch <= 1'b1;
+                default: serialize_fetch <= 1'b0;
+            endcase
+        end
+    end
 
     assign redirect = stage == COMMIT && fetch_pc != next_pc;
     assign privilege_write = stage == COMMIT && writes_sr;
@@ -754,9 +761,9 @@ module fes_sh4 #(
     assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write || cache_array_barrier ||
                          privilege_write || exception_cause != 0 || take_interrupt ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
-    assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !interrupt_pending) ||
-                                           (stage == COMMIT && !redirect && !privilege_write && !mmu_ldtlb &&
-                                            !irq_ready && !nmi_ready && op != SLEEP));
+    assign fetch_consume = fetch_valid && ((stage == ISSUE && fetch_issue_cause == 0 && !interrupt_pending) ||
+                                           (stage == COMMIT && !redirect && !serialize_fetch &&
+                                            !irq_ready && !nmi_ready));
     assign store_accepted = mem_valid && mem_ready && mem_wstrb != 0;
 
     assign mmu_register_index = data_addr[5:2];

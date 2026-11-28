@@ -9,15 +9,16 @@ module fes_sh4_fsca (
     output logic        done,
     output logic [63:0] value
 );
-    typedef enum logic [2:0] {
-        IDLE, FOLD, LOOKUP, PRODUCT, INTERPOLATE, NORMALIZE, PACK, DONE
+    typedef enum logic [3:0] {
+        IDLE, FOLD, LOOKUP, PRODUCT_INPUT, PRODUCT, INTERPOLATE, NORMALIZE, PACK, DONE
     } state_t;
     state_t state;
     (* ramstyle = "M20K" *) logic [43:0] coefficients [0:1023];
     logic [43:0] coefficient;
     logic [15:0] phase;
     logic [14:0] pos;
-    logic [20:0] interpolation;
+    logic [16:0] slope;
+    (* multstyle = "logic" *) logic [20:0] interpolation;
     logic [16:0] rounded_interpolation;
     logic [26:0] significand;
     logic [7:0] exponent;
@@ -52,9 +53,13 @@ module fes_sh4_fsca (
                 pos <= phase[14] ? 15'd16384 - {1'b0, phase[13:0]} : {1'b0, phase[13:0]};
                 state <= LOOKUP;
             end
-            LOOKUP: state <= PRODUCT;
+            LOOKUP: state <= PRODUCT_INPUT;
+            PRODUCT_INPUT: begin
+                slope <= coefficient[16:0];
+                state <= PRODUCT;
+            end
             PRODUCT: begin
-                interpolation <= coefficient[16:0] * pos[3:0];
+                interpolation <= slope * pos[3:0];
                 state <= INTERPOLATE;
             end
             INTERPOLATE: begin
