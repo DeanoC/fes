@@ -95,9 +95,10 @@ class NightlyTest(unittest.TestCase):
         recipe = nightly.recipes.recipe_for("fes.menu")
         args = self.store, self.sha, recipe, None, original["inputs"], None
         builds = list(self.built)
+        self.sha = "2" * 40  # Later corrected policy, same staged artifact.
         replacement = nightly.qualify(*args, replaces=binding, spool_only=True)
         request = nightly.read(self.store / "requests" / replacement)["request"]
-        self.assertEqual(request, dict(original, replaces=binding))
+        self.assertEqual(request, dict(original, replaces=binding, policy_main=self.sha))
         self.assertNotEqual(binding, replacement)
         self.answer(replacement)
         obj = nightly.qualify(*args, replaces=binding)

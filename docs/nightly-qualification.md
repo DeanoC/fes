@@ -165,9 +165,13 @@ Linux MENU admission path.
 
 For an operator-approved correction to a kit gate, run
 `retry-staged --request OLD_KIT_REQUEST_SHA256 --config /absolute/releases.json`
-with the protected store and the checked-out corrected policy. It validates the
-original request against its staged files and spools a distinct request with a
-`replaces` reference. Exit 4 identifies the replacement waiting for hardware.
+with the protected store and a clean checkout of the corrected policy from main.
+It validates the original request against its staged files and spools a distinct request with a
+`replaces` reference. The launcher loads receipt validation from the original
+artifact `main` and the worker, smoke adapters and registered checker from
+the replacement’s `policy_main`. Both revisions must be in protected main
+history, with the artifact revision an ancestor of the policy. Exit 4 identifies
+the replacement waiting for hardware.
 Run its registered check on the designated kit, restore the baseline and import
 the exact request-bound evidence with `record`. Repeat `retry-staged` to promote
 the retained bytes under the corrected gate. The store checkpoint must still

@@ -294,6 +294,7 @@ def qualify(store, sha, recipe, accept, key, previous, *, replaces=None, spool_o
                 or dict(request, hil=original["hil"]) != original):
             raise ValueError("superseded request does not match the staged candidate")
         request["replaces"] = replaces
+        request["policy_main"] = git("rev-parse", "HEAD")
         if spool_only:
             binding = digest(encoded(request))
             write(store / "requests" / binding, encoded(dict(request=request,
@@ -523,7 +524,8 @@ def retry_staged(store, binding, config):
     if digest(encoded(original)) != binding:
         raise ValueError("damaged original request")
     sha = original["main"]
-    subprocess.run(["git", "-C", ROOT, "merge-base", "--is-ancestor", sha, "origin/main"], check=True)
+    subprocess.run(["git", "-C", ROOT, "merge-base", "--is-ancestor", sha, "HEAD"], check=True)
+    subprocess.run(["git", "-C", ROOT, "merge-base", "--is-ancestor", "HEAD", "origin/main"], check=True)
     if git("status", "--porcelain"):
         raise ValueError("staged retries require a clean policy checkout")
     for release in config["releases"].values():
