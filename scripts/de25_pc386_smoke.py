@@ -21,7 +21,7 @@ DISKS = {
     "bench": ("e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c", 80),
 }
 QUAKE_COMMAND = "quake -condebug -nosound -nocdaudio +exec mode0.cfg +timedemo demo1"
-DOS_KEYS = {**TEXT_KEYS, ">": "shift+period", "+": "shift+equal", "\\": "backslash"}
+DOS_KEYS = {**TEXT_KEYS, ">": "shift+period", "+": "shift+equal", "_": "shift+minus", "\\": "backslash"}
 SCORE = re.compile(r"\b969\s+frames\s+(\d+\.\d)\s+seconds\s+(\d+\.\d)\s+fps\b", re.I)
 
 
@@ -56,12 +56,13 @@ def preflight(drives, model):
         require(shutil.which(tool), f"required capture tool missing: {tool}")
 
 
-def timedemo_score(text):
+def timedemo_result(text):
     match = SCORE.search(" ".join(text.split()))
-    if match:
+    mode = re.search(r"(?im)^\s*320\s*x\s*200\s*$", text)
+    if match and mode:
         seconds, fps = map(float, match.groups())
         if seconds > 0 and fps > 0 and abs(969 / seconds - fps) <= 0.06:
-            return {"frames": 969, "seconds": seconds, "fps": fps}
+            return {"frames": 969, "seconds": seconds, "fps": fps, "mode": "320x200"}
     return None
 
 
@@ -167,25 +168,25 @@ class Smoke:
         self.command("doom")
         time.sleep(20)
         self.frame("doom-title")
+        for _ in range(4):
+            self.keys("enter")
+            time.sleep(1)
+        time.sleep(5)
+        before = self.frame("doom-e1m1-before")
+        hud = doom_hud(before)
+        (self.args.out / "doom-e1m1-ocr.txt").write_text(hud)
+        require(re.search(r"\bhealth\b", hud, re.I), "Doom gameplay HUD not detected")
+
+        # Start capture after gameplay is visible. Fire in the level so
+        # title music and menu sound effects cannot satisfy this check.
         recorder = AudioRecorder(self.args.out, "D25")
         recorder.start()
         try:
-            for _ in range(4):
-                self.keys("enter")
-                time.sleep(1)
-            time.sleep(5)
-            before = self.frame("doom-e1m1-before")
-            self.keys("up", "up", "up", "left", "left")
+            self.keys("up", "up", "up", "left", "left", "leftctrl", "leftctrl")
             after = self.frame("doom-e1m1-after")
-            delta = frame_delta(rgb(before), rgb(after))
         finally:
             recorder.stop()
-        # The title/menu and an active E1M1 screen have different HUDs.
-        # Require the gameplay labels on the post-input frame as well as a
-        # substantial response to movement and sound from the HDMI device.
-        hud = doom_hud(after)
-        (self.args.out / "doom-e1m1-ocr.txt").write_text(hud)
-        require(re.search(r"\bhealth\b", hud, re.I), "Doom gameplay HUD not detected")
+        delta = frame_delta(rgb(before), rgb(after))
         require(delta is not None and delta >= 0.008, f"Doom movement not visible: {delta}")
         audio_ok, audio_note = judge_audio(audio_windows(recorder.path), {"min_rms": 450})
         require(audio_ok, f"Doom HDMI audio not detected: {audio_note}")
@@ -206,16 +207,25 @@ class Smoke:
             ) else None
 
         self.record("quake_console", self.wait_for("quake-console", complete, 210))
+        self.command("vid_describecurrentmode")
         self.command("quit")
+
+        def dos_prompt(frame):
+            text = tesseract(frame, 6)
+            if re.search(r"(?im)^\s*c:\\marks\\quakes\s*[>_]", text):
+                return {"prompt": "C:\\MARKS\\QUAKES>"}
+            return None
+
+        self.record("quake_return_to_dos", self.wait_for("quake-return-to-dos", dos_prompt, 35))
         self.command(r"type id1\qconsole.log")
 
         def read(frame):
             text = tesseract(frame, 6)
             (self.args.out / "quake-qconsole-ocr.txt").write_text(text)
-            return timedemo_score(text)
+            return timedemo_result(text)
 
         score = self.wait_for("quake-demo1", read, 35)
-        self.record("quake_demo1", {**score, "command": QUAKE_COMMAND, "mode": "320x200"})
+        self.record("quake_demo1", {**score, "command": QUAKE_COMMAND})
         self.stop("quake_stop")
 
     def run(self, model):
