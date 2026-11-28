@@ -20,7 +20,7 @@ flowchart TD
   Wait["Wait for released, idle boundary\n(active play/lease keeps running;\nnew claims wait behind activation)"]
   Maint["Enter target maintenance &\nstop old service group (proven exit)"]
   Start["Start candidate bundle\n(mister-runtime, mister-agent,\nfogcast-kit host, fogcast-tenfoot)"]
-  Ready{"Agent + runtime idle &\nlauncher ready for 10 s\n(within 3 min budget)?"}
+  Ready{"Agent + runtime idle, host/catalog &\nlauncher ready for 10 s\n(within 3 min budget)?"}
   Accept["Accepted & persistent\n(survives reboot;\nhost/tenfoot restart alone on exit)"]
   Recover["Supervisor recovery / backoff\n(or explicit select-factory /\nrollback to retained bundle)"]
 
