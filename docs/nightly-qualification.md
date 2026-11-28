@@ -148,7 +148,14 @@ Install `nightly-kit-worker.py`, `nightly-de10-smoke.py` and
 `~/.local/share/fes-qualification/bin/`. HILQ owns the kit claims and restore.
 DE10 tries B then A. DE25 uses the serial-bound D25 watcher. A digest-specific
 run directory retains the raw kit evidence and verified sealed package for
-retries. Two failed attempts hold the candidate for investigation.
+retries. If all designated kits are busy, the worker checks again for up to 45
+minutes, every 60 seconds by default. Set `FES_NIGHTLY_KIT_WAIT_SECONDS` to
+change the wait (`0` disables waiting) and `FES_NIGHTLY_KIT_POLL_SECONDS` to
+change the interval; progress is logged to stderr. A timeout still fails the
+nightly attempt with `designated kits unavailable`. Reinstall
+`nightly-kit-worker.py` under Powerboat's
+`~/.local/share/fes-qualification/bin/` for source changes to take effect.
+Two failed attempts hold the candidate for investigation.
 
 For the configured DE10 MENU and ZX81 development release, place the checked
 bootstrap under `software/<artifacts.json sha256>` alongside the store.
