@@ -21,7 +21,7 @@ flowchart LR
   end
 
   subgraph Target["Kit Target (mister-agent)"]
-    TAPI["internal/httpapi\n(127.0.0.1:8182)"]
+    TAPI["internal/httpapi\n(0.0.0.0:8182 — LAN target\nor 127.0.0.1 from kit host)"]
     Agent["internal/agent\n(leases, staging, recovery)"]
     Input["internal/input\n(TargetController,\nlocal-input.sock)"]
     RClient["internal/misterruntime\n(protocol 2 client)"]
@@ -36,7 +36,7 @@ flowchart LR
   HAPI --> Svc
   Svc --> Pkg
   Svc -->|"Index & fetch"| Source
-  Svc <-->|"HTTP"| TAPI
+  Svc <-->|"HTTP (LAN or kit loopback)"| TAPI
   TAPI --> Agent --> RClient
   RClient <-->|"Protocol 2"| RT
 ```
