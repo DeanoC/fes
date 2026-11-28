@@ -222,9 +222,9 @@ def captured_source_closure(root, source_roots, captured, recipe, review_inputs)
         if (root / 'scripts' / (Path(helper).stem + '.py')).is_file():
             roots.update(script_imports(Path(helper).stem, root))
     roots.update(helpers)
-    # These modules import each other outside scripts/. Bind the complete
-    # board-local producer and codec directories, including the static recipe.
-    roots.update({'boards/de25nano/producers', 'boards/de25nano/package'})
+    # Bind this shared producer module, the package marker, and the board-local
+    # codec directory without sweeping sibling core producers into every record.
+    roots.update({RECIPE, 'boards/de25nano/producers/__init__.py', 'boards/de25nano/package'})
     for module in ('quartus_tools', 'fes_build_common', 'functional_execution',
                    'source_closure', 'compiler_read_audit'):
         roots.update(script_imports(module, root))
