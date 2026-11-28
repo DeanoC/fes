@@ -237,8 +237,8 @@ def compare(candidate, control):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', required=True, type=Path, help='clean FES checkout of the candidate')
-    parser.add_argument('--output', required=True, type=Path, help='fresh output directory')
+    parser.add_argument('--source', type=Path, help='clean FES checkout of the candidate')
+    parser.add_argument('--output', type=Path, help='fresh output directory')
     parser.add_argument('--cache-root', type=Path)
     parser.add_argument('--drives', type=Path, help='directory of the census bench.img and pmode.img')
     parser.add_argument('--analyze-existing', action='store_true', help='analyze retained logs and profiles only')
@@ -248,6 +248,8 @@ def main():
     args = parser.parse_args()
     if args.compare:
         return compare(*(path.resolve() for path in args.compare))
+    if not args.source or not args.output:
+        parser.error('--source and --output are required to run or analyze')
     source, output = args.source.resolve(), args.output.resolve()
 
     def git(*arguments):

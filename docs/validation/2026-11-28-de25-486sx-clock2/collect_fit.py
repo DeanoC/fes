@@ -14,6 +14,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / '2026-11-24-de25-486sx-fmax'))
 from rung_summary import summary
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cdc_compare import crossing_rows  # noqa: E402
+
 CORNERS = {
     '4_slow_fix4_100c': 'Slow fix4 100C Model',
     '4_slow_fix4_0c': 'Slow fix4 0C Model',
@@ -160,7 +163,7 @@ def retimed_evidence(output, logs, build, build_digest, retimed_rows):
     return {'rows': count, 'minimum_slacks': proof['minimum_slacks'], 'receipt_sha256': receipt_digest}
 
 
-def seed_result(output, logs, seed, divider):
+def seed_result(output, logs, seed, divider, control):
     record = {'seed': seed, 'c0': divider, 'host': socket.gethostname(), 'passes': False, 'failures': []}
     failures = record['failures']
     try:
@@ -212,6 +215,15 @@ def seed_result(output, logs, seed, divider):
         record['loaded_routes'] = routes
         if any(route['total_ns'] > loaded_budget for route in routes.values()):
             failures.append('LOADED route exceeds the re-arm budget')
+        # method.md F5: no CDC-* or RDC-* row the control fit lacks.
+        base = crossing_rows(control)
+        mine = crossing_rows(output / 'signoff/combined/hps/project')
+        new = {rule: sorted(rows - base.get(rule, set())) for rule, rows in mine.items()}
+        new = {rule: rows for rule, rows in new.items() if rows}
+        record['cdc_control'] = str(control)
+        record['cdc_new_rows'] = new
+        if new:
+            failures.append('CDC or RDC findings the control lacks')
     except (OSError, ValueError, KeyError, IndexError, AttributeError) as error:
         failures.append(f'incomplete evidence: {error}')
     record['passes'] = not failures
@@ -220,10 +232,14 @@ def seed_result(output, logs, seed, divider):
 
 def rung_result(divider, seeds):
     revisions = {seed.get('revision') for seed in seeds}
-    return {'c0': divider, 'seeds': seeds, 'passes': (
+    # method.md F6: all four seeds compiled one raw machine netlist.
+    netlists = {seed.get('fit', {}).get('netlist_sha256') for seed in seeds}
+    return {'c0': divider, 'seeds': seeds, 'netlists': sorted(map(str, netlists)), 'passes': (
         len(seeds) == 4 and {seed.get('seed') for seed in seeds} == {1, 2, 3, 4}
         and all(seed.get('c0') == divider and seed.get('passes') is True for seed in seeds)
+        and all('cdc_new_rows' in seed for seed in seeds)
         and len(revisions) == 1 and None not in revisions
+        and len(netlists) == 1 and None not in netlists
     )}
 
 
@@ -235,15 +251,17 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--seed', type=int, choices=range(1, 5), help='emit one seed measurement from the builder')
     modes.add_argument('--seed-reports', type=Path, nargs=4, help='combine four builder measurements')
+    parser.add_argument('--control', type=Path, help="the control fit's project directory (method.md F5)")
     args = parser.parse_args()
     if args.seed_reports:
         if args.build_directory or args.log_directory:
             parser.error('seed reports already contain the builder measurements')
         result = rung_result(args.divider, [json.loads(path.read_text()) for path in args.seed_reports])
     else:
-        if not args.build_directory or not args.log_directory:
-            parser.error('expected build and log directories')
-        seeds = [seed_result(args.build_directory / f's{seed}', args.log_directory / f's{seed}', seed, args.divider)
+        if not args.build_directory or not args.log_directory or not args.control:
+            parser.error('expected build and log directories and --control')
+        seeds = [seed_result(args.build_directory / f's{seed}', args.log_directory / f's{seed}', seed, args.divider,
+                             args.control)
                  for seed in ((args.seed,) if args.seed else range(1, 5))]
         result = seeds[0] if args.seed else rung_result(args.divider, seeds)
     print(json.dumps(result, indent=2, sort_keys=True))
