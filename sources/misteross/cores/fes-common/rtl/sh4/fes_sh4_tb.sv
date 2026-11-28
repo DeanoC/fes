@@ -29,7 +29,8 @@ module fes_sh4_tb;
     logic check_data_cache = 0, check_operand_ram = 0, check_index_modes = 0;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
-    logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished;
+    logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
+    fes_sh7091_tmu_tb tmu_test (.clk, .finished(tmu_finished));
     fes_sh7091_bsc_tb bsc_test (.clk, .finished(bsc_finished));
     fes_sh4_fp_arithmetic_tb fp_arith_test (.clk, .finished(fp_arith_finished));
 
@@ -2073,12 +2074,70 @@ module fes_sh4_tb;
         nmi = 0;
         nmi_while_blocked = 0;
 
+        // Exercise the on-chip timer and interrupt arbitration through
+        // the same wrapper that is used for the Quartus diagnostic.
+        @(negedge clk);
+        reset = 1;
+        bram_reset = 1;
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2121); // IPRA: TMU0 priority 5
+        literal('h06, 3, 'h88);
+        emit('h08, 'he207);
+        emit('h0a, 'h1323); // TCNT0 = 7
+        literal('h0c, 4, 'h8c);
+        emit('h0e, 'he220);
+        emit('h10, 'h2421); // TCR0: interrupt enable, peripheral clock /4
+        literal('h12, 5, 'h90);
+        emit('h14, 'h450e); // Clear BL and IMASK while remaining privileged
+        literal('h16, 6, 'h94);
+        emit('h18, 'he001);
+        emit('h1a, 'h2600); // TSTR: start timer 0
+        emit('h1c, 'h001b); // SLEEP
+        emit('h1e, 'hee2d);
+        image['h80 >> 2] = 'hffd0_0004;
+        image['h84 >> 2] = 'h5000;
+        image['h88 >> 2] = 'hffd8_0000;
+        image['h8c >> 2] = 'hffd8_0010;
+        image['h90 >> 2] = 'h4000_0000;
+        image['h94 >> 2] = 'hffd8_0004;
+        literal('h600, 1, 'h640);
+        emit('h602, 'he000);
+        emit('h604, 'h2100); // Stop TMU0
+        literal('h606, 2, 'h644);
+        emit('h608, 'h2201); // Clear UNF
+        literal('h60a, 3, 'h648);
+        emit('h60c, 'h6d32); // Read INTEVT in the interrupt handler
+        emit('h60e, 'h002b);
+        emit('h610, 'h0009);
+        image['h640 >> 2] = 'hffd8_0004;
+        image['h644 >> 2] = 'hffd8_0010;
+        image['h648 >> 2] = 'hff00_0028;
+        for (int word = 0; word <= 'h648 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h1e));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h400 &&
+                bram.system_cpu.cpu.gpr[14] == 'h2d)
+            else $fatal(1, "TMU guest fault %d at %h, INTEVT %h, marker %h",
+                        bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[14]);
+        bram_reset = 1;
+
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
+        assert (tmu_finished) else $fatal(1, "TMU/INTC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, and BSC");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, and priority arbitration");
         $finish;
     end
 

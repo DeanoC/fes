@@ -259,8 +259,18 @@ timer counts the supplied `bus_tick` enables, supports keyed writes
 and sticky interrupt flags, and exposes compare and overflow requests.
 Writes to the SDMR apertures emit area, mode/precharge, and address
 signals to the board memory controller. The wrapper's external
-memory port uses a request/response handshake. Legacy SDRAM wire
-timing and interrupt arbitration are platform integration work.
+memory port uses a request/response handshake. The board memory
+controller drives SDRAM wire timing.
+
+The wrapper also handles the three TMU channels and INTC priority
+registers. TMU counts down from the programmed value and reloads on
+underflow. It accepts prescaled peripheral clocks, RTC ticks, and
+external clock edges. Channel 2 captures its count and signals an
+interrupt and a DMA request when configured. The priority encoder
+combines timer and refresh interrupts with the external encoded
+request. Acknowledgement returns to the external device only for
+an external interrupt. The board continues to supply NMI and the
+external input routing.
 
 ## Memory contract
 
@@ -350,7 +360,10 @@ signed zero, infinity, and denormal inputs.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior. BSC checks cover
 reset straps, access widths, masked fields, refresh keys and flags,
-and the address carried by an SDRAM mode write.
+and the address carried by an SDRAM mode write. TMU checks cover
+underflow and reload, capture and DMA request acknowledgement, and
+priority tie handling. A guest program wakes from SLEEP on a TMU0
+interrupt, clears the source in its handler, and resumes through RTE.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
