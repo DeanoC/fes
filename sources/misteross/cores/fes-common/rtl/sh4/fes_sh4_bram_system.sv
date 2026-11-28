@@ -19,16 +19,21 @@ module fes_sh4_bram_system (
     // The private RAM has no competing master or read side effects.
     logic valid, rvalid, unused_mem_lock, unused_mem_sq;
     logic [3:0] unused_mem_rmask;
+    logic [1:0] unused_refresh_irq, unused_sdram_command;
+    logic unused_sdram_mode_set;
+    logic [11:0] unused_sdram_mode_address;
     logic [31:0] addr, wdata, rdata, ram_wdata, ram_rdata;
     logic [3:0] wstrb, ram_wstrb;
     logic [8:0] ram_addr;
     logic ram_read, in_range, read_in_range;
 
-    fes_sh4 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103)) cpu (
-        .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
+    fes_sh7091 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103)) system_cpu (
+        .clk, .reset, .bus_tick(1'b1), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
         .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_sq(unused_mem_sq), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
+        .refresh_irq(unused_refresh_irq), .sdram_command(unused_sdram_command),
+        .sdram_mode_set(unused_sdram_mode_set), .sdram_mode_address(unused_sdram_mode_address),
         .retired, .retired_pc, .fault, .fault_pc
     );
 

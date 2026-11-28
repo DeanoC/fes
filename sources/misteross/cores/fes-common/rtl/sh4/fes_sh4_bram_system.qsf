@@ -13,6 +13,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_arithmetic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_dot.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fsca.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bsc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_bram_system.sv
 set_global_assignment -name SDC_FILE fes_sh4_bram_system.sdc
 set_instance_assignment -name VIRTUAL_PIN ON -to *

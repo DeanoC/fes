@@ -29,7 +29,8 @@ module fes_sh4_tb;
     logic check_data_cache = 0, check_operand_ram = 0, check_index_modes = 0;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
-    logic cache_cancel_done, mmu_done, fp_arith_finished;
+    logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished;
+    fes_sh7091_bsc_tb bsc_test (.clk, .finished(bsc_finished));
     fes_sh4_fp_arithmetic_tb fp_arith_test (.clk, .finished(fp_arith_finished));
 
     fes_sh4_mmu_tb mmu_test (.clk, .done(mmu_done));
@@ -271,8 +272,8 @@ module fes_sh4_tb;
                 ext_mem['h104 >> 2] == 32'h007f_ff80 && ext_mem['h108 >> 2] == 127)
             else $fatal(1, "Unexpected byte lanes or delayed store");
         assert (bram_fault == 1 && bram_fault_pc == 'h5a && !bram_retired && bram_retired_pc == 'h58 &&
-                bram.cpu.gpr[5] == 32'hffff_ff80 && bram.cpu.gpr[7] == dut.gpr[7] &&
-                bram.cpu.gpr[9] == dut.gpr[9])
+                bram.system_cpu.cpu.gpr[5] == 32'hffff_ff80 && bram.system_cpu.cpu.gpr[7] == dut.gpr[7] &&
+                bram.system_cpu.cpu.gpr[9] == dut.gpr[9])
             else $fatal(1, "Synchronous BRAM execution diverged from stalled bus");
 
         check_alias_load = 0;
@@ -2076,7 +2077,8 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
+        assert (bsc_finished) else $fatal(1, "BSC regression timed out");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, and BSC");
         $finish;
     end
 

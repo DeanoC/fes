@@ -250,6 +250,18 @@ attempted fetch at a diagnostic stop. TLB faults capture the virtual address
 in TEA and its page number in PTEH. General registers have no defined reset
 values. Software must initialize them before reading them.
 
+## Bus state controller
+
+The `fes_sh7091` wrapper routes BSC accesses to on-chip registers and
+forwards other requests to its external memory port. BCR and WCR
+registers expose the configured widths and timing fields. The refresh
+timer counts the supplied `bus_tick` enables, supports keyed writes
+and sticky interrupt flags, and exposes compare and overflow requests.
+Writes to the SDMR apertures emit area, mode/precharge, and address
+signals to the board memory controller. The wrapper's external
+memory port uses a request/response handshake. Legacy SDRAM wire
+timing and interrupt arbitration are platform integration work.
+
 ## Memory contract
 
 `mem_valid && mem_ready` accepts one aligned byte-addressed request.
@@ -336,7 +348,9 @@ destination and preservation of the full destination on an FTRV trap.
 FSCA and FSRRA regressions exercise guest decode, the inexact trap,
 signed zero, infinity, and denormal inputs.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
-SLEEP and wakeup, and NMI priority and block behavior.
+SLEEP and wakeup, and NMI priority and block behavior. BSC checks cover
+reset straps, access widths, masked fields, refresh keys and flags,
+and the address carried by an SDRAM mode write.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
