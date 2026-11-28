@@ -7,9 +7,9 @@ closer analog to real expansion and cartridge buses that many system had.
 The default appliance and playable packages target DE10-Nano. DE25-Nano is a
 standard Quartus Pro 26.3 development kit (Kit D25 `de25-j8g`, serial
 `TRWU8J8G`; see [DE25 kit HIL](docs/de25-kit-hil.md) and
-[DE25 Linux platform](docs/design/de25-linux-platform.md)) with six registered
+[DE25 Linux platform](docs/design/de25-linux-platform.md)) with eight registered
 Quartus Pro recipes (`fes.menu`, `fes.zx81`, `fes.spectrum`, `fes.atari-st`,
-`fes.c64`, `fes.pcxt-dos`), a [DE25-Nano Linux guide](docs/de25-linux.md),
+`fes.c64`, `fes.pcxt-dos`, `fes.ramtest`, `fes.pc386`), a [DE25-Nano Linux guide](docs/de25-linux.md),
 [board shells and diagnostics](sources/misteross/boards/de25nano/README.md),
 and [image export commands](docs/image-artifacts.md#de25-image-and-export-commands).
 Partial-persona loading remains unsupported and default-off pending

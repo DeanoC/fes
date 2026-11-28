@@ -13,12 +13,14 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described DE10 HIP/nextpnr producers
 (`fes.menu`, `fes.pong`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`,
-`fes.c64`, `fes.c64-ntsc`, `fes.spectrum`, `fes.spectrum128`,
+`fes.c64`, `fes.c64-ntsc`, `fes.c64-early-ntsc`, `fes.c64-pal-n`, `fes.c64c`,
+`fes.c64c-ntsc`, `fes.spectrum`, `fes.spectrum128`,
 `fes.spectrum-plus3`, `fes.pentagon`, `fes.riscv`, `fes.ramtest` and
 `fes.atari-st`), the DE10 Quartus Lite producers for the ZX81 family
 (`fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`), `fes.pcxt-dos` and
 `fes.pc386`, and the DE25 Quartus Pro 26.3 producers (`fes.menu`, `fes.zx81`,
-`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`). The default
+`fes.spectrum`, `fes.atari-st`, `fes.c64`, `fes.pcxt-dos`, `fes.ramtest`,
+`fes.pc386`). The default
 target-image selector installs the closed package set containing only
 `fes.menu` display firmware. All playable systems are installed
 independently. The first-party catalog excludes SMS and SG-1000; their recipes
