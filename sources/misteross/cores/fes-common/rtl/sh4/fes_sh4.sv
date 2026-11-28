@@ -15,8 +15,10 @@ module fes_sh4 #(
     output logic [3:0]  fault,
     output logic [31:0] fault_pc
 );
-    typedef enum logic [3:0] {
-        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT, COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT, STOP
+    typedef enum logic [4:0] {
+        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT,
+        COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT,
+        MAC_READ, MAC_LOW, MAC_HIGH, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
@@ -24,7 +26,7 @@ module fes_sh4 #(
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC_SR, STC_SR,
         LDC_VBR, LDC_SSR, LDC_SPC, STC_VBR, STC_SSR, STC_SPC, STC_SGR, RTE, TRAPA,
-        INTEGER, MULTIPLY, CLRMAC, LDS, STS, LDC_GBR, STC_GBR, BRAF, BSRF
+        INTEGER, MULTIPLY, CLRMAC, LDS, STS, LDC_GBR, STC_GBR, BRAF, BSRF, MAC
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
     localparam logic [3:0] ILLEGAL = 4'd1, SLOT_ILLEGAL = 4'd2,
@@ -39,7 +41,12 @@ module fes_sh4 #(
     logic [31:0] pc, pr, delay_target, delay_branch_pc, pre_slot_pr;
     logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
     logic [31:0] gbr, mach, macl, sys_value;
-    logic [63:0] product;
+    logic [63:0] product, mac_result;
+    logic mac_second, mac_word;
+    logic [31:0] mac_second_addr;
+    logic [32:0] mac_low_sum, mac_high_sum, mac_addend_hi, mac_product_hi;
+    logic [1:0] mac_word_signs;
+    logic mac_word_overflow, mac_long_overflow;
     logic dec_sys_load, sys_load, dest_r0;
     logic alu_recognized, alu_r0, alu_write;
     logic [31:0] alu_result;
@@ -67,7 +74,7 @@ module fes_sh4 #(
     logic [31:2] data_addr;
     logic [31:0] data_wdata;
     logic [3:0] data_wstrb;
-    logic [31:0] load_word;
+    logic [31:0] load_word, load_value, local_read_value;
     logic [1:0] data_addr_lane;
 
     bus_state_t bus_state;
@@ -112,10 +119,35 @@ module fes_sh4 #(
 
     fes_sh4_multiplier multiplier (
         .clk, .launch(stage == MUL_PRODUCTS), .sum_products(stage == MUL_SUM), .finish(stage == MUL_RESULT),
-        .word_operands(ir[15:12] == 4'h2),
+        .word_operands(ir[15:12] == 4'h2 || (op == MAC && mac_word)),
         .signed_operands(ir[3:0] == 4'hd || ir[3:0] == 4'hf),
         .lhs(a), .rhs(b), .product
     );
+
+    assign mac_word = size == WORD;
+    assign mac_second_addr = n == m ? writeback_base : b;
+    assign mac_addend_hi = sr[1] && !mac_word ? {{17{mach[15]}}, mach[15:0]} : {mach[31], mach};
+    assign mac_product_hi = mac_word ? {33{product[31]}} : {product[63], product[63:32]};
+    assign mac_word_overflow = mac_word_signs[0] == mac_word_signs[1] &&
+                               mac_low_sum[31] != mac_word_signs[0];
+    assign mac_long_overflow = mac_high_sum[32:15] != {18{mac_high_sum[32]}};
+
+    always_comb begin
+        mac_result = {mac_high_sum[31:0], mac_low_sum[31:0]};
+        if (sr[1]) begin
+            if (mac_word) begin
+                mac_result[63:32] = mach;
+                if (mac_word_overflow) begin
+                    mac_result[32] = 1'b1;
+                    mac_result[31:0] = mac_word_signs[0] ? 32'h8000_0000 : 32'h7fff_ffff;
+                end
+            end else begin
+                mac_result[63:48] = mach[31:16];
+                if (mac_long_overflow)
+                    mac_result[47:0] = mac_high_sum[32] ? 48'h8000_0000_0000 : 48'h7fff_ffff_ffff;
+            end
+        end
+    end
 
     assign n = ir[11:8];
     assign m = ir[7:4];
@@ -160,6 +192,10 @@ module fes_sh4 #(
             16'h0028: decoded = CLRMAC;
             16'h4?1e: decoded = LDC_GBR;
             16'h0?12: decoded = STC_GBR;
+            16'h0??f, 16'h4??f: begin
+                decoded = MAC;
+                dec_size = ir[14] ? WORD : LONGWORD;
+            end
             16'h3??5, 16'h3??d, 16'h0??7, 16'h2??e, 16'h2??f: decoded = MULTIPLY;
             16'h4?0a, 16'h4?1a, 16'h4?2a: decoded = LDS;
             16'h0?0a, 16'h0?1a, 16'h0?2a: decoded = STS;
@@ -384,12 +420,17 @@ module fes_sh4 #(
                 if (op == BAD || (!supervisor && privileged_op) ||
                     (in_slot && (control || pc_relative || op == LDC_SR || op == TRAPA)))
                     exception_cause = in_slot ? SLOT_ILLEGAL : ILLEGAL;
-                else if ((op == LOAD || is_store) && !aligned) begin
+                else if ((op == LOAD || op == MAC || is_store) && !aligned) begin
                     exception_cause = DATA_ALIGN;
                     address_exception = 1'b1;
                     fault_address = effective_addr;
                 end else if (op == TRAPA)
                     exception_cause = TRAP;
+            end
+            MAC_READ: if (!mac_second && (mac_second_addr[0] || (!mac_word && mac_second_addr[1]))) begin
+                exception_cause = DATA_ALIGN;
+                address_exception = 1'b1;
+                fault_address = mac_second_addr;
             end
             DATA_TRANSLATE: if (bad_data_region || ((mmu_register || event_register) && size != LONGWORD)) begin
                 exception_cause = ADDRESS_ERROR;
@@ -483,6 +524,16 @@ module fes_sh4 #(
     assign fetch_read_ready = bus_state == BUS_IDLE && !data_bus_request;
     assign fetch_response = bus_state == BUS_REPLY && mem_rvalid && bus_fetch;
     assign load_word = data_read_word >> {data_addr_lane, 3'b000};
+    assign local_read_value = !event_register ? mmu_reg_rdata :
+                              mmu_register_index == 8 ? {22'b0, tra, 2'b00} : {20'b0, expevt};
+
+    always_comb begin
+        case (size)
+            BYTE: load_value = {{24{load_word[7]}}, load_word[7:0]};
+            WORD: load_value = {{16{load_word[15]}}, load_word[15:0]};
+            default: load_value = load_word;
+        endcase
+    end
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -594,7 +645,7 @@ module fes_sh4 #(
                     b <= dec_b;
                     offset <= dec_offset;
                     store_value <= dec_b;
-                    dst <= dest_r0 ? 4'd0 : n;
+                    dst <= decoded == MAC ? m : dest_r0 ? 4'd0 : n;
                     base_reg <= decoded == LOAD && !dec_sys_load ? m : n;
                     stage <= EXECUTE;
                 end
@@ -609,9 +660,10 @@ module fes_sh4 #(
                     wb_t_value <= next_t;
                     wb_pr <= write_pr;
                     link_value <= pc + 32'd4;
-                    wb_base <= (op == STORE && pre) || (op == LOAD && post);
+                    wb_base <= (op == STORE && pre) || (op == LOAD && post) || op == MAC;
                     writeback_base <= pre ? effective_addr : a + (32'd1 << size);
-                    if (op == LOAD || is_store) begin
+                    mac_second <= 1'b0;
+                    if (op == LOAD || op == MAC || is_store) begin
                         data_addr <= effective_addr[31:2];
                         data_addr_lane <= effective_addr[1:0];
                         data_wdata <= store_value << {effective_addr[1:0], 3'b000};
@@ -638,23 +690,45 @@ module fes_sh4 #(
                 end
                 MUL_PRODUCTS: stage <= MUL_SUM;
                 MUL_SUM: stage <= MUL_RESULT;
-                MUL_RESULT: stage <= COMMIT;
+                MUL_RESULT: stage <= op == MAC ? MAC_LOW : COMMIT;
+                MAC_READ: begin
+                    if (!mac_second) begin
+                        a <= wb_value;
+                        {data_addr, data_addr_lane} <= mac_second_addr;
+                        offset <= mac_second_addr + (32'd1 << size);
+                        mac_second <= 1'b1;
+                        stage <= DATA_TRANSLATE;
+                    end else begin
+                        b <= wb_value;
+                        stage <= MUL_PRODUCTS;
+                    end
+                end
+                MAC_LOW: begin
+                    mac_low_sum <= {1'b0, macl} + {1'b0, product[31:0]};
+                    mac_word_signs <= {macl[31], product[31]};
+                    stage <= MAC_HIGH;
+                end
+                MAC_HIGH: begin
+                    mac_high_sum <= mac_addend_hi + mac_product_hi + {32'b0, mac_low_sum[32]};
+                    if (n == m)
+                        writeback_base <= offset;
+                    else begin
+                        wb_value <= offset;
+                        wb_gpr <= 1'b1;
+                    end
+                    stage <= COMMIT;
+                end
                 DATA_TRANSLATE: begin
                     if (mmu_register || event_register) begin
                         wb_gpr <= op == LOAD && !sys_load;
-                        wb_value <= mmu_reg_rdata;
-                        if (event_register) begin
-                            if (mmu_register_index == 8) begin
-                                wb_value <= {22'b0, tra, 2'b00};
-                                if (is_store)
-                                    tra <= data_wdata[9:2];
-                            end else begin
-                                wb_value <= {20'b0, expevt};
-                                if (is_store)
-                                    expevt <= data_wdata[11:0];
-                            end
+                        wb_value <= local_read_value;
+                        if (event_register && is_store) begin
+                            if (mmu_register_index == 8)
+                                tra <= data_wdata[9:2];
+                            else
+                                expevt <= data_wdata[11:0];
                         end
-                        stage <= COMMIT;
+                        stage <= op == MAC ? MAC_READ : COMMIT;
                     end else if (data_mapped) begin
                         if (mmu_ready)
                             stage <= DATA_TLB_WAIT;
@@ -671,15 +745,11 @@ module fes_sh4 #(
                 DATA_REQ: if (data_ready)
                     stage <= DATA_WAIT;
                 DATA_WAIT: if (data_complete) begin
-                    if (op == LOAD) begin
-                        wb_gpr <= !sys_load;
-                        case (size)
-                            BYTE: wb_value <= {{24{load_word[7]}}, load_word[7:0]};
-                            WORD: wb_value <= {{16{load_word[15]}}, load_word[15:0]};
-                            default: wb_value <= load_word;
-                        endcase
+                    if (op == LOAD || op == MAC) begin
+                        wb_gpr <= op == LOAD && !sys_load;
+                        wb_value <= load_value;
                     end
-                    stage <= COMMIT;
+                    stage <= op == MAC ? MAC_READ : COMMIT;
                 end
                 COMMIT: begin
                     if (wb_base)
@@ -705,6 +775,7 @@ module fes_sh4 #(
                             if (alu_flag_mask[1]) sr[1] <= alu_flag_value[1];
                         end
                         CLRMAC: {mach, macl} <= 64'b0;
+                        MAC: {mach, macl} <= mac_result;
                         MULTIPLY: begin
                             macl <= product[31:0];
                             if (ir[15:12] == 4'h3)

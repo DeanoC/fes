@@ -48,6 +48,8 @@ defines instruction encodings and behavior. The implemented slice includes:
   integer compares, shifts and rotates, T-bit and S-bit access, extensions,
   SWAP, XTRCT, DT, and the DIV0U/DIV0S/DIV1 division steps.
 - MUL.L, MULS.W, MULU.W, DMULS.L and DMULU.L, with pipelined partial products.
+  MAC.W and MAC.L share the multiplier and use separate translated operand
+  reads. Both postincrements and the accumulator update retire together.
   CLRMAC and register and stack transfers expose MACH and MACL.
 - Byte, word, and longword MOV through a register, including predecrement
   stores and postincrement loads, base-plus-displacement forms, PC-relative
@@ -129,7 +131,8 @@ an instruction fetch, and a store in a branch delay slot. They check restart
 through RTE, the restored register bank, and the general TRAPA vector.
 Additional guest programs exercise signed and unsigned division and
 multiplication, flag updates, indexed moves, and nested calls that save PR
-on the stack.
+on the stack. MAC tests cover both saturation widths, shared-base
+postincrement, and a TLB miss on the second operand followed by RTE.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

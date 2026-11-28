@@ -442,6 +442,26 @@ module fes_sh4_tb;
                 ext_mem['h1010 >> 2] == 'h16)
             else $fatal(1, "Store miss did not replay the branch and store exactly once");
 
+        // The first MAC.L read hits an existing mapping. The second misses.
+        // Inspect the register state from the handler before retrying via RTE.
+        emit('h2c, 'he660); // First operand at VA 0x60
+        emit('h2e, 'h0028); // CLRMAC
+        emit('h30, 'h065f); // MAC.L @R5+,@R6+
+        emit('h32, 'hc317);
+        image['h60 >> 2] = 32'hffff_fffd;
+        image['h1010 >> 2] = 7;
+        emit('h1416, 'h021a); // STS MACL,R2 while handling the miss
+        start_bus();
+        wait (retired && retired_pc == 'ha000_1416);
+        assert (dut.gpr_storage[5] == 'hc10 && dut.gpr_storage[6] == 'h60 &&
+                dut.gpr[2] == 0 && dut.mach == 0)
+            else $fatal(1, "MAC.L changed state before the second read");
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr[8] == 'h30 && dut.gpr[12] == 'h40 && dut.gpr[13] == 'hc10 &&
+                dut.gpr_storage[5] == 'hc14 &&
+                dut.gpr_storage[6] == 'h64 && {dut.mach, dut.macl} == -64'd21)
+            else $fatal(1, "MAC.L failed to retry the second operand fault");
+
         // Supervisor can read SR and clear MD. A user execution of LDTLB
         // must fault before changing the TLB state.
         image = '{default:32'hfffd_fffd};
@@ -550,6 +570,81 @@ module fes_sh4_tb;
                 dut.gpr[14] == 'hffff_8000 && dut.gpr[15] == 'h7fff_ffff)
             else $fatal(1, "Multiply signedness, width, or MACH preservation was incorrect");
 
+        // Same-register operands consume two consecutive addresses. The
+        // second MAC.W uses separate bases and carries across MACL.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he140);
+        emit('h02, 'he244);
+        emit('h04, 'h0028);
+        emit('h06, 'h411f); // MAC.W @R1+,@R1+
+        emit('h08, 'h080a); // STS MACH,R8
+        emit('h0a, 'h091a); // STS MACL,R9
+        emit('h0c, 'h412f); // MAC.W @R2+,@R1+
+        emit('h0e, 'h0a0a);
+        emit('h10, 'h0b1a);
+        image['h40 >> 2] = 32'h0003_fffe; // -2 * 3
+        image['h44 >> 2] = 32'h0002_0005; // 5 * 5
+        start_bus();
+        expect_stop(1, 'h12);
+        assert (dut.gpr[1] == 'h46 && dut.gpr[2] == 'h46 &&
+                dut.gpr[8] == 'hffff_ffff && dut.gpr[9] == 'hffff_fffa &&
+                dut.gpr[10] == 0 && dut.gpr[11] == 19)
+            else $fatal(1, "MAC.W sign, carry or shared-base postincrement was incorrect");
+
+        emit('h02, 'he245); // Misalign the second MAC.W's other operand
+        start_bus();
+        expect_stop(4, 'hc);
+        assert (dut.mmu.tea == 'h45 && dut.gpr[1] == 'h44 && dut.gpr[2] == 'h45 &&
+                {dut.mach, dut.macl} == -64'd6)
+            else $fatal(1, "Misaligned second MAC.W operand changed architectural state");
+
+        // Saturation at both limits. The MACH upper half survives MAC.L
+        // saturation and the MACH low bit records MAC.W overflow.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'h0058); // SETS
+        literal('h02, 3, 'h80);
+        emit('h04, 'h430a); // LDS R3,MACH
+        literal('h06, 3, 'h84);
+        emit('h08, 'h431a); // LDS R3,MACL
+        emit('h0a, 'he150);
+        emit('h0c, 'h011f); // MAC.L @R1+,@R1+
+        emit('h0e, 'h080a);
+        emit('h10, 'h091a);
+        literal('h12, 3, 'h88);
+        emit('h14, 'h430a);
+        emit('h16, 'he300);
+        emit('h18, 'h431a);
+        emit('h1a, 'h011f); // MAC.L @R1+,@R1+
+        emit('h1c, 'h0a0a);
+        emit('h1e, 'h0b1a);
+        literal('h20, 3, 'h8c);
+        emit('h22, 'h431a);
+        emit('h24, 'h411f); // MAC.W @R1+,@R1+
+        emit('h26, 'h0c0a);
+        emit('h28, 'h0d1a);
+        literal('h2a, 3, 'h90);
+        emit('h2c, 'h431a);
+        emit('h2e, 'h411f);
+        emit('h30, 'h0e1a);
+        image['h50 >> 2] = 1;
+        image['h54 >> 2] = 2;
+        image['h58 >> 2] = 32'hffff_ffff;
+        image['h5c >> 2] = 1;
+        image['h60 >> 2] = 32'h0002_0001;
+        image['h64 >> 2] = 32'h0001_ffff;
+        image['h80 >> 2] = 32'hcafe_7fff;
+        image['h84 >> 2] = 32'hffff_fffe;
+        image['h88 >> 2] = 32'hbeef_8000;
+        image['h8c >> 2] = 32'h7fff_ffff;
+        image['h90 >> 2] = 32'h8000_0000;
+        start_bus();
+        expect_stop(1, 'h32);
+        assert (dut.gpr[8] == 'hcafe_7fff && dut.gpr[9] == 'hffff_ffff &&
+                dut.gpr[10] == 'hbeef_8000 && dut.gpr[11] == 0 &&
+                dut.gpr[12] == 'hbeef_8001 && dut.gpr[13] == 'h7fff_ffff &&
+                dut.gpr[14] == 'h8000_0000 && dut.gpr[1] == 'h68)
+            else $fatal(1, "MAC saturation limits, MACH bits or long postincrement were incorrect");
+
         // A nested call preserves PR via its normal stack instructions.
         // Its callee uses both indexed and GBR-relative data addressing.
         image = '{default:32'hfffd_fffd};
@@ -586,7 +681,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return and extended integer execution");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution and MAC");
         $finish;
     end
 
