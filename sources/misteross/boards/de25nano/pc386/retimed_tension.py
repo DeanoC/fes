@@ -270,7 +270,8 @@ def collect(selected, quartus_sta, subjects):
     sources = {path.relative_to(HERE.parents[2]).as_posix(): async_inputs.sha(path)
                for path in (Path(__file__).resolve(), TCL, STRUCTURE_TCL)}
     record = json.loads((selected.parent / 'build-inputs.json').read_bytes())
-    mf.require(record['parameters'].get('model') == '486dx', 'retimed tension proof requires a recorded DX fit')
+    mf.require(record['parameters'].get('model') in ('486sx', '486dx'),
+               'retimed tension proof requires a recorded pc386 model fit')
     mf.require(all(record['source_inputs'].get(name) == digest for name, digest in sources.items()),
                'retimed tension review tools differ from the captured build inputs')
     subjects = tuple(subjects)

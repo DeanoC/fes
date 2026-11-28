@@ -136,7 +136,7 @@ class AudioReferenceTests(unittest.TestCase):
         pins = audio.PER_MODEL_PLLS['fes.pc386']
         sx_ip = ROOT / 'boards/de25nano/pc386/machine_pll_486sx.ip'
         # The 61.44 MHz IP is the one this file's history replaced: output 0 back at 61.437908, nothing else.
-        old_ip = sx_ip.read_bytes().replace(b'<ipxact:value>92.156863</ipxact:value>',
+        old_ip = sx_ip.read_bytes().replace(b'<ipxact:value>111.904762</ipxact:value>',
                                             b'<ipxact:value>61.437908</ipxact:value>', 1)
         self.assertNotEqual(old_ip, sx_ip.read_bytes())
         sha = lambda data: hashlib.sha256(data).hexdigest()

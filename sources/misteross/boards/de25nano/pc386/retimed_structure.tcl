@@ -1,4 +1,4 @@
-# Structural checks sourced by the registered DX TimeQuest trace.
+# Structural checks sourced by the registered pc386 TimeQuest trace (both models).
 proc put_row {stream fields} {
     set escaped {}
     foreach field $fields {
