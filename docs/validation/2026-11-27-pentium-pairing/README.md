@@ -25,7 +25,11 @@ The first prototype should target the wait for a prior x87 operation. Quake alre
 
 A second full Quake replay counted the older and waiting opcodes when the prior-operation hold was asserted, including simultaneous store-value holds. In the rendered interval it attributed 456,079,052 of 498,893,130 such clocks. The remaining 42,814,078 lacked a live pair. The largest group was `FMUL m32real` followed by `FXCH ST(1)` (31,064,223 clocks). Next came `FMUL m32real` followed by `FLD m32real` (14,621,255). Both pairs depend on the stack contents or its mapping. The first experiment should shorten multiply completion latency and measure how many of those wait clocks it actually removes. Every original counter in both windows and the complete historical CPU profile reproduced. [Opcode counts](c28-quake-opcodes.json)
 
-The fit decision prioritizes an experiment. Its performance test is the change in elapsed time for the same work with the board CPU settings, evaluated at the prototype's routed whole-machine clock. Resource use and timing on the DE25 remain open.
+### First prototype fit
+
+On the C28 whole machine, the prototype issues a normalized multiply to the backend in `A_OP`, one clock earlier when the backend is ready. Backpressure still uses the existing `B_ISSUE` handshake. Apply the diagnostic patch to replay revision `35b061f58b`. The host x87 unit suite passed all 18,337 cases. [Prototype patch](c28-early-fmul.patch)
+
+Quartus Pro 26.3 seed 1 passed the board producer at 111.905 MHz using 45,116 of 46,800 ALMs (1,684 free). All 165 timing summary rows passed. The next performance measurement is elapsed time for equal rendered work with the board CPU settings. The single seed establishes fit feasibility. Multi-seed qualification, game throughput and kit acceptance remain open. [Fit receipt](early-fmul-seed1.json)
 
 ## Renderer loops
 
