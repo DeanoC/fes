@@ -25,11 +25,11 @@ VCO_NUMERATOR, VCO_DENOMINATOR = 50_000_000 * 188, 3
 AUDIO_C = 255
 
 MODEL_CLOCKS = {
-    # 486SX: C0 = 34, 92.156863 MHz (docs/validation/2026-11-25-de25-486sx-9216). Its parent is the
-    # reviewed 61.44 MHz parent (10defc9a...) with the window interconnect's module name
-    # ..._1920_xi5gepi changed to ..._1920_e7vlmii and nothing else (parent-review.txt there).
-    "486sx": {"c0": 34, "pll_ip": "machine_pll_486sx.ip",
-              "pll_ip_sha256": "04448872b6e9992a9ee70c6a4e11b1678a433d1743908aca38eb960c9580173e",
+    # 486SX: C0 = 28, 111.904762 MHz (docs/validation/2026-11-28-de25-486sx-clock2), with the
+    # eight-cycle presenter re-arm (derive.py). Its PLL IP is byte-identical to the 486DX's at the same C0.
+    # The parent digest is the C0 = 34 one until that clock's generation is reviewed (method.md).
+    "486sx": {"c0": 28, "pll_ip": "machine_pll_486sx.ip",
+              "pll_ip_sha256": "b6bfea6bab42fc4acd15ec6727204b4a5825e256ef383cd81ad2cad2d66c70a2",
               "parent_sha256": "fefb39d68d09b2fad37d35be5d2686d557b9f5c8c97d2eb41bbd80400a31f7e7"},
     # 486DX: C0 = 28, 111.904762 MHz. The reviewed Qsys parent differs
     # from C0 = 34 in the window interconnect's module name.

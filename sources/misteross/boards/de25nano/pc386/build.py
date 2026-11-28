@@ -112,13 +112,10 @@ class RegisteredBoard:
             artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
             basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases")
             drc = (directory / "project/output_files/golden_top.tq.drc.signoff.rpt").read_text()
-            if model == DX_MODEL:
-                proof = load(HERE / "retimed_tension.py", "de25_pc386_retimed_tension")
-                subjects = proof.reviewed_targets(drc, basis.CPU_CONTROL_TENSION, basis.RETIMED_CONTROL_TENSION)
-                if subjects:
-                    proof.collect(output, tool.with_name("quartus_sta"), subjects)
-            else:
-                machine_findings.review(drc, "", (basis.CPU_CONTROL_TENSION,))
+            proof = load(HERE / "retimed_tension.py", "de25_pc386_retimed_tension")
+            subjects = proof.reviewed_targets(drc, basis.CPU_CONTROL_TENSION, basis.RETIMED_CONTROL_TENSION)
+            if subjects:
+                proof.collect(output, tool.with_name("quartus_sta"), subjects)
             return artifact
 
 
@@ -226,16 +223,17 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
 
 def record_parameters(root, model=None):
     """A producer record's machine parameters, from the source module at root: guest rates, the
-    linked firmware and the CPU and x87 identity. The 486DX also records its presenter re-arm interval."""
+    linked firmware, the CPU and x87 identity and the presenter re-arm interval."""
     root, model = Path(root), selected(model)
     parameters = {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
                   "i486": I486,
                   "firmware": json.dumps({**sealer.firmware_digests(root), "rom_hex": sealer.pinned_rom_digest(root)},
                                          sort_keys=True),
                   "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
+    derive = load(root / DERIVE.removeprefix(MISTEROSS), "de25_pc386_record_derive")
+    parameters["loaded_rearm_cycles"] = derive.LOADED_REARM_CYCLES
     if model == DX_MODEL:
-        derive = load(root / DERIVE.removeprefix(MISTEROSS), "de25_pc386_record_derive")
-        parameters.update(cpu=dx.TOP, x87_present=True, loaded_rearm_cycles=derive.LOADED_REARM_CYCLES)
+        parameters.update(cpu=dx.TOP, x87_present=True)
     return parameters
 
 
@@ -315,9 +313,9 @@ def elaboration(sources, model=None):
                 raise ValueError("an i486DX fork is not a captured source: " + fork)
         files["pc386_system.sv"], derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
         cpu, derived[i486dx.CPU_FILE] = i486dx.derive_cpu(sources[MISTEROSS + i486dx.CPU_UPSTREAM])
-        presenter = Path(derive.PRESENTER_UPSTREAM).name
-        files[presenter], derived[presenter] = derive.retarget_presenter_loaded(
-            sources[MISTEROSS + derive.PRESENTER_UPSTREAM])
+    presenter = Path(derive.PRESENTER_UPSTREAM).name
+    files[presenter], derived[presenter] = derive.retarget_presenter_loaded(
+        sources[MISTEROSS + derive.PRESENTER_UPSTREAM])
     return files, cpu, derived
 
 

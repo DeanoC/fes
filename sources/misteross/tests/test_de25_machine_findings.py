@@ -66,35 +66,32 @@ class PerRuleCoverageTests(unittest.TestCase):
 
 
 class RegisteredTensionTests(unittest.TestCase):
-    def test_registered_builds_gate_retiming_by_recorded_model(self):
+    def test_registered_builds_prove_retiming_for_each_recorded_model(self):
         retimed = '_17339_~1_R6_X56_Y33_N0_I13_dff'
         decoder_duplicate = 'machine_at_decoder_state[1]~DUPLICATE_Duplicate_12'
         decoder_mixed = 'machine_at_decoder_state[1]~DUPLICATE_Duplicate'
         halted_duplicate = 'cpu_halted~DUPLICATE_Duplicate_3'
-        cases = (
-            ('486sx', '486sx', 'cpu_md_busy', False, None),
-            ('486dx', '486dx', 'cpu_md_busy', False, None),
-            ('486dx', '486dx', retimed, True, None),
-            ('486dx', '486dx', retimed, True, 'fixture trace failed'),
-            ('486dx', '486dx', retimed.replace('_17339_', '_17340_'), True, None),
-            ('486dx', '486dx', retimed.replace('_R6_', '_R7_'), False, 'matches 0 bases'),
-            ('486sx', '486sx', retimed, False, 'matches 0 bases'),
-            ('486dx', '486dx', 'cpu_biu_drain~DUPLICATESCLR_dff', True, None),
-            ('486sx', '486sx', 'cpu_biu_drain~DUPLICATESCLR_dff', False, 'matches 0 bases'),
-            ('486dx', '486dx', 'cpu_halted~DUPLICATE_Duplicate', True, None),
-            ('486sx', '486sx', 'cpu_halted~DUPLICATE_Duplicate', False, 'matches 0 bases'),
-            ('486dx', '486dx', 'cpu_int_wait~DUPLICATE_Duplicate', True, None),
-            ('486dx', '486dx', decoder_duplicate, True, None),
-            ('486dx', '486dx', decoder_duplicate, True, 'fixture trace failed'),
-            ('486sx', '486sx', decoder_duplicate, False, 'matches 0 bases'),
-            ('486dx', '486dx', decoder_mixed, True, None),
-            ('486dx', '486dx', decoder_mixed, True, 'fixture trace failed'),
-            ('486sx', '486sx', decoder_mixed, False, 'matches 0 bases'),
-            ('486dx', '486dx', halted_duplicate, True, None),
-            ('486dx', '486dx', halted_duplicate, True, 'fixture trace failed'),
-            ('486sx', '486sx', halted_duplicate, False, 'matches 0 bases'),
+        # Both models take the same live retimed-tension proof (#2263's treatment, applied to the SX).
+        shared_cases = (
+            ('cpu_md_busy', False, None),
+            (retimed, True, None),
+            (retimed, True, 'fixture trace failed'),
+            (retimed.replace('_17339_', '_17340_'), True, None),
+            (retimed.replace('_R6_', '_R7_'), False, 'matches 0 bases'),
+            ('cpu_biu_drain~DUPLICATESCLR_dff', True, None),
+            ('cpu_halted~DUPLICATE_Duplicate', True, None),
+            ('cpu_int_wait~DUPLICATE_Duplicate', True, None),
+            (decoder_duplicate, True, None),
+            (decoder_duplicate, True, 'fixture trace failed'),
+            (decoder_mixed, True, None),
+            (decoder_mixed, True, 'fixture trace failed'),
+            (halted_duplicate, True, None),
+            (halted_duplicate, True, 'fixture trace failed'),
+        )
+        cases = tuple((model, model, *case) for model in ('486sx', '486dx') for case in shared_cases) + (
             ('486dx', 'unknown', retimed, False, 'registered fit has unknown model'),
             ('486dx', '486sx', retimed, False, 'differs from prepared model'),
+            ('486sx', '486dx', retimed, False, 'differs from prepared model'),
             ('486dx', None, retimed, False, 'lacks a recorded or prepared model'),
         )
         for compile_only in (False, True):
@@ -345,6 +342,25 @@ class RetimedTensionProofTests(unittest.TestCase):
                     retimed_tension.check(target_file, paths, structure_path=structure, unconstrained_path=ucp)
 
     def test_collector_uses_a_private_fitted_copy_and_binds_its_receipt(self):
+        for model in ('486sx', '486dx'):
+            with self.subTest(model=model):
+                self.check_collector(model)
+
+    def test_collector_refuses_an_unknown_model(self):
+        with tempfile.TemporaryDirectory() as work:
+            selected = Path(work) / 'signoff'
+            fit_version_path = selected / retimed_tension.FIT_VERSION
+            fit_version_path.parent.mkdir(parents=True)
+            fit_version_path.write_text(self.VERSION + '\n')
+            (selected.parent / 'build-inputs.json').write_text(json.dumps({'source_inputs': {}, 'parameters': {'model': '486dx2'}}))
+            tool = selected.parent / 'quartus_sta'
+            tool.write_bytes(b'fixture tool')
+            with (mock.patch.object(retimed_tension, 'held_quartus_lease', return_value='/fixture/pro.lock'),
+                  mock.patch.object(retimed_tension.async_inputs, 'bindings', return_value={}),
+                  self.assertRaisesRegex(mf.BuildError, 'recorded pc386 model')):
+                retimed_tension.collect(selected, tool, (self.NODE,))
+
+    def check_collector(self, model):
         sha = retimed_tension.async_inputs.sha
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
@@ -361,7 +377,7 @@ class RetimedTensionProofTests(unittest.TestCase):
             report_path.write_text(report({'TMC-20602': (TENSION, [row])}, severity='Low'))
             sources = {path.relative_to(ROOT).as_posix(): sha(path)
                        for path in (Path(retimed_tension.__file__), retimed_tension.TCL, retimed_tension.STRUCTURE_TCL)}
-            (root / 'build-inputs.json').write_text(json.dumps({'source_inputs': sources, 'parameters': {'model': '486dx'}}))
+            (root / 'build-inputs.json').write_text(json.dumps({'source_inputs': sources, 'parameters': {'model': model}}))
             tool = root / 'quartus_sta'
             tool.write_bytes(b'fixture tool')
 

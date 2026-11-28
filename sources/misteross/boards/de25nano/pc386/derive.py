@@ -19,7 +19,8 @@ controller.
 
 For the 486DX model, retarget_system_cpu then points pc386_system's CPU at the
 DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py); the 486SX keeps fes_i386_cpu.
-The 486DX also spaces presenter LOADED reports by at least eight machine clocks.
+Both models space presenter LOADED reports by at least eight machine clocks
+(retarget_presenter_loaded).
 
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.

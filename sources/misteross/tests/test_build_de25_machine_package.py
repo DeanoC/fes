@@ -316,10 +316,10 @@ class MachineProducerTests(unittest.TestCase):
                           parameters['window_contract']),
                          ('scanout+window', 'hps-window', 'fes.fabric.de25-hps-window 1.0'))
         self.assertEqual(parameters['f2sdram_data_width'], 128)
-        # The 486SX's own machine clock (pc386/build.py MODEL_CLOCKS): C0 = 34 on the 3,133.333 MHz VCO.
-        self.assertEqual(parameters['machine_clock_hz'], 92156863)
+        # The 486SX's own machine clock (pc386/model_clocks.py): C0 = 28 on the 3,133.333 MHz VCO.
+        self.assertEqual(parameters['machine_clock_hz'], 111904762)
         spec = pc386.MACHINE.spec(ROOT)
-        self.assertEqual(json.loads(parameters['guest_rates'])['AUDIO_D'], 1920)
+        self.assertEqual(json.loads(parameters['guest_rates'])['AUDIO_D'], 16320)
         self.assertEqual(json.loads(parameters['guest_rates']), spec.guest_rates())
         self.assertEqual(json.loads(parameters['firmware']),
                          {**sealer.firmware_digests(ROOT), 'rom_hex': sealer.pinned_rom_digest(ROOT)})
@@ -378,7 +378,8 @@ class MachineProducerTests(unittest.TestCase):
         machine.__class__ = TwoClocks
         machine.descriptions = {**pc386.MACHINE.descriptions, 'clocktwin': 'fixture'}
         tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
-        expected = {'486sx': (92156863, '92.156863', 1920, '/34 '), 'clocktwin': (61437908, '61.437908', 1280, '/51 ')}
+        expected = {'486sx': (111904762, '111.904762', (7, 16320), '/28 '),
+                    'clocktwin': (61437908, '61.437908', (1, 1280), '/51 ')}
         spec = machine.spec(ROOT)
         board = spec.board
         self.assertTrue(board.per_model_clocks(spec))
@@ -391,7 +392,7 @@ class MachineProducerTests(unittest.TestCase):
                 parameters = json.loads(record)['parameters']
                 self.assertEqual((parameters['model'], parameters['machine_clock_hz']), (model, hz))
                 rates = json.loads(parameters['guest_rates'])
-                self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), (1, audio))
+                self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), audio)
                 self.assertEqual(spec.guest_rates(model), rates)
                 self.assertEqual(board.clocks(spec, model)[0], hz)
                 self.assertEqual(board.clocks(spec, model)[2]['gui_output_clock_frequency0'], mhz)
@@ -403,7 +404,7 @@ class MachineProducerTests(unittest.TestCase):
         self.assertEqual({model: len(ids) for model, ids in identities.items()}, {'486sx': 1, 'clocktwin': 1})
         self.assertNotEqual(identities['486sx'], identities['clocktwin'])
         # No model named is the first model; an unknown model has no clock.
-        self.assertEqual(board.clocks(spec)[0], 92156863)
+        self.assertEqual(board.clocks(spec)[0], 111904762)
         with self.assertRaisesRegex(ValueError, 'no model'):
             spec.model_clock('486dx2')
         # A machine-wide clock spec beside model_clock is refused, not silently preferred.

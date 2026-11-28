@@ -128,12 +128,11 @@ FETCH = ('Pixel to machine: the fetch window {epoch, width, height, request limi
          'later. The toggle crosses a three-stage machine-clock synchroniser '
          '(machine_presenter_request_sync); the machine side copies the window only when stages 2 and '
          '1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks at every '
-         'frequency in the DX clock ladder (#2263).')
+         'frequency in the DX and SX clock ladders (#2263).')
 LOADED = ('Machine to pixel: the loaded-row report {row, epoch}. pc386_presenter.sv assigns loaded_out '
           'and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag. The '
-          '486SX has at least five machine clocks between reports: the next row starts, issues its '
-          'read, the read is taken, its beat returns and the row completes. The derived DX presenter '
-          'holds a completed row until eight machine clocks have elapsed since the previous report. '
+          'derived presenter (derive.retarget_presenter_loaded, both models) holds a completed row '
+          'until eight machine clocks have elapsed since the previous report. '
           'The flag crosses a three-stage pixel-clock synchroniser '
           '(machine_presenter_loaded_sync), and the pixel side copies the report when stages 2 and 1 '
           'differ: at most three pixel clocks (40.4 ns) after the flag reaches stage 0, plus the bundle '
@@ -200,7 +199,7 @@ RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE
 # for CPU controls and decoder state. Both forms require live fitted proof.
 RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
                              + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate(?:_[0-9]+)?)')
-RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
+RETIMED_TENSION = ('Fitter-placement advisory, both models (#2263). A located name must agree with its reported '
                    'register X/Y location. Every reported register needs exact unique '
                    'TimeQuest ownership on the machine clock and only machine-clock data keepers '
                    'in both directions. All four fitted corners must have nonnegative worst incoming '
@@ -239,7 +238,7 @@ WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_contr
                'launches until granted is cleared. granted is a level into a two-stage machine-clock '
                'synchroniser (granted_sync, its launch into stage 0 a named false path); the machine side '
                'copies base_lo into base_machine only on the clock where granted_sync[1] is first seen set '
-               '(granted_sync[1] && !grant_seen), at least two machine clocks (21.7 ns at 92.156863 MHz) after '
+               '(granted_sync[1] && !grant_seen), at least two machine clocks (more than the bundle bound) after '
                'granted reaches stage 0. The bundle paths are bounded to 10 ns or one machine period '
                'rounded down, whichever is shorter. Net and data delay and skew are bounded so the copy '
                'samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
