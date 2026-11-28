@@ -85,9 +85,8 @@ flowchart LR
     Bridges["CPUHooks +\nFirmwareBridges"]
   end
 
-  subgraph Storage["Storage, Packages & OTA"]
+  subgraph Storage["Storage & Packages"]
     PkgStore["packagestore.Store\n(retain, link, install, prefs)"]
-    OTA["ota.Manager\n(crash-safe A/B slots,\nFES/OTA/*)"]
     FS["storagepolicy / fat.Volume\n(FAT32 + CoW ReplaceFile,\nRemoveFile, swappable SD)"]
     Cache["block.Cache\n(LRU write-through)"]
     SDCtrl["sdcontrol.Session\n(EL3 SD lease)"]
@@ -100,8 +99,7 @@ flowchart LR
     HID["input/usbhub + controllers\n+ bt (HCI/L2CAP/HIDP)"]
     Comp["computer\n(fes.computer GP mailbox)"]
     Scan["scanout\n(8 MiB 2-slot DDR menu)"]
-    HDMI["i2c + adv7513\n(DW APB I2C + HDMI TX/EDID)"]
-    Net["network (lneto, HTTPServer)\n+ agentapi + mdns"]
+    Net["network.Interface\n(lneto + DHCP/DNS/SNTP)"]
     XGMAC["xgmac.Device\n(opt-in / dormant on Nano)"]
   end
 
@@ -130,7 +128,6 @@ flowchart LR
   Bridges -->|"0xc2000301"| EL3
 
   PkgStore --> FS --> Cache --> SDCtrl --> SDHCI
-  OTA --> FS
   SDCtrl -->|"0xc2000302"| EL3
 
   InputPlat --> USBCtrl --> DWC2
@@ -138,7 +135,6 @@ flowchart LR
   USBCtrl -->|"0xc2000303"| EL3
 
   Net --> XGMAC
-  Net -. "QEMU cmd/tenfoot\n(/v1/ota*)" .-> OTA
   XGMAC -->|"0xc2000305"| EL3
 
   Board -. "IRQ, DMA pool, MMU verify, watchdog" .-> Control
