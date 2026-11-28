@@ -3,12 +3,12 @@ module fes_sh4 #(
     parameter logic [15:0] RESET_CCR = 16'b0
 ) (
     input  logic        clk,
-    input  logic        reset,
+    input  logic        reset, manual_reset,
     input  logic [3:0]  irq_level,
     input  logic [11:0] irq_event,
     input  logic        nmi,
     input  logic        nmi_while_blocked,
-    output logic        irq_ack,
+    output logic        irq_ack, nmi_ack,
     output logic        mem_valid,
     output logic        mem_lock,
     output logic        mem_sq,
@@ -729,7 +729,7 @@ module fes_sh4 #(
     // Acknowledge between instructions, after any delayed branch slot and
     // after an outstanding instruction translation has supplied its result.
     assign nmi_edge = nmi && !nmi_previous;
-    assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked);
+    assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked || stage == ASLEEP);
     assign irq_ready = !sr[28] && irq_level > sr[7:4];
     assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
     assign fetch_issue_cause = pc[0] ? FETCH_ALIGN : bad_fetch_region ? ADDRESS_ERROR :
@@ -935,11 +935,12 @@ module fes_sh4 #(
             spc <= '0;
             sgr <= '0;
             vbr <= '0;
-            expevt <= '0;
+            expevt <= manual_reset ? 12'h020 : 12'b0;
             intevt <= '0;
             nmi_previous <= 1'b0;
             nmi_pending <= 1'b0;
             irq_ack <= 1'b0;
+            nmi_ack <= 1'b0;
             tra <= '0;
             rte_slot <= 1'b0;
             slot_wrote_pr <= 1'b0;
@@ -953,6 +954,7 @@ module fes_sh4 #(
             nmi_previous <= nmi;
             nmi_pending <= (nmi_pending || nmi_edge) && !(take_interrupt && nmi_ready);
             irq_ack <= take_interrupt && !nmi_ready;
+            nmi_ack <= take_interrupt && nmi_ready;
 
             if (ccr_write) begin
                 {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {data_wdata[8], data_wdata[2:0]};

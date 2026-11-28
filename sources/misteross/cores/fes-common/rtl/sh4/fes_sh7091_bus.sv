@@ -20,7 +20,7 @@ module fes_sh7091_bus (
     logic dma_owner, last_dma, select_dma, queue_active;
 
     assign select_dma = dma_valid && !cpu_lock && !queue_active && (!cpu_valid || dma_burst || !last_dma);
-    assign mem_valid = state == SEND;
+    assign mem_valid = state == SEND && !reset;
     assign mem_lock = cpu_lock && !dma_owner;
     assign mem_sq = cpu_sq && !dma_owner;
     assign mem_addr = dma_owner ? dma_addr : cpu_addr;

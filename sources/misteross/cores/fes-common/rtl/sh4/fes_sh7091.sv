@@ -5,7 +5,8 @@ module fes_sh7091 #(
 ) (
     input  logic        clk,
     input  logic        reset,
-    input  logic        bus_tick,
+    input  logic        bus_tick, watchdog_tick,
+    output logic [1:0]  watchdog_reset,
     input  logic        peripheral_tick, rtc_tick, tclk,
     input  logic        capture_ack,
     input  logic [1:0]  dreq_n,
@@ -35,7 +36,9 @@ module fes_sh7091 #(
     output logic [3:0]  fault,
     output logic [31:0] fault_pc
 );
-    logic cpu_valid, cpu_rvalid;
+    logic system_reset, cpu_valid, cpu_rvalid;
+    logic nmi_request, nmi_ack, nmi_block_override, watchdog_irq, wdt_select, wdt_rvalid;
+    logic [31:0] wdt_rdata;
     logic [31:0] cpu_rdata, bsc_rdata, tmu_rdata, intc_rdata;
     logic [3:0] timer_irq, cpu_irq_level;
     logic [11:0] cpu_irq_event;
@@ -46,9 +49,11 @@ module fes_sh7091 #(
     logic [4:0] dma_irq;
     logic [31:0] cpu_addr, cpu_wdata, dma_addr, dma_wdata, dmac_rdata, capture_value;
 
+    assign system_reset = reset || (|watchdog_reset);
+
     fes_sh4 #(.RESET_PC(RESET_PC), .RESET_CCR(RESET_CCR)) cpu (
-        .clk, .reset, .irq_level(cpu_irq_level), .irq_event(cpu_irq_event),
-        .nmi, .nmi_while_blocked, .irq_ack(cpu_irq_ack),
+        .clk, .reset(system_reset), .manual_reset(watchdog_reset[1] && !reset), .irq_level(cpu_irq_level), .irq_event(cpu_irq_event),
+        .nmi(nmi_request), .nmi_while_blocked(nmi_while_blocked || nmi_block_override), .irq_ack(cpu_irq_ack), .nmi_ack,
         .mem_valid(cpu_valid), .mem_ready(local_select || cpu_ext_ready), .mem_lock(cpu_lock), .mem_sq(cpu_sq),
         .mem_rmask(cpu_rmask), .mem_addr(cpu_addr), .mem_wstrb(cpu_wstrb), .mem_wdata(cpu_wdata),
         .mem_rvalid(cpu_rvalid), .mem_rdata(cpu_rdata),
@@ -56,29 +61,30 @@ module fes_sh7091 #(
     );
 
     fes_sh7091_bsc bsc (
-        .clk, .reset, .bus_tick, .request(cpu_valid), .address(cpu_addr[31:2]),
+        .clk, .reset(system_reset), .bus_tick, .request(cpu_valid), .address(cpu_addr[31:2]),
         .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata), .selected(bsc_select),
         .rvalid(bsc_rvalid), .rdata(bsc_rdata), .refresh_irq, .sdram_command,
         .sdram_mode_set, .sdram_mode_address
     );
 
     fes_sh7091_tmu tmu (
-        .clk, .reset, .peripheral_tick, .rtc_tick, .tclk, .request(cpu_valid), .address(cpu_addr[31:2]),
+        .clk, .reset(system_reset), .peripheral_tick, .rtc_tick, .tclk, .request(cpu_valid), .address(cpu_addr[31:2]),
         .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata), .selected(tmu_select),
         .rvalid(tmu_rvalid), .rdata(tmu_rdata), .timer_irq, .tclk_output_enable, .capture_dma,
         .capture_ack(capture_ack || capture_accept), .capture_value
     );
 
     fes_sh7091_intc intc (
-        .clk, .reset, .request(cpu_valid), .address(cpu_addr[31:2]),
+        .clk, .reset(system_reset), .bus_tick, .nmi, .nmi_ack, .nmi_request, .nmi_block_override,
+        .request(cpu_valid), .address(cpu_addr[31:2]),
         .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata[15:0]), .selected(intc_select),
         .rvalid(intc_rvalid), .rdata(intc_rdata), .ext_level(irq_level), .ext_event(irq_event),
-        .timer_irq, .refresh_irq, .dma_irq, .cpu_ack(cpu_irq_ack), .cpu_level(cpu_irq_level),
+        .timer_irq, .refresh_irq, .dma_irq, .watchdog_irq, .cpu_ack(cpu_irq_ack), .cpu_level(cpu_irq_level),
         .cpu_event(cpu_irq_event), .ext_ack(irq_ack)
     );
 
     fes_sh7091_dmac dmac (
-        .clk, .reset, .nmi, .reg_request(cpu_valid), .reg_addr(cpu_addr[31:2]),
+        .clk, .reset(system_reset), .nmi(nmi_request), .reg_request(cpu_valid), .reg_addr(cpu_addr[31:2]),
         .reg_rmask(cpu_rmask), .reg_wstrb(cpu_wstrb), .reg_wdata(cpu_wdata), .reg_selected(dmac_select),
         .reg_rvalid(dmac_rvalid), .reg_rdata(dmac_rdata), .dreq_n, .dreq_ack, .irq(dma_irq),
         .capture_pending(capture_dma), .capture_value, .capture_accept,
@@ -87,16 +93,23 @@ module fes_sh7091 #(
         .mem_rvalid(dma_rvalid), .mem_rdata
     );
 
+    fes_sh7091_wdt wdt (
+        .clk, .reset, .tick(watchdog_tick), .request(cpu_valid),
+        .address(cpu_addr[31:2]), .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata[15:0]),
+        .selected(wdt_select), .rvalid(wdt_rvalid), .rdata(wdt_rdata),
+        .interval_irq(watchdog_irq), .reset_request(watchdog_reset)
+    );
+
     fes_sh7091_bus bus_mux (
-        .clk, .reset, .cpu_valid(cpu_valid && !local_select), .cpu_lock, .cpu_sq,
+        .clk, .reset(system_reset), .cpu_valid(cpu_valid && !local_select), .cpu_lock, .cpu_sq,
         .cpu_addr, .cpu_wdata, .cpu_rmask, .cpu_wstrb, .cpu_ready(cpu_ext_ready), .cpu_rvalid(cpu_ext_rvalid),
         .dma_valid, .dma_burst, .dma_addr, .dma_wdata, .dma_rmask, .dma_wstrb, .dma_ready, .dma_rvalid,
         .mem_valid, .mem_lock, .mem_sq, .mem_addr, .mem_wdata, .mem_rmask, .mem_wstrb, .mem_ready, .mem_rvalid
     );
 
-    assign local_select = bsc_select || tmu_select || intc_select || dmac_select;
-    assign cpu_rvalid = bsc_rvalid || tmu_rvalid || intc_rvalid || dmac_rvalid || cpu_ext_rvalid;
+    assign local_select = bsc_select || tmu_select || intc_select || dmac_select || wdt_select;
+    assign cpu_rvalid = bsc_rvalid || tmu_rvalid || intc_rvalid || dmac_rvalid || wdt_rvalid || cpu_ext_rvalid;
     assign cpu_rdata = ({32{bsc_rvalid}} & bsc_rdata) | ({32{tmu_rvalid}} & tmu_rdata) |
                        ({32{intc_rvalid}} & intc_rdata) | ({32{dmac_rvalid}} & dmac_rdata) |
-                       ({32{cpu_ext_rvalid}} & mem_rdata);
+                       ({32{wdt_rvalid}} & wdt_rdata) | ({32{cpu_ext_rvalid}} & mem_rdata);
 endmodule

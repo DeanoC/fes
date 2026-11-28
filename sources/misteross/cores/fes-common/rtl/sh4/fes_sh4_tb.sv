@@ -2,12 +2,13 @@ module fes_sh4_tb;
     logic clk = 0;
     always #5 clk <= ~clk;
 
-    logic reset = 1, bram_reset = 1, load_we = 0;
+    logic reset = 1, bram_reset = 1, load_we = 0, bram_nmi = 0;
     logic [8:0] load_word_addr;
     logic [31:0] load_data;
     logic valid, ready, rvalid, retired, bram_retired, bram_irq_ack;
     logic [3:0] irq_level = 0;
     logic [11:0] irq_event = 0;
+    logic unused_nmi_ack;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [3:0] fault, bram_fault;
@@ -41,7 +42,7 @@ module fes_sh4_tb;
     logic check_warm_loop = 0, check_alias_load = 1;
 
     fes_sh4 #(.RESET_PC(0), .RESET_CCR(16'h0103)) dut (
-        .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
+        .clk, .reset, .manual_reset(1'b0), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack, .nmi_ack(unused_nmi_ack),
         .mem_valid(valid), .mem_lock(locked), .mem_sq(queue_write), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
@@ -50,7 +51,7 @@ module fes_sh4_tb;
 
     fes_sh4_bram_system bram (
         .clk, .reset(bram_reset), .irq_level(4'b0), .irq_event(12'b0),
-        .nmi(1'b0), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
+        .nmi(bram_nmi), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
         .retired(bram_retired), .retired_pc(bram_retired_pc),
         .fault(bram_fault), .fault_pc(bram_fault_pc)
     );
@@ -2192,6 +2193,84 @@ module fes_sh4_tb;
                         bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[14]);
         bram_reset = 1;
 
+        // The reset handler sees the watchdog flag and manual reset event.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'h6010); // MOV.B @R1,R0 (WTCSR)
+        emit('h04, 'hc810); // TST #0x10,R0
+        emit('h06, 'h8b0b); // BF 0x20 once the watchdog has reset the core
+        literal('h08, 2, 'h84);
+        literal('h0a, 3, 'h88);
+        emit('h0c, 'h2231); // WTCNT: keyed write of 0xff
+        literal('h0e, 3, 'h8c);
+        emit('h10, 'h2131); // WTCSR: start in manual reset mode
+        emit('h12, 'h001b); // SLEEP
+        literal('h20, 2, 'h90);
+        emit('h22, 'h6d22); // EXPEVT
+        literal('h24, 3, 'h94);
+        emit('h26, 'h2131); // Stop the watchdog and clear WOVF
+        emit('h28, 'hee71);
+        image['h80 >> 2] = 'hffc0_000c;
+        image['h84 >> 2] = 'hffc0_0008;
+        image['h88 >> 2] = 'h5aff;
+        image['h8c >> 2] = 'ha5e0;
+        image['h90 >> 2] = 'hff00_0024;
+        image['h94 >> 2] = 'ha500;
+        for (int word = 0; word <= 'h94 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h28));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h020 &&
+                bram.system_cpu.cpu.gpr[14] == 'h71)
+            else $fatal(1, "Watchdog restart fault %d at %h, EXPEVT %h",
+                        bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13]);
+        bram_reset = 1;
+
+        // Enable NMI entry with BL set, then verify that acceptance clears NMIB.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2121); // ICR.NMIB
+        emit('h06, 'h0009);
+        emit('h08, 'haffe); // BRA 0x08
+        emit('h0a, 'h0009);
+        image['h80 >> 2] = 'hffd0_0000;
+        image['h84 >> 2] = 'h0200;
+        literal('h600, 1, 'h640);
+        emit('h602, 'h6d12); // INTEVT
+        literal('h604, 2, 'h644);
+        emit('h606, 'h6e21); // ICR after NMI
+        image['h640 >> 2] = 'hff00_0028;
+        image['h644 >> 2] = 'hffd0_0000;
+        for (int word = 0; word <= 'h644 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h06));
+        @(negedge clk);
+        assert (bram_fault == 0);
+        bram_nmi = 1;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h606));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h1c0 &&
+                bram.system_cpu.cpu.gpr[14] == 0)
+            else $fatal(1, "ICR guest fault %d at %h, INTEVT %h, ICR %h",
+                        bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[14]);
+        bram_nmi = 0;
+        bram_reset = 1;
+
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
@@ -2199,7 +2278,7 @@ module fes_sh4_tb;
         assert (tmu_finished) else $fatal(1, "TMU/INTC regression timed out");
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, and bus and interrupt arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, and bus and interrupt arbitration");
         $finish;
     end
 

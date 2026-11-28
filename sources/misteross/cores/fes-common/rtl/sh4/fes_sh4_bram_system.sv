@@ -19,7 +19,7 @@ module fes_sh4_bram_system (
     // The private RAM has no competing master or read side effects.
     logic valid, rvalid, unused_mem_lock, unused_mem_sq;
     logic [3:0] unused_mem_rmask;
-    logic [1:0] unused_refresh_irq, unused_sdram_command, unused_dreq_ack;
+    logic [1:0] unused_refresh_irq, unused_sdram_command, unused_dreq_ack, unused_watchdog_reset;
     logic unused_sdram_mode_set, unused_tclk_enable, unused_capture_dma;
     logic [11:0] unused_sdram_mode_address;
     logic [31:0] addr, wdata, rdata, ram_wdata, ram_rdata;
@@ -28,7 +28,7 @@ module fes_sh4_bram_system (
     logic ram_read, in_range, read_in_range;
 
     fes_sh7091 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103)) system_cpu (
-        .clk, .reset, .bus_tick(1'b1), .peripheral_tick(1'b1), .rtc_tick(1'b0), .tclk(1'b0),
+        .clk, .reset, .bus_tick(1'b1), .watchdog_tick(1'b1), .watchdog_reset(unused_watchdog_reset), .peripheral_tick(1'b1), .rtc_tick(1'b0), .tclk(1'b0),
         .capture_ack(1'b0), .dreq_n(2'b11), .dreq_ack(unused_dreq_ack), .tclk_output_enable(unused_tclk_enable), .capture_dma(unused_capture_dma), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
         .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_sq(unused_mem_sq), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),

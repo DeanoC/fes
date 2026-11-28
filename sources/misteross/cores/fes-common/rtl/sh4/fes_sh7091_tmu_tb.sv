@@ -13,11 +13,24 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         .rmask, .wstrb, .wdata, .selected(tmu_selected), .rvalid(tmu_rvalid), .rdata(tmu_rdata),
         .timer_irq, .tclk_output_enable, .capture_dma, .capture_ack, .capture_value
     );
+    logic nmi = 0, nmi_ack = 0, nmi_request, nmi_override;
+    logic watchdog_tick = 0, watchdog_irq, wdt_selected, wdt_rvalid;
+    logic [31:0] wdt_rdata;
+    logic [1:0] watchdog_reset;
+    logic [4:0] dma_irq = 0;
     fes_sh7091_intc intc (
-        .clk, .reset, .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
+        .clk, .reset, .bus_tick(1'b1), .nmi, .nmi_ack,
+        .nmi_request, .nmi_block_override(nmi_override),
+        .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
         .selected(intc_selected), .rvalid(intc_rvalid), .rdata(intc_rdata),
-        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq(5'b0), .cpu_ack,
+        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq, .watchdog_irq, .cpu_ack,
         .cpu_level, .cpu_event, .ext_ack
+    );
+
+    fes_sh7091_wdt wdt (
+        .clk, .reset, .tick(watchdog_tick), .request, .address, .rmask, .wstrb,
+        .wdata(wdata[15:0]), .selected(wdt_selected), .rvalid(wdt_rvalid),
+        .rdata(wdt_rdata), .interval_irq(watchdog_irq), .reset_request(watchdog_reset)
     );
 
     task automatic write_reg(input logic [31:0] byte_addr, value, input logic [3:0] mask);
@@ -28,7 +41,7 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         wstrb = mask;
         request = 1;
         @(negedge clk);
-        assert ((tmu_selected ^ intc_selected) && !tmu_rvalid && !intc_rvalid)
+        assert ($onehot({tmu_selected, intc_selected, wdt_selected}) && !(tmu_rvalid || intc_rvalid || wdt_rvalid))
             else $fatal(1, "Timer or interrupt write at %h was not decoded", byte_addr);
         request = 0;
     endtask
@@ -42,9 +55,9 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         wstrb = 0;
         request = 1;
         @(negedge clk);
-        value = intc_rvalid ? intc_rdata : tmu_rdata;
-        assert ((tmu_rvalid ^ intc_rvalid) && value == expected)
-            else $fatal(1, "Timer/INTC read %h returned %h, expected %h", byte_addr, value, expected);
+        value = wdt_rvalid ? wdt_rdata : intc_rvalid ? intc_rdata : tmu_rdata;
+        assert ($onehot({tmu_rvalid, intc_rvalid, wdt_rvalid}) && value == expected)
+            else $fatal(1, "Timer/INTC/WDT read %h returned %h, expected %h", byte_addr, value, expected);
         request = 0;
     endtask
 
@@ -118,6 +131,73 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         write_reg('hffd8_0000, 1, 4'h1);
         assert (tclk_output_enable && cpu_level == 0)
             else $fatal(1, "Clearing TMU flags did not release interrupt");
+        read_reg('hffd0_0000, 'h8000, 4'h3);
+        write_reg('hffd0_0000, 'hc2ff, 4'h3);
+        read_reg('hffd0_0000, 'hc280, 4'h3);
+        ext_level = 4'b1100;
+        @(negedge clk);
+        assert (cpu_level == 7 && cpu_event == 'h300 && nmi_override)
+            else $fatal(1, "ICR independent IRL and NMIB settings were ignored");
+        nmi = 1;
+        @(negedge clk);
+        assert (nmi_request && cpu_level == 0) else $fatal(1, "Falling NMI or MAI failed");
+        nmi_ack = 1;
+        @(negedge clk);
+        nmi_ack = 0;
+        assert (!nmi_request && !nmi_override);
+        read_reg('hffd0_0000, 'h4080, 4'h3);
+        write_reg('hffd0_0000, 'h0100, 4'h3);
+        nmi = 0;
+        @(negedge clk);
+        assert (!nmi_request) else $fatal(1, "NMI appeared during the polarity guard");
+        nmi = 1;
+        ext_level = 0;
+        write_reg('hffd0_0000, 'h0100, 4'h3);
+        repeat (3) @(negedge clk);
+        assert (!nmi_request);
+        nmi = 0;
+        @(negedge clk);
+        assert (nmi_request) else $fatal(1, "Rising NMI was lost after the polarity guard");
+
+        write_reg('hffd0_0004, 'h5000, 4'h3);
+        write_reg('hffd0_0008, 'h5500, 4'h3);
+        write_reg('hffd0_000c, 'h0500, 4'h3);
+        dma_irq = 5'b10001;
+        refresh_irq = 2'b01;
+        @(negedge clk);
+        assert (cpu_level == 5 && cpu_event == 'h640);
+        dma_irq = 0;
+        write_reg('hffc0_0008, 'h5aff, 4'hf);
+        write_reg('hffc0_0008, 'h00ff, 4'h3);
+        read_reg('hffc0_0008, 0, 4'h1);
+        write_reg('hffc0_0008, 'h5aff, 4'h3);
+        write_reg('hffc0_000c, 'ha580, 4'h3);
+        watchdog_tick = 1;
+        repeat (31) @(negedge clk);
+        assert (!watchdog_irq && watchdog_reset == 0);
+        @(negedge clk);
+        assert (watchdog_irq && watchdog_reset == 0);
+        watchdog_tick = 0;
+        @(negedge clk);
+        assert (cpu_level == 5 && cpu_event == 'h560)
+            else $fatal(1, "WDT interval IRQ did not beat the tied refresh IRQ");
+        read_reg('hffc0_000c, 'h88, 4'h1);
+        read_reg('hffc0_0008, 0, 4'h1);
+        write_reg('hffc0_000c, 'ha518, 4'h3);
+        assert (watchdog_irq);
+        write_reg('hffc0_000c, 'ha500, 4'h3);
+        assert (!watchdog_irq);
+        write_reg('hffc0_0008, 'h5aff, 4'h3);
+        write_reg('hffc0_000c, 'ha5e1, 4'h3);
+        watchdog_tick = 1;
+        repeat (63) @(negedge clk);
+        assert (!watchdog_irq && watchdog_reset == 0);
+        @(negedge clk);
+        watchdog_tick = 0;
+        assert (!watchdog_irq && watchdog_reset == 2'b10)
+            else $fatal(1, "WDT manual reset pulse was incorrect");
+        read_reg('hffc0_000c, 'hf1, 4'h1);
+        assert (watchdog_reset == 0);
         finished = 1;
     end
 endmodule

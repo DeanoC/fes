@@ -269,8 +269,29 @@ external clock edges. Channel 2 captures its count and signals an
 interrupt and a DMA request when configured. The priority encoder
 combines timer and refresh interrupts with the external encoded
 request. Acknowledgement returns to the external device only for
-an external interrupt. The board continues to supply NMI and the
-external input routing.
+an external interrupt.
+
+The INTC control register selects the external interrupt mode and NMI
+edge. The board supplies the inverted NMI pin as `nmi` and the inverse
+of the four IRL pins as `irq_level`. In encoded mode, the board also
+supplies the event code. Independent mode supplies the SH7091 IRL levels
+and events. ICR reports the pin level, supports MAI masking and clears
+NMIB on NMI entry. Changing the edge selection inhibits detection for
+six `bus_tick` enables. The board provides synchronized and filtered inputs.
+
+## Watchdog timer
+
+The watchdog timer supports the keyed WTCNT and WTCSR writes, eight
+prescaler settings and interval interrupt event `0x560`. The board
+supplies the divider input as synchronous `watchdog_tick` enables.
+Watchdog overflow resets the core and its peripherals and publishes the
+selected reset kind on `watchdog_reset` for the board. The external bus
+responder flushes outstanding responses when either reset output is set.
+The timer and its overflow state survive that internal reset. The reset handler reads
+EXPEVT `0x020` following a manual watchdog reset. Oscillator and PLL
+control, standby clock sequencing and reset of external devices are
+outside this wrapper. See the watchdog and interrupt controller chapters
+of the [Renesas SH7750-series hardware manual](https://www.renesas.com/en/document/mah/sh7750-sh7750s-sh7750r-group-users-manual-hardware?r=1055161).
 
 ## DMA controller
 
@@ -386,6 +407,10 @@ writeback, sticky flag acknowledgement, an alignment error, a capture
 transfer and an external request. The shared-bus tests check that DMA
 respects TAS and store-queue ownership. A guest configures a DMA copy,
 wakes on the completion interrupt, and reads the destination after RTE.
+ICR regressions cover both NMI edges, masking and independent IRL input.
+A guest uses NMIB to accept NMI with SR.BL set and reads the cleared NMIB.
+Watchdog checks cover keyed accesses, divider timing, interrupt priority,
+and a guest that restarts at the reset vector and reads WOVF and EXPEVT.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
