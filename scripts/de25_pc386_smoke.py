@@ -66,12 +66,11 @@ def timedemo_result(text):
     return None
 
 
-def doom_hud(frame):
-    cropped = frame.with_suffix(".hud.png")
+def read_region(frame, video_filter, psm):
+    cropped = frame.with_suffix(".ocr.png")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(frame), "-vf",
-                    "crop=iw*0.55:ih*0.047:iw*0.13:ih*0.946,format=gray",
-                    "-frames:v", "1", str(cropped)], check=True, timeout=15)
-    return tesseract(cropped, 7)
+                    video_filter, "-frames:v", "1", str(cropped)], check=True, timeout=15)
+    return tesseract(cropped, psm)
 
 
 class Smoke:
@@ -173,7 +172,7 @@ class Smoke:
             time.sleep(1)
         time.sleep(5)
         before = self.frame("doom-e1m1-before")
-        hud = doom_hud(before)
+        hud = read_region(before, "crop=iw*0.55:ih*0.047:iw*0.13:ih*0.946,format=gray", 7)
         (self.args.out / "doom-e1m1-ocr.txt").write_text(hud)
         require(re.search(r"\bhealth\b", hud, re.I), "Doom gameplay HUD not detected")
 
@@ -213,12 +212,16 @@ class Smoke:
         self.keys("y")
 
         def dos_prompt(frame):
-            text = tesseract(frame, 6)
-            if re.search(r"(?im)^\s*c:\\marks\\quakes\s*[>_]", text):
+            # Quake exits to a red credits screen with a low-contrast
+            # black DOS prompt just below the credits. Isolate that row.
+            text = read_region(frame, "crop=iw*0.23:ih*0.035:iw*0.12:ih*0.88,"
+                                      "extractplanes=r,negate,scale=900:-1", 7)
+            if r"c:\marks\quakes>" in "".join(text.lower().split()):
                 return {"prompt": "C:\\MARKS\\QUAKES>"}
             return None
 
         self.record("quake_return_to_dos", self.wait_for("quake-return-to-dos", dos_prompt, 35))
+        self.command("cls")
         self.command(r"type id1\qconsole.log")
 
         def read(frame):
