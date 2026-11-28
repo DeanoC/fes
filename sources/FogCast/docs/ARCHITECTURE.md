@@ -29,7 +29,8 @@ flowchart LR
   RT["mister-runtime\n(local Unix socket -> FPGA)"]
   Source["Read-only LAN Library Source\n(/api/v1/library/core-entries,\n/api/v1/mesh/content/*)"]
 
-  TF <-->|"HTTP + ui/localfeed"| HAPI
+  TF <-->|"HTTP"| HAPI
+  TF -->|"ui/localfeed\n(/run/fogcast/local-input.sock)"| Agent
   Web <-->|"HTTP"| HAPI
   HAPI --> Svc
   Svc --> Pkg
