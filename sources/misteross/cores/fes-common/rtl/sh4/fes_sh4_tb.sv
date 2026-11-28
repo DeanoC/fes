@@ -470,6 +470,16 @@ module fes_sh4_tb;
                 dut.gpr_storage[6] == 'h64 && {dut.mach, dut.macl} == -64'd21)
             else $fatal(1, "MAC.L failed to retry the second operand fault");
 
+        // User GBR stack access retries its translated read and increments
+        // the source only after the handler installs the mapping.
+        emit('h2e, 'h4517); // LDC.L @R5+,GBR
+        emit('h30, 'h0612); // STC GBR,R6
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr[8] == 'h2e && dut.gpr[12] == 'h40 && dut.gpr[13] == 'hc10 &&
+                dut.gpr_storage[5] == 'hc14 && dut.gpr_storage[6] == 7)
+            else $fatal(1, "LDC.L did not retry through a TLB miss");
+
         // Supervisor can read SR and clear MD. A user execution of LDTLB
         // must fault before changing the TLB state.
         image = '{default:32'hfffd_fffd};
@@ -691,6 +701,88 @@ module fes_sh4_tb;
                 dut.gpr[15] == 'h300 && ext_mem['h2fc >> 2] == 8)
             else $fatal(1, "Call linkage or indexed and GBR-relative memory was incorrect");
 
+        // Banked control transfers always use the bank opposite SR.RB.
+        // When LDC.L restores SR, the postincrement belongs to the old bank.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he211);
+        emit('h02, 'h42be); // LDC R2,R3_BANK
+        emit('h04, 'h08b2); // STC R3_BANK,R8
+        emit('h06, 'he322);
+        literal('h08, 15, 'h80);
+        emit('h0a, 'h4fb3); // STC.L R3_BANK,@-R15
+        emit('h0c, 'h4fc7); // LDC.L @R15+,R4_BANK
+        emit('h0e, 'h42fa); // LDC R2,DBR
+        emit('h10, 'h09fa); // STC DBR,R9
+        emit('h12, 'h4ff2); // STC.L DBR,@-R15
+        emit('h14, 'h4f17); // LDC.L @R15+,GBR
+        literal('h16, 1, 'h84);
+        emit('h18, 'h4107); // LDC.L @R1+,SR, switching to bank zero
+        emit('h1a, 'h0a92); // STC R1_BANK,R10, now looking at bank one
+        emit('h1c, 'h0bb2); // STC R3_BANK,R11, the previously active R3
+        emit('h1e, 'h0c12); // STC GBR,R12
+        emit('h20, 'h0d02); // STC SR,R13
+        emit('h22, 'he000);
+        emit('h24, 'h400e); // Enter user mode
+        emit('h26, 'h4f13); // STC.L GBR,@-R15 is legal in user mode
+        emit('h28, 'h401e); // Zero GBR
+        emit('h2a, 'h4f17); // Restore GBR from the user stack
+        emit('h2c, 'h0e12); // STC GBR,R14
+        emit('h2e, 'h4f87); // User LDC.L to a bank register is illegal
+        image['h80 >> 2] = 'h300;
+        image['h84 >> 2] = 'h204;
+        image['h204 >> 2] = 'h4000_0001;
+        start_bus();
+        expect_stop(1, 'h100);
+        assert (dut.gpr_storage[3] == 'h11 && dut.gpr_storage[4] == 'h11 &&
+                dut.gpr_storage[19] == 'h22 && dut.gpr[8] == 'h11 && dut.gpr[9] == 'h11 &&
+                dut.gpr[10] == 'h208 && dut.gpr[11] == 'h22 && dut.gpr[12] == 'h11 &&
+                dut.gpr[13] == 'h4000_0001 && dut.gpr[14] == 'h11 && dut.gpr[15] == 'h300 &&
+                dut.spc == 'h2e && dut.ssr == 0)
+            else $fatal(1, "Control transfer, privilege, or old-bank postincrement was incorrect");
+
+        // Load the saved context through separate stack slots, then save it
+        // in reverse order. DBR has a distinct encoding from R7_BANK.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 15, 'h80);
+        emit('h02, 'h4f27); // LDC.L @R15+,VBR
+        emit('h04, 'h4f37); // LDC.L @R15+,SSR
+        emit('h06, 'h4f47); // LDC.L @R15+,SPC
+        emit('h08, 'h4ff6); // LDC.L @R15+,DBR
+        emit('h0a, 'h7f20); // Save to a different stack area
+        emit('h0c, 'h4ff2); // STC.L DBR,@-R15
+        emit('h0e, 'h4f43); // STC.L SPC,@-R15
+        emit('h10, 'h4f33); // STC.L SSR,@-R15
+        emit('h12, 'h4f23); // STC.L VBR,@-R15
+        emit('h14, 'h4f03); // STC.L SR,@-R15
+        emit('h16, 'h4f07); // LDC.L @R15+,SR
+        image['h80 >> 2] = 'h200;
+        image['h200 >> 2] = 'ha000_0800;
+        image['h204 >> 2] = 'h7000_8303;
+        image['h208 >> 2] = 'ha000_1234;
+        image['h20c >> 2] = 'h9876_5432;
+        start_bus();
+        expect_stop(1, 'h18);
+        assert (dut.vbr == 'ha000_0800 && dut.ssr == 'h7000_8303 && dut.spc == 'ha000_1234 &&
+                dut.dbr == 'h9876_5432 && dut.gpr[15] == 'h220 &&
+                ext_mem['h21c >> 2] == 'h7000_00f0 && ext_mem['h220 >> 2] == 'ha000_0800 &&
+                ext_mem['h224 >> 2] == 'h7000_8303 && ext_mem['h228 >> 2] == 'ha000_1234 &&
+                ext_mem['h22c >> 2] == 'h9876_5432)
+            else $fatal(1, "Longword stack transfers did not round trip control state");
+
+        image['h80 >> 2] = 'h201;
+        emit('h02, 'h4f07);
+        start_bus();
+        expect_stop(4, 'h02);
+        assert (dut.gpr[15] == 'h201 && dut.sr == 'h7000_00f0)
+            else $fatal(1, "Faulting LDC.L changed SR or postincremented its base");
+        image['h80 >> 2] = 'h200;
+        emit('h02, 'ha002); // BRA with LDC.L in the slot
+        emit('h04, 'h4f07);
+        start_bus();
+        expect_stop(2, 'h04);
+        assert (dut.gpr[15] == 'h200 && dut.sr == 'h7000_00f0)
+            else $fatal(1, "Slot-illegal LDC.L changed architectural state");
+
         // Equal-priority interrupts remain masked. Raising the priority as
         // the branch retires must defer acknowledgement until after its slot.
         image = '{default:32'hfffd_fffd};
@@ -706,12 +798,13 @@ module fes_sh4_tb;
         emit('h1c, 'h7204);
         emit('h600, 'h0842); // STC SPC,R8
         emit('h602, 'h0932); // STC SSR,R9
-        emit('h604, 'h0a3a); // STC SGR,R10
-        literal('h606, 1, 'h640);
-        emit('h608, 'h6b12); // Read INTEVT into R11
-        emit('h60a, 'h7d01); // Count entries in shared R13
-        emit('h60c, 'h002b); // RTE
-        emit('h60e, 'h0009);
+        emit('h604, 'h4f32); // STC.L SGR,@-R15
+        emit('h606, 'h6af6); // MOV.L @R15+,R10
+        literal('h608, 1, 'h640);
+        emit('h60a, 'h6b12); // Read INTEVT into R11
+        emit('h60c, 'h7d01); // Count entries in shared R13
+        emit('h60e, 'h002b); // RTE
+        emit('h610, 'h0009);
         image['h80 >> 2] = 32'h4000_0050;
         image['h640 >> 2] = 32'hff00_0028;
         irq_level = 5;
@@ -767,12 +860,14 @@ module fes_sh4_tb;
         // when BL clears. Holding the NMI input high must yield a single entry.
         emit('h08, 'h0009);
         emit('h0e, 'hfffd);
-        emit('h60a, 'h0009);
+        emit('h604, 'h0a3a); // STC SGR,R10
+        emit('h606, 'h0009);
+        emit('h60c, 'h0009);
         irq_level = 15;
         irq_event = 'h400;
         nmi = 1;
         start_bus();
-        wait (retired && retired_pc == 'h608);
+        wait (retired && retired_pc == 'h60a);
         assert (!irq_ack && dut.gpr[8] == 4 && dut.gpr[11] == 'h1c0)
             else $fatal(1, "Latched NMI did not take priority over IRQ");
         wait (irq_ack);
@@ -788,7 +883,7 @@ module fes_sh4_tb;
         nmi = 1;
         nmi_while_blocked = 1;
         start_bus();
-        wait (retired && retired_pc == 'h608);
+        wait (retired && retired_pc == 'h60a);
         assert (!irq_ack && dut.gpr[8] == 0 && dut.gpr[9] == 'h7000_00f0 && dut.gpr[11] == 'h1c0)
             else $fatal(1, "NMI override did not enter with BL set");
         nmi = 0;
@@ -797,7 +892,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC and interrupts");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers and interrupts");
         $finish;
     end
 

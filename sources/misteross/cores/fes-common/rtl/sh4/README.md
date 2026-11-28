@@ -56,9 +56,9 @@ defines instruction encodings and behavior. The implemented slice includes:
   literal loads, indexed and GBR-relative forms, and MOVA.
 - BT, BF, BT/S, BF/S, BRA, BSR, BRAF, BSRF, JMP, JSR, RTS, and NOP. The branch decision and
   target are captured before the delay slot executes.
-- LDTLB, TRAPA, RTE, SLEEP, and register forms of LDC/STC for SR, VBR, SSR, and SPC.
-  LDC/STC also transfer GBR, STC reads SGR, and STS/LDS support PR register
-  and stack transfers.
+- LDTLB, TRAPA, RTE, SLEEP, and register and stack forms of LDC/STC for SR,
+  GBR, VBR, SSR, SPC, DBR and the inactive R0–R7 bank. STC also reads and
+  stacks SGR. STS/LDS support PR register and stack transfers.
 
 ## Exception entry and return
 
@@ -146,6 +146,9 @@ Additional guest programs exercise signed and unsigned division and
 multiplication, flag updates, indexed moves, and nested calls that save PR
 on the stack. MAC tests cover both saturation widths, shared-base
 postincrement, and a TLB miss on the second operand followed by RTE.
+Control transfer tests cover stack round trips, user-mode GBR transfers,
+privilege violations and a faulting SR load. They also check that an
+LDC.L changing SR.RB increments the original bank's address register.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 
