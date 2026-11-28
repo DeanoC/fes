@@ -1594,6 +1594,94 @@ module fes_sh4_tb;
         assert (dut.expevt == 'h120 && dut.fpscr == 'h10840 && dut.sr[0])
             else $fatal(1, "FCMP/EQ invalid exception changed SR.T");
 
+        // FMAC consumes FR0, FRm, and the old FRn with one final rounding.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he000);
+        emit('h02, 'h406a);
+        literal('h04, 5, 'h80);
+        emit('h06, 'hf059);
+        emit('h08, 'hf159);
+        emit('h0a, 'hf259);
+        emit('h0c, 'hf21e); // FMAC FR0,FR1,FR2
+        emit('h0e, 'hf21d);
+        emit('h10, 'h085a);
+        image['h80 >> 2] = 'h200;
+        image['h200 >> 2] = 'h3f80_0001;
+        image['h204 >> 2] = 'h3f7f_fffe;
+        image['h208 >> 2] = 'hbf80_0000;
+        start_bus();
+        expect_stop(1, 'h12);
+        assert (dut.gpr[8] == 'ha880_0000 && dut.fpscr == 0)
+            else $fatal(1, "FMAC did not read all three operands or rounded the product early");
+
+        // FIPR writes the last lane. FTRV uses the opposite bank in column order
+        // and reads every source lane before publishing the first result.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he000);
+        emit('h02, 'h406a);
+        literal('h04, 5, 'h80);
+        emit('h06, 'hfbfd);
+        for (int lane = 0; lane < 16; lane++)
+            emit('h08 + lane * 2, {4'hf, 4'(lane), 8'h59});
+        emit('h28, 'hfbfd);
+        for (int lane = 4; lane < 12; lane++)
+            emit('h2a + (lane - 4) * 2, {4'hf, 4'(lane), 8'h59});
+        emit('h3a, 'hf9ed); // FIPR FV4,FV8
+        emit('h3c, 'hf5fd); // FTRV XMTRX,FV4
+        emit('h3e, 'h086a); // STS FPSCR,R8
+        literal('h40, 0, 'h84);
+        emit('h42, 'h406a);
+        emit('h44, 'hf5fd); // EN.V traps before any matrix result writes.
+        image['h80 >> 2] = 'h200;
+        image['h84 >> 2] = 'h800;
+        image['h200 >> 2] = 'h3f80_0000; // Matrix column 0: (1,2,0,0)
+        image['h204 >> 2] = 'h4000_0000;
+        image['h208 >> 2] = 0;
+        image['h20c >> 2] = 0;
+        image['h210 >> 2] = 0;           // Matrix column 1: (0,1,-1,0)
+        image['h214 >> 2] = 'h3f80_0000;
+        image['h218 >> 2] = 'hbf80_0000;
+        image['h21c >> 2] = 0;
+        image['h220 >> 2] = 0;           // Matrix column 2: (0,0,1,0)
+        image['h224 >> 2] = 0;
+        image['h228 >> 2] = 'h3f80_0000;
+        image['h22c >> 2] = 0;
+        image['h230 >> 2] = 'h4080_0000; // Matrix column 3: (4,0,0,1)
+        image['h234 >> 2] = 0;
+        image['h238 >> 2] = 0;
+        image['h23c >> 2] = 'h3f80_0000;
+        image['h240 >> 2] = 'h3f80_0000; // FV4: (1,2,3,4)
+        image['h244 >> 2] = 'h4000_0000;
+        image['h248 >> 2] = 'h4040_0000;
+        image['h24c >> 2] = 'h4080_0000;
+        image['h250 >> 2] = 'h40a0_0000; // FV8: (5,6,7,8)
+        image['h254 >> 2] = 'h40c0_0000;
+        image['h258 >> 2] = 'h40e0_0000;
+        image['h25c >> 2] = 'h4100_0000;
+        start_bus();
+        expect_stop(13, 'h44);
+        assert (dut.fpu_regs.fr_odd[5] == 'h428c_0000 &&
+                dut.fpu_regs.fr_even[2] == 'h4188_0000 && dut.fpu_regs.fr_odd[2] == 'h4080_0000 &&
+                dut.fpu_regs.fr_even[3] == 'h3f80_0000 && dut.fpu_regs.fr_odd[3] == 'h4080_0000 &&
+                dut.gpr[8] == 'h1004 && dut.fpscr == 'h1804)
+            else $fatal(1, "Vector execution or precise FTRV software trap failed");
+
+        // The three compound instructions are illegal in double-precision mode.
+        for (int instruction = 0; instruction < 3; instruction++) begin
+            image = '{default:32'hfffd_fffd};
+            literal('h00, 0, 'h80);
+            emit('h02, 'h406a);
+            case (instruction)
+                0: emit('h04, 'hf20e);
+                1: emit('h04, 'hf9ed);
+                2: emit('h04, 'hf5fd);
+                default: ;
+            endcase
+            image['h80 >> 2] = 'h0008_0000;
+            start_bus();
+            expect_stop(1, 'h04);
+        end
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1786,7 +1874,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, and conversions");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, and vectors");
         $finish;
     end
 

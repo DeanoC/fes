@@ -131,12 +131,23 @@ double register, and FCNVDS rounds a double into a single in FPUL.
 These instructions share the arithmetic unit's classification, rounding,
 or alignment stages.
 
+FMAC uses the single-precision multiply datapath, aligns the full product
+with the old FRn value, and rounds once after addition. FIPR and FTRV
+share a four-term dot-product datapath. It retains 28 significand bits
+per product and aligns the products to 30 bits before summing them.
+FIPR writes the last lane of its destination vector. FTRV reads the
+column-major matrix from XF and buffers all four output lanes until
+FPSCR exception checks pass. The vector operations report inexact
+because they use finite-width intermediate results.
+
 The arithmetic supports nearest-even and toward-zero rounding, FPSCR
 denormal handling, and the SH-4 NaN encodings. An arithmetic exception
 updates FPSCR cause and sticky flags and enters VBR + 0x100 with EXPEVT
 0x120 before changing the destination. The SH-4's O/U/I
 software-completion traps also apply to normal operands with an exact
 result. FSQRT and FLOAT use the inexact enable for this behavior.
+FMAC, FIPR, and FTRV check the O/U/I enables for all operands. FTRV
+also checks the invalid-operation enable.
 
 ## Prefetch and store queues
 
@@ -188,9 +199,10 @@ in `irq_level` and event code in `irq_event` until the CPU pulses `irq_ack`.
 Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
-Floating-point arithmetic, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, cache index and RAM modes, area-7 MMU register aliases, board
-buses and PTEA PCMCIA behavior remain outside this slice.
+The remaining floating-point, integer and privileged instructions, interrupt
+source arbitration and peripherals, standby power controls, cache index
+and RAM modes, area-7 MMU register aliases, board buses and PTEA PCMCIA
+behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
 
@@ -279,7 +291,9 @@ cover signed cancellation, normalization, ties, overflow, subnormal results,
 NaNs, divide by zero, and precise arithmetic traps with delay-slot replay.
 Comparisons and conversions cover signed zero, NaNs, integer saturation,
 narrowing and integer rounding, both precisions, and preservation of SR.T
-on an invalid-operation trap.
+on an invalid-operation trap. FMAC tests distinguish fused rounding from
+separate multiply and add. Vector tests check the matrix bank, lane
+destination and preservation of the full destination on an FTRV trap.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

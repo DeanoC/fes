@@ -13,6 +13,7 @@ module fes_sh4_fp_arithmetic (
     input  logic        toward_zero,
     input  logic        flush_denormals,
     input  logic [63:0] lhs, rhs,
+    input  logic [31:0] addend,
     output logic        done,
     output logic [63:0] value,
     output logic [5:0]  causes, // E V Z O U I
@@ -24,11 +25,12 @@ module fes_sh4_fp_arithmetic (
         PRODUCT, DIAGONALS, MIDDLE, COLUMN_1, COLUMN_2, COLUMN_3,
         COLUMN_4, PRODUCT_NORMALIZE, DIVIDE_PREP, ROOT_PREP,
         DIGIT_TEST, DIGIT_NEXT, DIGIT_RESULT,
-        CONVERT, COMPARE, INTEGER_RESULT
+        CONVERT, COMPARE, INTEGER_RESULT,
+        MAC_CLASSIFY, MAC_PRODUCT, MAC_ORDER, MAC_ALIGN
     } state_t;
     state_t state;
     localparam logic [2:0] ARITHMETIC = 0, CMP_EQ = 1, CMP_GT = 2, FROM_INT = 3,
-                           TO_INT = 4, TO_DOUBLE = 5, TO_SINGLE = 6;
+                           TO_INT = 4, TO_DOUBLE = 5, TO_SINGLE = 6, MAC = 7;
 
     localparam logic [3:0] ZERO = 0, NORMAL = 1, SUBNORMAL = 2,
                            INFINITY = 3, QUIET_NAN = 4, SIGNALING_NAN = 5;
@@ -40,7 +42,11 @@ module fes_sh4_fp_arithmetic (
     logic [5:0] integer_shift;
     logic [62:0] compare_a, compare_b;
     logic compare_a_sign, compare_b_sign, compare_equal, compare_greater;
-    logic [3:0] a_class, b_class;
+    logic [3:0] a_class, b_class, addend_class;
+    logic mac_product_sign, mac_product_first;
+    logic signed [12:0] mac_exponent, mac_delta;
+    logic [55:0] mac_significand, addend_significand;
+    logic [12:0] mac_distance;
     logic [10:0] a_exponent, b_exponent, max_exponent;
     logic [52:0] a_sig, b_sig;
     logic a_sign, b_sign;
@@ -112,6 +118,10 @@ module fes_sh4_fp_arithmetic (
     assign b_sign = (input_wide ? b_bits[63] : b_bits[31]) ^ subtract;
     assign a_class = classify(a_exponent, input_max_exponent, a_sig[51:0]);
     assign b_class = classify(b_exponent, input_max_exponent, b_sig[51:0]);
+    assign addend_class = classify({3'b0, addend[30:23]}, 11'd255, {addend[22:0], 29'b0});
+    assign addend_significand = {1'b1, addend[22:0], 32'b0};
+    assign mac_product_sign = a_sign ^ b_sign;
+    assign mac_product_first = mac_delta > 0 || (mac_delta == 0 && mac_significand >= addend_significand);
     assign integer_magnitude = a_bits[31] ? -a_bits[31:0] : a_bits[31:0];
     assign single_exponent = $signed({2'b0, a_exponent}) - 13'sd896;
     assign integer_shift = bias[5:0] + 6'd52 - a_exponent[5:0];
@@ -204,7 +214,9 @@ module fes_sh4_fp_arithmetic (
                                    transfer == FROM_INT || (transfer == TO_SINGLE && a_class == NORMAL) ||
                                    (transfer == ARITHMETIC && a_class == NORMAL && b_class == NORMAL);
                 state <= DONE;
-                if (transfer != ARITHMETIC)
+                if (transfer == MAC)
+                    state <= MAC_CLASSIFY;
+                else if (transfer != ARITHMETIC)
                     state <= CONVERT;
                 else if (a_class == SIGNALING_NAN || (!square_root && b_class == SIGNALING_NAN)) begin
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
@@ -253,6 +265,72 @@ module fes_sh4_fp_arithmetic (
                     value <= pack(a_sign, a_exponent, a_sig[51:0]);
                 else
                     state <= multiply ? PRODUCT : ORDER;
+            end
+            MAC_CLASSIFY: begin
+                state <= DONE;
+                if (a_class == SIGNALING_NAN || b_class == SIGNALING_NAN || addend_class == SIGNALING_NAN) begin
+                    value <= 64'h7fbf_ffff;
+                    causes[4] <= 1'b1;
+                end else if (a_class == QUIET_NAN || b_class == QUIET_NAN)
+                    value <= 64'h7fbf_ffff;
+                else if (a_class == SUBNORMAL || b_class == SUBNORMAL)
+                    causes[5] <= 1'b1;
+                else if ((a_class == INFINITY && b_class == ZERO) ||
+                         (b_class == INFINITY && a_class == ZERO)) begin
+                    value <= 64'h7fbf_ffff;
+                    causes[4] <= 1'b1;
+                end else if (addend_class == QUIET_NAN)
+                    value <= 64'h7fbf_ffff;
+                else if (addend_class == SUBNORMAL)
+                    causes[5] <= 1'b1;
+                else if (a_class == INFINITY || b_class == INFINITY) begin
+                    if (addend_class == INFINITY && mac_product_sign != addend[31]) begin
+                        value <= 64'h7fbf_ffff;
+                        causes[4] <= 1'b1;
+                    end else
+                        value <= pack(mac_product_sign, 11'd255, '0);
+                end else if (addend_class == INFINITY)
+                    value <= {32'b0, addend};
+                else if (a_class == ZERO || b_class == ZERO)
+                    value <= addend_class == ZERO ?
+                             pack(mac_product_sign ^ addend[31], '0, '0) : {32'b0, addend};
+                else
+                    state <= PRODUCT;
+            end
+            MAC_PRODUCT: begin
+                // Preserve the full 48-bit product before aligning the addend.
+                mac_exponent <= normalized_product_exponent;
+                mac_significand <= product_significand;
+                mac_delta <= normalized_product_exponent - $signed({5'b0, addend[30:23]});
+                state <= MAC_ORDER;
+            end
+            MAC_ORDER: begin
+                if (addend_class == ZERO) begin
+                    subtract_magnitude <= 0;
+                    if (mac_exponent <= 0) begin
+                        exp_result <= 11'd1;
+                        large_sig <= 0;
+                        small_sig <= mac_significand;
+                        mac_distance <= $unsigned(13'sd1 - mac_exponent);
+                    end else begin
+                        exp_result <= mac_exponent[10:0];
+                        large_sig <= mac_significand;
+                        small_sig <= 0;
+                        mac_distance <= 0;
+                    end
+                end else begin
+                    subtract_magnitude <= mac_product_sign != addend[31];
+                    negative <= mac_product_first ? mac_product_sign : addend[31];
+                    exp_result <= mac_product_first ? mac_exponent[10:0] : {3'b0, addend[30:23]};
+                    large_sig <= mac_product_first ? mac_significand : addend_significand;
+                    small_sig <= mac_product_first ? addend_significand : mac_significand;
+                    mac_distance <= $unsigned(mac_product_first ? mac_delta : -mac_delta);
+                end
+                state <= MAC_ALIGN;
+            end
+            MAC_ALIGN: begin
+                distance <= mac_distance >= 13'd56 ? 6'd56 : mac_distance[5:0];
+                state <= ALIGN_COARSE;
             end
             CONVERT: begin
                 state <= DONE;
@@ -397,7 +475,7 @@ module fes_sh4_fp_arithmetic (
             end
             COLUMN_4: begin
                 product_result[105:72] <= column_4;
-                state <= PRODUCT_NORMALIZE;
+                state <= transfer == MAC ? MAC_PRODUCT : PRODUCT_NORMALIZE;
             end
             DIVIDE_PREP: begin
                 negative <= a_sign ^ b_sign;

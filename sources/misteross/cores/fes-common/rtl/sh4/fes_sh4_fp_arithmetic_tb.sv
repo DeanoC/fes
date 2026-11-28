@@ -2,6 +2,7 @@ module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
     logic reset = 1, start = 0;
     logic wide, multiply = 0, divide = 0, square_root = 0, subtract, toward_zero, flush_denormals;
     logic [2:0] transfer = 0;
+    logic [31:0] addend = 0;
     logic [63:0] lhs, rhs, value;
     logic [5:0] causes;
     logic done, unused_normal_operands;
@@ -156,6 +157,22 @@ module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
         check(9, 64'hb6a0_0000_0000_0000, 0, 64'h8000_0000, 3);
         check(8, 64'h7fef_ffff_ffff_ffff, 0, 64'h7f80_0000, 5);
         check(8, 64'h7ff7_ffff_ffff_ffff, 0, 64'h7fbf_ffff, 0);
+        transfer = 7; // FMAC
+        addend = 32'hbf80_0000;
+        check(0, 64'h3f80_0001, 64'h3f7f_fffe, 64'ha880_0000, 0);
+        addend = 32'hff7f_ffff;
+        check(0, 64'h7f00_0000, 64'h4000_0000, 64'h7380_0000, 0);
+        addend = 0;
+        check(0, 64'h0080_0000, 64'h3f00_0000, 64'h0040_0000, 0);
+        check(1, 64'h8080_0000, 64'h3f00_0000, 64'h8000_0000, 3);
+        check(0, 64'h7f80_0000, 0, 64'h7fbf_ffff, 16);
+        addend = 32'hff80_0000;
+        check(0, 64'h7f80_0000, 64'h3f80_0000, 64'h7fbf_ffff, 16);
+        addend = 32'h3f80_0000;
+        check(2, 64'hbf80_0000, 64'h0080_0000, 64'h3f7f_ffff, 1);
+        check(0, 64'hbf80_0000, 64'h0080_0000, 64'h3f80_0000, 1);
+        addend = 32'h0000_0001;
+        check(0, 64'h3f80_0000, 64'h3f80_0000, 0, 32);
         finished = 1;
     end
 endmodule

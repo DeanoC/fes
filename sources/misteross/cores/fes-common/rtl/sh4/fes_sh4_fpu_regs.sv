@@ -5,6 +5,7 @@ module fes_sh4_fpu_regs (
     input  logic        reset,
     input  logic [3:0]  read_number,
     input  logic        read_pair,
+    input  logic        read_other_bank,
     output logic [63:0] read_value,
     input  logic        write_register,
     input  logic [3:0]  write_number,
@@ -25,7 +26,7 @@ module fes_sh4_fpu_regs (
     logic bank;
 
     assign bank = fpscr[21];
-    assign read_index = {bank ^ (read_pair && read_number[0]), read_number[3:1]};
+    assign read_index = {bank ^ (read_other_bank || (read_pair && read_number[0])), read_number[3:1]};
     assign write_index = {bank ^ (write_pair && write_number[0]), write_number[3:1]};
     assign read_value[63:32] = read_pair ? fr_even[read_index] : 32'b0;
     assign read_value[31:0] = read_pair || read_number[0] ? fr_odd[read_index] : fr_even[read_index];
