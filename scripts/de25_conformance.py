@@ -45,7 +45,7 @@ COVERED_PREFIXES = ("fes.media.", "fes.mouse.", "fes.audio.")
 USAGES = {**{chr(ord("a") + i): 0x04 + i for i in range(26)},
           **{str(i): 0x1E + i - 1 for i in range(1, 10)}, "0": 0x27,
           "enter": 0x28, "escape": 0x29, "backspace": 0x2A, "tab": 0x2B, "space": 0x2C,
-          "minus": 0x2D, "equal": 0x2E, "comma": 0x36, "period": 0x37, "slash": 0x38,
+          "minus": 0x2D, "equal": 0x2E, "backslash": 0x31, "comma": 0x36, "period": 0x37, "slash": 0x38,
           "delete": 0x4C, "right": 0x4F, "left": 0x50, "down": 0x51, "up": 0x52}
 TEXT_KEYS = {" ": "space", ",": "comma", ".": "period", "-": "minus", "=": "equal", "/": "slash"}
 MODIFIERS = {"ctrl": 0x01, "shift": 0x02, "alt": 0x04}

@@ -85,9 +85,24 @@ PY
 done
 N_PKGS=${#PKGS[@]}
 [ "$N_PKGS" -ge 1 ] || { echo NOTSTARTED > "$D/verdict"; echo "exact-head sealed package missing"; exit 3; }
-# Generate the D25 smoke engine before the claim when any package needs it.
+# Preflight the disk fixtures and prepare any generic package smoke before the claim.
+PC386_SMOKE="$FES_SOURCE/scripts/de25_pc386_smoke.py"
+PC386_DRIVES=${FES_DE25_PC386_DRIVES:-/home/deano/fes-drives/pc386/by-name}
 NEEDS_CORE_SMOKE=0
-for CORE_ID in "${CORE_IDS[@]}"; do [ "$CORE_ID" = fes.menu ] || NEEDS_CORE_SMOKE=1; done
+for i in "${!PKGS[@]}"; do
+  case "${CORE_IDS[$i]}" in
+    fes.menu) ;;
+    fes.pc386)
+      if ! python3 "$PC386_SMOKE" --preflight --drives "$PC386_DRIVES" --head "$HEAD" \
+        --package "${PKGS[$i]}" --slug "${SLUGS[$i]}" >>"$D/logs/pc386-preflight.log" 2>&1; then
+        echo NOTSTARTED > "$D/verdict"
+        echo "DE25 pc386 fixtures or package failed preflight"
+        exit 3
+      fi
+      ;;
+    *) NEEDS_CORE_SMOKE=1 ;;
+  esac
+done
 if [ "$NEEDS_CORE_SMOKE" = 1 ]; then
   SMOKE_DRIVER=$TMPDIR_PATH/hil-de25-core.py
   cp "$Q/hilcore.py" "$SMOKE_DRIVER"
@@ -339,6 +354,11 @@ for i in "${!PKGS[@]}"; do
   elif [ "$CORE_ID" = fes.menu ]; then
     C_PR="$PR" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
       timeout 1800 python3 "$Q/hil-de25-menu.py" >"$SMOKE_LOG" 2>&1
+    SMOKE_RC=$?
+  elif [ "$CORE_ID" = fes.pc386 ]; then
+    OMP_THREAD_LIMIT=1 timeout --kill-after=15s 1200 python3 "$PC386_SMOKE" --api "http://$API" --fogcast "$PRIVATE_FOGCAST" \
+      --target-id "$TARGET_ID" --head "$HEAD" --package "$PKG" --slug "$SLUG" \
+      --drives "$PC386_DRIVES" --out "$OUT" >"$SMOKE_LOG" 2>&1
     SMOKE_RC=$?
   else
     C_CORE_ID="$CORE_ID" C_BOOT_SCREEN_TOOL="$FES_SOURCE/scripts/de25_boot_screen.py" C_CONFORMANCE_TOOL="$FES_SOURCE/scripts/de25_conformance.py" C_KIT=D25 C_PR="$PR" C_TARGET=de25 C_TARGET_ID="$TARGET_ID" C_HEAD="$HEAD" C_PKG="$PKG" C_OUT="$OUT" C_VID=/dev/v4l/by-id/fes-ms2109-hil C_FOGCAST="$PRIVATE_FOGCAST" C_API="http://$API" \
