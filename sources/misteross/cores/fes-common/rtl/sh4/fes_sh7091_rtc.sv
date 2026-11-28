@@ -32,7 +32,7 @@ module fes_sh7091_rtc (
 
     assign selected = address[31:6] == 26'h3ff2000;
     assign reg_index = address[5:2];
-    assign write_byte = request && selected && wstrb == 4'h1;
+    assign write_byte = !reset && request && selected && wstrb == 4'h1;
     assign write_rcr2 = write_byte && reg_index == 15;
     assign read_phase = request && selected && reg_index == 0 && wstrb == 0 && rmask == 4'h1;
     assign adjust = write_rcr2 && wdata[2];
@@ -83,9 +83,6 @@ module fes_sh7091_rtc (
             rvalid <= 0;
             control1 <= 0;
             control2 <= power_reset ? 8'h09 : control2 & 8'h09;
-            if (power_reset)
-                for (int i = 0; i < 6; i++)
-                    alarm[i][7] <= 0;
         end else begin
             rvalid <= request && selected && wstrb == 0;
             if (request && selected && wstrb == 0) begin
@@ -102,11 +99,6 @@ module fes_sh7091_rtc (
                     rdata[15:0] <= year;
             end
 
-            if (phase_reset)
-                phase <= 0;
-            else if (count_tick)
-                phase <= phase + 16'd1;
-
             if (write_byte && reg_index == 14)
                 control1 <= (wdata[7:0] & 8'h98) | (control1 & wdata[7:0] & 8'h01);
             if (write_rcr2)
@@ -118,33 +110,44 @@ module fes_sh7091_rtc (
             if (alarm_compare)
                 control1[0] <= 1;
 
-            if (adjust || (second_carry && control2[0] && !phase_reset))
-                calendar[0] <= adjust || calendar[0] == 8'h59 ? 0 : increment_bcd(calendar[0]);
-            if (minute_carry)
-                calendar[1] <= hour_carry ? 0 : increment_bcd(calendar[1]);
-            if (hour_carry)
-                calendar[2] <= day_carry ? 0 : increment_bcd(calendar[2]);
-            if (day_carry) begin
-                calendar[3] <= calendar[3] == 6 ? 0 : calendar[3] + 8'd1;
-                calendar[4] <= end_of_month ? 8'h01 : increment_bcd(calendar[4]);
-            end
-            if (month_carry) begin
-                calendar[5] <= calendar[5] == 8'h12 ? 8'h01 : increment_bcd(calendar[5]);
-                if (calendar[5] == 8'h12) begin
-                    year[7:0] <= year[7:0] == 8'h99 ? 0 : increment_bcd(year[7:0]);
-                    if (year[7:0] == 8'h99)
-                        year[15:8] <= year[15:8] == 8'h99 ? 0 : increment_bcd(year[15:8]);
-                end
-            end
-
-            if (write_byte) begin
-                if (reg_index inside {[1:6]})
-                    calendar[reg_index[2:0] - 3'd1] <= wdata[7:0] & FIELD_MASK[reg_index[2:0] - 3'd1];
-                if (reg_index inside {[8:13]})
-                    alarm[reg_index[2:0]] <= wdata[7:0] & (FIELD_MASK[reg_index[2:0]] | 8'h80);
-            end
-            if (request && selected && reg_index == 7 && wstrb == 4'h3)
-                year <= wdata;
         end
+    end
+
+    always_ff @(posedge clk) begin
+        if (phase_reset)
+            phase <= 0;
+        else if (count_tick)
+            phase <= phase + 16'd1;
+
+        if (adjust || (second_carry && control2[0] && !phase_reset))
+            calendar[0] <= adjust || calendar[0] == 8'h59 ? 0 : increment_bcd(calendar[0]);
+        if (minute_carry)
+            calendar[1] <= hour_carry ? 0 : increment_bcd(calendar[1]);
+        if (hour_carry)
+            calendar[2] <= day_carry ? 0 : increment_bcd(calendar[2]);
+        if (day_carry) begin
+            calendar[3] <= calendar[3] == 6 ? 0 : calendar[3] + 8'd1;
+            calendar[4] <= end_of_month ? 8'h01 : increment_bcd(calendar[4]);
+        end
+        if (month_carry) begin
+            calendar[5] <= calendar[5] == 8'h12 ? 8'h01 : increment_bcd(calendar[5]);
+            if (calendar[5] == 8'h12) begin
+                year[7:0] <= year[7:0] == 8'h99 ? 0 : increment_bcd(year[7:0]);
+                if (year[7:0] == 8'h99)
+                    year[15:8] <= year[15:8] == 8'h99 ? 0 : increment_bcd(year[15:8]);
+            end
+        end
+
+        if (write_byte) begin
+            if (reg_index inside {[1:6]})
+                calendar[reg_index[2:0] - 3'd1] <= wdata[7:0] & FIELD_MASK[reg_index[2:0] - 3'd1];
+            if (reg_index inside {[8:13]})
+                alarm[reg_index[2:0]] <= wdata[7:0] & (FIELD_MASK[reg_index[2:0]] | 8'h80);
+        end
+        if (!reset && request && selected && reg_index == 7 && wstrb == 4'h3)
+            year <= wdata;
+        if (reset && power_reset)
+            for (int i = 0; i < 6; i++)
+                alarm[i][7] <= 0;
     end
 endmodule

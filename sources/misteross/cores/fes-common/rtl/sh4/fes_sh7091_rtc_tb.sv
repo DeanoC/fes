@@ -118,10 +118,10 @@ module fes_sh7091_rtc_tb (input logic clk, output logic finished);
         advance(512);
         read_reg(0, 2);
         reset = 1;
-        @(negedge clk);
+        advance(256);
         reset = 0;
         read_reg(5, 2);
-        read_reg(0, 2);
+        read_reg(0, 3);
         read_reg(15, 8);
         finished = 1;
     end

@@ -298,8 +298,8 @@ of the [Renesas SH7750-series hardware manual](https://www.renesas.com/en/docume
 The RTC takes a synchronous 32.768 kHz enable on `rtc_tick`. It supplies
 the TMU and TCLK output from the oscillator divider and exposes the BCD
 calendar, alarm and control registers through P4. Alarm, periodic and
-carry requests use the RTC priority in IPRA. The calendar survives
-processor reset. Divider reset and 30-second adjustment are available
+carry requests use the RTC priority in IPRA. The clock continues counting
+through processor reset when its oscillator enable is active. Divider reset and 30-second adjustment are available
 through RCR2. The board supplies oscillator startup and persistence
 across FPGA reconfiguration.
 
