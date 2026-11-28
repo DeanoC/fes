@@ -1,5 +1,45 @@
 # Architecture
 
+## Overview and board delegation
+
+`mister-runtime` is the C++14 local daemon that owns physical FPGA
+programming, reset/quiescence, input/media delivery, display planes, and
+recovery behind local Unix-socket protocol 2. `CreateProductionHardware`
+identifies the board once at startup and wires the board-specific adapters
+under one shared `NativeHardware` lifecycle.
+
+```mermaid
+flowchart TD
+  Agent["FogCast mister-agent\n(local Unix socket, protocol 2)"]
+  RT["Runtime\n(serialized lifecycle, random instance ID,\ngeneration-bound fault worker)"]
+  NH["NativeHardware\n(src/native/hardware.cpp:\nadmission, staging, LoadIdle, Play, Stop)"]
+  Factory["CreateProductionHardware\n(board/CPU identity gate)"]
+
+  subgraph DE10["DE10-Nano (ARMv7 Cyclone V)"]
+    D10Mgr["Cyclone V FPGA Manager\n& Splash / MENU idle"]
+    D10Drv["FesGpCoreDriver (fes-gp-v1)\n& fixed DDR fes-window"]
+    D10Vid["Linux I2C / ADV7513\n& menu_display"]
+  end
+
+  subgraph DE25["DE25-Nano (AArch64 Agilex 5)"]
+    D25Mgr["ConfigFS Worker + /run/fes-de25-computer.lock\n(permanent-owner kernel, matched receipt)"]
+    D25Drv["De25CoreDriver / FesGp atomic Avalon\n(0x20010300, de25_core_contract.hpp)"]
+    D25Mem["de25-dma ABI 3 (8 MiB 2-slot scanout)\n+ De25HpsWindow ABI 1 (window machines)"]
+  end
+
+  Agent <-->|"Protocol 2"| RT --> NH --> Factory
+  Factory -->|"Cyclone V"| DE10
+  Factory -->|"Agilex 5 DE25-Nano"| DE25
+```
+
+| Area | Primary files (`src/native/`) | Responsibility |
+| --- | --- | --- |
+| Lifecycle & admission | `hardware.cpp`, `core_package.cpp`, `core_composition.cpp`, `menu_admission.hpp` | Format-2/3/4/5 package verification, static/ROM/part composition, `.fes_menu_interfaces` export, and serialized load/stop/recovery. |
+| Shared GP & media drivers | `fes_gp.cpp`, `core_driver.cpp`, `input.cpp`, `media_data.cpp`, `ata_disk.cpp`, `core_data.cpp` | `fes.computer` / `fes.application` / `fes.simple-*` mailbox transport, HID/controller matrix, tape/disk/ATA media, and persistence. |
+| Display & video | `menu_display.cpp`, `video.cpp`, `video_recipe.cpp`, `adv7513.hpp`, `menu_underflow.hpp` | Idle MENU scanout, in-session display planes, video recipes, and DE10 ADV7513 control. |
+| DE25-Nano adapters | `de25_computer.cpp`, `de25_core_driver.cpp`, `de25_core_contract.hpp`, `de25_hps_window.cpp`, `de25_pr_control.cpp` | Resource-relative Avalon MMIO (`0x20010300`), per-core DE25 contracts, kernel-owned HPS DDR window (`WINDOW_REVOKE`), and PR diagnostics. |
+| Generated contracts | `generated/` | C++14 headers generated from `sources/mister-packages/` via `make generate`. |
+
 ## Ownership and production construction
 
 `Runtime` owns one serialized lifecycle and generation-bound fault worker.

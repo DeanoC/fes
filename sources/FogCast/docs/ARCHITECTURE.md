@@ -1,5 +1,55 @@
 # FogCast architecture
 
+## Overview and delegation
+
+FogCast owns the user interfaces, game library, launch composition, network
+APIs, and target agent on Linux kits (and supplies the portable `ui/tenfoot`
+and `corepackage` packages reused by the Linux-free TamaGo base under
+`platform/embedded/`). Physical FPGA transitions stay in `libmister-runtime`.
+
+```mermaid
+flowchart LR
+  subgraph Clients["Clients (Loopback on Kit or LAN Desktop)"]
+    TF["fogcast-tenfoot /\nfogcast-kit tenfoot\n(ui/tenfoot + ui/gfx)"]
+    Web["Browser UI / CLI\n(cmd/fogcast)"]
+  end
+
+  subgraph Host["FogCast Host (fogcast-api / fogcast-kit host)"]
+    HAPI["internal/hostapi\n(loopback API + authenticated\nLAN launcher listener)"]
+    Svc["fogcast\n(service, catalog, launch\ncomposition, media & leases)"]
+    Pkg["corepackage +\nbundledfirmware"]
+  end
+
+  subgraph Target["Kit Target (mister-agent)"]
+    TAPI["internal/httpapi\n(127.0.0.1:8182)"]
+    Agent["internal/agent\n(leases, staging, recovery)"]
+    RClient["internal/misterruntime\n(protocol 2 client)"]
+  end
+
+  RT["mister-runtime\n(local Unix socket -> FPGA)"]
+  Source["Read-only LAN Library Source\n(/api/v1/library/core-entries,\n/api/v1/mesh/content/*)"]
+
+  TF <-->|"HTTP + ui/localfeed"| HAPI
+  Web <-->|"HTTP"| HAPI
+  HAPI --> Svc
+  Svc --> Pkg
+  Svc -->|"Index & fetch"| Source
+  Svc <-->|"HTTP"| TAPI
+  TAPI --> Agent --> RClient
+  RClient <-->|"Protocol 2"| RT
+```
+
+| Area | Primary packages | Responsibility |
+| --- | --- | --- |
+| Entrypoints | `cmd/fogcast-api`, `cmd/fogcast-tenfoot`, `cmd/mister-agent`, `cmd/fogcast`, `cmd/fes-update`, `cmd/fes-software`, `cmd/fes-kit-bundle` | Host server, 10-foot UI, target agent, operator CLI, appliance/software update tools, and bundle packer. |
+| Tenfoot UI & renderer | `ui/tenfoot`, `ui/rooms`, `ui/gfx`, `ui/localfeed`, `ui/controller` | Portable `RunPlatform` UI loop, Home/Systems/Settings views, software/SDL3/linuxfb renderers, and local pad/keyboard input. |
+| Host API & service | `internal/hostapi`, `fogcast`, `catalog`, `protocol`, `targethttp` | HTTP/launcher/source listeners, catalog/library indexing, launch composition, remote library sources, and session coordination. |
+| Core packages & media | `corepackage`, `internal/bundledfirmware`, `internal/mediasession`, `internal/zx81tapes`, `internal/spectrumdisks`, `internal/spectrumtapes` | Format-2/3/4/5 archive validation, spooled ROM/part staging, firmware bundling, and live media conversion/delivery. |
+| Target agent & runtime client | `internal/httpapi`, `internal/agent`, `internal/misterruntime`, `internal/kitlease`, `internal/kitpackages` | Target HTTP API, execution lease & grace-window ownership, staged package/media storage, and local protocol-2 RPC to `mister-runtime`. |
+| Updates & appliance store | `appliance`, `internal/applianceupdate`, `internal/softwareagent` | Immutable kit-software bundle verification/activation (`fes-kit-software`) and OS appliance release/rollback metadata. |
+
+## Core package formats and static composition
+
 The corepackage reader also recognizes format5's three closed members:
 `manifest.toml`, the full `core.rbf` base and default empty `persona.rbf`.
 Archive, directory, streamed listing and private staging paths bind both images
