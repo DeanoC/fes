@@ -16,8 +16,9 @@ module fes_sh4 #(
     output logic [31:0] fault_pc
 );
     typedef enum logic [3:0] {
-        FETCH, FETCH_WAIT, DECODE, EXECUTE, DATA_REQ, DATA_WAIT, COMMIT, STOP
+        ISSUE, DECODE, EXECUTE, DATA_REQ, DATA_WAIT, COMMIT, STOP
     } stage_t;
+    typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
@@ -48,6 +49,14 @@ module fes_sh4 #(
     logic [3:0] data_wstrb;
     logic [31:0] load_word;
     logic [1:0] data_addr_lane;
+
+    bus_state_t bus_state;
+    logic bus_fetch;
+    logic [31:0] fetch_pc, fetch_read_addr;
+    logic [15:0] fetch_instruction;
+    logic fetch_valid, fetch_consume, fetch_read, fetch_read_ready, fetch_response;
+    logic fetch_lookup, fetch_cacheable, fetch_flush, redirect, store_accepted;
+    logic data_accepted, data_response;
 
     assign n = ir[11:8];
     assign m = ir[7:4];
@@ -220,17 +229,67 @@ module fes_sh4 #(
         endcase
     end
 
-    assign mem_valid = !reset && ((stage == FETCH && !pc[0]) || stage == DATA_REQ);
-    assign mem_addr = stage == DATA_REQ ? data_addr : {pc[31:2], 2'b00};
-    assign mem_wstrb = stage == DATA_REQ ? data_wstrb : 4'b0;
-    assign mem_wdata = data_wdata;
+    assign redirect = stage == COMMIT && fetch_pc != next_pc;
+    assign fetch_cacheable = fetch_pc[31:29] != 3'b101 && fetch_pc[31:29] != 3'b111;
+    assign fetch_lookup = stage != STOP && !fetch_pc[0] && (fetch_cacheable || stage == ISSUE);
+    assign fetch_flush = redirect || store_accepted || stage == STOP;
+    assign fetch_consume = fetch_valid && ((stage == ISSUE && !pc[0]) ||
+                                           (stage == COMMIT && !redirect));
+    assign store_accepted = data_accepted && op == STORE;
+
+    fes_sh4_icache icache (
+        .clk, .reset, .flush(fetch_flush),
+        .invalidate(store_accepted), .invalidate_index(data_addr[12:5]),
+        .lookup(fetch_lookup), .lookup_pc(fetch_pc), .cacheable(fetch_cacheable),
+        .instruction_valid(fetch_valid), .instruction(fetch_instruction), .consume(fetch_consume),
+        .read_valid(fetch_read), .read_addr(fetch_read_addr), .read_ready(fetch_read_ready),
+        .response_valid(fetch_response), .response_data(mem_rdata)
+    );
+
+    // Data gets priority between refill beats. The bus owns a registered
+    // request until acceptance and tags the read until its response arrives.
+    assign mem_valid = !reset && bus_state == BUS_SEND;
+    assign data_accepted = mem_valid && mem_ready && !bus_fetch;
+    assign data_response = bus_state == BUS_REPLY && mem_rvalid && !bus_fetch;
+    assign fetch_read_ready = bus_state == BUS_IDLE && stage != DATA_REQ;
+    assign fetch_response = bus_state == BUS_REPLY && mem_rvalid && bus_fetch;
     assign load_word = mem_rdata >> {data_addr_lane, 3'b000};
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            bus_state <= BUS_IDLE;
+        end else begin
+            case (bus_state)
+                BUS_IDLE: begin
+                    if (stage == DATA_REQ) begin
+                        bus_fetch <= 1'b0;
+                        mem_addr <= data_addr;
+                        mem_wstrb <= data_wstrb;
+                        mem_wdata <= data_wdata;
+                        bus_state <= BUS_SEND;
+                    end else if (fetch_read) begin
+                        bus_fetch <= 1'b1;
+                        mem_addr <= fetch_read_addr;
+                        mem_wstrb <= 4'b0;
+                        mem_wdata <= 32'b0;
+                        bus_state <= BUS_SEND;
+                    end
+                end
+                BUS_SEND: if (mem_ready)
+                    bus_state <= mem_wstrb == 0 ? BUS_REPLY : BUS_IDLE;
+                BUS_REPLY: if (mem_rvalid)
+                    bus_state <= BUS_IDLE;
+                default: bus_state <= BUS_IDLE;
+            endcase
+        end
+    end
 
     always_ff @(posedge clk) begin
         retired <= 1'b0;
         if (reset) begin
-            stage <= FETCH;
+            stage <= ISSUE;
             pc <= RESET_PC;
+            fetch_pc <= RESET_PC;
             pr <= 32'b0;
             t <= 1'b0;
             in_slot <= 1'b0;
@@ -238,19 +297,22 @@ module fes_sh4 #(
             fault_pc <= 32'b0;
             retired_pc <= 32'b0;
         end else begin
+            if (redirect)
+                fetch_pc <= next_pc;
+            else if (fetch_consume) begin
+                fetch_pc <= fetch_pc + 32'd2;
+                ir <= fetch_instruction;
+            end
+
             case (stage)
-                FETCH: begin
+                ISSUE: begin
                     if (pc[0]) begin
                         fault <= FETCH_ALIGN;
                         fault_pc <= pc;
                         stage <= STOP;
-                    end else if (mem_ready) begin
-                        stage <= FETCH_WAIT;
+                    end else if (fetch_consume) begin
+                        stage <= DECODE;
                     end
-                end
-                FETCH_WAIT: if (mem_rvalid) begin
-                    ir <= pc[1] ? mem_rdata[31:16] : mem_rdata[15:0];
-                    stage <= DECODE;
                 end
                 DECODE: begin
                     op <= decoded;
@@ -303,9 +365,9 @@ module fes_sh4 #(
                         stage <= COMMIT;
                     end
                 end
-                DATA_REQ: if (mem_ready)
+                DATA_REQ: if (data_accepted)
                     stage <= op == LOAD ? DATA_WAIT : COMMIT;
-                DATA_WAIT: if (mem_rvalid) begin
+                DATA_WAIT: if (data_response) begin
                     wb_gpr <= 1'b1;
                     case (size)
                         BYTE: wb_value <= {{24{load_word[7]}}, load_word[7:0]};
@@ -327,7 +389,7 @@ module fes_sh4 #(
                     in_slot <= start_slot;
                     retired <= 1'b1;
                     retired_pc <= pc;
-                    stage <= FETCH;
+                    stage <= fetch_consume ? DECODE : ISSUE;
                 end
                 STOP: ;
                 default: stage <= STOP;

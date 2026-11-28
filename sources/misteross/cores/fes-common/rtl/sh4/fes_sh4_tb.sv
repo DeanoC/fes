@@ -9,12 +9,16 @@ module fes_sh4_tb;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [2:0] fault, bram_fault;
     logic [3:0] wstrb;
-    logic [31:0] image [0:511];
-    logic [31:0] ext_mem [0:511];
+    logic [31:0] image [0:4095];
+    logic [31:0] ext_mem [0:4095];
     int cycle, latency;
     logic held;
     logic [67:0] held_request;
-    int retire_count;
+    int retire_count, read_count, previous_retire_cycle;
+    logic cache_cancel_done;
+
+    fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
+    logic check_warm_loop = 0, check_alias_load = 1;
 
     fes_sh4 #(.RESET_PC(0)) dut (
         .clk, .reset, .mem_valid(valid), .mem_ready(ready),
@@ -38,12 +42,18 @@ module fes_sh4_tb;
             latency <= 0;
             held <= 0;
             retire_count <= 0;
+            read_count <= 0;
+            previous_retire_cycle <= 0;
         end else begin
             cycle <= cycle + 1;
             if (retired) begin
                 assert (retired_pc[0] == 0) else $fatal(1, "Retired an odd PC");
-                if (retired_pc == 32'h14)
+                if (check_alias_load && retired_pc == 32'h14)
                     assert (dut.gpr[6] == 32'hffff_ff80) else $fatal(1, "Aliased load adjusted its base");
+                if (check_warm_loop && (retired_pc == 32'h6 || retired_pc == 32'h8))
+                    assert (cycle - previous_retire_cycle == 3)
+                        else $fatal(1, "Warm sequential instruction did not retire in three clocks");
+                previous_retire_cycle <= cycle;
                 retire_count <= retire_count + 1;
             end
             if (held)
@@ -57,15 +67,16 @@ module fes_sh4_tb;
                 rvalid <= latency == 1;
             end
             if (valid && ready) begin
-                assert (latency == 0 && addr[1:0] == 0 && addr < 2048)
+                assert (latency == 0 && addr[1:0] == 0 && addr[28:14] == 0)
                     else $fatal(1, "Unexpected memory request at %h", addr);
                 if (wstrb == 0) begin
-                    rdata <= ext_mem[addr[10:2]];
+                    rdata <= ext_mem[addr[13:2]];
+                    read_count <= read_count + 1;
                     latency <= 1 + cycle % 3;
                 end else begin
                     for (int lane = 0; lane < 4; lane++)
                         if (wstrb[lane])
-                            ext_mem[addr[10:2]][8*lane +: 8] <= wdata[8*lane +: 8];
+                            ext_mem[addr[13:2]][8*lane +: 8] <= wdata[8*lane +: 8];
                 end
             end
         end
@@ -90,7 +101,7 @@ module fes_sh4_tb;
             else $fatal(1, "Expected fault %d at %h, got %d at %h", cause, pc, fault, fault_pc);
         repeat (4) begin
             @(negedge clk);
-            assert (!valid && !retired && fault == cause && fault_pc == pc)
+            assert (!retired && fault == cause && fault_pc == pc)
                 else $fatal(1, "Fault must stop the core until reset");
         end
     endtask
@@ -172,6 +183,7 @@ module fes_sh4_tb;
                 bram.cpu.gpr[9] == dut.gpr[9])
             else $fatal(1, "Synchronous BRAM execution diverged from stalled bus");
 
+        check_alias_load = 0;
         emit('h00, 'h0008);
         emit('h02, 'h8d01); // untaken delayed branch
         emit('h04, 'hc700); // PC-relative instruction is prohibited in either delay slot
@@ -192,7 +204,59 @@ module fes_sh4_tb;
         expect_stop(3, 3);
         assert (dut.gpr[1] == 5 && retire_count == 3) else $fatal(1, "Jump slot did not retire");
 
-        $display("PASS SH-4 integer execution, delay slots, faults, delayed bus and synchronous BRAM");
+        // One cold line fill, followed by hits through forward execution and
+        // a taken backward branch. Consecutive ALU ops overlap fetch.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he000); // MOV #0,R0
+        emit('h02, 'h0009); // NOP
+        emit('h04, 'h7001); // ADD #1,R0
+        emit('h06, 'h8803); // CMP/EQ #3,R0
+        emit('h08, 'h8bfc); // BF 0x04
+        check_warm_loop = 1;
+        start_bus();
+        expect_stop(1, 'ha);
+        assert (read_count == 8 && retire_count == 11 && dut.gpr[0] == 3)
+            else $fatal(1, "Warm loop failed or reread its line (%0d reads)", read_count);
+        check_warm_loop = 0;
+
+        // Write the next instruction after it was fetched from the same line.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he306); // MOV #6,R3
+        emit('h02, 'hd103); // MOV.L @(0x0c,PC),R1 (literal at 0x10)
+        emit('h04, 'h2311); // MOV.W R1,@R3
+        emit('h06, 'he20b); // Replaced by MOV #0x23,R2
+        emit('h10, 'he223);
+        start_bus();
+        expect_stop(1, 'h8);
+        assert (dut.gpr[2] == 'h23 && read_count == 17)
+            else $fatal(1, "A store failed to discard stale instruction data");
+
+        // The call target shares a cache index with the caller. The return
+        // must miss and use the caller tag and instruction bytes again.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'hd303); // MOV.L @(0x0c,PC),R3 (literal at 0x10)
+        emit('h02, 'h430b); // JSR @R3
+        emit('h04, 'he001); // MOV #1,R0 (call slot)
+        emit('h06, 'h7008); // ADD #8,R0 (return address)
+        image['h10 >> 2] = 'h2000;
+        emit('h2000, 'h7002);
+        emit('h2002, 'h000b); // RTS
+        emit('h2004, 'h7004); // ADD #4,R0 (return slot)
+        start_bus();
+        expect_stop(1, 'h8);
+        assert (dut.gpr[0] == 15 && read_count == 25)
+            else $fatal(1, "Conflicting instruction tags or redirect were mishandled");
+
+        // Fetches to the P2 alias bypass the cache and read a single word.
+        image['h10 >> 2] = 'ha000_2000;
+        start_bus();
+        expect_stop(1, 'h8);
+        assert (dut.gpr[0] == 15 && read_count == 12)
+            else $fatal(1, "Uncached P2 instruction fetch unexpectedly refilled");
+
+        assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
+
+        $display("PASS SH-4 integer, stalls, delay slots, cache refill, overlap, invalidation and bypass");
         $finish;
     end
 

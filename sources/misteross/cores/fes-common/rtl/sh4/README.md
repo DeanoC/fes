@@ -3,10 +3,18 @@
 The first slice is an independently written, single-issue SH-4 integer core
 targeting the DE25-Nano's Agilex 5. It separates fetch, decode and operand
 capture, execution, and retirement with registers. Only one instruction is in
-flight. With the diagnostic memory, register instructions retire in five
-clocks. The bus operates on aligned 32-bit words, which allows a later cache
-front end to use synchronous block RAM without a combinational memory read in
-the CPU.
+flight in the execution pipeline. A separate fetch stage looks up the next
+halfword while the current instruction executes. Sequential register instructions
+with warm cache hits retire every three clocks.
+
+The 8 KiB direct-mapped instruction cache uses 256 lines of 32 bytes. Its data
+and tags use synchronous M20K RAM. A miss fills one line with eight ordered
+32-bit reads. Data accesses take priority between refill beats. Fetch redirects
+discard the prefetched instruction and drain any abandoned response. CPU stores
+discard the prefetched instruction and invalidate the cache index of the write,
+including corresponding instruction addresses in aliases of that index. P2 and
+P4 instruction reads bypass the cache and issue only when the CPU needs the
+instruction.
 
 The [Renesas SH-4 software manual](https://www.renesas.com/en/document/mas/sh-4-software-manual?r=1055166)
 defines instruction encodings and behavior. The implemented slice includes:
@@ -20,7 +28,7 @@ defines instruction encodings and behavior. The implemented slice includes:
   target are captured before the delay slot executes.
 
 FPU, remaining integer instructions, privileged state, exception entry,
-interrupts, caches, MMU and board buses are later work. The core exposes sticky
+interrupts, the data cache, software cache controls, MMU and board buses are later work. The core exposes sticky
 diagnostic faults until reset. Fault codes 1 through 4 indicate an unsupported
 opcode, a prohibited delay-slot instruction, an unaligned fetch, and an
 unaligned data access. `fault_pc` identifies the offending instruction address,
@@ -33,9 +41,12 @@ no defined reset values. Software must initialize them before reading them.
 `mem_wstrb == 0` selects a read. A write completes when accepted, with one strobe
 per little-endian byte lane. A read returns exactly one `mem_rvalid` pulse at
 least one cycle after acceptance. The core holds its request while stalled and
-has at most one outstanding read. The surrounding memory interface must flush
-any outstanding read on reset. The core presents architectural addresses as
-issued, including the default reset address `0xa0000000`.
+has at most one outstanding read. Already accepted instruction reads can
+complete after a redirect or diagnostic fault. Cacheable executable memory
+must permit speculative reads and whole-line fills. External writers must reset
+the core before execution resumes to invalidate cached instructions and flush
+the surrounding memory interface. The core presents architectural addresses
+as issued, including the default reset address `0xa0000000`.
 
 The diagnostic top resets to address zero and exposes a host-side word loader
 while reset is asserted. It uses four synchronous byte banks for a 2 KiB
@@ -52,8 +63,9 @@ make -C sources/misteross/cores/fes-common/rtl/sh4 fit QUARTUS_ROOTDIR=/data/alt
 ```
 
 The Verilator test runs hand-encoded integer code against the synchronous RAM
-and a memory model that stalls requests and delays read responses. It also
-checks fault retirement and restart. The Quartus Pro build uses the shared
+and a memory model that stalls requests and delays read responses. It checks
+warm-hit retirement cadence, cache conflicts, abandoned fills, instruction
+stores, uncached fetches, and fault retirement and restart. The Quartus Pro build uses the shared
 builder lease and leaves reports under `out/sh4/fit/output_files`. It targets
 the DE25-Nano part at 200 MHz. The clock is the only physical port in the
 virtual-pin project. The fit and timing reports cover internal logic and RAM.
