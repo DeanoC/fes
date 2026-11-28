@@ -182,6 +182,19 @@ class ToolchainRequest:
     bootstrap_path: Path | None = None
 
 
+@contextlib.contextmanager
+def _nextpnr_error_context(request: ToolchainRequest, tool: str) -> Iterator[None]:
+    """Keep the selected lane visible when a nextpnr lookup fails."""
+
+    try:
+        yield
+    except CacheError as exc:
+        if tool != "nextpnr":
+            raise
+        router = str(request.gpu_router or DEFAULT_GPU_ROUTER).upper()
+        raise CacheError(f"nextpnr (gpu-router={router!r}): {exc}") from exc
+
+
 @dataclasses.dataclass(frozen=True)
 class InstallManifest:
     """Decoded ready.json of one tool install."""
@@ -586,11 +599,12 @@ def _hold_install(request: ToolchainRequest, tool: str) -> None:
     resolved it is running. The lock file's mtime is the install's last use.
     """
 
-    ready = ready_path(request, tool)
-    if not ready.is_file():
-        # Fail here rather than wait behind a build that holds the lock.
-        raise CacheError(f"{tool} install is not ready: {ready}")
-    _hold_install_key(request.cache_root, tool, tool_key(request, tool))
+    with _nextpnr_error_context(request, tool):
+        ready = ready_path(request, tool)
+        if not ready.is_file():
+            # Fail here rather than wait behind a build that holds the lock.
+            raise CacheError(f"{tool} install is not ready: {ready}")
+        _hold_install_key(request.cache_root, tool, tool_key(request, tool))
 
 
 def _hold_install_key(cache_root: Path, tool: str, key: str) -> None:
@@ -1009,8 +1023,9 @@ def _verify_files(manifest: InstallManifest) -> None:
 def _verify_install(
     request: ToolchainRequest, tool: str, pins: Mapping[str, Mapping[str, str]]
 ) -> InstallManifest:
-    build = _build_identity(request, tool, pins)
-    return _verify_published_install(request.cache_root, tool, build, pins[tool])
+    with _nextpnr_error_context(request, tool):
+        build = _build_identity(request, tool, pins)
+        return _verify_published_install(request.cache_root, tool, build, pins[tool])
 
 
 def _verify_published_install(cache_root: Path, tool: str, build: Mapping[str, Any],
@@ -1822,10 +1837,12 @@ def request_from_environment(
     """Build a request from the opt-in environment after host probing.
 
     ``gpu_router``, ``hip_architectures`` and ``cuda_architectures`` may be supplied by a consumer
-    explicitly (Coleco's HIP lane does this) so selecting a lane does not
+    explicitly so selecting a lane does not
     require mutating the process environment. ``tool`` scopes environment
-    validation when a consumer resolves only one install. Unspecified values
-    retain the existing environment/default precedence.
+    validation when a consumer resolves only one install. Router precedence is
+    the explicit argument, ``FES_TOOLCHAIN_GPU_ROUTER``, then OFF. Producers
+    may explicitly select a different lane; the generic cache request does not
+    infer a backend from the host or another producer.
     """
 
     root = Path(root).resolve()

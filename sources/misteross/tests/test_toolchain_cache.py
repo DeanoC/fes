@@ -50,6 +50,78 @@ def _publish(request: toolchain_cache.ToolchainRequest, tool: str, *, content: s
 
 
 class ToolchainCacheContractTests(unittest.TestCase):
+    def test_missing_nextpnr_reports_selected_lane_without_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root, cache = base / "checkout", base / "cache"
+            off = self._request(root, cache)
+            hip = self._request(root, cache, lane="HIP")
+            cuda = self._request(root, cache, lane="CUDA")
+            # A valid install in another lane must not be silently selected.
+            other = _publish(hip, "nextpnr")
+            for request in (off, cuda):
+                with self.subTest(lane=request.gpu_router):
+                    before = toolchain_cache.tool_key(request, "nextpnr")
+                    for operation in (toolchain_cache.verify_install, toolchain_cache.resolve_install):
+                        with self.assertRaises(toolchain_cache.CacheError) as raised:
+                            operation(request, "nextpnr")
+                        self.assertIn(f"gpu-router='{request.gpu_router}'", str(raised.exception))
+                        self.assertIn(str(before), str(raised.exception))
+                        self.assertIsInstance(raised.exception.__cause__, toolchain_cache.CacheError)
+                    self.assertEqual(before, toolchain_cache.tool_key(request, "nextpnr"))
+            self.assertEqual(toolchain_cache.verify_install(hip, "nextpnr").key, other.key)
+            other.binary.chmod(0o644)
+            other.binary.write_text("tampered\n", encoding="utf-8")
+            with self.assertRaises(toolchain_cache.CacheError) as raised:
+                toolchain_cache.verify_install(hip, "nextpnr")
+            self.assertIn("gpu-router='HIP'", str(raised.exception))
+            self.assertIn("closure differs", str(raised.exception))
+
+    def test_lane_context_on_all_tool_and_cli_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "checkout", base / "cache", lane="CUDA")
+            for tool in ("yosys", "mistral"):
+                _publish(request, tool)
+            for operation in (toolchain_cache.resolve_ready, toolchain_cache.verify_ready):
+                with self.assertRaises(toolchain_cache.CacheError) as raised:
+                    operation(request)
+                self.assertIn("gpu-router='CUDA'", str(raised.exception))
+            with mock.patch.object(toolchain_cache, "_load_request_arguments") as load:
+                load.return_value = (request, mock.Mock(command="verify", tool="nextpnr", expect_key=None))
+                with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                    self.assertEqual(toolchain_cache._main([]), 2)
+                self.assertIn("gpu-router='CUDA'", stderr.getvalue())
+                self.assertIn("missing path component", stderr.getvalue())
+
+    def test_other_tool_failures_are_not_attributed_to_gpu_lane(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "checkout", base / "cache", lane="CUDA")
+            with self.assertRaises(toolchain_cache.CacheError) as raised:
+                toolchain_cache.resolve_install(request, "yosys")
+            self.assertIn("yosys install is not ready", str(raised.exception))
+            self.assertNotIn("gpu-router", str(raised.exception))
+
+    def test_request_precedence_is_reflected_in_missing_lane_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root, cache = base / "checkout", base / "cache"
+            self._request(root, cache)  # Create a lock and bootstrap fixture.
+            cases = (({}, None, "OFF"), ({"FES_TOOLCHAIN_GPU_ROUTER": "CUDA"}, None, "CUDA"),
+                     ({"FES_TOOLCHAIN_GPU_ROUTER": "CUDA"}, "HIP", "HIP"))
+            for environment, explicit, expected in cases:
+                with self.subTest(environment=environment, explicit=explicit), \
+                     mock.patch.dict(os.environ, environment, clear=True), \
+                     mock.patch.object(toolchain_cache, "host_identity", return_value=HOST), \
+                     mock.patch.object(toolchain_cache, "compiler_inventory", return_value=COMPILER):
+                    request = toolchain_cache.request_from_environment(
+                        root, cache_root=cache, gpu_router=explicit)
+                    self.assertEqual(request.gpu_router, expected)
+                    with self.assertRaises(toolchain_cache.CacheError) as raised:
+                        toolchain_cache.verify_install(request, "nextpnr")
+                    self.assertIn(f"gpu-router='{expected}'", str(raised.exception))
+
     def test_binary_pin_selects_original_verified_install_after_recipe_drift(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
