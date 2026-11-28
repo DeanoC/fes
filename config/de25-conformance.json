@@ -300,6 +300,120 @@
               "min_rms": 300
             }
           }
+        },
+        {
+          "name": "st_disk_made",
+          "cli": [
+            "shelf-new",
+            "{core_id}",
+            "FES F3 {stamp}",
+            "{package_id}"
+          ],
+          "bind": {
+            "game": "game_id",
+            "media": "media_id"
+          }
+        },
+        {
+          "name": "shelf_disk_mounts",
+          "covers": [
+            "fes.media.atari-st-floppy"
+          ],
+          "cli": [
+            "insert-library-disk",
+            "{game}",
+            "{media}"
+          ],
+          "expect": {
+            "units": true
+          },
+          "settle": 3
+        },
+        {
+          "mouse": [
+            -330,
+            -210,
+            0
+          ],
+          "settle": 1
+        },
+        {
+          "name": "options_menu_opens",
+          "covers": [
+            "fes.mouse.relative"
+          ],
+          "mouse": [
+            195,
+            5,
+            0
+          ],
+          "settle": 2,
+          "expect": {
+            "change": 0.0001
+          }
+        },
+        {
+          "mouse": [
+            0,
+            42,
+            0
+          ],
+          "settle": 1
+        },
+        {
+          "mouse": [
+            0,
+            0,
+            1
+          ],
+          "settle": 1
+        },
+        {
+          "name": "save_desktop_asks",
+          "covers": [
+            "fes.mouse.relative"
+          ],
+          "mouse": [
+            0,
+            0,
+            0
+          ],
+          "settle": 2,
+          "expect": {
+            "ocr": "Save Desktop"
+          }
+        },
+        {
+          "name": "desktop_saved",
+          "keys": [
+            "enter"
+          ],
+          "settle": 8,
+          "expect": {
+            "change": 0.0001
+          }
+        },
+        {
+          "name": "floppy_saves",
+          "covers": [
+            "fes.media.atari-st-floppy-write"
+          ],
+          "cli": [
+            "save-disk"
+          ]
+        },
+        {
+          "name": "save_kept",
+          "covers": [
+            "fes.media.atari-st-floppy-write"
+          ],
+          "cli": [
+            "shelf",
+            "{core_id}"
+          ],
+          "expect": {
+            "shelf_kept": "{game}"
+          }
         }
       ]
     },

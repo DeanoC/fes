@@ -156,7 +156,6 @@ class Spec(unittest.TestCase):
         # Checks not written yet must show as pending, never as covered.
         pending = {
             "fes.zx81": ["fes.media.zx81-tape-write"],
-            "fes.atari-st": ["fes.media.atari-st-floppy-write"],
         }
         spec = conf.load_spec()["cores"]
         self.assertEqual(set(spec), set(declared))
@@ -350,7 +349,7 @@ class Run(unittest.TestCase):
     def test_cli_binds_values_for_later_steps(self):
         host = FakeHost()
         host.replies = {"shelf-new": {"game_id": "g1", "media_id": "m1"},
-                        "shelf": {"disks": [{"game_id": "g1", "kept_revision": "r1"}]}}
+                        "shelf": {"disks": [{"game_id": "g1", "kept": "changes", "kept_revision": "r1"}]}}
         steps = [{"name": "made", "cli": ["shelf-new", "{core_id}", "T {stamp}", "{package_id}", "freedos"],
                   "bind": {"game": "game_id", "media": "media_id"}},
                  {"name": "in", "cli": ["insert-library-disk", "{game}", "{media}"],
@@ -361,6 +360,8 @@ class Run(unittest.TestCase):
         self.assertEqual(host.calls[0][1], "fes.x")
         self.assertEqual(host.calls[0][3], "p" * 64)
         self.assertEqual(host.calls[1], ("insert-library-disk", "g1", "m1"))
+        host.replies["shelf"] = {"disks": [{"game_id": "g1", "kept": "none", "kept_revision": "r1"}]}
+        self.assertFalse(self.run_steps(steps, host, [])["checks"]["kept"]["ok"], "saved but never written")
         host.replies["shelf"] = {"disks": [{"game_id": "g1"}]}
         self.assertFalse(self.run_steps(steps, host, [])["checks"]["kept"]["ok"], "nothing kept")
         host.replies["shelf-new"] = {}
