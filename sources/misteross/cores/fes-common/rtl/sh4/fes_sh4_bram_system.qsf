@@ -11,6 +11,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_multiplier.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fpu_regs.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_arithmetic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_dot.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fsca.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_bram_system.sv
 set_global_assignment -name SDC_FILE fes_sh4_bram_system.sdc

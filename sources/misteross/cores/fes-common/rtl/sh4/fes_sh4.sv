@@ -35,7 +35,7 @@ module fes_sh4 #(
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ARITH, FLOAT_VECTOR
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ARITH, FLOAT_VECTOR, FLOAT_TRIG
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD, QUADWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
@@ -57,8 +57,8 @@ module fes_sh4 #(
     logic [3:0] fp_read_number, fp_write_number;
     logic [63:0] fp_read_value, fp_source, fp_result;
     logic [31:0] fp_system_value, fp_addend;
-    logic [63:0] fp_lhs, fp_arith_value;
-    logic fp_arith_done, fp_normal_operands;
+    logic [63:0] fp_lhs, fp_arith_value, fp_trig_value;
+    logic fp_arith_done, fp_normal_operands, fp_trig_done;
     logic [5:0] fp_causes, fp_scalar_causes, fp_dot_causes, fp_vector_causes;
     logic [1:0] fp_vector_lane, fp_vector_row;
     logic fp_vector_matrix, fp_dot_done;
@@ -537,14 +537,17 @@ module fes_sh4 #(
             16'hf??6, 16'hf??8, 16'hf??9: fp_decoded = LOAD;
             16'hf??7, 16'hf??a, 16'hf??b: fp_decoded = STORE;
             16'hf??0, 16'hf??1, 16'hf??2, 16'hf??3, 16'hf??4, 16'hf??5, 16'hf??e,
-            16'hf?2d, 16'hf?3d, 16'hf?6d, 16'hf?ad, 16'hf?bd: fp_decoded = FLOAT_ARITH;
+            16'hf?2d, 16'hf?3d, 16'hf?6d, 16'hf?7d, 16'hf?ad, 16'hf?bd: fp_decoded = FLOAT_ARITH;
+            16'hf0fd, 16'hf2fd, 16'hf4fd, 16'hf6fd,
+            16'hf8fd, 16'hfafd, 16'hfcfd, 16'hfefd: fp_decoded = FLOAT_TRIG;
             16'hf?ed, 16'hf1fd, 16'hf5fd, 16'hf9fd, 16'hfdfd: fp_decoded = FLOAT_VECTOR;
             16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
             16'hf3fd, 16'hfbfd: fp_decoded = FLOAT_OP;
             default: fp_decoded = BAD;
         endcase
     end
-    assign dec_fp_pair = fp_decoded == FLOAT_ARITH ? fpscr[19] :
+    assign dec_fp_pair = fp_decoded == FLOAT_TRIG ? 1'b1 :
+                         fp_decoded == FLOAT_ARITH ? fpscr[19] :
                          ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
     always_comb begin
         case (stage)
@@ -565,7 +568,8 @@ module fes_sh4 #(
         end
     end
     assign fp_vector_matrix = ir[4];
-    assign fp_causes = op == FLOAT_VECTOR ? fp_vector_causes : fp_scalar_causes;
+    assign fp_causes = op == FLOAT_TRIG ? 6'b1 :
+                       op == FLOAT_VECTOR ? fp_vector_causes : fp_scalar_causes;
     assign fp_write_number = stage == FP_VECTOR_WRITE ?
                              {ir[11:10], fp_vector_matrix ? fp_vector_row : 2'b11} : n;
     assign fp_write_value = stage == FP_VECTOR_WRITE ? {32'b0, fp_vector_value[fp_vector_row]} : fp_result;
@@ -597,12 +601,13 @@ module fes_sh4 #(
                                 (fp_transfer inside {3'd0, 3'd6}) && (|fpscr[9:7]));
     assign fp_format_error = (fp_decoded == FLOAT_ARITH && (dec_fp_transfer inside {3'd5, 3'd6}) && !fpscr[19]) ||
                              (fpscr[19] &&
-                              (fp_decoded == FLOAT_VECTOR ||
-                               (fp_decoded == FLOAT_ARITH && (dec_fp_transfer == 7 || n[0] || (ir[3:0] != 4'hd && m[0]))) ||
+                              (fp_decoded inside {FLOAT_VECTOR, FLOAT_TRIG} ||
+                               (fp_decoded == FLOAT_ARITH && (ir[7:0] == 8'h7d || dec_fp_transfer == 7 || n[0] || (ir[3:0] != 4'hd && m[0]))) ||
                                (fp_decoded == FLOAT_OP && ir[3:0] == 4'hd &&
                                 ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
                                  ((ir[7:4] inside {4'h4, 4'h5}) && n[0])))));
-    assign fp_write_register = stage == FP_VECTOR_WRITE || (stage == COMMIT && ((op == LOAD && fp_mem) || (op == FLOAT_ARITH && !fp_compare && !fp_to_fpul) ||
+    assign fp_write_register = stage == FP_VECTOR_WRITE || (stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_TRIG ||
+                               (op == FLOAT_ARITH && !fp_compare && !fp_to_fpul) ||
                                (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf})))));
     assign fp_write_fpul = stage == COMMIT && (fp_to_fpul || (op == FLOAT_OP && ir[7:0] == 8'h1d) ||
                            (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
@@ -623,7 +628,8 @@ module fes_sh4 #(
 
     fes_sh4_fp_arithmetic fp_arithmetic (
         .clk, .reset, .start(stage == FP_START && op == FLOAT_ARITH), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
-        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[7:0] == 8'h6d), .transfer(fp_transfer),
+        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[7:0] == 8'h6d),
+        .reciprocal_root(ir[7:0] == 8'h7d), .transfer(fp_transfer),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source), .addend(fp_addend),
         .done(fp_arith_done), .value(fp_arith_value), .causes(fp_scalar_causes), .normal_operands(fp_normal_operands)
     );
@@ -633,6 +639,11 @@ module fes_sh4 #(
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]),
         .lhs(fp_lhs[31:0]), .rhs(fp_source[31:0]),
         .done(fp_dot_done), .value(fp_dot_value), .causes(fp_dot_causes)
+    );
+
+    fes_sh4_fsca fp_trig (
+        .clk, .reset, .start(stage == FP_START && op == FLOAT_TRIG),
+        .toward_zero(fpscr[0]), .angle(fpul[15:0]), .done(fp_trig_done), .value(fp_trig_value)
     );
 
     assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
@@ -1031,6 +1042,8 @@ module fes_sh4 #(
                         fp_vector_row <= 0;
                         fp_vector_causes <= 0;
                         stage <= FP_VECTOR_LHS;
+                    end else if (op == FLOAT_TRIG) begin
+                        stage <= FP_START;
                     end else if (op == FLOAT_ARITH) begin
                         stage <= FP_LHS;
                     end else if (op == INTEGER) begin
@@ -1070,6 +1083,11 @@ module fes_sh4 #(
                                 if (!fp_vector_matrix || fp_vector_row == 3)
                                     stage <= FP_RETIRE;
                             end
+                        end
+                    end else if (op == FLOAT_TRIG) begin
+                        if (fp_trig_done) begin
+                            fp_result <= fp_trig_value;
+                            stage <= FP_RETIRE;
                         end
                     end else if (fp_arith_done) begin
                         fp_result <= fp_arith_value;

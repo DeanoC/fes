@@ -1682,6 +1682,35 @@ module fes_sh4_tb;
             expect_stop(1, 'h04);
         end
 
+        // FSRRA writes a reciprocal root and FSCA writes an even/odd pair.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'he000);
+        emit('h02, 'h406a);
+        literal('h04, 5, 'h80);
+        emit('h06, 'hf459); // 4.0 in FR4
+        emit('h08, 'hf47d); // FSRRA FR4
+        emit('h0a, 'hf41d);
+        emit('h0c, 'h085a);
+        literal('h0e, 0, 'h84);
+        emit('h10, 'h405a);
+        emit('h12, 'hf2fd); // FSCA FPUL,DR2, a quarter revolution
+        emit('h14, 'h096a);
+        literal('h16, 0, 'h88);
+        emit('h18, 'h406a);
+        emit('h1a, 'he000);
+        emit('h1c, 'h405a);
+        emit('h1e, 'hf2fd); // EN.I traps before overwriting either lane.
+        image['h80 >> 2] = 'h200;
+        image['h84 >> 2] = 'h0123_4000;
+        image['h88 >> 2] = 'h80;
+        image['h200 >> 2] = 'h4080_0000;
+        start_bus();
+        expect_stop(13, 'h1e);
+        assert (dut.gpr[8] == 'h3f00_0000 && dut.gpr[9] == 'h1004 &&
+                dut.fpu_regs.fr_even[1] == 'h3f80_0000 && dut.fpu_regs.fr_odd[1][30:0] == 0 &&
+                dut.fpscr == 'h1084)
+            else $fatal(1, "Approximate floating-point instruction failed");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1874,12 +1903,12 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, and vectors");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
         $finish;
     end
 
     initial begin
-        #300000;
+        #320000;
         $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",
                dut.pc, retired_pc, fault, fault_pc);
     end

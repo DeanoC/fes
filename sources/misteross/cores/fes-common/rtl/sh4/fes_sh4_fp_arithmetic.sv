@@ -9,6 +9,7 @@ module fes_sh4_fp_arithmetic (
     input  logic        multiply,
     input  logic        divide,
     input  logic        square_root,
+    input  logic        reciprocal_root,
     input  logic [2:0]  transfer,
     input  logic        toward_zero,
     input  logic        flush_denormals,
@@ -26,7 +27,7 @@ module fes_sh4_fp_arithmetic (
         COLUMN_4, PRODUCT_NORMALIZE, DIVIDE_PREP, ROOT_PREP,
         DIGIT_TEST, DIGIT_NEXT, DIGIT_RESULT,
         CONVERT, COMPARE, INTEGER_RESULT,
-        MAC_CLASSIFY, MAC_PRODUCT, MAC_ORDER, MAC_ALIGN
+        MAC_CLASSIFY, MAC_PRODUCT, MAC_ORDER, MAC_ALIGN, RECIPROCAL_PREP
     } state_t;
     state_t state;
     localparam logic [2:0] ARITHMETIC = 0, CMP_EQ = 1, CMP_GT = 2, FROM_INT = 3,
@@ -76,7 +77,7 @@ module fes_sh4_fp_arithmetic (
     logic [56:0] remainder, trial_dividend, trial_subtrahend, trial_original, digit_remainder;
     logic [57:0] trial_difference;
     logic [5:0] digits_left;
-    logic digit, digit_sticky;
+    logic digit, digit_sticky, digit_root, reciprocal_scaled;
     logic [55:0] digit_significand;
     logic [56:0] sum;
     logic [3:0] leading, left_count;
@@ -157,11 +158,12 @@ module fes_sh4_fp_arithmetic (
 
     // A restoring quotient or square-root digit uses a registered
     // trial subtraction. The following cycle accepts or restores it.
-    assign trial_dividend = square_root ? {remainder[54:0], radicand[109:108]} : remainder;
-    assign trial_subtrahend = square_root ? {digit_value, 2'b01} : {4'b0, divisor};
+    assign trial_dividend = digit_root ? {remainder[54:0], radicand[109:108]} : remainder;
+    assign trial_subtrahend = digit_root ? {digit_value, 2'b01} : {4'b0, divisor};
     assign digit = !trial_difference[57];
     assign digit_remainder = digit ? trial_difference[56:0] : trial_original;
-    assign digit_sticky = |remainder || (square_root && (|radicand));
+    assign digit_sticky = |remainder || (digit_root && (|radicand));
+    assign reciprocal_scaled = digit_value[28:0] != 0;
     assign digit_significand = wide ? {digit_value, digit_sticky} :
                                      {digit_value[25:0], 29'b0, digit_sticky};
     assign unrounded_exponent = transfer == TO_SINGLE ? single_exponent : multiply ? normalized_product_exponent : product_exponent;
@@ -207,10 +209,11 @@ module fes_sh4_fp_arithmetic (
                 a_bits <= lhs;
                 b_bits <= rhs;
                 causes <= 0;
+                digit_root <= square_root || reciprocal_root;
                 state <= CLASSIFY;
             end
             CLASSIFY: begin
-                normal_operands <= square_root ? a_class == NORMAL && !a_sign :
+                normal_operands <= digit_root ? a_class == NORMAL && !a_sign :
                                    transfer == FROM_INT || (transfer == TO_SINGLE && a_class == NORMAL) ||
                                    (transfer == ARITHMETIC && a_class == NORMAL && b_class == NORMAL);
                 state <= DONE;
@@ -218,12 +221,12 @@ module fes_sh4_fp_arithmetic (
                     state <= MAC_CLASSIFY;
                 else if (transfer != ARITHMETIC)
                     state <= CONVERT;
-                else if (a_class == SIGNALING_NAN || (!square_root && b_class == SIGNALING_NAN)) begin
+                else if (a_class == SIGNALING_NAN || (!digit_root && b_class == SIGNALING_NAN)) begin
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
                     causes[4] <= 1'b1;
-                end else if (a_class == QUIET_NAN || (!square_root && b_class == QUIET_NAN))
+                end else if (a_class == QUIET_NAN || (!digit_root && b_class == QUIET_NAN))
                     value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
-                else if (square_root) begin
+                else if (digit_root) begin
                     if (a_sign && a_class != ZERO) begin
                         value <= pack(1'b0, max_exponent, 52'h7_ffff_ffff_ffff);
                         causes[4] <= 1'b1;
@@ -231,8 +234,11 @@ module fes_sh4_fp_arithmetic (
                         causes[5] <= 1'b1;
                     else if (a_class == NORMAL)
                         state <= ROOT_PREP;
-                    else
-                        value <= pack(a_sign, a_exponent, 52'b0);
+                    else if (reciprocal_root && a_class == ZERO) begin
+                        value <= pack(a_sign, max_exponent, '0);
+                        causes[3] <= 1'b1;
+                    end else
+                        value <= pack(a_sign, reciprocal_root ? 11'b0 : a_exponent, '0);
                 end else if ((!(multiply || divide) && a_class == INFINITY &&
                               b_class == INFINITY && a_sign != b_sign) ||
                              (multiply && ((a_class == INFINITY && b_class == ZERO) ||
@@ -492,7 +498,7 @@ module fes_sh4_fp_arithmetic (
                 radicand <= a_exponent[0] ? {1'b0, a_sig, 56'b0} : {a_sig, 57'b0};
                 remainder <= 0;
                 digit_value <= 0;
-                digits_left <= wide ? 6'd55 : 6'd26;
+                digits_left <= wide ? 6'd55 : reciprocal_root ? 6'd30 : 6'd26;
                 state <= DIGIT_TEST;
             end
             DIGIT_TEST: begin
@@ -502,13 +508,26 @@ module fes_sh4_fp_arithmetic (
             end
             DIGIT_NEXT: begin
                 digit_value <= {digit_value[53:0], digit};
-                if (square_root) begin
+                if (digit_root) begin
                     remainder <= digit_remainder;
                     radicand <= {radicand[107:0], 2'b0};
                 end else
                     remainder <= {digit_remainder[55:0], 1'b0};
                 digits_left <= digits_left - 6'd1;
-                state <= digits_left == 6'd1 ? DIGIT_RESULT : DIGIT_TEST;
+                if (digits_left == 6'd1)
+                    state <= reciprocal_root && digit_root ? RECIPROCAL_PREP : DIGIT_RESULT;
+                else
+                    state <= DIGIT_TEST;
+            end
+            RECIPROCAL_PREP: begin
+                // Retain thirty root digits and divide before binary32 rounding.
+                divisor <= {digit_value[29:0], 23'b0};
+                remainder <= reciprocal_scaled ? 57'h20_0000_0000_0000 : 57'h10_0000_0000_0000;
+                product_exponent <= 13'sd254 - product_exponent - $signed({12'b0, reciprocal_scaled});
+                digit_root <= 0;
+                digit_value <= 0;
+                digits_left <= 6'd26;
+                state <= DIGIT_TEST;
             end
             DIGIT_RESULT, PRODUCT_NORMALIZE: begin
                 if (unrounded_exponent <= 0) begin
@@ -557,7 +576,7 @@ module fes_sh4_fp_arithmetic (
                     causes[1:0] <= 2'b11;
                 end else begin
                     value <= pack(negative, packed_exponent, packed_fraction);
-                    causes[1:0] <= {tiny && discarded, discarded};
+                    causes[1:0] <= {tiny && discarded, discarded || reciprocal_root};
                 end
                 state <= DONE;
             end

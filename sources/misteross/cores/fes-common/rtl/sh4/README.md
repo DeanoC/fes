@@ -140,6 +140,14 @@ column-major matrix from XF and buffers all four output lanes until
 FPSCR exception checks pass. The vector operations report inexact
 because they use finite-width intermediate results.
 
+FSRRA reuses the digit engine to compute a reciprocal square root. It
+retains 30 root digits before division, then rounds the reciprocal once.
+FSCA uses the low 16 bits of FPUL as a fraction of a revolution. It
+interpolates one quarter-wave table for both sine and cosine and commits
+the register pair together. The high 27 bits of each ROM word hold
+the sample rounded from `2^26 * sin(pi * i / 2048)`. The low 17 bits hold
+the difference to the next rounded sample.
+
 The arithmetic supports nearest-even and toward-zero rounding, FPSCR
 denormal handling, and the SH-4 NaN encodings. An arithmetic exception
 updates FPSCR cause and sticky flags and enters VBR + 0x100 with EXPEVT
@@ -147,7 +155,8 @@ updates FPSCR cause and sticky flags and enters VBR + 0x100 with EXPEVT
 software-completion traps also apply to normal operands with an exact
 result. FSQRT and FLOAT use the inexact enable for this behavior.
 FMAC, FIPR, and FTRV check the O/U/I enables for all operands. FTRV
-also checks the invalid-operation enable.
+also checks the invalid-operation enable. FSCA reports inexact for
+every input. FSRRA reports inexact for positive normal inputs.
 
 ## Prefetch and store queues
 
@@ -294,6 +303,8 @@ narrowing and integer rounding, both precisions, and preservation of SR.T
 on an invalid-operation trap. FMAC tests distinguish fused rounding from
 separate multiply and add. Vector tests check the matrix bank, lane
 destination and preservation of the full destination on an FTRV trap.
+FSCA and FSRRA regressions exercise guest decode, the inexact trap,
+signed zero, infinity, and denormal inputs.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

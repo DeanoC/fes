@@ -2,6 +2,7 @@ module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
     logic reset = 1, start = 0;
     logic wide, multiply = 0, divide = 0, square_root = 0, subtract, toward_zero, flush_denormals;
     logic [2:0] transfer = 0;
+    logic reciprocal_root = 0;
     logic [31:0] addend = 0;
     logic [63:0] lhs, rhs, value;
     logic [5:0] causes;
@@ -173,6 +174,14 @@ module fes_sh4_fp_arithmetic_tb(input logic clk, output logic finished);
         check(0, 64'hbf80_0000, 64'h0080_0000, 64'h3f80_0000, 1);
         addend = 32'h0000_0001;
         check(0, 64'h3f80_0000, 64'h3f80_0000, 0, 32);
+        transfer = 0;
+        reciprocal_root = 1;
+        check(0, 64'h4080_0000, 0, 64'h3f00_0000, 1);
+        check(0, 64'h8000_0000, 0, 64'hff80_0000, 8);
+        check(0, 64'h7f80_0000, 0, 0, 0);
+        check(0, 64'hbf80_0000, 0, 64'h7fbf_ffff, 16);
+        check(0, 64'h0000_0001, 0, 0, 32);
+        check(1, 64'h0000_0001, 0, 64'h7f80_0000, 8);
         finished = 1;
     end
 endmodule
