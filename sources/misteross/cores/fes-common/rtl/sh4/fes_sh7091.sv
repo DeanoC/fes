@@ -11,6 +11,8 @@ module fes_sh7091 #(
     input  logic        sci_rxd, sci_sck, scif_rxd, scif_cts_n, scif_tick,
     output logic        sci_txd, sci_txd_enable, sci_sck_out, sci_sck_enable,
     output logic        scif_txd, scif_txd_enable, scif_rts_n,
+    input  logic [19:0] gpio_in,
+    output logic [19:0] gpio_out, gpio_oe, gpio_pullup,
     input  logic        capture_ack,
     input  logic [1:0]  dreq_n,
     output logic [1:0]  dreq_ack,
@@ -39,7 +41,9 @@ module fes_sh7091 #(
     output logic [3:0]  fault,
     output logic [31:0] fault_pc
 );
-    logic system_reset, cpu_valid, cpu_rvalid;
+    logic system_reset, power_reset, cpu_valid, cpu_rvalid;
+    logic gpio_select, gpio_rvalid, gpio_irq, gpio_port_enable;
+    logic [31:0] gpio_rdata;
     logic nmi_request, nmi_ack, nmi_block_override, watchdog_irq, wdt_select, wdt_rvalid;
     logic [31:0] wdt_rdata, rtc_rdata;
     logic rtc_select, rtc_rvalid, rtc_tmu_tick;
@@ -60,6 +64,7 @@ module fes_sh7091 #(
     logic [31:0] cpu_addr, cpu_wdata, dma_addr, dma_wdata, dmac_rdata, capture_value;
 
     assign system_reset = reset || (|watchdog_reset);
+    assign power_reset = reset || watchdog_reset[0];
 
     fes_sh4 #(.RESET_PC(RESET_PC), .RESET_CCR(RESET_CCR)) cpu (
         .clk, .reset(system_reset), .manual_reset(watchdog_reset[1] && !reset), .irq_level(cpu_irq_level), .irq_event(cpu_irq_event),
@@ -71,10 +76,17 @@ module fes_sh7091 #(
     );
 
     fes_sh7091_bsc bsc (
-        .clk, .reset(system_reset), .bus_tick, .request(cpu_valid), .address(cpu_addr[31:2]),
+        .clk, .reset(system_reset), .power_reset, .bus_tick, .request(cpu_valid), .address(cpu_addr[31:2]),
         .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata), .selected(bsc_select),
-        .rvalid(bsc_rvalid), .rdata(bsc_rdata), .refresh_irq, .sdram_command,
+        .rvalid(bsc_rvalid), .port_enable(gpio_port_enable), .rdata(bsc_rdata), .refresh_irq, .sdram_command,
         .sdram_mode_set, .sdram_mode_address
+    );
+
+    fes_sh7091_gpio gpio (
+        .clk, .reset(system_reset), .power_reset, .bus_tick, .port_enable(gpio_port_enable),
+        .request(cpu_valid), .address(cpu_addr[31:2]), .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata),
+        .selected(gpio_select), .rvalid(gpio_rvalid), .rdata(gpio_rdata), .irq(gpio_irq),
+        .pins_in(gpio_in), .pins_out(gpio_out), .pins_oe(gpio_oe), .pins_pullup(gpio_pullup)
     );
 
     fes_sh7091_tmu tmu (
@@ -89,7 +101,7 @@ module fes_sh7091 #(
         .request(cpu_valid), .address(cpu_addr[31:2]),
         .rmask(cpu_rmask), .wstrb(cpu_wstrb), .wdata(cpu_wdata[15:0]), .selected(intc_select),
         .rvalid(intc_rvalid), .rdata(intc_rdata), .ext_level(irq_level), .ext_event(irq_event),
-        .timer_irq, .refresh_irq, .dma_irq, .rtc_irq, .sci_irq, .scif_irq, .watchdog_irq, .cpu_ack(cpu_irq_ack), .cpu_level(cpu_irq_level),
+        .timer_irq, .refresh_irq, .dma_irq, .rtc_irq, .sci_irq, .scif_irq, .gpio_irq, .watchdog_irq, .cpu_ack(cpu_irq_ack), .cpu_level(cpu_irq_level),
         .cpu_event(cpu_irq_event), .ext_ack(irq_ack)
     );
 
@@ -111,7 +123,7 @@ module fes_sh7091 #(
     );
 
     fes_sh7091_rtc rtc (
-        .clk, .reset(system_reset), .power_reset(reset || watchdog_reset[0]), .tick(rtc_tick),
+        .clk, .reset(system_reset), .power_reset, .tick(rtc_tick),
         .request(cpu_valid), .address(cpu_addr[31:2]), .rmask(cpu_rmask), .wstrb(cpu_wstrb),
         .wdata(cpu_wdata[15:0]), .selected(rtc_select), .rvalid(rtc_rvalid), .rdata(rtc_rdata),
         .irq(rtc_irq), .tmu_tick(rtc_tmu_tick), .clock_out(tclk_output)
@@ -161,9 +173,9 @@ module fes_sh7091 #(
         .mem_valid, .mem_lock, .mem_sq, .mem_addr, .mem_wdata, .mem_rmask, .mem_wstrb, .mem_ready, .mem_rvalid
     );
 
-    assign local_select = bsc_select || tmu_select || intc_select || dmac_select || wdt_select || rtc_select || (|serial_select);
-    assign cpu_rvalid = bsc_rvalid || tmu_rvalid || intc_rvalid || dmac_rvalid || wdt_rvalid || rtc_rvalid || (|(serial_rvalid & ~serial_dma_owner)) || cpu_ext_rvalid;
-    assign cpu_rdata = ({32{bsc_rvalid}} & bsc_rdata) | ({32{tmu_rvalid}} & tmu_rdata) |
+    assign local_select = bsc_select || gpio_select || tmu_select || intc_select || dmac_select || wdt_select || rtc_select || (|serial_select);
+    assign cpu_rvalid = bsc_rvalid || gpio_rvalid || tmu_rvalid || intc_rvalid || dmac_rvalid || wdt_rvalid || rtc_rvalid || (|(serial_rvalid & ~serial_dma_owner)) || cpu_ext_rvalid;
+    assign cpu_rdata = ({32{bsc_rvalid}} & bsc_rdata) | ({32{gpio_rvalid}} & gpio_rdata) | ({32{tmu_rvalid}} & tmu_rdata) |
                        ({32{intc_rvalid}} & intc_rdata) | ({32{dmac_rvalid}} & dmac_rdata) |
                        ({32{wdt_rvalid}} & wdt_rdata) | ({32{rtc_rvalid}} & rtc_rdata) |
                        ({32{serial_rvalid[0] && !serial_dma_owner[0]}} & sci_rdata) |

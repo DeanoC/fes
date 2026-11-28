@@ -279,6 +279,20 @@ and events. ICR reports the pin level, supports MAI masking and clears
 NMIB on NMI entry. Changing the edge selection inhibits detection for
 six `bus_tick` enables. The board provides synchronized and filtered inputs.
 
+## General-purpose I/O
+
+The GPIO block provides the PCTRA, PDTRA, PCTRB, PDTRB and GPIOIC
+registers at the BSC's P4 addresses. BCR2.PORTEN enables the twenty
+GPIO pins. Inputs are synchronized and sampled on `bus_tick`.
+The wrapper exposes the output latch, output enables and pull-up
+enables for the board to apply to the shared pins. BCR2, pin direction
+and the interrupt mask survive a manual reset. Data latches retain
+their values during reset.
+
+The sixteen port A inputs can generate a shared active-low level
+interrupt. The handler reads PDTRA to identify the inputs. IPRC
+sets its priority and INTEVT reports `0x620`.
+
 ## Watchdog timer
 
 The watchdog timer supports the keyed WTCNT and WTCSR writes, eight
@@ -448,6 +462,9 @@ periodic interrupt and resumes through RTE. Serial tests cover FIFO
 loopback, multiprocessor filtering, SCI clock modes, and interrupt
 priority. Guest programs send data from RAM and receive it back into
 RAM through separate TX and RX DMA channels on each serial port.
+GPIO tests cover register widths, pin direction, pull-ups and reset
+retention. A guest enables BCR2.PORTEN, wakes on a port A interrupt,
+reads the triggered input and resumes through RTE.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

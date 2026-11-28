@@ -16,7 +16,7 @@ module fes_sh7091_intc (
     input  logic [4:0]  dma_irq,
     input  logic [2:0]  rtc_irq,
     input  logic [3:0]  sci_irq, scif_irq,
-    input  logic        watchdog_irq, cpu_ack,
+    input  logic        gpio_irq, watchdog_irq, cpu_ack,
     output logic [3:0]  cpu_level,
     output logic [11:0] cpu_event,
     output logic        ext_ack
@@ -30,8 +30,8 @@ module fes_sh7091_intc (
         logic [11:0] event_code;
         logic external_pin;
     } interrupt_t;
-    interrupt_t external_irq, dma, tmu0, tmu1, tmu2, rtc, sci, scif, watchdog, refresh, winner;
-    interrupt_t pin_or_dma, tmu01, tmu2_or_rtc, serial, watchdog_or_refresh;
+    interrupt_t external_irq, gpio, dma, tmu0, tmu1, tmu2, rtc, sci, scif, watchdog, refresh, winner;
+    interrupt_t external_or_dma, tmu01, tmu2_or_rtc, serial, watchdog_or_refresh;
     logic mask_interrupts, cpu_external, ack_external;
 
     function automatic interrupt_t higher_priority(input interrupt_t first, second);
@@ -45,6 +45,7 @@ module fes_sh7091_intc (
     assign mask_interrupts = icr[14] && nmi;
     assign ext_ack = cpu_ack && ack_external;
 
+    assign gpio = '{gpio_irq ? iprc[15:12] : 4'b0, 12'h620, 1'b0};
     assign tmu0 = '{timer_irq[0] ? ipra[15:12] : 4'b0, 12'h400, 1'b0};
     assign tmu1 = '{timer_irq[1] ? ipra[11:8] : 4'b0, 12'h420, 1'b0};
     assign tmu2 = '{(|timer_irq[3:2]) ? ipra[7:4] : 4'b0,
@@ -55,12 +56,12 @@ module fes_sh7091_intc (
 
     // Compare sources in pairs. Each comparison gives ties to the left
     // source, preserving the order specified by the interrupt controller.
-    assign pin_or_dma = higher_priority(external_irq, dma);
+    assign external_or_dma = higher_priority(higher_priority(external_irq, gpio), dma);
     assign tmu01 = higher_priority(tmu0, tmu1);
     assign tmu2_or_rtc = higher_priority(tmu2, rtc);
     assign watchdog_or_refresh = higher_priority(watchdog, refresh);
     assign serial = higher_priority(sci, scif);
-    assign winner = higher_priority(higher_priority(pin_or_dma, tmu01),
+    assign winner = higher_priority(higher_priority(external_or_dma, tmu01),
                                     higher_priority(tmu2_or_rtc, higher_priority(serial, watchdog_or_refresh)));
 
     always_comb begin

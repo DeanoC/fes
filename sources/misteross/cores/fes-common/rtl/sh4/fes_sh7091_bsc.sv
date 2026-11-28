@@ -5,14 +5,14 @@ module fes_sh7091_bsc #(
     parameter logic [1:0] AREA0_WIDTH = 2'b10  // 16-bit ROM
 ) (
     input  logic        clk,
-    input  logic        reset,
+    input  logic        reset, power_reset,
     input  logic        bus_tick,
     input  logic        request,
     input  logic [31:2] address,
     input  logic [3:0]  rmask, wstrb,
     input  logic [31:0] wdata,
     output logic        selected,
-    output logic        rvalid,
+    output logic        rvalid, port_enable,
     output logic [31:0] rdata,
     output logic [1:0]  refresh_irq,
     output logic [1:0]  sdram_command,
@@ -40,6 +40,7 @@ module fes_sh7091_bsc #(
     assign read_reg = request && register_selected && wstrb == 0 && rmask == (wide_reg ? 4'hf : 4'h3);
     assign keyed_write = write_reg && wdata[15:8] == 8'ha5;
     assign mode_write = request && mode_selected && $onehot(wstrb);
+    assign port_enable = bcr2[0];
     assign refresh_irq = {rtcsr[2] && rtcsr[1], rtcsr[7] && rtcsr[6]};
 
     always_comb begin
@@ -58,10 +59,17 @@ module fes_sh7091_bsc #(
     assign timer_match = timer_tick && next_count == rtcor;
     assign overflow = timer_match && (rtcsr[0] ? rfcr[8:0] == 9'd511 : rfcr == 10'd1023);
 
+    // BCR2 and GPIO share the power-on reset domain.
+    always_ff @(posedge clk) begin
+        if (power_reset)
+            bcr2 <= {AREA0_WIDTH, 14'h3ffc};
+        else if (!reset && write_reg && select_reg == BCR2)
+            bcr2 <= {AREA0_WIDTH, wdata[13:2], 1'b0, wdata[0]};
+    end
+
     always_ff @(posedge clk) begin
         if (reset) begin
             bcr1 <= {BCR1_STRAPS, 29'b0};
-            bcr2 <= {AREA0_WIDTH, 14'h3ffc};
             wcr1 <= 32'h7777_7777;
             wcr2 <= 32'hfffe_efff;
             wcr3 <= 32'h0777_7777;
@@ -101,7 +109,6 @@ module fes_sh7091_bsc #(
             end
             if (write_reg) case (select_reg)
                 BCR1: bcr1 <= {BCR1_STRAPS, 29'b0} | (wdata & 32'h033e_fffd);
-                BCR2: bcr2 <= {AREA0_WIDTH, wdata[13:2], 1'b0, wdata[0]};
                 WCR1: wcr1 <= wdata & 32'h7777_7777;
                 WCR2: wcr2 <= wdata & 32'hfffe_efff;
                 WCR3: wcr3 <= wdata & 32'h0777_7777;

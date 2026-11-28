@@ -9,6 +9,7 @@ module fes_sh4_tb;
     logic [3:0] irq_level = 0;
     logic [11:0] irq_event = 0;
     logic bram_sci_txd, unused_sci_txd_enable, unused_sci_sck_out, unused_sci_sck_enable;
+    logic [19:0] bram_gpio_in = '1, bram_gpio_out, bram_gpio_oe, bram_gpio_pullup;
     logic unused_nmi_ack, unused_scif_txd, unused_scif_txd_enable, unused_scif_rts_n;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
@@ -32,7 +33,8 @@ module fes_sh4_tb;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
-    logic dma_finished, rtc_finished, scif_finished, sci_finished;
+    logic dma_finished, rtc_finished, scif_finished, sci_finished, gpio_finished;
+    fes_sh7091_gpio_tb gpio_test (.clk, .finished(gpio_finished));
     fes_sh7091_sci_tb sci_test (.clk, .finished(sci_finished));
     fes_sh7091_scif_tb scif_test (.clk, .finished(scif_finished));
     fes_sh7091_rtc_tb rtc_test (.clk, .finished(rtc_finished));
@@ -57,6 +59,7 @@ module fes_sh4_tb;
         .clk, .reset(bram_reset), .rtc_tick(bram_rtc_tick), .irq_level(4'b0), .irq_event(12'b0),
         .sci_rxd(bram_sci_txd), .sci_sck(1'b1), .sci_txd(bram_sci_txd), .sci_txd_enable(unused_sci_txd_enable),
         .sci_sck_out(unused_sci_sck_out), .sci_sck_enable(unused_sci_sck_enable),
+        .gpio_in(bram_gpio_in), .gpio_out(bram_gpio_out), .gpio_oe(bram_gpio_oe), .gpio_pullup(bram_gpio_pullup),
         .scif_rxd(1'b1), .scif_cts_n(1'b0), .scif_tick(1'b0),
         .scif_txd(unused_scif_txd), .scif_txd_enable(unused_scif_txd_enable), .scif_rts_n(unused_scif_rts_n),
         .nmi(bram_nmi), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
@@ -2398,6 +2401,71 @@ module fes_sh4_tb;
 
         end
 
+        // PORTEN and GPIOIC route a pin transition to the guest handler.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2121); // BCR2.PORTEN
+        literal('h06, 1, 'h88);
+        emit('h08, 'he201);
+        emit('h0a, 'h2121); // PDTRA: prepare pin 0 high
+        literal('h0c, 1, 'h8c);
+        emit('h0e, 'h2122); // PCTRA: configure pin 0 as an output
+        literal('h10, 1, 'h90);
+        emit('h12, 'he204);
+        emit('h14, 'h2121); // GPIOIC: enable input pin 2
+        literal('h16, 1, 'h94);
+        literal('h18, 2, 'h98);
+        emit('h1a, 'h2121); // IPRC: GPIO priority 5
+        literal('h1c, 4, 'h9c);
+        emit('h1e, 'h440e); // Enable interrupts
+        emit('h20, 'h001b);
+        emit('h22, 'hee62);
+        image['h80 >> 2] = 'hff80_0004;
+        image['h84 >> 2] = 'h3ffd;
+        image['h88 >> 2] = 'hff80_0030;
+        image['h8c >> 2] = 'hff80_002c;
+        image['h90 >> 2] = 'hff80_0048;
+        image['h94 >> 2] = 'hffd0_000c;
+        image['h98 >> 2] = 'h5000;
+        image['h9c >> 2] = 'h4000_0000;
+        literal('h600, 3, 'h640);
+        emit('h602, 'h6d32); // INTEVT
+        literal('h604, 3, 'h644);
+        emit('h606, 'h6c31); // PDTRA
+        literal('h608, 3, 'h648);
+        emit('h60a, 'he200);
+        emit('h60c, 'h2321); // Mask GPIO interrupt
+        emit('h60e, 'h002b);
+        emit('h610, 'h0009);
+        image['h640 >> 2] = 'hff00_0028;
+        image['h644 >> 2] = 'hff80_0030;
+        image['h648 >> 2] = 'hff80_0048;
+        for (int word = 0; word <= 'h648 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h20));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram_gpio_out == 20'h1 && bram_gpio_oe == 20'h1 &&
+                bram_gpio_pullup == 20'hf_fffe)
+            else $fatal(1, "GPIO pins did not follow BCR2 and PCTRA");
+        bram_gpio_in[2] = 0;
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h22));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h620 &&
+                bram.system_cpu.cpu.gpr[12] == 'hffff_fffb && bram.system_cpu.cpu.gpr[14] == 'h62)
+            else $fatal(1, "GPIO guest fault %d at %h, INTEVT %h, PDTRA %h", bram_fault,
+                        bram_fault_pc, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[12]);
+        bram_reset = 1;
+        bram_gpio_in = '1;
+
+        assert (gpio_finished) else $fatal(1, "GPIO test did not finish");
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
@@ -2406,7 +2474,7 @@ module fes_sh4_tb;
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
         wait (rtc_finished && scif_finished && sci_finished);
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, and bus and interrupt arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, and bus and interrupt arbitration");
         $finish;
     end
 

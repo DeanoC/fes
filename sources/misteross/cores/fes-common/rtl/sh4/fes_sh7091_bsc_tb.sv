@@ -5,7 +5,8 @@ module fes_sh7091_bsc_tb(input logic clk, output logic finished);
     logic [3:0] rmask, wstrb;
     logic selected, rvalid;
     logic [1:0] refresh_irq, sdram_command;
-    logic sdram_mode_set;
+    logic sdram_mode_set, port_enable, power_reset;
+    assign power_reset = reset;
     logic [11:0] sdram_mode_address;
 
     fes_sh7091_bsc dut (.*);
@@ -79,6 +80,7 @@ module fes_sh7091_bsc_tb(input logic clk, output logic finished);
         assert (refresh_irq == 2'b11) else $fatal(1, "Writing 1 must preserve BSC timer flags");
         write_reg(32'hff80_001c, 32'h0000_a54b, 4'h3);
         assert (refresh_irq == 0) else $fatal(1, "Writing 0 must clear BSC timer flags");
+        assert (port_enable == dut.bcr2[0]);
         finished = 1;
     end
 endmodule
