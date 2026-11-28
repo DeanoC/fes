@@ -11,20 +11,24 @@ module fes_sh4_tb;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [3:0] fault, bram_fault;
-    logic locked;
+    logic locked, queue_write;
     logic [3:0] wstrb, rmask;
     logic [31:0] image [0:8191];
     logic [31:0] ext_mem [0:8191];
     int cycle, latency;
     logic held;
-    logic [72:0] held_request;
+    logic [73:0] held_request;
     int retire_count, read_count, previous_retire_cycle;
     int retried_word_writes, locked_reads, locked_writes, mapped_operand_reads;
     logic lock_open;
     logic [31:0] lock_addr;
     logic [3:0] lock_lane;
+    logic [2:0] queue_beat;
+    logic [31:5] queue_line;
     int resident_reads, resident_writes, conflict_reads, cold_store_line_reads, alias_reads;
     logic check_data_cache = 0;
+    logic check_qacr_area = 0;
+    int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done;
 
     fes_sh4_mmu_tb mmu_test (.clk, .done(mmu_done));
@@ -33,7 +37,7 @@ module fes_sh4_tb;
 
     fes_sh4 #(.RESET_PC(0), .RESET_CCR(9'h103)) dut (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
-        .mem_valid(valid), .mem_lock(locked), .mem_rmask(rmask), .mem_ready(ready),
+        .mem_valid(valid), .mem_lock(locked), .mem_sq(queue_write), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
         .retired, .retired_pc, .fault, .fault_pc
@@ -60,10 +64,14 @@ module fes_sh4_tb;
             retire_count <= 0;
             read_count <= 0;
             retried_word_writes <= 0;
+            qacr_area_writes <= 0;
+            queue_zero_writes <= 0;
+            mapped_queue_writes <= 0;
             locked_reads <= 0;
             mapped_operand_reads <= 0;
             locked_writes <= 0;
             lock_open <= 0;
+            queue_beat <= 0;
             resident_reads <= 0;
             resident_writes <= 0;
             conflict_reads <= 0;
@@ -83,10 +91,10 @@ module fes_sh4_tb;
                 retire_count <= retire_count + 1;
             end
             if (held)
-                assert (valid && {addr, wdata, wstrb, locked, rmask} == held_request)
+                assert (valid && {addr, wdata, wstrb, locked, queue_write, rmask} == held_request)
                     else $fatal(1, "Request changed while backpressured");
             held <= valid && !ready;
-            held_request <= {addr, wdata, wstrb, locked, rmask};
+            held_request <= {addr, wdata, wstrb, locked, queue_write, rmask};
 
             if (latency != 0) begin
                 latency <= latency - 1;
@@ -110,7 +118,17 @@ module fes_sh4_tb;
                 end
             end
             if (valid && ready) begin
-                assert (latency == 0 && addr[1:0] == 0 && addr[28:15] == 0)
+                if (queue_beat != 0)
+                    assert (queue_write && queue_line == addr[31:5])
+                        else $fatal(1, "A foreign request interrupted a store queue transfer");
+                if (queue_write) begin
+                    assert (wstrb == 4'hf && addr[4:2] == queue_beat)
+                        else $fatal(1, "Invalid store queue write beat");
+                    queue_line <= addr[31:5];
+                    queue_beat <= queue_beat + 3'd1;
+                end
+                assert (latency == 0 && addr[1:0] == 0 && addr[25:15] == 0 &&
+                        (addr[28:26] == 0 || (check_qacr_area && addr[31:5] == 27'h0600011 && wstrb == 4'hf)))
                     else $fatal(1, "Unexpected memory request at %h", addr);
                 if (wstrb == 0) begin
                     rdata <= ext_mem[addr[14:2]];
@@ -128,6 +146,12 @@ module fes_sh4_tb;
                     if (check_data_cache && addr == 32'h604)
                         assert (cold_store_line_reads == 0)
                             else $fatal(1, "A store miss fetched a line before writing through");
+                    if (queue_write && addr[31:5] == 27'h0600011)
+                        qacr_area_writes <= qacr_area_writes + 1;
+                    if (queue_write && addr[31:5] == 27'h10)
+                        queue_zero_writes <= queue_zero_writes + 1;
+                    if (queue_write && addr[31:5] == 27'h80)
+                        mapped_queue_writes <= mapped_queue_writes + 1;
                     if (addr[31:5] == 27'h10)
                         resident_writes <= resident_writes + 1;
                     if (addr == 32'h1010)
@@ -1003,6 +1027,128 @@ module fes_sh4_tb;
                 conflict_reads == 0 && cold_store_line_reads == 0)
             else $fatal(1, "MOVCA.L write-back data or write-through fallback was incorrect");
 
+        // Both queues buffer writes without touching the bus. QACR1
+        // supplies the external area bits independently from QACR0.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80); // QACR0
+        literal('h02, 3, 'h84);
+        literal('h04, 4, 'h88);
+        emit('h06, 'he20c);
+        emit('h08, 'h1121); // Write QACR1 (area 3)
+        emit('h0a, 'h5811); // Read QACR1
+        emit('h0c, 'he010);
+        emit('h0e, 'he630);
+        for (int word_index = 0; word_index < 8; word_index++) begin
+            emit('h10 + 8*word_index, 16'h1300 | 16'(word_index)); // R0 to SQ0
+            emit('h12 + 8*word_index, 16'h1460 | 16'(word_index)); // R6 to SQ1
+            emit('h14 + 8*word_index, 'h7001);
+            emit('h16 + 8*word_index, 'h7601);
+        end
+        emit('h50, 'h0483); // PREF @R4 drains SQ1
+        emit('h52, 'h0383); // PREF @R3 drains SQ0
+        literal('h54, 5, 'h8c);
+        emit('h56, 'h0583); // Ordinary prefetch of the 0x600 line
+        emit('h58, 'h6950);
+        image['h80 >> 2] = 'hff00_0038;
+        image['h84 >> 2] = 'he000_0200;
+        image['h88 >> 2] = 'he000_0220;
+        image['h8c >> 2] = 'h603;
+        image['h600 >> 2] = 'h2700_0000;
+        check_qacr_area = 1;
+        start_bus();
+        wait (retired && retired_pc == 'h4e);
+        assert (qacr_area_writes == 0 && queue_zero_writes == 0)
+            else $fatal(1, "Store queue writes reached external memory before PREF");
+        expect_stop(1, 'h5a);
+        assert (dut.gpr[8] == 'hc && dut.gpr[9] == 'h27 &&
+                qacr_area_writes == 8 && queue_zero_writes == 8 && cold_store_line_reads == 8)
+            else $fatal(1, "QACR selection, store queue publish, or ordinary PREF was incorrect");
+        for (int word_index = 0; word_index < 8; word_index++) begin
+            assert (ext_mem[('h200 >> 2) + word_index] == 32'h10 + 32'(word_index) &&
+                    ext_mem[('h220 >> 2) + word_index] == 32'h30 + 32'(word_index))
+                else $fatal(1, "Store queue order or data differed at word %0d", word_index);
+        end
+        check_qacr_area = 0;
+
+        // Install executable VA zero and a queue mapping. Unlike an ordinary
+        // prefetch, a queue PREF can raise a read-class TLB exception.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'ha0);
+        emit('h02, 'he207);
+        emit('h04, 'h2122); // PTEH VA zero, ASID 7
+        literal('h06, 3, 'ha4);
+        emit('h08, 'h1131);
+        emit('h0a, 'h0038); // LDTLB
+        literal('h0c, 4, 'ha8);
+        emit('h0e, 'h1144); // URC=1
+        literal('h10, 2, 'hac);
+        emit('h12, 'h2122);
+        literal('h14, 3, 'hb0);
+        emit('h16, 'h1131);
+        emit('h18, 'h0038);
+        literal('h1a, 6, 'hb4);
+        emit('h1c, 'h1163); // Seed TEA
+        emit('h1e, 'he401);
+        emit('h20, 'h1144); // AT=1
+        literal('h22, 3, 'hb8);
+        emit('h24, 'h0383); // Ignored ordinary prefetch to an unmapped page
+        literal('h26, 3, 'hbc); // SQ0 VA
+        emit('h28, 'he025);
+        for (int word_index = 0; word_index < 8; word_index++)
+            emit('h2a + 2*word_index, 16'h1300 | 16'(word_index));
+        literal('h3a, 5, 'hc0);
+        emit('h3c, 'h0583); // Translated publish
+        image['ha0 >> 2] = 'hff00_0000;
+        image['ha4 >> 2] = 'h0000_016d;
+        image['ha8 >> 2] = 'h0000_0400;
+        image['hac >> 2] = 'he000_0407;
+        image['hb0 >> 2] = 'h0000_1164;
+        image['hb4 >> 2] = 'hbeef_0000;
+        image['hb8 >> 2] = 'h800;
+        image['hbc >> 2] = 'he000_0400;
+        image['hc0 >> 2] = 'he000_0400;
+        start_bus();
+        expect_stop(1, 'h3e);
+        assert (mapped_queue_writes == 8 && dut.mmu.tea == 'hbeef_0000 &&
+                dut.mmu.pteh_vpn == 22'h380001)
+            else $fatal(1, "Translated queue PREF failed or ordinary PREF changed exception registers");
+        for (int word_index = 0; word_index < 8; word_index++)
+            assert (ext_mem[('h1000 >> 2) + word_index] == 'h25)
+                else $fatal(1, "Translated queue wrote incorrect word %0d", word_index);
+
+        image['hc0 >> 2] = 'he000_0800; // PREF targets an unmapped queue page
+        start_bus();
+        expect_stop(5, 'h3c);
+        assert (mapped_queue_writes == 0 && dut.mmu.tea == 'he000_0800 && dut.expevt == 'h040)
+            else $fatal(1, "Queue PREF did not report a read-class TLB miss");
+        image['hb0 >> 2] = 'h0000_1160; // Queue mapping D=0
+        start_bus();
+        expect_stop(8, 'h2a);
+        assert (mapped_queue_writes == 0 && dut.mmu.tea == 'he000_0400 && dut.expevt == 'h080)
+            else $fatal(1, "Queue store did not report an initial-write exception");
+
+        // MMUCR.SQMD restricts writes to the P4 queue window even with
+        // the MMU off. User attempts must not reach shared memory.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        literal('h04, 8, 'h88);
+        emit('h06, 'h2122);
+        emit('h08, 'he000);
+        emit('h0a, 'h400e); // SR=0, user mode
+        emit('h0c, 'h2802); // MOV.L R0,@R8 into the queue window
+        literal('h100, 1, 'h120);
+        emit('h102, 'h6912);
+        image['h80 >> 2] = 'hff00_0010;
+        image['h84 >> 2] = 'h200;
+        image['h88 >> 2] = 'he000_0200;
+        image['h120 >> 2] = 'hff00_0024;
+        start_bus();
+        expect_stop(1, 'h104);
+        assert (dut.spc == 'h0c && dut.mmu.tea == 'he000_0200 && dut.gpr[9] == 'h100 &&
+                queue_zero_writes == 0)
+            else $fatal(1, "SQMD did not protect the user-mode queue window");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1194,7 +1340,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back and cache maintenance");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance and store queues");
         $finish;
     end
 

@@ -17,7 +17,7 @@ module fes_sh4_bram_system (
     output logic [31:0] fault_pc
 );
     // The private RAM has no competing master or read side effects.
-    logic valid, rvalid, unused_mem_lock;
+    logic valid, rvalid, unused_mem_lock, unused_mem_sq;
     logic [3:0] unused_mem_rmask;
     logic [31:0] addr, wdata, rdata, ram_wdata, ram_rdata;
     logic [3:0] wstrb, ram_wstrb;
@@ -26,7 +26,7 @@ module fes_sh4_bram_system (
 
     fes_sh4 #(.RESET_PC(32'b0), .RESET_CCR(9'h103)) cpu (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
-        .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
+        .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_sq(unused_mem_sq), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
         .retired, .retired_pc, .fault, .fault_pc

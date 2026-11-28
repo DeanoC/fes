@@ -7,6 +7,7 @@ module fes_sh4_mmu (
     output logic        ready,
     input  logic        instruction,
     input  logic        write,
+    input  logic        quiet,
     input  logic        supervisor,
     input  logic        address_exception,
     input  logic [31:0] fault_address,
@@ -17,6 +18,7 @@ module fes_sh4_mmu (
     output logic        write_through,
     output logic [3:0]  fault,
     output logic        enabled,
+    output logic        sqmd,
     input  logic [3:0]  reg_select,
     input  logic        reg_write,
     input  logic [31:0] reg_wdata,
@@ -45,10 +47,10 @@ module fes_sh4_mmu (
     logic [3:0] ptea;
     logic [31:0] ttb, tea;
     logic [5:0] urc, urb, lrui;
-    logic sv, sqmd;
+    logic sv;
 
     logic [31:0] va;
-    logic fetch, store, privileged;
+    logic fetch, store, privileged, suppress_fault_state;
     logic [7:0] group_hit, group_multi;
     entry_t group_entry [0:7];
     entry_t ientry, uentry, selected;
@@ -182,6 +184,7 @@ module fes_sh4_mmu (
                         va <= virtual_addr;
                         fetch <= instruction;
                         store <= write;
+                        suppress_fault_state <= quiet;
                         privileged <= supervisor;
                         state <= MATCH;
                     end
@@ -215,7 +218,7 @@ module fes_sh4_mmu (
                     fault <= result_fault;
                     if (use_utlb)
                         urc <= urb != 0 && urc + 6'd1 == urb ? 6'd0 : urc + 6'd1;
-                    if (result_fault != 0) begin
+                    if (result_fault != 0 && !suppress_fault_state) begin
                         tea <= va;
                         pteh_vpn <= va[31:10];
                     end

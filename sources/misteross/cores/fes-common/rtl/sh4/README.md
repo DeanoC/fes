@@ -78,6 +78,28 @@ defines instruction encodings and behavior. The implemented slice includes:
   GBR, VBR, SSR, SPC, DBR and the inactive R0–R7 bank. STC also reads and
   stacks SGR. STS/LDS support PR register and stack transfers.
 
+## Prefetch and store queues
+
+Outside the queue window, PREF fills a cacheable 32-byte operand line. It
+ignores disabled or uncached accesses and suppressed translation faults
+leave TEA and PTEH unchanged.
+
+Aligned longword stores to `0xe0000000` through `0xe3ffffff` populate the
+two 32-byte store queues. The address selects a queue at bit 5 and a word
+at bits 4–2. PREF in that window publishes the selected queue to one
+aligned external line. With translation disabled, QACR0 and QACR1 at
+`0xff000038` and `0xff00003c` supply the destination's upper address bits.
+With translation enabled, the UTLB supplies the destination and checks
+store permission for a queue write and read permission for queue PREF.
+MMUCR.SQMD can restrict queue access to supervisor mode.
+
+The core waits for the queue transfer to complete before retiring PREF.
+The shared-bus interface marks its eight ordered longword writes with
+`mem_sq`, sampled with an accepted request. No CPU instruction read
+interleaves the marked writes. An adapter can use the marker and beat
+address to assemble a native 32-byte transaction. Software must initialize
+the queue contents before publishing them.
+
 ## Exception entry and return
 
 TLB misses enter at VBR + 0x400. Address errors, illegal instructions, TLB
@@ -107,7 +129,7 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 FPU, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, cache prefetch and arrays, raw TLB arrays, area-7 MMU register aliases, board
+arbitration and peripherals, standby power controls, cache arrays, raw TLB arrays, area-7 MMU register aliases, board
 buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -183,6 +205,9 @@ cover partial-byte store allocation, eviction to the victim's address, PTEL.WT
 selection, TAS.B on a dirty P2 alias, and dirty-line discard through CCR.OCI.
 Line-operation tests cover permission checks on misses, preserving or
 discarding resident lines, and MOVCA.L allocation without refill traffic.
+Store-queue tests cover QACR selection, UTLB translation, ordered bursts,
+privilege and initial-write faults, and PREF misses both inside and outside
+the queue window.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 
