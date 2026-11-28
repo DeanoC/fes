@@ -1436,3 +1436,39 @@ databases, commands and complete logs are indexed by
 and `/data/projects/fes-quartus/2264-lnt-driver-2wW3Dd/` on the 3090 builder.
 The retained reports establish the matcher regression at the old head.
 Fresh fitting and sealing establish admission on the fix head.
+
+## Merged 486DX on Kit D25
+
+The exact [#2264 merge](https://github.com/DeanoC/fes/commit/eb3337233bce5d0bb47375c9cb722daac8c4884d)
+(`eb3337233bce5d0bb47375c9cb722daac8c4884d`) sealed at **111.904762 MHz**
+with Quartus Pro 26.3 seed 4. Worst machine setup slack was +0.183 ns and the
+worst loaded path was 2.26 ns against its 3.9 ns limit.
+
+| Identity | Value |
+| --- | --- |
+| Build ID | `63728eb46fc9d444cbbd2d4dd2c0c24c` |
+| Package ID | `33adb4797999b3748ca18c2bd34798a8cfeb97b9e587a5ff2a3c3da1901c9c20` |
+| Package archive SHA-256 | `cdf7356638738ddfccb3f59f92db0d4ac041dfb86e0b44611691dbf86f505d2c` |
+| RBF SHA-256 | `6bd77aedfe59bd3ada07e3dd5306fad85241781e5eb6f27614e34365d0237109` |
+| Active kit bundle | `d5848c5d074e9af03510b5a64dce04a37f5d77f6a56d81ef85ffca97cb2f5de4` |
+| Active mister-runtime SHA-256 | `4280fe0d210a875adf242a2a2ef5d722b9d044116c1ae20e7f836b56d21d912c` |
+
+The serial-bound J8G run (`TRWU8J8G`) booted FreeDOS from the pmode ATA
+fixture and typed and read back `FES2264_DOS_OK`. Doom E1M1 responded to
+keyboard input and produced HDMI audio (peak PCM amplitude 17559).
+Quake 1.06 on the bench ATA fixture ran
+`quake -condebug -nosound -nocdaudio +exec mode0.cfg +timedemo demo1`.
+The guest log reports **969 frames in 122.6 seconds, 7.9 FPS** and
+`vid_describecurrentmode` reports 320×200. Both launches stopped to idle.
+The test window showed zero new SMMU or DDR-window faults. The baseline
+verifier passed all 21 checks, the HDMI capture showed the restored MENU,
+and the J8G ledger recorded FREE.
+
+Powerboat evidence is under
+`/data/projects/de25-486dx-clock-2263/merged-hil.WBtQHU/`.
+`qconsole.log` has SHA-256
+`2b77178497f413502c01c01518b352284681dd288cbe600eae783fb3ab4bb445`.
+`restore.json` has SHA-256
+`5ec2c90221211fb435f0274efa611df6305840cf0f12391dd35122335bcfc0f4`.
+The fitter summary is `seed-summary.json`. The HDMI captures are in
+`out/fr/`, and the kernel fault window is `kernel-hil-window.log`.

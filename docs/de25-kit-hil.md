@@ -86,7 +86,24 @@ a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
 change.
 
-For non-MENU packages the D25 smoke passes both saved core frames (`10-core`
+The pc386 smoke uses the same private FogCast host, exact-head runtime digest
+check, and serial-bound restore. Powerboat needs the immutable `pmode.img`
+FreeDOS/Doom fixture for both CPU models and the `bench.img` FreeDOS/Quake
+fixture for 486DX. The default fixture directory is
+`/home/deano/fes-drives/pc386/by-name`. Set `FES_DE25_PC386_DRIVES` to use
+another directory with the same files. The runner checks their SHA-256 and
+geometry before claiming J8G, and checks the content hash returned by FogCast
+after import.
+
+For both models the smoke boots FreeDOS from the managed ATA disk, types a
+unique marker to a guest file, plays Doom E1M1 with HDMI audio, then stops and
+relaunches the same entry and reads the marker back. For 486DX it also runs
+Quake 1.06 `timedemo demo1` at 320×200 with audio disabled. The model, disk
+identities, gameplay checks, and Quake frame count, elapsed time and FPS go in
+the package's `result.json`. HDMI captures and the restore receipt stay in the
+run directory.
+
+For packages other than MENU and pc386 the D25 smoke passes both saved core frames (`10-core`
 and `11-core`) to the exact head's `scripts/de25_boot_screen.py` and writes its
 output to `boot-screen.json`; a recognised boot screen is a `boot_screen` check,
 and a core the utility does not know (exit 3) adds no check. To check a capture
