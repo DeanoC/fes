@@ -38,7 +38,7 @@ flowchart TD
   Vendor["Pinned Vendor BSP\n(image/de25-nano/vendor.lock.toml:\nU-Boot FIT, Linux 6.12.11, DTB)"]
   Kernel["Permanent-Owner Kernel\n(image/kernel/de25-platform +\nde25-dma built-in ABI 3 + SID-13)"]
   BR["Buildroot AArch64 Rootfs & SDK\n(image/de25-nano/buildroot.lock.toml,\nlocked OCI builder)"]
-  Cores["Sealed Quartus Pro 26.3 Cores\n(config/core-recipes.toml:\nfes.menu, zx81, spectrum, atari-st,\nc64, pcxt-dos, ramtest, pc386)"]
+  Cores["Registered Quartus Pro 26.3 Recipes\n(config/core-recipes.toml:\nfes.menu, zx81, spectrum, atari-st,\nc64, pcxt-dos, ramtest, pc386)"]
   Headless["Headless Diagnostic Image\n(make de25-linux -> fes-de25-nano.img)"]
   Base["Managed Base Intermediate\n(build.py managed-base -> rootfs + SDK)"]
   Factory["Managed Factory Candidate\n(build.py managed-factory;\nincludes bound boot.json, card_assembly: not-run)"]
@@ -49,7 +49,7 @@ flowchart TD
   Kernel --> Base
   BR --> Base
   Base --> Factory
-  Cores --> Factory
+  Cores -->|"sealed fes.menu"| Factory
   Factory --> Card
   Vendor --> Card
 ```
