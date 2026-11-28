@@ -28,6 +28,24 @@ static struct {
     int may_escape, error, armed;
 } budget;
 
+#ifdef FES_JITTER_RECORD
+static struct fes_jitter_limit limit;
+
+static void record_limit(uint64_t now)
+{
+    limit.reason = !budget.armed ? "unarmed" :
+                   now < budget.last ? "counter-regression" :
+                   now - budget.start >= budget.tick_limit ? "elapsed-time" : "clock-reads";
+    limit.ticks = now >= budget.start ? now - budget.start : 0;
+    limit.reads = budget.reads;
+}
+
+struct fes_jitter_limit fes_nano_jitter_record_limit(void)
+{
+    return limit;
+}
+#endif
+
 static unsigned int frequency(void)
 {
 #ifdef FES_JITTER_HOST_FIXTURE
@@ -45,6 +63,9 @@ void jent_get_nstime(uint64_t *out)
     ++budget.reads;
     if (!budget.armed || *out < budget.last ||
         *out - budget.start >= budget.tick_limit || budget.reads > budget.read_limit) {
+#ifdef FES_JITTER_RECORD
+        record_limit(*out);
+#endif
         budget.error = OVER_BUDGET;
         if (budget.may_escape)
             __builtin_longjmp(budget.escape, 1);
@@ -94,8 +115,12 @@ static int finish(struct fes_nano_jitter_metrics *m, int rc)
     budget.may_escape = 0;
     if (budget.error)
         rc = budget.error;
-    else if (end < budget.last || m->ticks >= budget.tick_limit)
+    else if (end < budget.last || m->ticks >= budget.tick_limit) {
+#ifdef FES_JITTER_RECORD
+        record_limit(end);
+#endif
         rc = OVER_BUDGET;
+    }
     if (!rc && !fes_jent_heap_empty())
         rc = BAD_MEMORY;
     fes_jent_arena_reset();

@@ -21,6 +21,12 @@ struct fes_nano_jitter_metrics {
 /* The firmware links one mode. A seed can be requested only once before EL1.
  * Each diagnostic collector is independent and never emits conditioned bytes. */
 int fes_nano_jitter_seed(uint8_t *dst, size_t bytes, struct fes_nano_jitter_metrics *metrics);
+/* Diagnostic counters latched at the first watchdog failure. */
+struct fes_jitter_limit {
+    const char *reason;
+    uint64_t ticks, reads;
+};
+struct fes_jitter_limit fes_nano_jitter_record_limit(void);
 int fes_nano_jitter_record_open(void);
 int fes_nano_jitter_record_sample(uint64_t *raw_delta);
 int fes_nano_jitter_record_close(struct fes_nano_jitter_metrics *metrics);

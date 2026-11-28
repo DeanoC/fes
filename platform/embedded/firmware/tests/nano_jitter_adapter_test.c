@@ -182,6 +182,14 @@ static void run(const char *name)
         } while (!rc);
         if (strcmp(name, "read-cap") == 0)
             assert(calls == 32000003U); /* start + 32,000,001 reads + finish */
+        struct fes_jitter_limit limit = fes_nano_jitter_record_limit();
+        const char *expected = !strcmp(name, "backward") ? "counter-regression" :
+                               !strcmp(name, "read-cap") ? "clock-reads" : "elapsed-time";
+        assert(limit.reason && !strcmp(limit.reason, expected) && limit.reads);
+        if (!strcmp(expected, "elapsed-time"))
+            assert(limit.ticks >= (uint64_t)seconds * FES_JITTER_TIMER_HZ);
+        if (!strcmp(expected, "clock-reads"))
+            assert(limit.reads == 32000001U);
         assert(rc == OVER_BUDGET && delta == UINT64_MAX && fes_jent_heap_empty());
         assert(fes_nano_jitter_record_close(&m) == BAD_CALL);
         assert(fes_nano_jitter_record_open() == BAD_CLOCK);

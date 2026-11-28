@@ -20,7 +20,7 @@ UPSTREAM_COMMIT = "fbbe36ed459a9f4eeb6caecfe66efe581a638fba"
 HOOKS = {
     "seed": ("fes_nano_jitter_seed",),
     "capture": ("fes_nano_jitter_record_open", "fes_nano_jitter_record_sample",
-                "fes_nano_jitter_record_close"),
+                "fes_nano_jitter_record_close", "fes_nano_jitter_record_limit"),
 }
 
 

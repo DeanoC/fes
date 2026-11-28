@@ -21,6 +21,8 @@ class JitterCapture(unittest.TestCase):
                     complete = mode in ("good", "frozen")
                     self.assertEqual(raw.endswith(b"FES_JENT_CAPTURE_DONE\n"), complete)
                     self.assertEqual(raw.count(b"FES_JENT_END "), 2 if complete else int(mode == "flags"))
+                    if mode == "sample":
+                        self.assertIn(b"limit=elapsed-time completed=3 reads=14 ticks=480000000000\n", raw)
                     if complete:
                         self.assertEqual(raw.count(b"FES_JENT_DATA "), 10418)
                     elif mode not in ("uart-busy", "wire"):

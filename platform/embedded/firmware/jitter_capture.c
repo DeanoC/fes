@@ -22,9 +22,9 @@ static int send(const char *p)
     return 0;
 }
 
-static char *number(char *p, unsigned value)
+static char *number(char *p, uint64_t value)
 {
-    char digits[10];
+    char digits[20];
     unsigned n = 0;
     do {
         digits[n++] = (char)('0' + value % 10U);
@@ -75,13 +75,20 @@ static char *base64(char *p, const uint8_t *data, unsigned size)
     return p;
 }
 
-static int failure(const char *scope, unsigned row, const char *reason, unsigned detail)
+static int failure(const char *scope, unsigned row, const char *reason, unsigned detail, unsigned completed)
 {
-    char line[112], *p = literal(line, "FES_JENT_FAILED scope=");
+    char line[208], *p = literal(line, "FES_JENT_FAILED scope=");
     p = literal(p, scope);
     p = number(literal(p, " row="), row);
     p = literal(literal(p, " reason="), reason);
     p = hex8(literal(p, " detail="), detail);
+    struct fes_jitter_limit limit = fes_nano_jitter_record_limit();
+    if (limit.reason) {
+        p = literal(literal(p, " limit="), limit.reason);
+        p = number(literal(p, " completed="), completed);
+        p = number(literal(p, " reads="), limit.reads);
+        p = number(literal(p, " ticks="), limit.ticks);
+    }
     *p++ = '\n';
     *p = 0;
     (void)send(line);
@@ -149,7 +156,7 @@ static int capture(const char *scope, unsigned rows, unsigned *profile_flags)
     for (unsigned row = 0; row < rows; ++row) {
         int rc = fes_nano_jitter_record_open();
         if (rc)
-            return failure(scope, row, "open", (unsigned)rc);
+            return failure(scope, row, "open", (unsigned)rc, idx);
         for (unsigned n = 0; n < FES_JITTER_CAPTURE_BYTES / rows; ++n) {
             uint64_t delta;
             rc = fes_nano_jitter_record_sample(&delta);
@@ -160,19 +167,19 @@ static int capture(const char *scope, unsigned rows, unsigned *profile_flags)
         }
         int closed = fes_nano_jitter_record_close(&m);
         if (rc)
-            return failure(scope, row, "sample", (unsigned)rc);
+            return failure(scope, row, "sample", (unsigned)rc, idx);
         if (closed || m.status)
-            return failure(scope, row, "close", (unsigned)(closed ? closed : m.status));
+            return failure(scope, row, "close", (unsigned)(closed ? closed : m.status), idx);
         if (m.health)
-            return failure(scope, row, "health", m.health);
+            return failure(scope, row, "health", m.health, idx);
         if (m.reinitializations)
-            return failure(scope, row, "reinitialized", m.reinitializations);
+            return failure(scope, row, "reinitialized", m.reinitializations, idx);
         if (!*profile_flags)
             *profile_flags = m.flags;
         if (m.osr != FES_JITTER_OSR || m.memory_bytes != FES_JITTER_MEMORY_BYTES ||
             m.hash_loops != FES_JITTER_HASH_LOOPS || m.internal_timer ||
             (m.flags & REQUIRED_FLAGS) != REQUIRED_FLAGS || m.flags != *profile_flags)
-            return failure(scope, row, "profile", m.flags);
+            return failure(scope, row, "profile", m.flags, idx);
     }
     return transmit(scope, rows, &m);
 }

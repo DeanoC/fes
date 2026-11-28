@@ -17,7 +17,8 @@ FLAGS = ('-std=c11','-O0','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack
 ARM = ('-mcpu=cortex-a55','-mgeneral-regs-only','-mstrict-align','-mno-outline-atomics',
        '-DAARCH64_NSTIME_REGISTER="cntpct_el0"')
 OPTS = {'seed':['fes_nano_jitter_seed'],
-        'capture':['fes_nano_jitter_record_open','fes_nano_jitter_record_sample','fes_nano_jitter_record_close']}
+        'capture':['fes_nano_jitter_record_open','fes_nano_jitter_record_sample','fes_nano_jitter_record_close',
+                   'fes_nano_jitter_record_limit']}
 PIN = '51ba9f6d26f42259aa145eee0874979df32e1601f8b38e80e66793a633567ba1'
 
 

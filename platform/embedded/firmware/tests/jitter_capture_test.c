@@ -31,6 +31,13 @@ int fes_jitter_putc(int c)
     return putchar(c);
 }
 
+struct fes_jitter_limit fes_nano_jitter_record_limit(void)
+{
+    if (!strcmp(scenario, "sample"))
+        return (struct fes_jitter_limit){"elapsed-time", UINT64_C(480000000000), 14};
+    return (struct fes_jitter_limit){0};
+}
+
 int fes_nano_jitter_record_open(void)
 {
     assert(!open_row);
