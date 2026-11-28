@@ -27,10 +27,10 @@ AUDIO_C = 255
 MODEL_CLOCKS = {
     # 486SX: C0 = 28, 111.904762 MHz (docs/validation/2026-11-28-de25-486sx-clock2), with the
     # eight-cycle presenter re-arm (derive.py). Its PLL IP is byte-identical to the 486DX's at the same C0.
-    # The parent digest is the C0 = 34 one until that clock's generation is reviewed (method.md).
+    # Its generated Qsys parent is byte-identical to the 486DX's reviewed C0 = 28 parent (parent-c28.txt there).
     "486sx": {"c0": 28, "pll_ip": "machine_pll_486sx.ip",
               "pll_ip_sha256": "b6bfea6bab42fc4acd15ec6727204b4a5825e256ef383cd81ad2cad2d66c70a2",
-              "parent_sha256": "fefb39d68d09b2fad37d35be5d2686d557b9f5c8c97d2eb41bbd80400a31f7e7"},
+              "parent_sha256": "0cccfdc88260c9bbde8c5fa1cbfbe1d8d0b689b69808ab7fd912ec42fae12435"},
     # 486DX: C0 = 28, 111.904762 MHz. The reviewed Qsys parent differs
     # from C0 = 34 in the window interconnect's module name.
     "486dx": {"c0": 28, "pll_ip": "machine_pll_486dx.ip",
