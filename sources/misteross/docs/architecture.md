@@ -1699,6 +1699,16 @@ compiled-in absolute prefix and is consumed in place; its ready manifest
 authenticates the complete install/support-file closure, internal links, and
 evidence before any tool path is used.
 
+For a direct `toolchain_cache.request_from_environment` request, the GPU
+router is chosen from the explicit `gpu_router` argument, then
+`FES_TOOLCHAIN_GPU_ROUTER`, then `OFF`. Core producers can pass their chosen
+lane explicitly, so their default need not be the direct request's default.
+An omitted selector does not discover the host's GPU or search another lane.
+Nextpnr lookup and verification errors include the requested `gpu-router`
+alongside the underlying error. Check that lane against the producer's choice
+before interpreting a missing install as cache damage; explicitly request the
+intended lane rather than changing cache contents or accepting another key.
+
 A consumer that resolves an install holds a shared lock on it until the
 process exits and stamps the lock file's mtime as its last use; publishing a
 new install also stamps its lock file's mtime.
