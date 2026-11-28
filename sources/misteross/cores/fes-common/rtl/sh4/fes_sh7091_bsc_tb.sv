@@ -6,7 +6,6 @@ module fes_sh7091_bsc_tb(input logic clk, output logic finished);
     logic selected, rvalid;
     logic [1:0] refresh_irq, sdram_command;
     logic sdram_mode_set, port_enable, power_reset;
-    assign power_reset = reset;
     logic [11:0] sdram_mode_address;
 
     fes_sh7091_bsc dut (.*);
@@ -38,11 +37,14 @@ module fes_sh7091_bsc_tb(input logic clk, output logic finished);
 
     initial begin
         reset = 1;
+        power_reset = 1;
         request = 0;
         bus_tick = 0;
         finished = 0;
         @(negedge clk);
         reset = 0;
+        power_reset = 0;
+        assert (!port_enable);
         read_reg(32'hff80_0000, 32'hc000_0000, 4'hf);
         read_reg(32'hff80_0004, 32'h0000_bffc, 4'h3);
         read_reg(32'hff80_0008, 32'h7777_7777, 4'hf);
@@ -80,7 +82,19 @@ module fes_sh7091_bsc_tb(input logic clk, output logic finished);
         assert (refresh_irq == 2'b11) else $fatal(1, "Writing 1 must preserve BSC timer flags");
         write_reg(32'hff80_001c, 32'h0000_a54b, 4'h3);
         assert (refresh_irq == 0) else $fatal(1, "Writing 0 must clear BSC timer flags");
-        assert (port_enable == dut.bcr2[0]);
+        assert (port_enable);
+        reset = 1;
+        @(negedge clk);
+        reset = 0;
+        read_reg(32'hff80_0004, 32'h8001, 4'h3);
+        assert (port_enable); // The manual reset preserves BCR2.PORTEN.
+        power_reset = 1;
+        reset = 1;
+        @(negedge clk);
+        power_reset = 0;
+        reset = 0;
+        read_reg(32'hff80_0004, 32'hbffc, 4'h3);
+        assert (!port_enable);
         finished = 1;
     end
 endmodule
