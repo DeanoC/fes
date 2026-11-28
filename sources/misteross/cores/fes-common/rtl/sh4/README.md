@@ -197,6 +197,16 @@ interleaves the marked writes. An adapter can use the marker and beat
 address to assemble a native 32-byte transaction. Software must initialize
 the queue contents before publishing them.
 
+## On-chip register aliases
+
+Uncached TLB mappings into physical addresses `0x1f000000–0x1fffffff`
+reach the corresponding control register addresses in P4. The TLB
+controls access to the mapped page, including user-mode access.
+The alias and direct P4 paths share the CCR, QACR, event and MMU
+registers. Other mapped control-register requests reach the bus at
+their canonical P4 addresses. An invalid alias access records its
+original virtual address in TEA.
+
 ## Exception entry and return
 
 TLB misses enter at VBR + 0x400. Address errors, illegal instructions, TLB
@@ -227,7 +237,7 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 
 The remaining floating-point, integer and privileged instructions, interrupt
 source arbitration and peripherals, standby power controls,
-area-7 MMU register aliases, board buses and PTEA PCMCIA
+board buses and PTEA PCMCIA
 behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.

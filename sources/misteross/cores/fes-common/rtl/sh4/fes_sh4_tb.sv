@@ -1319,6 +1319,72 @@ module fes_sh4_tb;
                 dut.fpu_regs.fr_odd[1] == 'h1122_5a44)
             else $fatal(1, "Operand RAM bank selection, byte mask, paired data or MMU bypass failed");
 
+        // Area 7 register aliases use the UTLB's permissions and preserve
+        // the original virtual address on an invalid access.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h40);
+        emit('h02, 'h412b);
+        emit('h04, 'h0009);
+        image['h40 >> 2] = 'ha000_0200;
+        literal('h200, 1, 'h300);
+        literal('h202, 2, 'h304);
+        emit('h204, 'h2122); // PTEH selects VA 0x1000.
+        literal('h206, 3, 'h308);
+        emit('h208, 'h1131); // PTEL maps physical 0x1f000000, uncached.
+        emit('h20a, 'h0038);
+        literal('h20c, 2, 'h30c);
+        emit('h20e, 'h1124); // MMUCR.URC=1 for the second entry.
+        emit('h210, 'he200);
+        emit('h212, 'h2122);
+        literal('h214, 3, 'h310);
+        emit('h216, 'h1131); // Executable P0 page with user access.
+        emit('h218, 'h0038);
+        emit('h21a, 'he201);
+        emit('h21c, 'h1124); // Enable translation.
+        literal('h21e, 8, 'h314);
+        literal('h220, 9, 'h318);
+        literal('h222, 10, 'h31c);
+        literal('h224, 11, 'h320);
+        literal('h226, 12, 'h324);
+        emit('h228, 'h4c2b);
+        emit('h22a, 'h0009);
+        emit('h80, 'h6d82);
+        literal('h82, 14, 'hc0);
+        emit('h84, 'h28e2); // Write CCR through the alias.
+        emit('h86, 'h6eb2); // Read CCR directly.
+        emit('h88, 'he510);
+        emit('h8a, 'h2952); // Write QACR0 through the alias.
+        emit('h8c, 'h6fa2); // Read QACR0 directly.
+        literal('h8e, 12, 'hc4);
+        emit('h90, 'h4c0e); // Enter user mode with synchronous faults blocked.
+        emit('h92, 'h6582);
+        emit('h94, 'h6692);
+        literal('h96, 0, 'hc8);
+        literal('h98, 1, 'hcc);
+        emit('h9a, 'h2012); // Access TTB from user mode via its mapping.
+        emit('h9c, 'h6202);
+        emit('h9e, 'h6780); // Byte access to CCR must report an address error.
+        image['hc0 >> 2] = 'h0000_0183;
+        image['hc4 >> 2] = 'h1000_0000;
+        image['hc8 >> 2] = 'h1008;
+        image['hcc >> 2] = 'h1234_0000;
+        image['h300 >> 2] = 'hff00_0000;
+        image['h304 >> 2] = 'h1000;
+        image['h308 >> 2] = 'h1f00_0174;
+        image['h30c >> 2] = 'h400;
+        image['h310 >> 2] = 'h0000_017c;
+        image['h314 >> 2] = 'h101c;
+        image['h318 >> 2] = 'h1038;
+        image['h31c >> 2] = 'hff00_0038;
+        image['h320 >> 2] = 'hff00_001c;
+        image['h324 >> 2] = 'h80;
+        start_bus();
+        expect_stop(9, 'h9e);
+        assert (dut.gpr[13] == 'h0103 && dut.gpr[14] == 'h0183 && dut.gpr[15] == 'h10 &&
+                dut.gpr[5] == 'h0183 && dut.gpr[6] == 'h10 && dut.gpr[2] == 'h1234_0000 &&
+                dut.mmu.tea == 'h101c)
+            else $fatal(1, "Area 7 aliases, U0 privilege or virtual TEA failed");
+
         // Write executable data to the instruction cache. The first
         // call hits the injected line, and the second reads external RAM
         // after an associative invalidation.
@@ -2010,12 +2076,12 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
         $finish;
     end
 
     initial begin
-        #320000;
+        #340000;
         $fatal(1, "Timed out at PC %h (last retirement %h, fault %d at %h)",
                dut.pc, retired_pc, fault, fault_pc);
     end

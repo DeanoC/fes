@@ -102,7 +102,8 @@ module fes_sh4 #(
     logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
     logic [31:2] data_addr;
     logic [13:2] data_index, dc_index;
-    logic data_va25, operand_ram;
+    logic data_va25, operand_ram, area7_access;
+    logic [31:2] area7_virtual_addr;
     logic [7:0] bus_ic_index;
     logic cache_array, ic_array, cache_data_array, cache_assoc, ic_array_active, cache_array_barrier;
     logic ic_array_ready, ic_array_complete;
@@ -691,7 +692,7 @@ module fes_sh4 #(
                 (sq_region && (!sq_store && op != PREF || (!mmu_enabled && !supervisor && sqmd))))) begin
                 exception_cause = ADDRESS_ERROR;
                 address_exception = 1'b1;
-                fault_address = {data_addr, data_addr_lane};
+                fault_address = {area7_access ? area7_virtual_addr : data_addr, data_addr_lane};
             end
             DATA_TLB_WAIT: if (mmu_response && !plain_prefetch) begin
                 exception_cause = cache_assoc && mmu_fault != TLB_MULTIPLE ? 4'b0 : mmu_fault;
@@ -756,7 +757,7 @@ module fes_sh4 #(
     assign sq_store = ordinary_store && (size inside {LONGWORD, QUADWORD});
     assign sq_request = stage == SQ_SEND;
     assign mem_sq = bus_sq;
-    assign bad_data_region = !supervisor && data_addr[31] && !sq_region;
+    assign bad_data_region = !supervisor && data_addr[31] && !sq_region && !area7_access;
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
     assign data_mapped = mmu_enabled && !operand_ram && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
     assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
@@ -1045,6 +1046,7 @@ module fes_sh4 #(
                     fp_second <= 1'b0;
                     if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance || op == PREF) begin
                         data_addr <= effective_addr[31:2];
+                        area7_access <= 0;
                         data_index <= effective_addr[13:2];
                         data_va25 <= effective_addr[25];
                         data_addr_lane <= effective_addr[1:0];
@@ -1163,6 +1165,7 @@ module fes_sh4 #(
                     if (!mac_second) begin
                         a <= wb_value;
                         {data_addr, data_addr_lane} <= mac_second_addr;
+                        area7_access <= 0;
                         data_index <= mac_second_addr[13:2];
                         data_va25 <= mac_second_addr[25];
                         offset <= mac_second_addr + (32'd1 << size);
@@ -1253,6 +1256,13 @@ module fes_sh4 #(
                         stage <= SQ_ACCESS;
                     end else if (plain_prefetch && (mmu_fault != 0 || !mmu_cacheable)) begin
                         stage <= COMMIT;
+                    end else if (mmu_pa[28:24] == 5'h1f && !mmu_cacheable) begin
+                        // An uncached mapping into area 7 can reach the P4
+                        // control registers with the privileges of that page.
+                        area7_access <= 1;
+                        area7_virtual_addr <= data_addr;
+                        data_addr <= {3'b111, mmu_pa[28:2]};
+                        stage <= DATA_TRANSLATE;
                     end else begin
                         data_addr <= mmu_pa[31:2];
                         data_cacheable <= oc_enable && op != TAS && mmu_cacheable;
