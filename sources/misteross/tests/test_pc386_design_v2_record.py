@@ -50,7 +50,7 @@ class DesignV2RecordTests(unittest.TestCase):
         cls.source = cls.repo / 'sources/misteross'
         cls.source.mkdir(parents=True)
         paths = set(seal.PINNED_INPUTS) | source_closure.imports("pc386_quartus", ROOT)
-        paths |= {'scripts/source_closure.py', 'scripts/bootstrap.sh', 'scripts/toolchain_cache.py'}
+        paths |= {'scripts/source_closure.py', 'scripts/bootstrap.sh', *source_closure.TOOLCHAIN_RECIPE_FILES}
         for path in sorted(paths):
             target = cls.source / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -83,6 +83,16 @@ class DesignV2RecordTests(unittest.TestCase):
             change(root)
             subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
             return self.record(root)
+
+    def test_cache_coordinator_edits_do_not_move_pc386_producer_identity(self):
+        self.assertNotIn('scripts/bootstrap.sh', self.base['source_inputs'])
+        coordinator = self.edited(lambda root: append(root / 'scripts/bootstrap.sh', '\n# cache maintenance\n'))
+        self.assertEqual(self.base['identities'], coordinator['identities'])
+        for path in ('scripts/bootstrap-build.sh', 'scripts/bootstrap-build.py', 'scripts/lockfile.py'):
+            with self.subTest(path=path):
+                changed = self.edited(lambda root: append(root / path, '\n# build input\n'))
+                self.assertEqual(self.base['identities']['design'], changed['identities']['design'])
+                self.assertNotEqual(self.base['identities']['toolchain'], changed['identities']['toolchain'])
 
     def test_the_producer_writes_a_design_v2_record_that_binds_the_rom_hex(self):
         parameters = self.base['parameters']

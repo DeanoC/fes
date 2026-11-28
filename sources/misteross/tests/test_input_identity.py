@@ -1,6 +1,10 @@
 import copy
 import json
+import shutil
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from scripts import export_core_package as exporter
 from scripts import build_fes_pcxt_quartus as pcxt_quartus
@@ -46,6 +50,58 @@ class InputIdentityTests(unittest.TestCase):
             after = with_identities(after)
             self.assertEqual(before['identities']['design'], after['identities']['design'], key)
             self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'], key)
+
+    def test_cache_coordinator_edit_is_outside_producer_identity(self):
+        from scripts.source_closure import load_manifest
+        actual_root = Path(__file__).resolve().parents[1]
+        recipe_files = ('scripts/bootstrap-build.py', 'scripts/bootstrap-build.sh',
+                        'scripts/lockfile.py', 'scripts/toolchain_cache.py')
+        # Use the actual registered producer closure, not a hand-created list.
+        roots = load_manifest()['build_fes_pong']
+        self.assertTrue(all(path in roots for path in recipe_files))
+        self.assertNotIn('scripts/bootstrap.sh', roots)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'scripts').mkdir()
+            for name in (*recipe_files, 'scripts/bootstrap.sh'):
+                shutil.copy2(actual_root / name, root / name)
+            subprocess.run(['git', '-C', str(root), 'init', '-q'], check=True)
+            subprocess.run(['git', '-C', str(root), 'add', 'scripts'], check=True)
+            def record():
+                result = fields()
+                result['source_inputs'] = exporter.source_input_closure(root, list(recipe_files))
+                return with_identities(result)
+            before = record()
+            coordinator = root / 'scripts/bootstrap.sh'
+            coordinator.write_text(coordinator.read_text().replace(
+                '==> leaving %s build leftovers', '==> deferring %s build leftovers'))
+            self.assertEqual(before['identities'], record()['identities'])
+            for name in ('scripts/bootstrap-build.sh', 'scripts/bootstrap-build.py', 'scripts/lockfile.py'):
+                path = root / name
+                original = path.read_text()
+                path.write_text(original + '\n# changed build input\n')
+                after = record()
+                self.assertEqual(before['identities']['design'], after['identities']['design'])
+                self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'], name)
+                path.write_text(original)
+
+    def test_broad_and_historical_closures_keep_coordinator_toolchain_role(self):
+        # Existing v1/v2 records must retain the role of their recorded path.
+        # Broad fallback still intentionally includes it, so its toolchain
+        # identity moves on a coordinator edit until that closure is audited.
+        for policy in ('design-v1', 'design-v2'):
+            before = fields()
+            before['source_inputs']['scripts/bootstrap.sh'] = '0' * 64
+            if policy == 'design-v2':
+                before['source_inputs'] = {k: v for k, v in before['source_inputs'].items()
+                                           if k not in ('scripts/build_pc386_firmware.py',
+                                                        'cores/fes-pc386/firmware/firmware.lock')}
+            before = with_identities(before, policy=policy)
+            after = copy.deepcopy(before)
+            after['source_inputs']['scripts/bootstrap.sh'] = '1' * 64
+            after = with_identities(after, policy=policy)
+            self.assertEqual(before['identities']['design'], after['identities']['design'])
+            self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'])
 
     def test_pc386_evidence_and_capture_roles_do_not_hide_design_inputs(self):
         before = self.record()

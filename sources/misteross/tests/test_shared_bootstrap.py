@@ -28,7 +28,7 @@ def _prepare_fixture(
 ) -> Path:
     scripts = root / "scripts"
     scripts.mkdir(parents=True)
-    for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
+    for name in ("bootstrap.sh", "bootstrap-build.sh", "bootstrap-build.py", "lockfile.py", "toolchain_cache.py"):
         shutil.copy2(ROOT / "scripts" / name, scripts / name)
     (scripts / "bootstrap.sh").chmod(0o755)
     shutil.copy2(ROOT / "toolchain.lock", root / "toolchain.lock")
@@ -322,7 +322,7 @@ exec "$(dirname "$0")/git-tools" "$@"
 
 def _snapshot_ref(refs: Path, ref: str, checkout: Path) -> None:
     """Record *checkout*'s lock and bootstrap.sh as *ref*'s committed tree."""
-    for name in ("toolchain.lock", "scripts/bootstrap.sh"):
+    for name in ("toolchain.lock", "scripts/bootstrap.sh", "scripts/bootstrap-build.sh", "scripts/bootstrap-build.py", "scripts/lockfile.py"):
         target = refs / ref.replace("/", "-") / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(checkout / name, target)
@@ -440,6 +440,110 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             # No tool links against another's install, so builds get no
             # library search path.
             self.assertTrue(all("LD_LIBRARY_PATH=" not in snapshot for snapshot in builds))
+
+    def test_keyed_driver_ignores_bash_startup_hooks_and_exported_functions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            fake_bin = _prepare_fixture(root, base / "child.log")
+            marker = base / "hook-ran"
+            hook = base / "bash-env"
+            hook.write_text(f"printf hook > '{marker}'\n", encoding="utf-8")
+            environment = {"PATH": f"{fake_bin}:{os.environ['PATH']}", "HOME": str(base),
+                           "BASH_ENV": str(hook), "ENV": str(hook),
+                           "BASH_FUNC_install%%": f"() {{ printf fn > '{marker}'; }}"}
+            result = subprocess.run([str(root / "scripts/bootstrap-build.py"), "--help"],
+                                    cwd=root, env=environment, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(marker.exists(), "coordinator startup hook ran in keyed driver")
+
+    def test_cache_coordinator_maintenance_edit_reuses_real_shared_installs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root, cache, log = base / "checkout", base / "cache", base / "build.log"
+            fake_bin = _prepare_fixture(root, log)
+            environment = {"PATH": f"{fake_bin}:{os.environ['PATH']}", "HOME": str(base),
+                           "USER": "test", "FES_TOOLCHAIN_CACHE_ROOT": str(cache)}
+            first = subprocess.run([str(root / "scripts/bootstrap.sh")], cwd=root,
+                                   env=environment, text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            before = _plan(root, root / "toolchain.lock", cache, environment)
+            wrapper = root / "scripts/bootstrap.sh"
+            text = wrapper.read_text()
+            changed = text.replace("==> shared %s install hit", "==> shared %s cache hit")
+            self.assertNotEqual(text, changed)
+            wrapper.write_text(changed)
+            second = subprocess.run([str(wrapper)], cwd=root, env=environment,
+                                    text=True, capture_output=True)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(before, _plan(root, root / "toolchain.lock", cache, environment))
+            # A consuming producer need not use the provisioning job count,
+            # HOME, TMPDIR or an unrelated additional PATH entry.
+            other_home = base / "other-home"
+            other_home.mkdir()
+            other_tmp = base / "other-tmp"
+            other_tmp.mkdir()
+            empty_bin = base / "empty-bin"
+            empty_bin.mkdir()
+            consumer_env = dict(environment, HOME=str(other_home), TMPDIR=str(other_tmp),
+                                JOBS="1", PATH=f"{empty_bin}:{environment['PATH']}")
+            self.assertEqual(before, _plan(root, root / "toolchain.lock", cache, consumer_env))
+            consumer = subprocess.run([sys.executable, str(root / "scripts/toolchain_cache.py"),
+                                       "--root", str(root), "--lock", str(root / "toolchain.lock"),
+                                       "--cache", str(cache), "verify"], cwd=root, env=consumer_env,
+                                      text=True, capture_output=True)
+            self.assertEqual(consumer.returncode, 0, consumer.stderr)
+            self.assertNotIn("==> building ", second.stdout)
+            for tool in TOOLS:
+                self.assertIn(f"shared {tool} cache hit", second.stdout)
+
+    def test_shared_driver_rejects_path_change_after_cache_plan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root, cache, log = base / "checkout", base / "cache", base / "build.log"
+            fake_bin = _prepare_fixture(root, log)
+            injected = base / "injected"
+            injected.mkdir()
+            marker = base / "install-ran"
+            _write_executable(injected / "install", f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo injected; exit 0; fi\nprintf invoked > '{marker}'\nexit 99\n")
+            environment = {"PATH": f"{fake_bin}:{os.environ['PATH']}", "HOME": str(base),
+                           "USER": "test", "FES_TOOLCHAIN_CACHE_ROOT": str(cache)}
+            wrapper = root / "scripts/bootstrap.sh"
+            text = wrapper.read_text()
+            anchor = '    "$SCRIPT_DIR/bootstrap-build.py" --shared-build-tool'
+            self.assertIn(anchor, text)
+            text = text.replace(anchor, f'    export PATH="{injected}:$PATH"\n' + anchor, 1)
+            wrapper.write_text(text)
+            result = subprocess.run([str(wrapper)], cwd=root, env=environment,
+                                    text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("build key does not match", result.stderr)
+            self.assertFalse(marker.exists(), "unplanned install command executed")
+            self.assertFalse(list(cache.rglob("ready.json")))
+
+    def test_coordinator_cannot_seed_or_relabel_a_shared_build(self):
+        for stage in ("seed", "mutate"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                root, cache, log = base / "checkout", base / "cache", base / "build.log"
+                fake_bin = _prepare_fixture(root, log)
+                environment = {"PATH": f"{fake_bin}:{os.environ['PATH']}", "HOME": str(base),
+                               "USER": "test", "FES_TOOLCHAIN_CACHE_ROOT": str(cache)}
+                wrapper = root / "scripts/bootstrap.sh"
+                text = wrapper.read_text()
+                if stage == "seed":
+                    anchor = '    "$SCRIPT_DIR/bootstrap-build.py" --shared-build-tool'
+                    text = text.replace(anchor, '    touch "$directory/build/seeded"\n' + anchor, 1)
+                else:
+                    anchor = '    run_cache_helper --tool "$tool" --expect-key "$key" verify >/dev/null ||\n        die "shared $tool freshly published install failed verification"'
+                    text = text.replace(anchor, '    chmod u+w "$directory/install/bin/yosys"\n'
+                                        '    printf corrupt >"$directory/install/bin/yosys"\n' + anchor, 1)
+                self.assertIn('"$directory/', text)
+                wrapper.write_text(text)
+                result = subprocess.run([str(wrapper)], cwd=root, env=environment,
+                                        text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("directory is not empty" if stage == "seed" else "closure differs", result.stderr)
 
     def test_fresh_per_core_installs_provision_when_repo_is_exported(self):
         coleco_commit = "5391eeb1e91b38a3d0e96d04f24cf921743c9c78"
@@ -648,7 +752,7 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             fake_bin = _prepare_fixture(root_a, log)
             scripts = root_b / "scripts"
             scripts.mkdir(parents=True)
-            for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
+            for name in ("bootstrap.sh", "bootstrap-build.sh", "bootstrap-build.py", "lockfile.py", "toolchain_cache.py"):
                 shutil.copy2(ROOT / "scripts" / name, scripts / name)
             (scripts / "bootstrap.sh").chmod(0o755)
             shutil.copy2(ROOT / "toolchain.lock", root_b / "toolchain.lock")
@@ -804,16 +908,17 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
             }
             bootstrap = root / "scripts" / "bootstrap.sh"
-            recipe = bootstrap.read_text(encoding="utf-8")
+            driver = root / "scripts" / "bootstrap-build.sh"
+            recipe = driver.read_text(encoding="utf-8")
             _snapshot_ref(refs, "origin/main", root)
-            # Installs from a bootstrap.sh no ref carries: nothing pins them.
-            bootstrap.write_text(recipe + "# an abandoned recipe\n", encoding="utf-8")
+            # A build driver no ref carries: nothing pins its installs.
+            driver.write_text(recipe + "# an abandoned recipe\n", encoding="utf-8")
             first = subprocess.run([str(bootstrap)], cwd=root, env=environment, text=True, capture_output=True)
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             stale = [paths[0].parent for paths in _ready_installs(cache).values()]
             self.assertEqual(len(stale), len(TOOLS))
 
-            bootstrap.write_text(recipe + "# the branch's recipe\n", encoding="utf-8")
+            driver.write_text(recipe + "# the branch's recipe\n", encoding="utf-8")
             _snapshot_ref(refs, "HEAD", root)
             keys = _plan(root, root / "toolchain.lock", cache, environment)
             built = subprocess.run(
@@ -879,3 +984,14 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("per-install build lock", result.stderr)
+            # An open descriptor is not enough: the keyed driver must have
+            # inherited the exclusive lock on this exact tool's lock file.
+            key = _plan(root, root / "toolchain.lock", cache, environment)["yosys"]
+            lock_path = cache / "locks" / (key + ".lock")
+            with lock_path.open('rb') as lock:
+                unlocked = subprocess.run(
+                    [str(root / 'scripts/bootstrap-build.py'), '--shared-build-tool',
+                     'yosys', key, str(lock.fileno())], cwd=root, env=environment,
+                    pass_fds=(lock.fileno(),), text=True, capture_output=True)
+            self.assertNotEqual(unlocked.returncode, 0)
+            self.assertIn('build lock is not held', unlocked.stderr)

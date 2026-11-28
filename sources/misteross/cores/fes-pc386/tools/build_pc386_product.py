@@ -225,9 +225,9 @@ def create_build_record(root: Path, repository: str, revision: str, identities: 
     if q["seeds"] != [_check_seed(seed)]:
         raise board.BuildError("selected pc386 seed differs from its recipe")
     backend, _, configuration = gpu_choice(gpu_router)
+    from scripts.source_closure import TOOLCHAIN_RECIPE_FILES
     paths = sorted(set(PINNED_INPUTS) | script_imports(root)
-                   | {"scripts/source_closure.py",
-                      "scripts/bootstrap.sh", "scripts/toolchain_cache.py"})
+                   | {"scripts/source_closure.py", *TOOLCHAIN_RECIPE_FILES})
     inputs = source_input_closure(root, paths)
     qsf = project_qsf(root, root / OUTPUT / "project", "0" * 32, seed, threads=q["threads"])
     recipe_choices = {key: value for key, value in q.items() if key not in ("version", "threads")}

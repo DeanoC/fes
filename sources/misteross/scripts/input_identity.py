@@ -53,7 +53,7 @@ PACKAGING_INPUTS = frozenset({
     'boards/de25nano/scanout/async_inputs.py',
 })
 TOOLCHAIN_INPUTS = frozenset({
-    'scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py',
+    'scripts/bootstrap.sh', 'scripts/bootstrap-build.sh', 'scripts/bootstrap-build.py', 'scripts/lockfile.py', 'scripts/toolchain_cache.py',
     'scripts/functional_execution.py', 'scripts/compiler_read_audit.py',
     'scripts/quartus_tools.py',
     # Captures execution identity only; the sealer constructs the environment.

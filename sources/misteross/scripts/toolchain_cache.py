@@ -5,10 +5,10 @@ The cache holds one install per tool, commit and build configuration under
 ``<cache>/tools/<tool>/<key>``. A lock does not own a slot: it resolves to the
 installs of the five tools it pins, so locks that pin the same Yosys share one
 Yosys install. The key reads each pin's repo and commit, the complete shared
-bootstrap script, the host and the compiler inventory; only nextpnr adds the
-GPU lane and the Mistral pin it compiles against. The whole bootstrap script
+build driver, the host and the compiler inventory; only nextpnr adds the
+GPU lane and the Mistral pin it compiles against. The complete build driver
 is keyed because its shared checkout and build-environment helpers affect
-every tool.
+every tool; the separate cache coordinator is not a build recipe.
 
 This module does not build tools; bootstrap owns that. It owns the stable
 paths, the ready.json contract consumed by bootstrap and the authenticated
@@ -178,7 +178,7 @@ class ToolchainRequest:
     compiler_identity: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     environment: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     # The recipe whose build_<tool> functions key each install; defaults to
-    # scripts/bootstrap.sh below ``root``.
+    # scripts/bootstrap-build.sh below ``root``.
     bootstrap_path: Path | None = None
 
 
@@ -348,7 +348,7 @@ def configuration_text(configuration: Mapping[str, Any]) -> str:
 
 
 def tool_recipe(text: str, tool: str) -> str:
-    """Return bootstrap.sh's ``build_<tool>`` function, the tool's build recipe."""
+    """Return the build driver's ``build_<tool>`` function."""
 
     _check_tool(tool)
     match = re.search(rf"^build_{tool}\(\) \{{\n.*?^\}}\n", text, re.MULTILINE | re.DOTALL)
@@ -357,18 +357,35 @@ def tool_recipe(text: str, tool: str) -> str:
     return match.group(0)
 
 
+def _build_recipe_digest(driver: str, launcher: str, lockfile: str) -> str:
+    return _sha256_bytes(_canonical({"format": "separate-build-driver-v1", "driver": driver,
+                                     "launcher": launcher, "lockfile": lockfile}))
+
+
 def _recipe_digest(request: ToolchainRequest, tool: str) -> str:
-    path = Path(request.bootstrap_path) if request.bootstrap_path else request.root / "scripts" / "bootstrap.sh"
+    path = Path(request.bootstrap_path) if request.bootstrap_path else request.root / "scripts" / "bootstrap-build.sh"
     _regular_file(path, "bootstrap recipe")
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise CacheError(f"cannot read bootstrap recipe {path}: {exc}") from exc
-    # Validate the selected entry point, then key the complete driver. Shared
-    # checkout, environment preparation, and build orchestration helpers are
-    # part of every install's output identity too.
+    # Hash the complete build driver and its isolated launcher.  The launcher
+    # removes Bash startup hooks before the driver can execute any shell code.
+    # Cache coordination is outside this contract and does not build tools.
     tool_recipe(text, tool)
-    return _sha256_bytes(text.encode("utf-8"))
+    launcher = request.root / "scripts" / "bootstrap-build.py"
+    _regular_file(launcher, "bootstrap build launcher")
+    try:
+        launcher_text = launcher.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise CacheError(f"cannot read bootstrap build launcher {launcher}: {exc}") from exc
+    lockfile = request.root / "scripts" / "lockfile.py"
+    _regular_file(lockfile, "bootstrap lockfile reader")
+    try:
+        lockfile_text = lockfile.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise CacheError(f"cannot read bootstrap lockfile reader {lockfile}: {exc}") from exc
+    return _build_recipe_digest(text, launcher_text, lockfile_text)
 
 
 def _base_compiler(compiler: Mapping[str, Any]) -> dict[str, Any]:
@@ -413,7 +430,7 @@ def _build_identity(
 def build_identity(request: ToolchainRequest, tool: str) -> dict[str, Any]:
     """Return everything that selects *tool*'s install for *request*.
 
-    That is the tool's pin, the complete shared bootstrap script, the host
+    That is the tool's pin, the complete build driver, the host
     and the compiler inventory. Only nextpnr adds the GPU lane, the
     accelerator compiler and backend environment, and the Mistral pin it
     compiles against. The lock's other text never enters it.
@@ -1258,9 +1275,8 @@ def compiler_inventory(
     """Probe required build commands and the selected accelerator compiler."""
 
     router = str(gpu_router or DEFAULT_GPU_ROUTER).upper()
-    probe_environment = _controlled_probe_environment(
-        dict(os.environ if environment is None else environment), router
-    )
+    original_environment = dict(os.environ if environment is None else environment)
+    probe_environment = _controlled_probe_environment(original_environment, router)
     commands = {
         name: _command_identity(name, environment=probe_environment)
         for name in (
@@ -1278,8 +1294,15 @@ def compiler_inventory(
             "flex",
             "bison",
             "help2man",
+            # The keyed driver invokes these directly. Their identities must
+            # follow PATH changes made between planning and actual execution.
+            "install", "find", "mkdir", "tee", "sha256sum",
+            "sed", "grep", "sort", "cut", "tr", "head", "dirname",
+            "rm", "cp", "mv", "chmod", "ln", "ar", "ranlib", "as", "ld", "strip", "env",
         )
     }
+    # The isolated launcher invokes /bin/bash directly, independent of PATH.
+    commands["bash"] = _command_identity("/bin/bash", environment=probe_environment)
     accelerator = _LANE_ACCELERATOR_COMMAND.get(router)
     if accelerator is not None:
         command_name, command_args = accelerator
@@ -2027,13 +2050,22 @@ def referenced_pins(root: Path, ref: str) -> set[tuple[str, bytes]]:
 
 
 def referenced_recipe(root: Path, ref: str) -> str:
-    """Return the recipe digest installs built from *ref*'s bootstrap.sh carry."""
+    """Return the recipe digest installs built from *ref*'s build driver carry."""
 
     root = Path(root).resolve()
     top = Path(_git(root, "rev-parse", "--show-toplevel").strip())
     prefix = root.relative_to(top).as_posix()
-    name = f"{prefix}/scripts/bootstrap.sh" if prefix and prefix != "." else "scripts/bootstrap.sh"
-    return _sha256_bytes(_git(top, "show", f"{ref}:{name}").encode("utf-8"))
+    directory = f"{prefix}/scripts" if prefix and prefix != "." else "scripts"
+    build_name = f"{directory}/bootstrap-build.sh"
+    # Older committed refs used the complete bootstrap as their build driver.
+    # Read that historic file for pruning older installs, not the worktree.
+    entries = _git(top, "ls-tree", "-r", "--name-only", ref, "--", build_name).splitlines()
+    if build_name in entries:
+        launcher_name = f"{directory}/bootstrap-build.py"
+        return _build_recipe_digest(_git(top, "show", f"{ref}:{build_name}"),
+                                    _git(top, "show", f"{ref}:{launcher_name}"),
+                                    _git(top, "show", f"{ref}:{directory}/lockfile.py"))
+    return _sha256_bytes(_git(top, "show", f"{ref}:{directory}/bootstrap.sh").encode("utf-8"))
 
 
 def referenced_binary_pins(root: Path, ref: str) -> set[tuple[str, str, str]]:
@@ -2641,7 +2673,7 @@ def _load_request_arguments(argv: list[str]):
     parser.add_argument("--hip-architectures", default=None)
     parser.add_argument("--cuda-architectures", default=None)
     parser.add_argument("--tool", choices=TOOLS, help="act on one tool's install (verify, stage-evidence, publish)")
-    parser.add_argument("command", choices=("init", "plan", "verify", "stage-evidence", "publish"))
+    parser.add_argument("command", choices=("init", "plan", "verify", "assert-build-lock", "stage-evidence", "publish"))
     parser.add_argument("--build-root", type=Path)
     parser.add_argument("--format", choices=("json", "lines"), default="json")
     parser.add_argument("--expect-key", help="require the recomputed --tool key to match this value")
@@ -2743,6 +2775,10 @@ def _main(argv: list[str]) -> int:
         if args.command == "init":
             for tool in selected:
                 ensure_lock_file(request, tool)
+        elif args.command == "assert-build-lock":
+            if args.tool is None or args.lock_fd is None:
+                raise CacheError("assert-build-lock requires --tool and --lock-fd")
+            assert_external_lock(lock_path(request, args.tool), args.lock_fd)
         elif args.command == "plan":
             keys = tool_keys(request)
             root = _absolute(Path(request.cache_root), "cache root")
