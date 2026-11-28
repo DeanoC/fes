@@ -16,6 +16,16 @@ including corresponding instruction addresses in aliases of that index. P2 and
 P4 instruction reads bypass the cache and issue only when the CPU needs the
 instruction.
 
+The 16 KiB direct-mapped data cache uses 512 lines of 32 bytes, synchronous
+M20K data and tag arrays, and a separate valid bit per line. Loads allocate on
+a miss. Stores write through to the external bus with the original byte
+strobes. On a hit they update the selected cache bytes, and a store miss
+writes without allocating. An uncached or differently tagged store invalidates
+the matching index to cover address aliases. P2 and P4 data accesses bypass
+the cache. The execution pipeline waits for a load result or for the external
+bus to accept the store. Data traffic and instruction refills share the
+registered, single-outstanding bus.
+
 The [Renesas SH-4 software manual](https://www.renesas.com/en/document/mas/sh-4-software-manual?r=1055166)
 defines instruction encodings and behavior. The implemented slice includes:
 
@@ -28,8 +38,9 @@ defines instruction encodings and behavior. The implemented slice includes:
   target are captured before the delay slot executes.
 
 FPU, remaining integer instructions, privileged state, exception entry,
-interrupts, the data cache, software cache controls, MMU and board buses are later work. The core exposes sticky
-diagnostic faults until reset. Fault codes 1 through 4 indicate an unsupported
+interrupts, copy-back mode, software cache controls, MMU and board buses are
+later work. The core exposes sticky diagnostic faults until reset. Fault codes
+1 through 4 indicate an unsupported
 opcode, a prohibited delay-slot instruction, an unaligned fetch, and an
 unaligned data access. `fault_pc` identifies the offending instruction address,
 or the attempted fetch address for an unaligned fetch. General registers have
@@ -43,10 +54,11 @@ per little-endian byte lane. A read returns exactly one `mem_rvalid` pulse at
 least one cycle after acceptance. The core holds its request while stalled and
 has at most one outstanding read. Already accepted instruction reads can
 complete after a redirect or diagnostic fault. Cacheable executable memory
-must permit speculative reads and whole-line fills. External writers must reset
-the core before execution resumes to invalidate cached instructions and flush
-the surrounding memory interface. The core presents architectural addresses
-as issued, including the default reset address `0xa0000000`.
+must permit speculation. All cacheable memory must permit whole-line fills.
+External writers must reset the core before execution resumes to invalidate
+both caches and flush outstanding reads in the surrounding memory interface.
+The core presents architectural addresses as issued, including the default reset
+address `0xa0000000`.
 
 The diagnostic top resets to address zero and exposes a host-side word loader
 while reset is asserted. It uses four synchronous byte banks for a 2 KiB
@@ -65,8 +77,12 @@ make -C sources/misteross/cores/fes-common/rtl/sh4 fit QUARTUS_ROOTDIR=/data/alt
 The Verilator test runs hand-encoded integer code against the synchronous RAM
 and a memory model that stalls requests and delays read responses. It checks
 warm-hit retirement cadence, cache conflicts, abandoned fills, instruction
-stores, uncached fetches, and fault retirement and restart. The Quartus Pro build uses the shared
-builder lease and leaves reports under `out/sh4/fit/output_files`. It targets
+stores, uncached fetches, and fault retirement and restart. The operand cache
+test checks warm hits, partial writes, conflict refills, an uncached alias
+read and write, and a cold store that leaves the line unallocated.
+
+The Quartus Pro build uses the shared builder lease and leaves reports under
+`out/sh4/fit/output_files`. It targets
 the DE25-Nano part at 200 MHz. The clock is the only physical port in the
 virtual-pin project. The fit and timing reports cover internal logic and RAM.
 Pinout, programming and on-board behavior require a board-level design.

@@ -9,12 +9,14 @@ module fes_sh4_tb;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [2:0] fault, bram_fault;
     logic [3:0] wstrb;
-    logic [31:0] image [0:4095];
-    logic [31:0] ext_mem [0:4095];
+    logic [31:0] image [0:8191];
+    logic [31:0] ext_mem [0:8191];
     int cycle, latency;
     logic held;
     logic [67:0] held_request;
     int retire_count, read_count, previous_retire_cycle;
+    int resident_reads, conflict_reads, cold_store_line_reads, alias_reads;
+    logic check_data_cache = 0;
     logic cache_cancel_done;
 
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
@@ -43,6 +45,10 @@ module fes_sh4_tb;
             held <= 0;
             retire_count <= 0;
             read_count <= 0;
+            resident_reads <= 0;
+            conflict_reads <= 0;
+            cold_store_line_reads <= 0;
+            alias_reads <= 0;
             previous_retire_cycle <= 0;
         end else begin
             cycle <= cycle + 1;
@@ -67,16 +73,26 @@ module fes_sh4_tb;
                 rvalid <= latency == 1;
             end
             if (valid && ready) begin
-                assert (latency == 0 && addr[1:0] == 0 && addr[28:14] == 0)
+                assert (latency == 0 && addr[1:0] == 0 && addr[28:15] == 0)
                     else $fatal(1, "Unexpected memory request at %h", addr);
                 if (wstrb == 0) begin
-                    rdata <= ext_mem[addr[13:2]];
+                    rdata <= ext_mem[addr[14:2]];
                     read_count <= read_count + 1;
+                    case (addr & 32'hffff_ffe0)
+                        32'h0000_0200: resident_reads <= resident_reads + 1;
+                        32'h0000_4200: conflict_reads <= conflict_reads + 1;
+                        32'h0000_0600: cold_store_line_reads <= cold_store_line_reads + 1;
+                        32'ha000_0200: alias_reads <= alias_reads + 1;
+                        default: ;
+                    endcase
                     latency <= 1 + cycle % 3;
                 end else begin
+                    if (check_data_cache && addr == 32'h604)
+                        assert (cold_store_line_reads == 0)
+                            else $fatal(1, "A store miss fetched a line before writing through");
                     for (int lane = 0; lane < 4; lane++)
                         if (wstrb[lane])
-                            ext_mem[addr[13:2]][8*lane +: 8] <= wdata[8*lane +: 8];
+                            ext_mem[addr[14:2]][8*lane +: 8] <= wdata[8*lane +: 8];
                 end
             end
         end
@@ -228,8 +244,8 @@ module fes_sh4_tb;
         emit('h10, 'he223);
         start_bus();
         expect_stop(1, 'h8);
-        assert (dut.gpr[2] == 'h23 && read_count == 17)
-            else $fatal(1, "A store failed to discard stale instruction data");
+        assert (dut.gpr[2] == 'h23 && read_count == 24)
+            else $fatal(1, "Self-modifying store gave opcode result %h with %0d reads", dut.gpr[2], read_count);
 
         // The call target shares a cache index with the caller. The return
         // must miss and use the caller tag and instruction bytes again.
@@ -244,24 +260,67 @@ module fes_sh4_tb;
         emit('h2004, 'h7004); // ADD #4,R0 (return slot)
         start_bus();
         expect_stop(1, 'h8);
-        assert (dut.gpr[0] == 15 && read_count == 25)
+        assert (dut.gpr[0] == 15 && read_count == 32)
             else $fatal(1, "Conflicting instruction tags or redirect were mishandled");
 
         // Fetches to the P2 alias bypass the cache and read a single word.
         image['h10 >> 2] = 'ha000_2000;
         start_bus();
         expect_stop(1, 'h8);
-        assert (dut.gpr[0] == 15 && read_count == 12)
+        assert (dut.gpr[0] == 15 && read_count == 19)
             else $fatal(1, "Uncached P2 instruction fetch unexpectedly refilled");
+
+        // Cache one operand line, write two partial words through it, and
+        // confirm the modified bytes are served from M20K on subsequent hits.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'hd311); // MOV.L @(0x44,PC),R3 (literal at 0x48)
+        emit('h02, 'h6132); // MOV.L @R3,R1 (cold)
+        emit('h04, 'h6232); // MOV.L @R3,R2 (warm)
+        emit('h06, 'he0af); // MOV #-81,R0
+        emit('h08, 'h8032); // MOV.B R0,@(2,R3)
+        emit('h0a, 'h6c32); // MOV.L @R3,R12
+        emit('h0c, 'he07f); // MOV #127,R0
+        emit('h0e, 'h8130); // MOV.W R0,@(0,R3)
+        emit('h10, 'h6532); // MOV.L @R3,R5
+        emit('h12, 'hd60e); // MOV.L literal into R6 (0x4c)
+        emit('h14, 'h6d62); // MOV.L @R6,R13, conflicting data index
+        emit('h16, 'h6832); // MOV.L @R3,R8, refill original line
+        emit('h18, 'hd70d); // MOV.L literal into R7 (0x50)
+        emit('h1a, 'h6972); // MOV.L @R7,R9, uncached alias
+        emit('h1c, 'he02b); // MOV #43,R0
+        emit('h1e, 'h2702); // MOV.L R0,@R7, invalidate cached copy
+        emit('h20, 'h6a32); // MOV.L @R3,R10, reload after alias write
+        emit('h22, 'hd40c); // MOV.L literal into R4 (0x54)
+        emit('h24, 'h2402); // MOV.L R0,@R4, cold write without allocation
+        emit('h26, 'h6b42); // MOV.L @R4,R11, first fill of that line
+        image['h48 >> 2] = 'h204;
+        image['h4c >> 2] = 'h4204;
+        image['h50 >> 2] = 'ha000_0204;
+        image['h54 >> 2] = 'h604;
+        image['h204 >> 2] = 'h1234_5678;
+        image['h4204 >> 2] = 'h8765_4321;
+        check_data_cache = 1;
+        start_bus();
+        expect_stop(1, 'h28);
+        assert (dut.gpr[1] == 'h1234_5678 && dut.gpr[2] == 'h1234_5678 &&
+                dut.gpr[12] == 'h12af_5678 && dut.gpr[5] == 'h12af_007f &&
+                dut.gpr[13] == 'h8765_4321 && dut.gpr[8] == 'h12af_007f &&
+                dut.gpr[9] == 'h12af_007f && dut.gpr[10] == 'h2b && dut.gpr[11] == 'h2b)
+            else $fatal(1, "Operand cache lane update, conflict, or alias result was incorrect");
+        assert (resident_reads == 24 && conflict_reads == 8 &&
+                cold_store_line_reads == 8 && alias_reads == 1 &&
+                ext_mem['h204 >> 2] == 'h2b && ext_mem['h604 >> 2] == 'h2b)
+            else $fatal(1, "Unexpected external traffic: resident=%0d conflict=%0d cold=%0d alias=%0d",
+                        resident_reads, conflict_reads, cold_store_line_reads, alias_reads);
 
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, cache refill, overlap, invalidation and bypass");
+        $display("PASS SH-4 integer, stalls, delay slots, I-cache overlap and D-cache write-through, conflicts and aliases");
         $finish;
     end
 
     initial begin
-        #20000;
+        #40000;
         $fatal(1, "Timed out");
     end
 endmodule

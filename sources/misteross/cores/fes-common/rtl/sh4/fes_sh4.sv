@@ -45,7 +45,8 @@ module fes_sh4 #(
     logic write_gpr, write_t, next_t, write_pr, control, delayed, taken, aligned;
     logic [31:0] wb_value, next_pc, link_value, writeback_base;
     logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
-    logic [31:0] data_addr, data_wdata;
+    logic [31:2] data_addr;
+    logic [31:0] data_wdata;
     logic [3:0] data_wstrb;
     logic [31:0] load_word;
     logic [1:0] data_addr_lane;
@@ -56,7 +57,9 @@ module fes_sh4 #(
     logic [15:0] fetch_instruction;
     logic fetch_valid, fetch_consume, fetch_read, fetch_read_ready, fetch_response;
     logic fetch_lookup, fetch_cacheable, fetch_flush, redirect, store_accepted;
-    logic data_accepted, data_response;
+    logic data_ready, data_complete, data_bus_request, data_bus_ready, data_bus_response;
+    logic [31:0] data_read_word, data_bus_addr, data_bus_wdata;
+    logic [3:0] data_bus_wstrb;
 
     assign n = ir[11:8];
     assign m = ir[7:4];
@@ -235,25 +238,34 @@ module fes_sh4 #(
     assign fetch_flush = redirect || store_accepted || stage == STOP;
     assign fetch_consume = fetch_valid && ((stage == ISSUE && !pc[0]) ||
                                            (stage == COMMIT && !redirect));
-    assign store_accepted = data_accepted && op == STORE;
+    assign store_accepted = data_bus_ready && mem_wstrb != 0;
 
     fes_sh4_icache icache (
         .clk, .reset, .flush(fetch_flush),
-        .invalidate(store_accepted), .invalidate_index(data_addr[12:5]),
+        .invalidate(store_accepted), .invalidate_index(mem_addr[12:5]),
         .lookup(fetch_lookup), .lookup_pc(fetch_pc), .cacheable(fetch_cacheable),
         .instruction_valid(fetch_valid), .instruction(fetch_instruction), .consume(fetch_consume),
         .read_valid(fetch_read), .read_addr(fetch_read_addr), .read_ready(fetch_read_ready),
         .response_valid(fetch_response), .response_data(mem_rdata)
     );
 
+    fes_sh4_dcache dcache (
+        .clk, .reset, .request(stage == DATA_REQ), .ready(data_ready),
+        .address(data_addr), .wstrb(data_wstrb), .wdata(data_wdata),
+        .complete(data_complete), .rdata(data_read_word),
+        .bus_request(data_bus_request), .bus_ready(data_bus_ready),
+        .bus_address(data_bus_addr), .bus_wstrb(data_bus_wstrb), .bus_wdata(data_bus_wdata),
+        .bus_response(data_bus_response), .bus_rdata(mem_rdata)
+    );
+
     // Data gets priority between refill beats. The bus owns a registered
     // request until acceptance and tags the read until its response arrives.
     assign mem_valid = !reset && bus_state == BUS_SEND;
-    assign data_accepted = mem_valid && mem_ready && !bus_fetch;
-    assign data_response = bus_state == BUS_REPLY && mem_rvalid && !bus_fetch;
-    assign fetch_read_ready = bus_state == BUS_IDLE && stage != DATA_REQ;
+    assign data_bus_ready = mem_valid && mem_ready && !bus_fetch;
+    assign data_bus_response = bus_state == BUS_REPLY && mem_rvalid && !bus_fetch;
+    assign fetch_read_ready = bus_state == BUS_IDLE && !data_bus_request;
     assign fetch_response = bus_state == BUS_REPLY && mem_rvalid && bus_fetch;
-    assign load_word = mem_rdata >> {data_addr_lane, 3'b000};
+    assign load_word = data_read_word >> {data_addr_lane, 3'b000};
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -261,11 +273,11 @@ module fes_sh4 #(
         end else begin
             case (bus_state)
                 BUS_IDLE: begin
-                    if (stage == DATA_REQ) begin
+                    if (data_bus_request) begin
                         bus_fetch <= 1'b0;
-                        mem_addr <= data_addr;
-                        mem_wstrb <= data_wstrb;
-                        mem_wdata <= data_wdata;
+                        mem_addr <= data_bus_addr;
+                        mem_wstrb <= data_bus_wstrb;
+                        mem_wdata <= data_bus_wdata;
                         bus_state <= BUS_SEND;
                     end else if (fetch_read) begin
                         bus_fetch <= 1'b1;
@@ -351,7 +363,7 @@ module fes_sh4 #(
                             fault_pc <= pc;
                             stage <= STOP;
                         end else begin
-                            data_addr <= {effective_addr[31:2], 2'b00};
+                            data_addr <= effective_addr[31:2];
                             data_addr_lane <= effective_addr[1:0];
                             data_wdata <= store_value << {effective_addr[1:0], 3'b000};
                             case (size)
@@ -365,15 +377,17 @@ module fes_sh4 #(
                         stage <= COMMIT;
                     end
                 end
-                DATA_REQ: if (data_accepted)
-                    stage <= op == LOAD ? DATA_WAIT : COMMIT;
-                DATA_WAIT: if (data_response) begin
-                    wb_gpr <= 1'b1;
-                    case (size)
-                        BYTE: wb_value <= {{24{load_word[7]}}, load_word[7:0]};
-                        WORD: wb_value <= {{16{load_word[15]}}, load_word[15:0]};
-                        default: wb_value <= load_word;
-                    endcase
+                DATA_REQ: if (data_ready)
+                    stage <= DATA_WAIT;
+                DATA_WAIT: if (data_complete) begin
+                    if (op == LOAD) begin
+                        wb_gpr <= 1'b1;
+                        case (size)
+                            BYTE: wb_value <= {{24{load_word[7]}}, load_word[7:0]};
+                            WORD: wb_value <= {{16{load_word[15]}}, load_word[15:0]};
+                            default: wb_value <= load_word;
+                        endcase
+                    end
                     stage <= COMMIT;
                 end
                 COMMIT: begin
