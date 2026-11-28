@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Actual strong-provider include and computer gate, with modeled platform
- * scope/MMIO and an explicit exact-image digest oracle. No crypto/boot claim. */
+ * scope/MMIO and the independently supplied expected CRC32. */
 #include "nano_bridge_platform.h"
 #include "nano_program.h"
 #include "nano_rom_platform_test.h"
@@ -11,8 +11,7 @@
 #define FES_NANO_COLD_ROM 1
 #define FES_NANO_COLD_COMPUTER 1
 #define FES_NANO_COLD_CONFIG 1
-static uint8_t arena[16384],expected_image[8192];
-static size_t expected_bytes;
+static uint8_t arena[16384];
 #define FES_NANO_CONFIG_BASE ((uintptr_t)arena)
 #define FES_NANO_CONFIG_ARENA_SIZE sizeof(arena)
 #define FES_NANO_ROM_CPU_BASE 0x1000U
@@ -54,14 +53,6 @@ static void mmio_write_32(uintptr_t address,uint32_t value)
     io_writes++;
     if(external_io.write32(external_io.context,(uint32_t)(address-FES_NANO_ROM_CPU_BASE),value))valid_scope=0;
 }
-typedef struct {const uint8_t *image;size_t bytes;} sha512_context;
-static void sha384_init(sha512_context *h) { h->image=0;h->bytes=0; }
-static void sha384_update(sha512_context *h,const uint8_t *image,uint32_t bytes)
-{ h->image=image;h->bytes=bytes; }
-static void sha384_finish(sha512_context *h,uint8_t result[48])
-{
-    memset(result,h->bytes==expected_bytes && !memcmp(h->image,expected_image,expected_bytes) ? 0x6d : 0x6e,48);
-}
 static void rom_notice(const char *,...);
 #define NOTICE(...) rom_notice(__VA_ARGS__)
 #include "nano_rom_platform.inc"
@@ -72,8 +63,8 @@ static void rom_notice(const char *format,...)
     assert(contained==1 && reset_bits==15 && identity_probe.failed && !identity_probe.active);
     assert(computer_rom_diagnostic.pending && computer_rom_diagnostic.reported && reports==0);
     assert(computer_rom_diagnostic.reads==io_reads && computer_rom_diagnostic.writes==io_writes);
-    if(fixture_mode==1)assert(computer_rom.first_error==FES_NANO_ROM_INTEGRITY);
-    if(fixture_mode==2)assert(computer_rom_diagnostic.result==FES_NANO_ROM_INTEGRITY && !computer_rom.used);
+    if(fixture_mode==1 || fixture_mode==2)
+        assert(computer_rom_diagnostic.result==FES_NANO_ROM_INTEGRITY && !computer_rom.used && !io_reads && !io_writes);
     if(fixture_mode>=3 && fixture_mode<=5) {
         const char *scope=fixture_mode==3 ? "program" : fixture_mode==4 ? "cold" : "timer";
         assert(computer_rom_diagnostic.phase==1 && !strcmp(computer_rom_diagnostic.scope,scope));
@@ -106,10 +97,10 @@ static void put32(uint8_t *p,uint32_t value) { for(unsigned i=0;i<4;i++)p[i]=(ui
 static void put64(uint8_t *p,uint64_t value) { for(unsigned i=0;i<8;i++)p[i]=(uint8_t)(value>>(8*i)); }
 int fes_test_rom_platform_init(struct fes_nano_rom_ops io,const uint8_t *image,size_t size,uint32_t crc,unsigned mode)
 {
-    assert(size==4096 || size==8192);external_io=io;expected_bytes=size;
+    assert(size==4096 || size==8192);external_io=io;
     io_reads=io_writes=timer_reads=frequency_reads=scope_calls=owner_calls=reports=0;fixture_mode=mode;
     simulated_owner_ticks=0;
-    memcpy(expected_image,image,size);memset(arena,0,sizeof(arena));memcpy(arena+128,image,size);
+    memset(arena,0,sizeof(arena));memcpy(arena+128,image,size);
     memset(&provider,0,sizeof(provider));provider.record.boot.owner=19;provider.record.boot.epoch=71;
     memset(&configuration,0,sizeof(configuration));memset(&identity_probe,0,sizeof(identity_probe));
     memset(&configuration_program,0,sizeof(configuration_program));memset(&computer_rom,0,sizeof(computer_rom));
@@ -131,8 +122,7 @@ int fes_test_rom_platform_init(struct fes_nano_rom_ops io,const uint8_t *image,s
     memcpy(h+104,build,sizeof(build));
     memset(h+152,4,48);memset(h+200,5,96);
     put32(ext,FES_NANO_PROGRAM_ROM_MAGIC);put32(ext+4,1);put32(ext+8,FES_NANO_PROGRAM_ROM_HEADER_BYTES);
-    put32(ext+12,128);put32(ext+16,(uint32_t)size);put32(ext+20,crc);memset(ext+24,6,32);memset(ext+56,0x6d,48);
-    if(mode==1)ext[56]^=1;
+    put32(ext+12,128);put32(ext+16,(uint32_t)size);put32(ext+20,mode==1 ? crc^1U : crc);memset(ext+24,6,32);memset(ext+56,0x6d,48);
     if(mode==2)arena[128]^=1;
     struct fes_nano_program_ops ops={&provider,descriptor_guard,descriptor};uint8_t context[32];memset(context,0x42,32);
     assert(!fes_nano_program_init(&configuration_program,ops,context,FES_NANO_PROGRAM_MAX_BYTES,64,1));
