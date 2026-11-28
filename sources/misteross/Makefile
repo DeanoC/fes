@@ -101,6 +101,7 @@ help:
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-de25-x87  Check the standalone DE25 x87 arithmetic pipeline against host x87" \
+		"  sim-fes-sh4  Test the standalone SH-4 integer slice" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
 		"  build-fes-riscv  Seal FES RISC-V (CACHE_ROOT= for shared cache, GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
@@ -2223,6 +2224,11 @@ sim-fes-z80-pin-trace:
 sim-fes-z80: sim-fes-z80-pin-trace
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-sh4
+sim-fes-sh4:
+	$(require_local_sim)
+	$(MAKE) -C cores/fes-common/rtl/sh4 test VERILATOR="$(VERILATOR)"
 
 # Original RV32I CPU lane and the fes.riscv package built on it.
 .PHONY: sim-fes-riscv build-fes-riscv

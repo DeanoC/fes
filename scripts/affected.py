@@ -48,8 +48,8 @@ def tamago_input(path):
 # Application, z80, pc386 and the DE25 x87 backend are simulation-only
 # families; PC/XT also has a package producer.
 CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
-         'pc386', 'de25-x87', 'de25-ramtest')
-SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386', 'de25-x87', 'de25-ramtest'})
+         'pc386', 'de25-x87', 'de25-ramtest', 'sh4')
+SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386', 'de25-x87', 'de25-ramtest', 'sh4'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
@@ -418,6 +418,8 @@ def fpga_cores(path):
                                 'tests/test_fes_hps_ddr_guard.py',
                                 'tests/test_sim_fes_ramtest_hook.py'):
         return ('ramtest',), 'shared HPS DDR guard simulation'
+    if parts[:4] == ('cores', 'fes-common', 'rtl', 'sh4'):
+        return ('sh4',), 'standalone SH-4 integer simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
         # The x87 arithmetic backend is i386 RTL -- fes_i386_x87
         # instantiates fes_x87_core -- but the
