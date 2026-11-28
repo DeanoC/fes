@@ -1,0 +1,84 @@
+{
+  "kit_serial": "TRWU8J8G",
+  "kit_id": "de25-j8g",
+  "core_id": "fes.pc386",
+  "model": "486sx",
+  "package_id": "96f14b2697e81979167a034b29296d57d1b5fb3a987bfbe9cdd8ed8d30df27a8",
+  "package_sha256": "213e914b156a270aa641b06ab48a58fcfa4f42338ebb95d0ffcab310956fbd16",
+  "verdict": "PASS",
+  "date": "2026-11-28",
+  "source_revision": "e6f1d16e6278e81bfa3a028c7f983ea9def934c6",
+  "classification": "de25-pc386-package-candidate",
+  "package_timing_admission": true,
+  "package_size_bytes": 3850752,
+  "core_rbf_size_bytes": 3846144,
+  "rbf_sha256": "32025679d606b3227ea62828d424cd4e5a4058919b1ce857d6a1d79cf91c89d0",
+  "build_id": "e34a05c2a73887f06db29dba4b354199",
+  "identities": {
+    "design": "e34a05c2a73887f06db29dba4b3541995c7abb89d802794ed99eff3bf16de846",
+    "record": "8cef53ff1685df882be5f7910899107ece800f8e741d0a813ffe98968046ce53",
+    "toolchain": "5bcaf2444bf8ef82ff44be2a632fc449eaa38a488bffa4821e11eabc806253b2"
+  },
+  "firmware": {
+    "bios_sha256": "0f831b5a0900940d80815e6815ac5afb6b582c6f117f4d4dcd30577fe06b73a4",
+    "vgabios_sha256": "8522568e32a33b2f5649109260fec70b0b2cd0d80a6216ac7af6a1041c102e02",
+    "rom_hex_sha256": "abe6f29c14ad3cc354f13408004a5c1868e706fd04a375a1c32c3beaea5ac28a"
+  },
+  "kit_environment": {
+    "image_sha256": "a1c51ac341ea39a429d97300a71d57a10dfce8e980d221b3c786db583d65467d",
+    "boot_id": "7fe4f294-65e1-48d7-a6a7-f74d70355ed7",
+    "tested_kit_sw_bundle": "b00daf6b89b374367fa95dc74efdb2339fea0489827c29a7ac493654e798958f",
+    "mister_runtime_sha256": "ab6227eb5e930a1019ed260b4d0ec3ef8b2ca9e5f3f2456497a39d3d06ca0863",
+    "restored_baseline_kit_sw_bundle": "cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6",
+    "ata_disk_sha256": "b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3"
+  },
+  "checks": {
+    "lease_1_load_1": {
+      "load_seconds": 11.92,
+      "freedos_frame": "frames/p1-t15.png",
+      "ver_frame": "frames/p1-t-ver.png",
+      "ver_diff_ratio": 0.1277,
+      "doom_frame": "frames/p1-d1-doom.png",
+      "doom_dark_inner_rows": 0,
+      "audio_8s_rms": 1666.98,
+      "audio_8s_peak": 13130,
+      "stop_cmos_0fh_hex": "09"
+    },
+    "lease_1_load_2_in_lease_relaunch": {
+      "load_seconds": 12.26,
+      "freedos_frame": "frames/p2-t15.png",
+      "ver_frame": "frames/p2-t-ver.png",
+      "ver_diff_ratio": 0.1277,
+      "stop_cmos_0fh_hex": "00"
+    },
+    "lease_1_load_3_doom_stop": {
+      "load_seconds": 8.59,
+      "doom_frame": "frames/p3-d1-doom.png",
+      "doom_dark_inner_rows": 0,
+      "stop_cmos_0fh_hex": "09"
+    },
+    "lease_2_load_1_new_lease_relaunch": {
+      "load_seconds": 11.41,
+      "freedos_frame": "frames/q1-t15.png",
+      "ver_frame": "frames/q1-t-ver.png",
+      "ver_diff_ratio": 0.1276,
+      "doom_frames": [
+        "frames/q1-d1-doom.png",
+        "frames/q1-d2-doom.png"
+      ],
+      "doom_q1_d1_dark_inner_rows": 0,
+      "runtime_idle_after_stop": true
+    },
+    "arm_smmu_new_faults": 0,
+    "c_bad_streamid_new_faults": 0,
+    "uart_lines": 32,
+    "restore_verified": true,
+    "restore_checks_passed": "21/21",
+    "restore_before_frame": "frames/hdmi-before.png",
+    "restore_after_frame": "frames/hdmi-after-restore.png"
+  },
+  "notes": [
+    "Software bundle b00daf6b89b374367fa95dc74efdb2339fea0489827c29a7ac493654e798958f was built from the same main commit e6f1d16e6278e81bfa3a028c7f983ea9def934c6 so mister-runtime includes fes.pc386 standard-profile registration; Kit D25's promoted baseline bundle cbf468031a31e6af75f385ced40b03f7d255bdf580c44353fb5518bf9736a1f6 was restored and verified afterward.",
+    "The de25-TRWU8J8G-STATUS.md release line recorded smoke=FAIL only because the post-run inline Python helper attempted `from PIL import Image` after all loads, captures, audio, CMOS, SMMU, and restore steps had completed; all captured PNG frames, audio WAV, and restore checks were verified afterward."
+  ]
+}
