@@ -8,7 +8,8 @@ module fes_sh4_tb;
     logic valid, ready, rvalid, retired, bram_retired, bram_irq_ack;
     logic [3:0] irq_level = 0;
     logic [11:0] irq_event = 0;
-    logic unused_nmi_ack;
+    logic bram_sci_txd, unused_sci_txd_enable, unused_sci_sck_out, unused_sci_sck_enable;
+    logic unused_nmi_ack, unused_scif_txd, unused_scif_txd_enable, unused_scif_rts_n;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [3:0] fault, bram_fault;
@@ -31,7 +32,9 @@ module fes_sh4_tb;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
-    logic dma_finished, rtc_finished;
+    logic dma_finished, rtc_finished, scif_finished, sci_finished;
+    fes_sh7091_sci_tb sci_test (.clk, .finished(sci_finished));
+    fes_sh7091_scif_tb scif_test (.clk, .finished(scif_finished));
     fes_sh7091_rtc_tb rtc_test (.clk, .finished(rtc_finished));
     fes_sh7091_dmac_tb dma_test (.clk, .finished(dma_finished));
     fes_sh7091_tmu_tb tmu_test (.clk, .finished(tmu_finished));
@@ -52,6 +55,10 @@ module fes_sh4_tb;
 
     fes_sh4_bram_system bram (
         .clk, .reset(bram_reset), .rtc_tick(bram_rtc_tick), .irq_level(4'b0), .irq_event(12'b0),
+        .sci_rxd(bram_sci_txd), .sci_sck(1'b1), .sci_txd(bram_sci_txd), .sci_txd_enable(unused_sci_txd_enable),
+        .sci_sck_out(unused_sci_sck_out), .sci_sck_enable(unused_sci_sck_enable),
+        .scif_rxd(1'b1), .scif_cts_n(1'b0), .scif_tick(1'b0),
+        .scif_txd(unused_scif_txd), .scif_txd_enable(unused_scif_txd_enable), .scif_rts_n(unused_scif_rts_n),
         .nmi(bram_nmi), .nmi_while_blocked(1'b0), .irq_ack(bram_irq_ack), .load_we, .load_word_addr, .load_data,
         .retired(bram_retired), .retired_pc(bram_retired_pc),
         .fault(bram_fault), .fault_pc(bram_fault_pc)
@@ -2318,6 +2325,79 @@ module fes_sh4_tb;
         bram_rtc_tick = 0;
         bram_reset = 1;
 
+        // Move two bytes through each serial port using separate TX and RX DMA channels.
+        for (int port = 0; port < 2; port++) begin
+            logic logical_sci;
+            logical_sci = port == 1;
+            image = '{default:32'hfffd_fffd};
+            literal('h00, 1, 'h80);
+            emit('h02, 'he200);
+            emit('h04, 'h2120); // SCBRR = 0
+            literal('h06, 1, 'h84);
+            emit('h08, 'he201);
+            emit('h0a, logical_sci ? 16'h0009 : 16'h2121); // SCFCR.LOOP or external test loopback
+            literal('h0c, 1, 'h88);
+            emit('h0e, 'he230);
+            emit('h10, logical_sci ? 16'h2120 : 16'h2121); // SCSCR.TE and RE
+            literal('h12, 1, 'h8c);
+            literal('h14, 2, 'h90);
+            emit('h16, 'h2122); // SAR0
+            literal('h18, 2, 'h94);
+            emit('h1a, 'h1121); // DAR0
+            emit('h1c, 'he202);
+            emit('h1e, 'h1122); // DMATCR0
+            literal('h20, 3, 'h98);
+            emit('h22, 'h1133); // CHCR0
+            literal('h24, 1, 'h9c);
+            literal('h26, 3, 'ha0);
+            emit('h28, 'h2132); // SAR1
+            literal('h2a, 3, 'ha4);
+            emit('h2c, 'h1131); // DAR1
+            emit('h2e, 'h1122); // DMATCR1
+            literal('h30, 3, 'ha8);
+            emit('h32, 'h1133); // CHCR1
+            literal('h34, 1, 'hac);
+            emit('h36, 'he201);
+            emit('h38, 'h2122); // Start the DMAC.
+            literal('h3a, 1, 'hb0);
+            emit('h3c, 'h6012); // Wait for CHCR1.TE.
+            emit('h3e, 'hc802);
+            emit('h40, 'h89fc);
+            literal('h42, 1, 'ha4);
+            emit('h44, 'h6e12);
+            image['h80 >> 2] = logical_sci ? 32'hffe0_0004 : 32'hffe8_0004;
+            image['h84 >> 2] = 'hffe8_0018;
+            image['h88 >> 2] = logical_sci ? 32'hffe0_0008 : 32'hffe8_0008;
+            image['h8c >> 2] = 'hffa0_0000;
+            image['h90 >> 2] = 'h0180;
+            image['h94 >> 2] = logical_sci ? 32'hffe0_000c : 32'hffe8_000c;
+            image['h98 >> 2] = logical_sci ? 32'h1811 : 32'h1a11;
+            image['h9c >> 2] = 'hffa0_0010;
+            image['ha0 >> 2] = logical_sci ? 32'hffe0_0014 : 32'hffe8_0014;
+            image['ha4 >> 2] = 'h0184;
+            image['ha8 >> 2] = logical_sci ? 32'h4911 : 32'h4b11;
+            image['hac >> 2] = 'hffa0_0040;
+            image['hb0 >> 2] = 'hffa0_001c;
+            image['h180 >> 2] = 'h4893;
+            image['h184 >> 2] = 0;
+            for (int word = 0; word <= 'h184 >> 2; word++) begin
+                @(negedge clk);
+                load_we = 1;
+                load_word_addr = 9'(word);
+                load_data = image[word];
+            end
+            @(negedge clk);
+            load_we = 0;
+            bram_reset = 0;
+            wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h44));
+            @(negedge clk);
+            assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[14] == 'h4893)
+                else $fatal(1, "Serial DMA port %d fault %d at %h, buffer %h", logical_sci,
+                            bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[14]);
+            bram_reset = 1;
+
+        end
+
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
@@ -2325,8 +2405,8 @@ module fes_sh4_tb;
         assert (tmu_finished) else $fatal(1, "TMU/INTC regression timed out");
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
-        wait (rtc_finished);
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, and bus and interrupt arbitration");
+        wait (rtc_finished && scif_finished && sci_finished);
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, and bus and interrupt arbitration");
         $finish;
     end
 

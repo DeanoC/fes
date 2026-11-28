@@ -18,12 +18,13 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
     logic [31:0] wdt_rdata;
     logic [1:0] watchdog_reset;
     logic [4:0] dma_irq = 0;
+    logic [3:0] sci_irq = 0, scif_irq = 0;
     fes_sh7091_intc intc (
         .clk, .reset, .bus_tick(1'b1), .nmi, .nmi_ack,
         .nmi_request, .nmi_block_override(nmi_override),
         .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
         .selected(intc_selected), .rvalid(intc_rvalid), .rdata(intc_rdata),
-        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq, .rtc_irq(3'b0), .watchdog_irq, .cpu_ack,
+        .ext_level, .ext_event, .timer_irq, .refresh_irq, .dma_irq, .rtc_irq(3'b0), .sci_irq, .scif_irq, .watchdog_irq, .cpu_ack,
         .cpu_level, .cpu_event, .ext_ack
     );
 
@@ -198,6 +199,24 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
             else $fatal(1, "WDT manual reset pulse was incorrect");
         read_reg('hffc0_000c, 'hf1, 4'h1);
         assert (watchdog_reset == 0);
+        write_reg('hffd0_0008, 'h5530, 4'h3);
+        write_reg('hffd0_000c, 'h0040, 4'h3);
+        sci_irq = 4'b0101;
+        scif_irq = 4'b1100;
+        refresh_irq = 0;
+        @(negedge clk);
+        assert (cpu_level == 4 && cpu_event == 'h740);
+        write_reg('hffd0_0008, 'h5540, 4'h3);
+        assert (cpu_level == 4 && cpu_event == 'h740);
+        @(negedge clk);
+        assert (cpu_level == 4 && cpu_event == 'h4e0);
+        sci_irq = 4'b1000;
+        @(negedge clk);
+        assert (cpu_event == 'h540);
+        sci_irq = 0;
+        scif_irq = 4'b1101;
+        @(negedge clk);
+        assert (cpu_event == 'h700);
         finished = 1;
     end
 endmodule

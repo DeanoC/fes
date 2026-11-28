@@ -303,6 +303,27 @@ through processor reset when its oscillator enable is active. Divider reset and 
 through RCR2. The board supplies oscillator startup and persistence
 across FPGA reconfiguration.
 
+## Serial interfaces
+
+SCI exposes the SH7091 byte registers at `0xffe00000`. It has separate
+transmit and receive data registers and supports asynchronous framing,
+multiprocessor reception, and internally or externally clocked
+synchronous transfers. The SCI pin interface exposes RxD, TxD and SCK
+with separate output enables. The smart-card mode and standby clock
+sequencing remain outside the wrapper.
+
+SCIF exposes its byte and word registers at `0xffe80000`. It has
+16-byte transmit and receive FIFOs, programmable thresholds, an
+asynchronous baud generator, modem flow control and loopback. The
+external clock input is a synchronous enable at 16 times the bit
+rate. The board implements the external pin directions.
+
+Both blocks feed INTC and can request byte DMA independently of their
+interrupt enables. The DMAC supports their transmit and receive
+resource selectors, and routes the serial beat to the local register
+port. A simultaneous CPU access to the same peripheral waits for that
+beat. The external memory half of the transfer uses the normal bus.
+
 ## DMA controller
 
 The four-channel DMAC exposes SAR, DAR, DMATCR, CHCR and DMAOR through
@@ -423,7 +444,10 @@ Watchdog checks cover keyed accesses, divider timing, interrupt priority,
 and a guest that restarts at the reset vector and reads WOVF and EXPEVT.
 RTC checks cover all three interrupt sources, leap and ordinary calendar
 rollover, time adjustment and reset retention. A guest wakes on an RTC
-periodic interrupt and resumes through RTE.
+periodic interrupt and resumes through RTE. Serial tests cover FIFO
+loopback, multiprocessor filtering, SCI clock modes, and interrupt
+priority. Guest programs send data from RAM and receive it back into
+RAM through separate TX and RX DMA channels on each serial port.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

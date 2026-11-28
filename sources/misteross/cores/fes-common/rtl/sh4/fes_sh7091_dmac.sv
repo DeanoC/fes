@@ -14,7 +14,9 @@ module fes_sh7091_dmac (
     input  logic [31:0] capture_value,
     output logic        capture_accept,
     output logic [4:0]  irq,
+    input  logic [3:0]  serial_request,
     output logic        mem_valid, mem_burst,
+    output logic [1:0]  mem_serial,
     input  logic        mem_ready,
     output logic [31:0] mem_addr, mem_wdata,
     output logic [3:0]  mem_rmask, mem_wstrb,
@@ -40,11 +42,12 @@ module fes_sh7091_dmac (
     logic [2:0] size_code, beat, last_beat;
     logic [5:0] unit_bytes;
     logic [1:0] source_mode, dest_mode;
-    logic transfer_burst, captured_source, address_error;
+    logic transfer_burst, captured_source, serial_tx, serial_rx, address_error;
     logic [4:0] alignment_mask;
     logic [3:0] source_mask, dest_mask;
     logic [1:0] source_lane, dest_lane;
     logic [31:0] next_source, next_destination;
+    logic [28:0] serial_tx_addr, serial_rx_addr;
 
     // Channel registers and DMAOR are longword P4 accesses.
     assign reg_channel = reg_addr[5:4];
@@ -64,6 +67,7 @@ module fes_sh7091_dmac (
         assign eligible[i] = chcr[i][0] && !chcr[i][1] &&
                              ((chcr[i][11:8] == 0 && external_pending) ||
                               chcr[i][11:8] == 4 ||
+                              (chcr[i][11:10] == 2'b10 && serial_request[chcr[i][9:8]]) ||
                               ((chcr[i][11:8] inside {4'd12, 4'd14}) && capture_pending));
         assign irq[i] = chcr[i][2] && chcr[i][1];
     end
@@ -97,10 +101,16 @@ module fes_sh7091_dmac (
 
     assign alignment_mask = unit_bytes[4:0] - 5'd1;
     assign captured_source = resource_mode == 14;
+    assign serial_tx = resource_mode[3:2] == 2'b10 && !resource_mode[0];
+    assign serial_rx = resource_mode[3:2] == 2'b10 && resource_mode[0];
+    assign serial_tx_addr = resource_mode[1] ? 29'h1fe8_000c : 29'h1fe0_000c;
+    assign serial_rx_addr = resource_mode[1] ? 29'h1fe8_0014 : 29'h1fe0_0014;
     assign address_error = size_code > 4 || source_mode == 3 || dest_mode == 3 ||
                            |((source[4:0] | destination[4:0]) & alignment_mask) ||
-                           destination[28:26] == 3'b111 ||
-                           (captured_source ? source != 32'hffd8_002c || size_code != 3 :
+                           (serial_tx ? destination[28:0] != serial_tx_addr || size_code != 1 :
+                                      destination[28:26] == 3'b111) ||
+                           (serial_rx ? source[28:0] != serial_rx_addr || size_code != 1 :
+                            captured_source ? source != 32'hffd8_002c || size_code != 3 :
                                               source[28:26] == 3'b111);
     assign source_lane = source[1:0];
     assign dest_lane = destination[1:0];
@@ -112,7 +122,9 @@ module fes_sh7091_dmac (
     assign next_destination = destination + {26'b0, unit_bytes};
 
     assign mem_valid = state inside {READ_REQUEST, WRITE_REQUEST};
-    assign mem_burst = transfer_burst && state inside {READ_REQUEST, READ_REPLY, WRITE_REQUEST};
+    assign mem_serial = (state == READ_REQUEST && serial_rx) || (state == WRITE_REQUEST && serial_tx) ?
+                        (resource_mode[1] ? 2'b10 : 2'b01) : 2'b00;
+    assign mem_burst = transfer_burst && !serial_tx && !serial_rx && state inside {READ_REQUEST, READ_REPLY, WRITE_REQUEST};
     assign mem_addr = {3'b0, (state == WRITE_REQUEST ? destination[28:2] : source[28:2]) + {24'b0, beat}, 2'b00};
     assign mem_wstrb = state == WRITE_REQUEST ? dest_mask : 4'b0;
     assign mem_rmask = source_mask;

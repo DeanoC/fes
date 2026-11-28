@@ -15,6 +15,7 @@ module fes_sh7091_intc (
     input  logic [1:0]  refresh_irq,
     input  logic [4:0]  dma_irq,
     input  logic [2:0]  rtc_irq,
+    input  logic [3:0]  sci_irq, scif_irq,
     input  logic        watchdog_irq, cpu_ack,
     output logic [3:0]  cpu_level,
     output logic [11:0] cpu_event,
@@ -29,8 +30,8 @@ module fes_sh7091_intc (
         logic [11:0] event_code;
         logic external_pin;
     } interrupt_t;
-    interrupt_t external_irq, dma, tmu0, tmu1, tmu2, rtc, watchdog, refresh, winner;
-    interrupt_t pin_or_dma, tmu01, tmu2_or_rtc, watchdog_or_refresh;
+    interrupt_t external_irq, dma, tmu0, tmu1, tmu2, rtc, sci, scif, watchdog, refresh, winner;
+    interrupt_t pin_or_dma, tmu01, tmu2_or_rtc, serial, watchdog_or_refresh;
     logic mask_interrupts, cpu_external, ack_external;
 
     function automatic interrupt_t higher_priority(input interrupt_t first, second);
@@ -58,8 +59,9 @@ module fes_sh7091_intc (
     assign tmu01 = higher_priority(tmu0, tmu1);
     assign tmu2_or_rtc = higher_priority(tmu2, rtc);
     assign watchdog_or_refresh = higher_priority(watchdog, refresh);
+    assign serial = higher_priority(sci, scif);
     assign winner = higher_priority(higher_priority(pin_or_dma, tmu01),
-                                    higher_priority(tmu2_or_rtc, watchdog_or_refresh));
+                                    higher_priority(tmu2_or_rtc, higher_priority(serial, watchdog_or_refresh)));
 
     always_comb begin
         case (address[3:2])
@@ -96,6 +98,21 @@ module fes_sh7091_intc (
             rtc.event_code = 12'h480;
         else if (rtc_irq[1])
             rtc.event_code = 12'h4a0;
+        sci = '{(|sci_irq) ? iprb[7:4] : 4'b0, 12'h540, 1'b0};
+        casez (sci_irq)
+            4'b???1: sci.event_code = 12'h4e0;
+            4'b??10: sci.event_code = 12'h500;
+            4'b?100: sci.event_code = 12'h520;
+            default: ;
+        endcase
+
+        scif = '{(|scif_irq) ? iprc[7:4] : 4'b0, 12'h760, 1'b0};
+        casez (scif_irq)
+            4'b???1: scif.event_code = 12'h700;
+            4'b??10: scif.event_code = 12'h720;
+            4'b?100: scif.event_code = 12'h740;
+            default: ;
+        endcase
     end
 
     always_ff @(posedge clk) begin

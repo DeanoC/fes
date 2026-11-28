@@ -9,6 +9,7 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
     logic [1:0] dreq_n = 3, dreq_ack;
     logic capture_pending = 0, capture_accept;
     logic [4:0] irq;
+    logic [1:0] unused_dma_serial;
     logic dma_valid, dma_ready, dma_burst, dma_rvalid;
     logic [31:0] dma_addr, dma_wdata;
     logic [3:0] dma_rmask, dma_wstrb;
@@ -24,7 +25,7 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
         .clk, .reset, .nmi, .reg_request, .reg_addr, .reg_rmask, .reg_wstrb,
         .reg_wdata, .reg_selected, .reg_rvalid, .reg_rdata, .dreq_n, .dreq_ack,
         .capture_pending, .capture_value(32'h1234_5678), .capture_accept, .irq,
-        .mem_valid(dma_valid), .mem_burst(dma_burst), .mem_ready(dma_ready),
+        .serial_request(4'b0), .mem_serial(unused_dma_serial), .mem_valid(dma_valid), .mem_burst(dma_burst), .mem_ready(dma_ready),
         .mem_addr(dma_addr), .mem_wdata(dma_wdata), .mem_rmask(dma_rmask),
         .mem_wstrb(dma_wstrb), .mem_rvalid(dma_rvalid), .mem_rdata
     );
