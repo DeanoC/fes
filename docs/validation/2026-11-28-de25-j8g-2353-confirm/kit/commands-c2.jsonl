@@ -1,0 +1,23 @@
+{"op":"grab","name":"00-before-load"}
+{"op":"load"}
+{"op":"grab","name":"q1-t00"}
+{"op":"sleep","s":10}
+{"op":"grab","name":"q1-t10"}
+{"op":"sleep","s":5}
+{"op":"grab","name":"q1-t15"}
+{"op":"sleep","s":15}
+{"op":"grab","name":"q1-t30"}
+{"op":"type","text":"ver\n"}
+{"op":"sleep","s":2}
+{"op":"grab","name":"q1-t-ver"}
+{"op":"type","text":"cd \\doom\n"}
+{"op":"sleep","s":2}
+{"op":"type","text":"doom\n"}
+{"op":"sleep","s":25}
+{"op":"grab","name":"q1-d1-doom"}
+{"op":"sleep","s":5}
+{"op":"grab","name":"q1-d2-doom"}
+{"op":"stop"}
+{"op":"sleep","s":3}
+{"op":"grab","name":"q1-s1"}
+{"op":"quit"}

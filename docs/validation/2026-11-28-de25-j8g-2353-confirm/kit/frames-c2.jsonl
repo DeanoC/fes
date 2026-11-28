@@ -1,0 +1,9 @@
+{"frame": "00-before-load.png", "mean_luma": 232.29, "nonblack": 0.9995}
+{"frame": "q1-t00.png", "mean_luma": 2.93, "nonblack": 0.0, "changed_vs_prev": 0.9993}
+{"frame": "q1-t10.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.1931}
+{"frame": "q1-t15.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0}
+{"frame": "q1-t30.png", "mean_luma": 14.92, "nonblack": 0.2369, "changed_vs_prev": 0.0}
+{"frame": "q1-t-ver.png", "mean_luma": 14.14, "nonblack": 0.2263, "changed_vs_prev": 0.184}
+{"frame": "q1-d1-doom.png", "mean_luma": 21.8, "nonblack": 0.3564, "changed_vs_prev": 0.3653}
+{"frame": "q1-d2-doom.png", "mean_luma": 27.03, "nonblack": 0.4728, "changed_vs_prev": 0.1235}
+{"frame": "q1-s1.png", "mean_luma": 232.29, "nonblack": 0.9995, "changed_vs_prev": 0.999}
