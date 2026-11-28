@@ -1,17 +1,20 @@
-// 16 KiB direct-mapped operand cache. Loads allocate 32-byte lines. Writes
-// are write-through, updating resident bytes on hits without allocating misses.
+// 16 KiB direct-mapped operand cache with serialized refills and write-backs.
 module fes_sh4_dcache (
     input  logic        clk,
     input  logic        reset,
+    input  logic        invalidate_all,
     input  logic        request,
     output logic        ready,
     input  logic [31:2] address,
     input  logic        address_cacheable,
+    input  logic        address_copyback,
+    input  logic        purge_before_read,
     input  logic [3:0]  wstrb,
     input  logic [31:0] wdata,
     output logic        complete,
     output logic [31:0] rdata,
     output logic        bus_request,
+    output logic        bus_writeback,
     input  logic        bus_ready,
     output logic [31:0] bus_address,
     output logic [3:0]  bus_wstrb,
@@ -19,48 +22,65 @@ module fes_sh4_dcache (
     input  logic        bus_response,
     input  logic [31:0] bus_rdata
 );
-    typedef enum logic [2:0] {IDLE, CHECK, REQUEST, REPLY, DONE} state_t;
+    typedef enum logic [3:0] {IDLE, CHECK, WB_READ, WB_SEND, REQUEST, REPLY, UPDATE, DONE} state_t;
 
     state_t state;
     (* ramstyle = "M20K" *) logic [31:0] words [0:4095];
     (* ramstyle = "M20K" *) logic [17:0] tags [0:511];
-    logic [511:0] valid_lines;
+    logic [511:0] valid_lines, dirty_lines;
     logic [31:2] saved_addr;
     logic [3:0] saved_wstrb;
     logic [31:0] saved_wdata, word_q;
     logic [17:0] tag_q;
-    logic [2:0] fill_word;
-    logic lookup, line_valid_q, use_cache, hit, store_hit;
+    logic [2:0] line_word;
+    logic lookup, line_valid_q, line_dirty_q, use_cache, copyback, purge, hit, alias_hit, store_hit;
+    logic write_access, fills_line, discard_line, write_back;
     logic refill, last_refill, store_complete;
-    logic [11:0] ram_write_addr;
+    logic [11:0] ram_read_addr, ram_write_addr;
     logic [31:0] ram_write_data;
     logic [3:0] ram_write_mask;
 
     assign ready = state == IDLE;
     assign complete = state == DONE;
-    assign lookup = request && ready && address_cacheable;
+    assign lookup = request && ready;
     assign hit = line_valid_q && tag_q == saved_addr[31:14];
+    // Direct P1/P2 aliases and translated physical addresses can name the same
+    // external memory. P4 device addresses retain their full tags.
+    assign alias_hit = hit || (line_valid_q && tag_q[17:15] != 3'b111 &&
+                               saved_addr[31:29] != 3'b111 && tag_q[14:0] == saved_addr[28:14]);
+    assign write_access = saved_wstrb != 0;
+    assign fills_line = use_cache && (!write_access || copyback);
+    assign discard_line = !hit && fills_line ||
+                          (!use_cache && (write_access || (alias_hit && purge))) ||
+                          (use_cache && !hit && alias_hit);
+    assign write_back = line_valid_q && line_dirty_q &&
+                        ((!use_cache && alias_hit) || discard_line);
 
-    assign bus_request = state == REQUEST;
-    assign bus_address = use_cache && saved_wstrb == 0 ?
-                         {saved_addr[31:5], fill_word, 2'b00} : {saved_addr, 2'b00};
-    assign bus_wstrb = saved_wstrb;
-    assign bus_wdata = saved_wdata;
+    assign bus_writeback = state == WB_SEND;
+    assign bus_request = state == REQUEST || bus_writeback;
+    assign bus_address = bus_writeback ? {tag_q, saved_addr[13:5], line_word, 2'b00} :
+                         fills_line ? {saved_addr[31:5], line_word, 2'b00} : {saved_addr, 2'b00};
+    assign bus_wstrb = bus_writeback ? 4'b1111 : fills_line ? 4'b0 : saved_wstrb;
+    assign bus_wdata = bus_writeback ? word_q : saved_wdata;
 
-    assign refill = state == REPLY && bus_response && use_cache;
-    assign last_refill = refill && fill_word == 3'd7;
-    assign store_complete = bus_request && bus_ready && saved_wstrb != 0;
-    assign ram_write_addr = refill ? {saved_addr[13:5], fill_word} : saved_addr[13:2];
+    assign refill = state == REPLY && bus_response && fills_line;
+    assign last_refill = refill && line_word == 3'd7;
+    assign store_complete = state == REQUEST && bus_ready && write_access && !fills_line;
+    assign ram_read_addr = state == WB_READ ? {saved_addr[13:5], line_word} : address[13:2];
+    assign ram_write_addr = refill ? {saved_addr[13:5], line_word} : saved_addr[13:2];
     assign ram_write_data = refill ? bus_rdata : saved_wdata;
     assign ram_write_mask = refill ? 4'b1111 :
-                            store_complete && store_hit ? saved_wstrb : 4'b0000;
+                            (state == UPDATE || (store_complete && store_hit)) ? saved_wstrb : 4'b0000;
 
     always_ff @(posedge clk) begin
+        if (lookup || state == WB_READ)
+            word_q <= words[ram_read_addr];
         if (lookup) begin
-            word_q <= words[address[13:2]];
             tag_q <= tags[address[13:5]];
             line_valid_q <= valid_lines[address[13:5]];
+            line_dirty_q <= dirty_lines[address[13:5]];
         end
+
         for (int lane = 0; lane < 4; lane++) begin
             if (ram_write_mask[lane])
                 words[ram_write_addr][8*lane +: 8] <= ram_write_data[8*lane +: 8];
@@ -70,9 +90,10 @@ module fes_sh4_dcache (
     end
 
     always_ff @(posedge clk) begin
-        if (reset) begin
+        if (reset || invalidate_all) begin
             state <= IDLE;
             valid_lines <= '0;
+            dirty_lines <= '0;
         end else begin
             case (state)
                 IDLE: if (request) begin
@@ -80,43 +101,56 @@ module fes_sh4_dcache (
                     saved_wstrb <= wstrb;
                     saved_wdata <= wdata;
                     use_cache <= address_cacheable;
-                    fill_word <= 3'd0;
+                    copyback <= address_copyback;
+                    purge <= purge_before_read;
+                    line_word <= 3'd0;
                     store_hit <= 1'b0;
-                    state <= address_cacheable ? CHECK : REQUEST;
+                    state <= CHECK;
                 end
                 CHECK: begin
-                    if (saved_wstrb == 0 && hit) begin
+                    if (use_cache && hit && !write_access) begin
                         rdata <= word_q;
                         state <= DONE;
-                    end else begin
-                        store_hit <= hit && saved_wstrb != 0;
-                        if (saved_wstrb == 0)
+                    end else if (use_cache && hit && copyback) begin
+                        state <= UPDATE;
+                    end else if (write_back)
+                        state <= WB_READ;
+                    else begin
+                        store_hit <= use_cache && hit;
+                        if (discard_line) begin
                             valid_lines[saved_addr[13:5]] <= 1'b0;
+                            dirty_lines[saved_addr[13:5]] <= 1'b0;
+                        end
                         state <= REQUEST;
                     end
                 end
-                REQUEST: if (bus_ready) begin
-                    if (saved_wstrb == 0) begin
-                        state <= REPLY;
-                    end else begin
-                        // A store through another address alias must not
-                        // leave an old copy at this index.
-                        if (!store_hit)
-                            valid_lines[saved_addr[13:5]] <= 1'b0;
-                        state <= DONE;
-                    end
+                WB_READ: state <= WB_SEND;
+                WB_SEND: if (bus_ready) begin
+                    line_word <= line_word + 3'd1;
+                    if (line_word == 3'd7) begin
+                        valid_lines[saved_addr[13:5]] <= 1'b0;
+                        dirty_lines[saved_addr[13:5]] <= 1'b0;
+                        state <= REQUEST;
+                    end else
+                        state <= WB_READ;
                 end
+                REQUEST: if (bus_ready)
+                    state <= bus_wstrb == 0 ? REPLY : DONE;
                 REPLY: if (bus_response) begin
-                    if (!use_cache || fill_word == saved_addr[4:2])
+                    if (!fills_line || line_word == saved_addr[4:2])
                         rdata <= bus_rdata;
-                    if (!use_cache || last_refill) begin
+                    if (!fills_line || last_refill) begin
                         if (last_refill)
                             valid_lines[saved_addr[13:5]] <= 1'b1;
-                        state <= DONE;
+                        state <= write_access ? UPDATE : DONE;
                     end else begin
-                        fill_word <= fill_word + 3'd1;
+                        line_word <= line_word + 3'd1;
                         state <= REQUEST;
                     end
+                end
+                UPDATE: begin
+                    dirty_lines[saved_addr[13:5]] <= 1'b1;
+                    state <= DONE;
                 end
                 DONE: state <= IDLE;
                 default: state <= IDLE;

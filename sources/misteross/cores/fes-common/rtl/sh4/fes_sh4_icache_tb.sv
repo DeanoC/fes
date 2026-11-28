@@ -8,6 +8,7 @@ module fes_sh4_icache_tb(input logic clk, output logic done);
     logic [15:0] instruction;
 
     fes_sh4_icache dut (
+        .invalidate_all(1'b0),
         .clk, .reset, .flush, .invalidate(1'b0), .invalidate_index(8'b0),
         .lookup, .lookup_pc, .cacheable(1'b1), .instruction_valid, .instruction, .consume,
         .read_valid, .read_addr, .read_ready, .response_valid, .response_data

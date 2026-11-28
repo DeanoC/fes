@@ -1,5 +1,6 @@
 module fes_sh4 #(
-    parameter logic [31:0] RESET_PC = 32'ha000_0000
+    parameter logic [31:0] RESET_PC = 32'ha000_0000,
+    parameter logic [8:0] RESET_CCR = 9'b0
 ) (
     input  logic        clk,
     input  logic        reset,
@@ -104,6 +105,8 @@ module fes_sh4 #(
     logic [31:0] mmu_va, mmu_pa, mmu_reg_rdata;
     logic [3:0] mmu_fault, mmu_register_index;
     logic mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
+    logic ccr_register, ccr_write, mmu_write_through, data_copyback, data_bus_writeback;
+    logic ic_enable, oc_enable, p1_copyback, direct_write_through;
     logic fetch_mapped, data_mapped, fetch_tlb_pending, fetch_tlb_valid;
     logic bad_fetch_region, bad_data_region, fetch_page_cacheable, data_cacheable;
     logic [31:0] physical_fetch_pc;
@@ -504,7 +507,7 @@ module fes_sh4 #(
                 address_exception = 1'b1;
                 fault_address = mac_second_addr;
             end
-            DATA_TRANSLATE: if (bad_data_region || ((mmu_register || event_register) && size != LONGWORD)) begin
+            DATA_TRANSLATE: if (bad_data_region || ((mmu_register || event_register || ccr_register) && size != LONGWORD)) begin
                 exception_cause = ADDRESS_ERROR;
                 address_exception = 1'b1;
                 fault_address = {data_addr, data_addr_lane};
@@ -547,10 +550,10 @@ module fes_sh4 #(
     assign bad_data_region = !supervisor && data_addr[31];
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
     assign data_mapped = mmu_enabled && (!data_addr[31] || data_addr[31:29] == 3'b110);
-    assign fetch_cacheable = fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101;
+    assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
     assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
-    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb ||
+    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write ||
                          privilege_write || exception_cause != 0 || take_interrupt ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
     assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !take_interrupt) ||
@@ -561,6 +564,9 @@ module fes_sh4 #(
     assign mmu_register_index = data_addr[5:2];
     assign mmu_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                           (mmu_register_index inside {4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd13});
+    assign ccr_register = data_addr == 30'h3fc0_0007;
+    assign ccr_write = stage == DATA_TRANSLATE && !bad_data_region && ccr_register &&
+                       size == LONGWORD && is_store;
     assign event_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                             (mmu_register_index inside {4'd8, 4'd9, 4'd10});
     assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
@@ -575,13 +581,13 @@ module fes_sh4 #(
         .instruction(stage == ISSUE), .write(stage == DATA_TRANSLATE && is_store),
         .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
         .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
-        .cacheable(mmu_cacheable), .fault(mmu_fault), .enabled(mmu_enabled),
+        .cacheable(mmu_cacheable), .write_through(mmu_write_through), .fault(mmu_fault), .enabled(mmu_enabled),
         .reg_select(mmu_register_index), .reg_write(mmu_reg_write), .reg_wdata(data_wdata),
         .reg_rdata(mmu_reg_rdata), .ldtlb(mmu_ldtlb)
     );
 
     fes_sh4_icache icache (
-        .clk, .reset, .flush(fetch_flush),
+        .clk, .reset, .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
         .invalidate(store_accepted), .invalidate_index(mem_addr[12:5]),
         .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .cacheable(fetch_cacheable),
         .instruction_valid(fetch_valid), .instruction(fetch_instruction), .consume(fetch_consume),
@@ -590,10 +596,11 @@ module fes_sh4 #(
     );
 
     fes_sh4_dcache dcache (
-        .clk, .reset, .request(stage == DATA_REQ), .ready(data_ready),
-        .address(data_addr), .address_cacheable(data_cacheable), .wstrb(data_wstrb), .wdata(data_wdata),
+        .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ), .ready(data_ready),
+        .address(data_addr), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
+        .purge_before_read(op == TAS), .wstrb(data_wstrb), .wdata(data_wdata),
         .complete(data_complete), .rdata(data_read_word),
-        .bus_request(data_bus_request), .bus_ready(data_bus_ready),
+        .bus_request(data_bus_request), .bus_writeback(data_bus_writeback), .bus_ready(data_bus_ready),
         .bus_address(data_bus_addr), .bus_wstrb(data_bus_wstrb), .bus_wdata(data_bus_wdata),
         .bus_response(data_bus_response), .bus_rdata(mem_rdata)
     );
@@ -638,7 +645,7 @@ module fes_sh4 #(
                         mem_wstrb <= data_bus_wstrb;
                         mem_rmask <= data_cacheable ? 4'b1111 : operand_read_mask;
                         mem_wdata <= data_bus_wdata;
-                        if (op == TAS)
+                        if (op == TAS && !data_bus_writeback)
                             mem_lock <= 1'b1;
                         bus_state <= BUS_SEND;
                     end else if (fetch_read && fetch_read_ready) begin
@@ -666,6 +673,7 @@ module fes_sh4 #(
         retired <= 1'b0;
         if (reset) begin
             stage <= ISSUE;
+            {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {RESET_CCR[8], RESET_CCR[2:0]};
             pc <= RESET_PC;
             fetch_pc <= RESET_PC;
             pr <= 32'b0;
@@ -696,6 +704,9 @@ module fes_sh4 #(
             nmi_previous <= nmi;
             nmi_pending <= (nmi_pending || nmi_edge) && !(take_interrupt && nmi_ready);
             irq_ack <= take_interrupt && !nmi_ready;
+
+            if (ccr_write)
+                {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {data_wdata[8], data_wdata[2:0]};
 
             if (redirect)
                 fetch_pc <= next_pc;
@@ -834,9 +845,10 @@ module fes_sh4 #(
                     stage <= COMMIT;
                 end
                 DATA_TRANSLATE: begin
-                    if (mmu_register || event_register) begin
+                    if (mmu_register || event_register || ccr_register) begin
                         wb_gpr <= op == LOAD && load_gpr;
-                        wb_value <= local_read_value;
+                        wb_value <= ccr_register ? {23'b0, ic_enable, 5'b0, p1_copyback,
+                                                     direct_write_through, oc_enable} : local_read_value;
                         if (event_register && is_store) begin
                             case (mmu_register_index)
                                 8: tra <= data_wdata[9:2];
@@ -850,14 +862,16 @@ module fes_sh4 #(
                         if (mmu_ready)
                             stage <= DATA_TLB_WAIT;
                     end else begin
-                        data_cacheable <= op != TAS && data_addr[31:29] != 3'b101 &&
+                        data_cacheable <= oc_enable && op != TAS && data_addr[31:29] != 3'b101 &&
                                           data_addr[31:29] != 3'b111;
+                        data_copyback <= data_addr[31:29] == 3'b100 ? p1_copyback : !direct_write_through;
                         stage <= DATA_REQ;
                     end
                 end
                 DATA_TLB_WAIT: if (mmu_response) begin
                     data_addr <= mmu_pa[31:2];
-                    data_cacheable <= op != TAS && mmu_cacheable;
+                    data_cacheable <= oc_enable && op != TAS && mmu_cacheable;
+                    data_copyback <= !mmu_write_through;
                     stage <= DATA_REQ;
                 end
                 DATA_REQ: if (data_ready)

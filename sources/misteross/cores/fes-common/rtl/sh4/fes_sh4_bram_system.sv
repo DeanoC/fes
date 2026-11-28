@@ -24,7 +24,7 @@ module fes_sh4_bram_system (
     logic [8:0] ram_addr;
     logic ram_read, in_range, read_in_range;
 
-    fes_sh4 #(.RESET_PC(32'b0)) cpu (
+    fes_sh4 #(.RESET_PC(32'b0), .RESET_CCR(9'h103)) cpu (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
         .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),

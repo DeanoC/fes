@@ -14,6 +14,7 @@ module fes_sh4_mmu (
     output logic        response,
     output logic [31:0] physical_addr,
     output logic        cacheable,
+    output logic        write_through,
     output logic [3:0]  fault,
     output logic        enabled,
     input  logic [3:0]  reg_select,
@@ -28,7 +29,7 @@ module fes_sh4_mmu (
         logic [7:0] asid;
         logic [1:0] size;
         logic [1:0] prot;
-        logic shared_page, cached, dirty;
+        logic shared_page, cached, dirty, wt;
     } entry_t;
     typedef enum logic [2:0] {IDLE, MATCH, GROUP, SELECT, RESULT, RESPOND} state_t;
     localparam logic [3:0] MISS = 4'd5, MULTIPLE = 4'd6, PROTECTION = 4'd7, INITIAL_WRITE = 4'd8;
@@ -175,7 +176,7 @@ module fes_sh4_mmu (
                         endcase
                     end else if (ldtlb) begin
                         utlb[urc] <= {pteh_vpn, ptel[28:10], asid, ptel[7], ptel[4],
-                                       ptel[6:5], ptel[1], ptel[3], ptel[2]};
+                                       ptel[6:5], ptel[1], ptel[3], ptel[2], ptel[0]};
                         utlb_valid[urc] <= ptel[8];
                     end else if (request) begin
                         va <= virtual_addr;
@@ -210,6 +211,7 @@ module fes_sh4_mmu (
                                       selected.size < 2 ? selected.ppn[15:12] : va[15:12],
                                       selected.size == 0 ? selected.ppn[11:10] : va[11:10], va[9:0]};
                     cacheable <= selected.cached;
+                    write_through <= selected.wt;
                     fault <= result_fault;
                     if (use_utlb)
                         urc <= urb != 0 && urc + 6'd1 == urb ? 6'd0 : urc + 6'd1;

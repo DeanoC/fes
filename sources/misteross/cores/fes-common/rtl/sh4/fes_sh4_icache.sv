@@ -4,6 +4,7 @@ module fes_sh4_icache (
     input  logic        clk,
     input  logic        reset,
     input  logic        flush,
+    input  logic        invalidate_all,
     input  logic        invalidate,
     input  logic [7:0]  invalidate_index,
     input  logic        lookup,
@@ -59,7 +60,9 @@ module fes_sh4_icache (
             state <= LOOKUP;
             valid_lines <= '0;
         end else begin
-            if (invalidate)
+            if (invalidate_all)
+                valid_lines <= '0;
+            else if (invalidate)
                 valid_lines[invalidate_index] <= 1'b0;
 
             if (flush) begin

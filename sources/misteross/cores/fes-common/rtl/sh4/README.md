@@ -10,21 +10,30 @@ with warm cache hits and direct addressing retire every three clocks.
 The 8 KiB direct-mapped instruction cache uses 256 lines of 32 bytes. Its data
 and tags use synchronous M20K RAM. A miss fills one line with eight ordered
 32-bit reads. Data accesses take priority between refill beats. Fetch redirects
-discard the prefetched instruction and drain any abandoned response. CPU stores
-discard the prefetched instruction and invalidate the cache index of the write,
-including corresponding instruction addresses in aliases of that index. P2 and
+discard the prefetched instruction and drain any abandoned response. External
+writes accepted from the CPU, including copy-back write-backs, discard the
+prefetched instruction and invalidate the corresponding cache index.
+Software generating code in copy-back memory must first write back the data. P2 and
 P4 instruction reads bypass the cache and issue only when the CPU needs the
 instruction.
 
-The 16 KiB direct-mapped data cache uses 512 lines of 32 bytes, synchronous
-M20K data and tag arrays, and a separate valid bit per line. Loads allocate on
-a miss. Stores write through to the external bus with the original byte
-strobes. On a hit they update the selected cache bytes, and a store miss
-writes without allocating. An uncached or differently tagged store invalidates
-the matching index to cover address aliases. P2 and P4 data accesses bypass
-the cache. The execution pipeline waits for a load result or for the external
-bus to accept the store. Data traffic and instruction refills share the
-registered, single-outstanding bus.
+The 16 KiB direct-mapped data cache uses 512 lines of 32 bytes with synchronous
+M20K data and tags and separate valid and dirty bits. Loads allocate on a miss.
+Write-through stores update resident bytes on a hit and write to the external
+bus without allocating on a miss. Copy-back stores allocate a line, update the
+selected bytes and mark it dirty. A dirty victim writes all eight words to its
+original address before the replacement refill. P2 and P4 bypass the cache.
+An uncached alias access preserves dirty data by writing back the matching
+line first. TAS.B also purges a matching clean line before the locked read.
+
+The P4 CCR at `0xff00001c` controls cache enables, P1 copy-back mode, and
+write-through for direct P0/P3 accesses. For translated pages, PTEL.WT
+selects the write mode. CCR.ICI invalidates the instruction cache and CCR.OCI
+discards the operand cache's valid and dirty state. Both command bits read as
+zero. The core resets with caches disabled. The diagnostic sets its reset
+parameter to enable both caches in write-through mode for its SRAM tests.
+Data traffic, cache write-backs and instruction refills share the registered
+single-outstanding bus.
 
 The MMU adds a fully associative 64-entry unified TLB and a four-entry
 instruction TLB. Instruction misses search the UTLB and fill the ITLB using
@@ -92,8 +101,9 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 FPU, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, copy-back mode, software cache controls, raw TLB arrays, area-7 MMU register
-aliases, board buses and PTEA PCMCIA behavior remain outside this slice.
+arbitration and peripherals, standby power controls, cache maintenance
+instructions and arrays, raw TLB arrays, area-7 MMU register aliases, board
+buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
 
@@ -125,7 +135,8 @@ address `0xa0000000`.
 For TAS.B, `mem_lock` stays high from the first byte read request through
 acceptance of the matching byte write. A shared-bus arbiter must preserve
 exclusive ownership from acceptance of the locked read until the locked
-write is accepted. The core defers intervening instruction reads. The
+write is accepted. The core defers intervening instruction reads. Any dirty TAS.B line is
+written back before the lock begins. The
 diagnostic RAM has a single master and no read side effects.
 
 The diagnostic top resets to address zero and exposes a host-side word loader
@@ -162,7 +173,9 @@ privilege violations and a faulting SR load. They also check that an
 LDC.L changing SR.RB increments the original bank's address register.
 Byte-operation tests cover lane selection, preservation of neighboring bytes,
 T-bit behavior, lock duration, and a TAS.B retry after a TLB miss. Read-only
-and initial-write faults must precede any TAS.B bus request.
+and initial-write faults must precede any TAS.B bus request. Copy-back tests
+cover partial-byte store allocation, eviction to the victim's address, PTEL.WT
+selection, TAS.B on a dirty P2 alias, and dirty-line discard through CCR.OCI.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

@@ -31,7 +31,7 @@ module fes_sh4_tb;
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
     logic check_warm_loop = 0, check_alias_load = 1;
 
-    fes_sh4 #(.RESET_PC(0)) dut (
+    fes_sh4 #(.RESET_PC(0), .RESET_CCR(9'h103)) dut (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
         .mem_valid(valid), .mem_lock(locked), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
@@ -385,10 +385,10 @@ module fes_sh4_tb;
         emit('h2c, 'h0009);
         image['h80 >> 2] = 'hff00_0000;
         image['h84 >> 2] = 7;
-        image['h88 >> 2] = 'h0000_016c;
+        image['h88 >> 2] = 'h0000_016d;
         image['h8c >> 2] = 'h0000_0400;
         image['h90 >> 2] = 'h0000_0407;
-        image['h94 >> 2] = 'h0000_096c;
+        image['h94 >> 2] = 'h0000_096d;
         image['h98 >> 2] = 'h410;
         image['h9c >> 2] = 'h400;
         image['h810 >> 2] = 'h1234_5678;
@@ -399,18 +399,34 @@ module fes_sh4_tb;
                 dut.gpr[9] == 'h2a && ext_mem['h810 >> 2] == 'h1233_5678)
             else $fatal(1, "CPU translation or cache use produced incorrect results");
 
+        // A translated page's WT bit overrides the CCR's direct-area mode.
+        image['h94 >> 2] = 'h0000_096c;
+        emit('h20, 'he05a);
+        emit('h22, 'h2500); // MOV.B R0,@R5
+        emit('h24, 'h6852); // Read the updated cache word.
+        emit('h26, 'hfffd);
+        start_bus();
+        expect_stop(1, 'h26);
+        assert (dut.gpr[8] == 'h1234_565a && ext_mem['h810 >> 2] == 'h1234_5678 &&
+                mapped_operand_reads == 8)
+            else $fatal(1, "TLB WT=0 did not select copy-back over CCR.WT");
+        emit('h20, 'h6652);
+        emit('h22, 'he033);
+        emit('h24, 'h8052);
+        emit('h26, 'h6852);
+
         // A TAS.B lookup is a store permission check. It must never issue
         // even the read on a read-only or clean page.
         emit('h20, 'h451b); // TAS.B @R5 (VA 0x410)
         image['h810 >> 2] = 'h1122_3300;
-        image['h94 >> 2] = 'h0000_0968; // Writable, D=0
+        image['h94 >> 2] = 'h0000_0969; // Writable, D=0
         start_bus();
         expect_stop(8, 'h20);
         assert (dut.expevt == 'h080 && dut.mmu.tea == 'h410 && dut.sr[0] == 0 &&
                 mapped_operand_reads == 0 && locked_reads == 0 && ext_mem['h810 >> 2] == 'h1122_3300)
             else $fatal(1, "Initial-write exception issued a TAS.B access or changed T");
 
-        image['h94 >> 2] = 'h0000_094c; // Read-only, D=1
+        image['h94 >> 2] = 'h0000_094d; // Read-only, D=1
         start_bus();
         expect_stop(7, 'h20);
         assert (dut.expevt == 'h0c0 && dut.mmu.tea == 'h410 && dut.sr[0] == 0 &&
@@ -435,7 +451,7 @@ module fes_sh4_tb;
                 ext_mem['h810 >> 2] == 'h1122_3300)
             else $fatal(1, "Protected OR.B issued a memory access");
 
-        image['h94 >> 2] = 'h0000_096c;
+        image['h94 >> 2] = 'h0000_096d;
         emit('h20, 'h6652);
         emit('h22, 'he033);
         emit('h24, 'h8052);
@@ -485,7 +501,7 @@ module fes_sh4_tb;
         emit('h1418, 'h002b); // RTE
         emit('h141a, 'h7001); // ADD #1,R0 using the restored bank
         image['h1440 >> 2] = 'hff00_0000;
-        image['h1444 >> 2] = 'h0000_116c;
+        image['h1444 >> 2] = 'h0000_116d;
         literal('h1100, 1, 'h1110);
         emit('h1102, 'h5e18); // MOV.L @(0x20,R1),R14 (TRA)
         image['h1110 >> 2] = 'hff00_0000;
@@ -813,6 +829,82 @@ module fes_sh4_tb;
                 locked_reads == 2 && locked_writes == 2 && resident_reads == 18)
             else $fatal(1, "TAS.B or GBR byte logic violated memory or flag semantics");
 
+        // A byte store allocates in copy-back mode and leaves memory
+        // untouched until it is evicted. TAS.B first writes back a dirty alias.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80); // CCR
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // CCR=ICE|OCE, direct-area copy-back
+        emit('h06, 'h6812); // Read back CCR
+        literal('h08, 3, 'h88); // 0x201
+        literal('h0a, 4, 'h8c); // 0x4200, same cache index
+        emit('h0c, 'he66a);
+        emit('h0e, 'h2360); // Copy-back byte store
+        emit('h10, 'h6942); // Force a dirty eviction
+        emit('h12, 'h7301);
+        emit('h14, 'h2360); // Dirty the first line again
+        literal('h16, 5, 'h90); // P2 alias of 0x202
+        emit('h18, 'h451b); // TAS.B must purge before locking
+        emit('h1a, 'h0a29);
+        emit('h1c, 'he637);
+        emit('h1e, 'h2360); // Dirties the line without touching external memory
+        literal('h20, 2, 'h94);
+        emit('h22, 'h2122); // OCI discards this dirty line
+        emit('h24, 'h6b12);
+        emit('h26, 'h6c30);
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h101;
+        image['h88 >> 2] = 'h201;
+        image['h8c >> 2] = 'h4200;
+        image['h90 >> 2] = 'ha000_0202;
+        image['h94 >> 2] = 'h109;
+        image['h200 >> 2] = 'h4433_2211;
+        image['h204 >> 2] = 'h5566_7788;
+        image['h4200 >> 2] = 'h0bad_cafe;
+        start_bus();
+        wait (retired && retired_pc == 'h0e);
+        assert (ext_mem['h200 >> 2] == 'h4433_2211 && resident_reads == 8)
+            else $fatal(1, "Copy-back store did not allocate without writing through");
+        wait (retired && retired_pc == 'h10);
+        assert (ext_mem['h200 >> 2] == 'h4433_6a11 && ext_mem['h204 >> 2] == 'h5566_7788)
+            else $fatal(1, "Dirty eviction wrote incorrect bytes or an incorrect victim address");
+        expect_stop(1, 'h28);
+        assert (dut.gpr[8] == 'h101 && dut.gpr[9] == 'h0bad_cafe && dut.gpr[10] == 0 &&
+                dut.gpr[11] == 'h101 && dut.gpr[12] == 'hffff_ffea &&
+                ext_mem['h200 >> 2] == 'h44ea_6a11 && locked_reads == 1 && locked_writes == 1)
+            else $fatal(1, "Dirty TAS.B purge, OCI or operand cache mode was incorrect");
+
+        // The P1 copy-back bit is independent of the write-through mode
+        // for direct P0. Disabling the caches also bypasses line allocation.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80); // CCR
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // ICE|OCE|WT|CB
+        literal('h06, 3, 'h88); // P1 data address
+        literal('h08, 4, 'h8c); // Direct P0 address at a different index
+        emit('h0a, 'he625);
+        emit('h0c, 'h2362); // Copy-back longword store in P1
+        emit('h0e, 'h2462); // Write-through longword store in P0
+        emit('h10, 'he200);
+        emit('h12, 'h2122); // Disable both caches
+        emit('h14, 'h6812); // Read CCR
+        emit('h16, 'h6932); // Uncached read of the dirty P1 alias
+        emit('h18, 'h6a42);
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h107;
+        image['h88 >> 2] = 'h8000_0200;
+        image['h8c >> 2] = 'h600;
+        image['h200 >> 2] = 'h77;
+        image['h600 >> 2] = 'h11;
+        start_bus();
+        wait (retired && retired_pc == 'h0e);
+        assert (ext_mem['h200 >> 2] == 'h77 && ext_mem['h600 >> 2] == 'h25)
+            else $fatal(1, "CCR did not select independent P1 and P0 write modes");
+        expect_stop(1, 'h1a);
+        assert (dut.gpr[8] == 0 && dut.gpr[9] == 'h25 && dut.gpr[10] == 'h25 &&
+                ext_mem['h200 >> 2] == 'h25 && cold_store_line_reads == 1)
+            else $fatal(1, "Cache enable bits or dirty-data preservation was incorrect");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1004,7 +1096,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts and byte operations");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations and copy-back");
         $finish;
     end
 
