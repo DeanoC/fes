@@ -738,7 +738,7 @@ module fes_sh4 #(
     assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
     assign fetch_issue_cause = pc[0] ? FETCH_ALIGN : bad_fetch_region ? ADDRESS_ERROR :
                                fetch_tlb_pending && mmu_response ? mmu_fault : 4'b0;
-    assign take_interrupt = interrupt_pending && ((sleeping && (!standby || standby_ready)) || (stage == ISSUE && fetch_issue_cause == 0));
+    assign take_interrupt = interrupt_pending && !ubc_wait && !ubc_trap && ((sleeping && (!standby || standby_ready)) || (stage == ISSUE && fetch_issue_cause == 0));
 
     // These instructions serialize fetch at retirement. Decode them before
     // entering the execution and memory stages.
@@ -762,16 +762,88 @@ module fes_sh4 #(
     assign sq_request = stage == SQ_SEND;
     assign mem_sq = bus_sq;
     assign bad_data_region = !supervisor && data_addr[31] && !sq_region && !area7_access;
+    logic ubc_enabled, ubc_selected, ubc_rvalid, ubc_dbr;
+    logic ubc_checked, ubc_probe_pc, ubc_probe_slot, ubc_wait, ubc_before, ubc_after;
+    logic ubc_pre_hit, ubc_commit_hit, ubc_trap, ubc_operand_valid, ubc_operand_write;
+    logic ubc_operand_has_data, ubc_management, ubc_access;
+    logic [1:0] ubc_matches, ubc_pending_matches, ubc_retired_matches;
+    logic [2:0] ubc_operand_size;
+    logic [7:0] ubc_asid;
+    logic [31:0] ubc_rdata, ubc_virtual_addr, ubc_operand_data;
+
+    // Observe the architectural PC, never a speculative cache lookup.
+    // Check a delayed branch's slot before the branch changes registers.
+    assign ubc_probe_pc = ubc_enabled && stage == ISSUE && !ubc_checked && (in_slot || !ubc_after);
+    assign ubc_probe_slot = ubc_enabled && stage == EXECUTE && control && delayed &&
+                            op != RTE && !ubc_checked;
+    assign ubc_wait = ubc_probe_pc || ubc_probe_slot;
+    assign ubc_management = cache_maintenance || op == PREF;
+    assign ubc_access = (stage == DATA_TRANSLATE && ubc_management && exception_cause == 0) ||
+                        (stage == DATA_WAIT && data_complete && !ic_array && !ubc_selected && !ubc_management);
+    assign ubc_retired_matches = stage == COMMIT ? ubc_pending_matches | ubc_matches : 2'b0;
+    assign ubc_trap = !sr[28] && (ubc_before || (ubc_after && stage == ISSUE && !in_slot));
+
+    fes_sh7091_ubc ubc (
+        .clk, .reset, .power_reset(!manual_reset),
+        .request(stage == DATA_TRANSLATE && exception_cause == 0 && !plain_prefetch),
+        .address(data_addr), .rmask(operand_read_mask), .wstrb(data_wstrb), .wdata(data_wdata),
+        .selected(ubc_selected), .rvalid(ubc_rvalid), .rdata(ubc_rdata),
+        .observed(ubc_wait || ubc_operand_valid), .allow_pre(!in_slot), .allow_post(!ubc_probe_slot),
+        .operand(ubc_operand_valid),
+        .written(ubc_operand_valid && ubc_operand_write), .data_present(ubc_operand_has_data),
+        .operand_size(ubc_operand_valid ? ubc_operand_size : 3'd2), .observed_asid(ubc_asid),
+        .observed_address(ubc_operand_valid ? ubc_virtual_addr : ubc_probe_slot ? pc + 32'd2 : pc),
+        .observed_data({2{ubc_operand_data}}), .retired_matches(ubc_retired_matches),
+        .post_matches(ubc_matches), .enabled(ubc_enabled), .pre_break(ubc_pre_hit),
+        .post_break(ubc_commit_hit), .debug_vector(ubc_dbr)
+    );
+
+    always_ff @(posedge clk) begin
+        if (reset || stage == EXCEPTION) begin
+            ubc_checked <= 0;
+            ubc_before <= 0;
+            ubc_after <= 0;
+            ubc_operand_valid <= 0;
+            ubc_pending_matches <= 0;
+        end else begin
+            if (ubc_wait)
+                ubc_checked <= 1;
+            else if (stage != ISSUE || fetch_consume || take_interrupt || exception_cause != 0)
+                ubc_checked <= 0;
+            ubc_before <= ubc_pre_hit;
+            if (stage == COMMIT)
+                ubc_after <= ubc_after || ubc_commit_hit;
+            if (ubc_trap || (ubc_after && stage == ISSUE && !in_slot))
+                ubc_after <= 0;
+            if (exception_cause != 0 || take_interrupt || ubc_trap || stage == COMMIT)
+                ubc_pending_matches <= 0;
+            else
+                ubc_pending_matches <= ubc_pending_matches | ubc_matches;
+
+            if (stage == EXECUTE && !ubc_wait)
+                ubc_virtual_addr <= effective_addr;
+            if (stage == MAC_READ && !mac_second)
+                ubc_virtual_addr <= mac_second_addr;
+            ubc_operand_valid <= ubc_enabled && ubc_access;
+            if (ubc_access) begin
+                ubc_operand_size <= ubc_management ? 3'd3 : {1'b0, size} + 3'd1;
+                ubc_operand_write <= op == OCBI || data_wstrb != 0;
+                ubc_operand_has_data <= !ubc_management;
+                ubc_operand_data <= data_wstrb != 0 ? data_wdata >> {data_addr_lane, 3'b000} : load_value;
+            end
+        end
+    end
+
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
     assign data_mapped = mmu_enabled && !operand_ram && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
     assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
     assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region && !ic_array_active &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
     assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write || cache_array_barrier ||
-                         privilege_write || exception_cause != 0 || take_interrupt ||
+                         privilege_write || exception_cause != 0 || take_interrupt || ubc_trap ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
-    assign fetch_consume = fetch_valid && ((stage == ISSUE && fetch_issue_cause == 0 && !interrupt_pending) ||
-                                           (stage == COMMIT && !redirect && !serialize_fetch &&
+    assign fetch_consume = fetch_valid && !ubc_trap && !ubc_wait && ((stage == ISSUE && fetch_issue_cause == 0 && !interrupt_pending) ||
+                                           (stage == COMMIT && !ubc_enabled && !redirect && !serialize_fetch &&
                                             !irq_ready && !nmi_ready));
     assign store_accepted = mem_valid && mem_ready && mem_wstrb != 0;
 
@@ -798,7 +870,7 @@ module fes_sh4 #(
     assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region &&
                           ((mmu_array || (cache_assoc && mmu_enabled)) ? size == LONGWORD : data_mapped) &&
                           (!plain_prefetch || oc_enable) && (!sq_region || sq_store || op == PREF)) ||
-                         (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt &&
+                         (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt && !ubc_wait && !ubc_trap &&
                           !bad_fetch_region && !fetch_pc[0]);
     assign mmu_va = stage != DATA_TRANSLATE ? fetch_pc :
                     cache_assoc ? {data_wdata[31:10], 10'b0} : {data_addr, data_addr_lane};
@@ -813,7 +885,7 @@ module fes_sh4 #(
         .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
         .cacheable(mmu_cacheable), .write_through(mmu_write_through), .fault(mmu_fault), .enabled(mmu_enabled),
         .reg_select(mmu_register_index), .reg_write(mmu_reg_write), .reg_wdata(data_wdata),
-        .reg_rdata(mmu_reg_rdata), .array_rdata(mmu_array_rdata), .ldtlb(mmu_ldtlb)
+        .active_asid(ubc_asid), .reg_rdata(mmu_reg_rdata), .array_rdata(mmu_array_rdata), .ldtlb(mmu_ldtlb)
     );
 
     fes_sh4_icache icache (
@@ -986,7 +1058,16 @@ module fes_sh4 #(
                     fetch_tlb_pending <= 1'b0;
             end
 
-            if (exception_cause != 0 || take_interrupt) begin
+            if (ubc_trap) begin
+                expevt <= 12'h1e0;
+                ssr <= sr;
+                spc <= pc;
+                sgr <= gpr[15];
+                sr[30:28] <= 3'b111;
+                vector_pc <= ubc_dbr ? dbr : vbr + 32'h100;
+                in_slot <= 0;
+                stage <= EXCEPTION;
+            end else if (!ubc_wait && (exception_cause != 0 || take_interrupt)) begin
                 if (take_interrupt)
                     intevt <= nmi_ready ? 12'h1c0 : irq_event;
                 else
@@ -1035,7 +1116,7 @@ module fes_sh4 #(
                     base_reg <= decoded == LOAD && !dec_sys_load && !dec_control_transfer ? m : n;
                     stage <= EXECUTE;
                 end
-                EXECUTE: begin
+                EXECUTE: if (!ubc_wait) begin
                     next_pc <= in_slot ? delay_target : control && taken && !delayed ? target : pc + 32'd2;
                     start_slot <= control && delayed;
                     if (control && delayed)
@@ -1213,6 +1294,8 @@ module fes_sh4 #(
                             stage <= DATA_REQ;
                         else if (mmu_ready)
                             stage <= DATA_TLB_WAIT;
+                    end else if (ubc_selected) begin
+                        stage <= is_store ? COMMIT : DATA_WAIT;
                     end else if (qacr_register) begin
                         if (ordinary_store)
                             qacr[data_addr[2]] <= data_wdata[4:2];
@@ -1296,7 +1379,14 @@ module fes_sh4 #(
                 end
                 DATA_REQ: if (ic_array ? ic_array_ready : data_ready)
                     stage <= DATA_WAIT;
-                DATA_WAIT: if (ic_array ? ic_array_complete : data_complete) begin
+                DATA_WAIT: if (ubc_selected) begin
+                    if (ubc_rvalid) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= size == BYTE ? {{24{ubc_rdata[7]}}, ubc_rdata[7:0]} :
+                                    size == WORD ? {{16{ubc_rdata[15]}}, ubc_rdata[15:0]} : ubc_rdata;
+                        stage <= COMMIT;
+                    end
+                end else if (ic_array ? ic_array_complete : data_complete) begin
                     if (op == LOAD && fp_mem) begin
                         if (!fp_second)
                             fp_result[31:0] <= load_value;
@@ -1377,7 +1467,7 @@ module fes_sh4 #(
                     in_slot <= start_slot;
                     retired <= 1'b1;
                     retired_pc <= pc;
-                    stage <= op == SLEEP ? ASLEEP : fetch_consume ? DECODE : ISSUE;
+                    stage <= op == SLEEP && !ubc_commit_hit ? ASLEEP : fetch_consume ? DECODE : ISSUE;
                 end
                 EXCEPTION: begin
                     pc <= vector_pc;

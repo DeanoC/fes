@@ -38,6 +38,8 @@ module fes_sh4_tb;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
     logic dma_finished, rtc_finished, scif_finished, sci_finished, gpio_finished, cpg_finished;
+    logic ubc_finished;
+    fes_sh7091_ubc_tb ubc_test (.clk, .finished(ubc_finished));
     fes_sh7091_cpg_tb cpg_test (.clk, .finished(cpg_finished));
     fes_sh7091_gpio_tb gpio_test (.clk, .finished(gpio_finished));
     fes_sh7091_sci_tb sci_test (.clk, .finished(sci_finished));
@@ -2573,6 +2575,95 @@ module fes_sh4_tb;
         bram_reset = 1;
         bram_nmi = 0;
 
+        // Exercise pre/post instruction breaks, a delay-slot break and a
+        // data-value watchpoint through the guest-visible P4 registers.
+        for (int kind = 0; kind < 4; kind++) begin
+            int handler;
+            handler = kind == 1 ? 'h140 : 'h100;
+            image = '{default:32'hfffd_fffd};
+            literal('h00, 1, 'h80);
+            literal('h02, 2, 'h84);
+            emit('h04, 'h2122); // BARA/BARB
+            literal('h06, 1, 'h88);
+            emit('h08, 'he204);
+            emit('h0a, 'h2120); // BAMR: ignore ASID
+            literal('h0c, 1, 'h8c);
+            literal('h0e, 2, 'h90);
+            emit('h10, 'h2121); // BRCR
+            literal('h12, 1, 'h94);
+            literal('h14, 2, 'h98);
+            emit('h16, 'h2121); // BBRA/BBRB
+            literal('h18, 1, 'h9c);
+            emit('h1a, 'h410e); // Clear BL and IMASK
+            emit('h1c, 'hee00);
+            literal('h1e, 1, 'ha0);
+            emit('h20, 'he25a);
+            literal('h22, 3, 'ha4);
+            emit('h24, 'h43fa); // DBR
+            emit('h26, 'h0009);
+            literal('h28, 3, 'ha8);
+            emit('h2a, 'h2322); // BDRB
+            literal('h2c, 3, 'hac);
+            emit('h2e, 'he400);
+            emit('h30, 'h2342); // BDMRB
+            for (int at = 'h32; at < 'h40; at += 2)
+                emit(at, 'h0009);
+            emit('h40, kind == 2 ? 16'ha002 : kind == 3 ? 16'h2122 : 16'h7e01);
+            emit('h42, kind == 2 ? 16'h7e01 : 16'h0009);
+            emit('h44, 'h0009);
+            emit('h46, 'h0009);
+            emit('h48, 'h0009);
+            image['h80 >> 2] = kind == 3 ? 'hff20_000c : 'hff20_0000;
+            image['h84 >> 2] = kind == 3 ? 'h180 : kind == 2 ? 'h42 : 'h40;
+            image['h88 >> 2] = kind == 3 ? 'hff20_0010 : 'hff20_0004;
+            image['h8c >> 2] = 'hff20_0020;
+            image['h90 >> 2] = kind == 1 ? 'h0401 : kind == 3 ? 'h80 : 0;
+            image['h94 >> 2] = kind == 3 ? 'hff20_0014 : 'hff20_0008;
+            image['h98 >> 2] = kind == 3 ? 'h2b : 'h16;
+            image['h9c >> 2] = 'h4000_0000;
+            image['ha0 >> 2] = 'h180;
+            image['ha4 >> 2] = 'h140;
+            image['ha8 >> 2] = 'hff20_0018;
+            image['hac >> 2] = 'hff20_001c;
+            emit(handler + 0, 'h6be3); // Save R14 as it was on exception entry.
+            emit(handler + 2, 'h0c42); // SPC
+            literal(handler + 4, 2, handler + 'h40);
+            emit(handler + 6, 'h6d22); // EXPEVT
+            literal(handler + 8, 2, handler + 'h44);
+            emit(handler + 10, 'h6a21); // BRCR
+            literal(handler + 12, 2, handler + 'h48);
+            emit(handler + 14, 'he100);
+            emit(handler + 16, 'h2211); // Disable the breakpoint.
+            emit(handler + 18, 'h002b);
+            emit(handler + 20, 'h0009);
+            image[(handler + 'h40) >> 2] = 'hff00_0024;
+            image[(handler + 'h44) >> 2] = 'hff20_0020;
+            image[(handler + 'h48) >> 2] = image['h94 >> 2];
+            if (kind == 3)
+                image['h180 >> 2] = 0;
+            for (int word = 0; word <= 'h188 >> 2; word++) begin
+                @(negedge clk);
+                load_we = 1;
+                load_word_addr = 9'(word);
+                load_data = image[word];
+            end
+            @(negedge clk);
+            load_we = 0;
+            bram_reset = 0;
+            wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h48));
+            @(negedge clk);
+            assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h1e0 &&
+                    bram.system_cpu.cpu.gpr[11] == (kind == 1 ? 1 : 0) &&
+                    bram.system_cpu.cpu.gpr[12] == ((kind inside {1, 3}) ? 'h42 : 'h40) &&
+                    bram.system_cpu.cpu.gpr[14] == (kind == 3 ? 0 : 1) &&
+                    bram.system_cpu.cpu.gpr[10][kind == 3 ? 14 : 15])
+                else $fatal(1, "User break %d fault %d at %h expevt %h SPC %h R14 on entry %h",
+                            kind, bram_fault, bram_fault_pc, bram.system_cpu.cpu.gpr[13],
+                            bram.system_cpu.cpu.gpr[12], bram.system_cpu.cpu.gpr[11]);
+            bram_reset = 1;
+        end
+
+        assert (ubc_finished) else $fatal(1, "UBC test did not finish");
         assert (cpg_finished) else $fatal(1, "CPG test did not finish");
         assert (gpio_finished) else $fatal(1, "GPIO test did not finish");
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
@@ -2583,7 +2674,7 @@ module fes_sh4_tb;
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
         wait (rtc_finished && scif_finished && sci_finished);
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, CPG, standby, and bus and interrupt arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, CPG, standby, UBC, and bus and interrupt arbitration");
         $finish;
     end
 

@@ -20,6 +20,7 @@ module fes_sh4_mmu (
     output logic        write_through,
     output logic [3:0]  fault,
     output logic        enabled,
+    output logic [7:0]  active_asid,
     output logic        sqmd,
     input  logic [3:0]  reg_select,
     input  logic        reg_write,
@@ -47,6 +48,7 @@ module fes_sh4_mmu (
     logic [3:0] itlb_valid, imatch;
     logic [21:0] pteh_vpn;
     logic [7:0] asid;
+    assign active_asid = asid;
     logic [28:0] ptel;
     logic [3:0] ptea;
     logic [31:0] ttb, tea;

@@ -249,6 +249,23 @@ attempted fetch at a diagnostic stop. TLB faults capture the virtual address
 in TEA and its page number in PTEH. General registers have no defined reset
 values. Software must initialize them before reading them.
 
+## User break controller
+
+BARA/BARB, BAMRA/BAMRB, BBRA/BBRB, BDRB, BDMRB and BRCR occupy
+the UBC P4 window at `0xff200000`. BASRA and BASRB hold the ASID
+comparands. A and B can act independently or as an A-then-B sequence.
+Channel B can also compare the operand data. The controller reports
+match flags in BRCR and uses EXPEVT `0x1e0` on exception entry.
+BRCR can select DBR as the destination.
+
+Pre-execution breaks use the architectural PC and can stop a delayed
+branch before its slot runs. Post-execution breaks allow retirement
+before saving the next PC in SPC. Operand matching observes the cache
+and external data path using the guest virtual address. It also sees
+cache maintenance addresses. Some internally handled CPU register and
+store-queue accesses bypass the operand comparator. The normal
+instruction path overlaps fetch when neither channel is configured.
+
 ## Bus state controller
 
 The `fes_sh7091` wrapper routes BSC accesses to on-chip registers and
@@ -487,6 +504,10 @@ reads the triggered input and resumes through RTE.
 CPG regressions check FRQCR writes, module-stop access, standby wake
 after watchdog stabilization and direct NMI wake from deep sleep.
 The DMA test checks that a paused controller defers a pending transfer.
+Guest UBC tests check before and after instruction breaks, delayed
+branches, a DBR vector, and a store watched by address and data.
+Focused tests check address and ASID masks, sequential A/B conditions
+and discarding a post-execution match when the instruction is abandoned.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets

@@ -12,6 +12,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fpu_regs.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_arithmetic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_dot.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fsca.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_ubc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bsc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_gpio.sv
