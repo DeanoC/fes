@@ -412,15 +412,18 @@ class MachineProducerTests(unittest.TestCase):
             board.clocks(spec)
 
     def test_pc386_486dx_record_names_its_cpu_x87_and_clock(self):
-        """#2194's 486dx: its own record, at 61.437908 MHz (C0 51), with the i486DX CPU and the 387."""
+        """The 486DX record carries the selected model clock, i486DX CPU and 387."""
         tools = {**self.tools, 'yosys': 'explicit fixture yosys'}
+        clock = pc386.MACHINE.spec(ROOT).model_clock('486dx')
         records = {model: json.loads(pc386.create_build_record(self.root, REPOSITORY, self.revision, tools, self.execution,
                                                                self.captured[pc386], model=model))['parameters']
                    for model in ('486sx', '486dx')}
         dx = records['486dx']
         self.assertEqual((dx['model'], dx['machine_clock_hz'], dx['cpu'], dx['x87_present'], dx['i486']),
-                         ('486dx', 61437908, 'fes_i486dx_cpu', True, 1))
-        self.assertEqual(json.loads(dx['guest_rates'])['AUDIO_D'], 1280)
+                         ('486dx', clock['hz'], 'fes_i486dx_cpu', True, 1))
+        rates = json.loads(dx['guest_rates'])
+        audio = clock['audio']
+        self.assertEqual((rates['AUDIO_N'], rates['AUDIO_D']), (audio.numerator, audio.denominator))
         sx = records['486sx']
         self.assertEqual((sx['model'], sx['x87_present'], 'cpu' in sx), ('486sx', False, False))
 

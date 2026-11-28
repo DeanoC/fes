@@ -34,14 +34,16 @@ def regs(*names):
                                for n in names) + ')'
 
 
-def lint(name, driver, qualifier):
+def lint(name, driver_pattern, qualifier):
     # machine_findings.lint admits only ~_Duplicate_N; it is in every DE25 machine's closure, so the
     # pc386 table builds its own rather than move their BUILD_IDs.
     return {'rule': 'LNT-30010', 'name': name, 'count': None, 'sdc': (), 'qualifier': qualifier,
-            'match': {0: S + re.escape(driver) + COPY}}
+            'match': {0: S + driver_pattern}}
 
 TABLE = 'boards/de25nano/pc386/signoff_bases.py'
 SOURCES = {
+    'cores/fes-common/rtl/i386/fes_i386_cpu.sv': '4c6fa52c6d0750b5560b265e0afaa6e277d74d196668acf06f5bcb9bc5660dd6',
+    'cores/fes-pc386/rtl/pc386_at_core.sv': '8b1ea8f50caedb8bae9916659b02e929b43657e2f62b16392d311e2f014241db',
     'cores/fes-pc386/rtl/pc386_presenter.sv': 'aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3',
     'cores/fes-pc386/rtl/pc386_vga_scanout.sv': '03d194d816290a6f6977cc84dfe5c64be374f1ca4eb3a297b1562495b0186fec',
     'cores/fes-pc386/rtl/pc386_snapshot.sv': '795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4',
@@ -57,33 +59,47 @@ SOURCES = {
 # The handshakes are in cores/fes-pc386/rtl/pc386_presenter.sv (capture,
 # fetch, loaded), pc386_vga_scanout.sv (the capture bundle's source),
 # pc386_snapshot.sv (counts) and pc386_machine.sv (the pixel reset).
-BUNDLE_SDC = ('    set_net_delay -max 10.000 -from $launches -to $captures',
-              '    set_data_delay 10.000 -from $launches -to $captures',
-              '    set_max_skew 10.000 -from $launches -to $captures',
-              '    set_max_delay 10.000 -from $launches -to $captures',
-              '    set_min_delay 0.000 -from $launches -to $captures')
+def bundle_sdc(maximum):
+    return (f'    set_net_delay -max {maximum} -from $launches -to $captures',
+            f'    set_data_delay {maximum} -from $launches -to $captures',
+            f'    set_max_skew {maximum} -from $launches -to $captures',
+            f'    set_max_delay {maximum} -from $launches -to $captures',
+            '    set_min_delay 0.000 -from $launches -to $captures')
+
+
+MACHINE_BUNDLE_LIMIT_SDC = (
+    'set machine_clock [get_clocks -nowarn {fes_machine_pll|machine_pll_outclk0}]',
+    'if {[get_collection_size $machine_clock] != 1} {',
+    '    error "DE25 pc386 machine clock is missing or ambiguous"',
+    'set machine_period [get_clock_info -period $machine_clock]',
+    'set machine_bundle_max_ns [format %.3f [expr {min(10.0, (floor($machine_period * 1000.0) - 1.0) / 1000.0)}]]',
+)
+PRESENTER_BUNDLE_SDC = (
+    '    set bundle_max_ns [expr {$label eq "counts" ? $machine_bundle_max_ns : 10.000}]',
+    *bundle_sdc('$bundle_max_ns'),
+)
 CAPTURE_SDC = (
     '    capture {system|frame_buffer[*] system|frame_width[*] system|frame_height[*]}',
     '            {system|machine_presenter_latest_buffer[*] system|machine_presenter_latest_width[*] '
     'system|machine_presenter_latest_height[*]}',
     '    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 FETCH_SDC = (
     '    fetch {system|machine_presenter_epoch[*] system|machine_presenter_width[*] '
     'system|machine_presenter_height[*] system|machine_presenter_request_limit[*] '
     'system|machine_presenter_shown_buffer[*]}',
     '    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 LOADED_SDC = (
     '    loaded {system|machine_presenter_loaded_in[*] system|machine_presenter_loaded_epoch_in[*]}',
     '           {system|machine_presenter_loaded[*] system|machine_presenter_loaded_epoch[*]}',
     '    fetch_loaded {system|machine_presenter_loaded_flag} {system|machine_presenter_loaded_sync[0]}',
-    *BUNDLE_SDC)
+    *PRESENTER_BUNDLE_SDC)
 COUNTS_SDC = (
     '    counts {system|pixel_counts_copy[*]} {system|pixel_counts_snapshot[*]}',
     '    counts_ask {system|pixel_counts_ask} {system|pixel_counts_ask_sync[0]}',
     '    counts_answer {system|pixel_counts_answer} {system|pixel_counts_answer_sync[0]}',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *PRESENTER_BUNDLE_SDC)
 TOGGLE_SDC = (
     '    frame_sequence {system|machine_frame_sequence[0]} {system|machine_presenter_sequence_sync[0]}',
     '    fetch_request {system|machine_presenter_request_toggle} {system|machine_presenter_request_sync[0]}',
@@ -111,26 +127,26 @@ FETCH = ('Pixel to machine: the fetch window {epoch, width, height, request limi
          'earlier, and holds it until the next flip, at least one raster line (1,650 pixel clocks) '
          'later. The toggle crosses a three-stage machine-clock synchroniser '
          '(machine_presenter_request_sync); the machine side copies the window only when stages 2 and '
-         '1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks (21.7 ns at '
-         '92.156863 MHz, the fastest model\'s clock; MODEL_CLOCKS in build.py).')
+         '1 differ. The bundle paths are bounded to 10 ns, less than two machine clocks at every '
+         'frequency in the DX clock ladder (#2263).')
 LOADED = ('Machine to pixel: the loaded-row report {row, epoch}. pc386_presenter.sv assigns loaded_out '
-          'and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag, when a row '
-          'fetch completes, and changes them only when the next one completes. That takes at least five '
-          'machine clocks (54.3 ns at 92.156863 MHz, the fastest model\'s clock): the next row starts (f_busy), issues its read '
-          '(ddr_read), the read is taken, its one beat at the least returns (f_received), and the row '
-          'completes. The flag crosses a three-stage pixel-clock synchroniser '
+          'and loaded_epoch_out on the machine edge that flips machine_presenter_loaded_flag. The '
+          '486SX has at least five machine clocks between reports: the next row starts, issues its '
+          'read, the read is taken, its beat returns and the row completes. The derived DX presenter '
+          'holds a completed row until eight machine clocks have elapsed since the previous report. '
+          'The flag crosses a three-stage pixel-clock synchroniser '
           '(machine_presenter_loaded_sync), and the pixel side copies the report when stages 2 and 1 '
           'differ: at most three pixel clocks (40.4 ns) after the flag reaches stage 0, plus the bundle '
-          'paths\' 10 ns bound, 50.4 ns in all. The remaining 3.9 ns is what the flag\'s own route into '
-          'stage 0 may take; that route is cut by the false path, not bounded, and the 92.156863 MHz fits '
-          'measured it (data delay plus clock skew) under 3.9 ns at every corner '
-          '(docs/validation/2026-11-25-de25-486sx-9216, gate G5).')
+          'paths\' 10 ns bound. The flag route to stage 0 is cut by the existing false path. '
+          'Fit qualification measures its delay plus absolute skew against the re-arm interval '
+          'at the actual machine clock, with a maximum allowance of 3.9 ns (#2228 and #2263).')
 COUNTS = ('Pixel to machine: the 96-bit status counters through pc386_snapshot.sv. The machine asks with '
           'a toggle (pixel_counts_ask, two-stage pixel synchroniser); the pixel side copies the value '
           'into pixel_counts_copy and flips pixel_counts_answer, which crosses a two-stage machine-clock '
           'synchroniser (pixel_counts_answer_sync); the machine takes the copy only once that answer has '
           'crossed, and the copy does not change until the next ask. The design assistant reports the '
-          'copy as a CE-type bus followed by a synchroniser. The bundle paths are bounded to 10 ns.')
+          'copy as a CE-type bus followed by a synchroniser. The bundle paths are bounded to 10 ns '
+          'or one machine period rounded down, whichever is shorter.')
 RESET = ('Machine to pixel: pc386_machine.sv synchronises (reset || !pixel_locked) into the pixel clock with '
          'a two-stage synchroniser (machine_pixel_reset_sync, power-up asserted). The launch from the '
          'machine reset register into stage 0 is a named false path; the synchronised reset\'s loads are '
@@ -165,6 +181,36 @@ TENSION = ('Placement advisory: registers in the machine netlist with many endpo
            'and latched port (the AT core\'s port decoder), and audio_dsp_write is the register on pc386_audio.sv\'s '
            'Sound Blaster DSP (pc386_sb) write input; all are machine-clock registers. Deano admitted them on 24 Nov 2026 (#2187), when '
            'the i486DX slice-1 fit (seed 1) reported them and their ~DUPLICATE copies.')
+CPU_CONTROL_STEM = (r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)'
+                    r'(?:\[\d+\])?')
+CPU_CONTROL_TENSION = advisory('TMC-20602', 'cpu-control-tension', 0, S + CPU_CONTROL_STEM + COPY, TENSION)
+
+# A fitted location identifies a TimeQuest register to prove, even when the
+# fitter changes the generated stem across seeds. The row/column classes are
+# the general routing resources reported for the DE25's Agilex 5 device.
+# The non-location forms are fitter enable/clear derivatives.
+RETIMED_LOCATION = (r'(?:BLOCK_INPUT_MUX_PASSTHROUGH|C1|C4|C8|R0|R1|R2|R4|R6|R12)'
+                    r'_X(?P<x>[0-9]+)_Y(?P<y>[0-9]+)_N[0-9]+_I[0-9]+_dff')
+# The qualifier only selects a candidate for the per-fit TimeQuest proof.
+# The proof establishes the register's topology and timing.
+RETIMED_STEM = (r'(?:[A-Za-z][A-Za-z0-9_]*|_[0-9]+_)(?:\[[0-9]+\])?~'
+                r'(?:_?[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_)?')
+RETIMED_ENABLE_CLEAR = r'(?:cpu_[a-z0-9_]+|_[0-9]+_)(?:\[[0-9]+\])?~(?:DUPLICATE)?(?:ENA|SCLR)_dff'
+# The C28 DX fits reported indexed and unindexed mixed duplicate spellings
+# for CPU controls and decoder state. Both forms require live fitted proof.
+RETIMED_TENSION_NODES = S + ('(?:' + RETIMED_STEM + RETIMED_LOCATION + '|' + RETIMED_ENABLE_CLEAR
+                             + '|' + CPU_CONTROL_STEM + r'~DUPLICATE_Duplicate(?:_[0-9]+)?)')
+RETIMED_TENSION = ('DX fitter-placement advisory (#2263). A located name must agree with its reported '
+                   'register X/Y location. Every reported register needs exact unique '
+                   'TimeQuest ownership on the machine clock and only machine-clock data keepers '
+                   'in both directions. All four fitted corners must have nonnegative worst incoming '
+                   'and outgoing setup and hold slack, no inter-clock or cut setup or hold paths, '
+                   'and asynchronous structure limited to each register\'s own Q arc. '
+                   'Normal and false-path queries must find zero outgoing recovery and removal paths. '
+                   'The detailed unconstrained-path report must exclude every subject. '
+                   'The ordinary timing and CDC analyses still apply.')
+RETIMED_CONTROL_TENSION = advisory('TMC-20602', 'retimed-machine-control-tension', 0,
+                                   RETIMED_TENSION_NODES, RETIMED_TENSION)
 # The window control block's held bundles (fes_de25_hps_window_control.v),
 # between the board's peripheral clock (clk_sys, 100 MHz) and the machine
 # clock. Their rows depend on the design and not on the seed: every seed of
@@ -179,14 +225,14 @@ WINDOW_BASE_SDC = (
     '    window_granted {window_control|granted} {window_control|granted_sync[0]} 1',
     '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
     '    set_false_path -from $launches -to $first_d',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *bundle_sdc('$machine_bundle_max_ns'))
 WINDOW_FAULT_SDC = (
     '    window_fault_record {window_control|fault_launch[*]} {window_control|machine_fault[*]} 5 5 5 5',
     '    window_fault_request {window_control|fault_request} {window_control|fault_request_sync[0]} 1',
     '    window_fault_ack {window_control|fault_ack} {window_control|fault_ack_sync[0]} 1',
     '    set first_d [get_pins -compatibility_mode -nocase "${base}|${head}|d"]',
     '    set_false_path -from $launches -to $first_d',
-    *BUNDLE_SDC)
+    *MACHINE_BUNDLE_LIMIT_SDC, *bundle_sdc('$machine_bundle_max_ns'))
 WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_control.v writes base_lo only while '
                'granted is clear (a write while granted answers SLVERR), and sets granted from a separate '
                'command write, so base_lo is still from at least one clk_sys clock (10 ns) before granted '
@@ -194,8 +240,9 @@ WINDOW_BASE = ('Peripheral to machine: the grant base. fes_de25_hps_window_contr
                'synchroniser (granted_sync, its launch into stage 0 a named false path); the machine side '
                'copies base_lo into base_machine only on the clock where granted_sync[1] is first seen set '
                '(granted_sync[1] && !grant_seen), at least two machine clocks (21.7 ns at 92.156863 MHz) after '
-               'granted reaches stage 0. The bundle paths are bounded to 10 ns, with skew, net and data delay '
-               'bounds, so the copy samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
+               'granted reaches stage 0. The bundle paths are bounded to 10 ns or one machine period '
+               'rounded down, whichever is shorter. Net and data delay and skew are bounded so the copy '
+               'samples a settled base. A fitter copy of a base_lo bit (~DUPLICATE) is '
                'the same register, as the SDC collection says. clk_sys\'s reset clears base_lo and granted '
                'together. The machine-domain reset clears granted_sync and grant_seen even with its clock stopped, '
                'so the old base cannot authorize traffic after a fabric reset.')
@@ -206,10 +253,16 @@ WINDOW_FAULT = ('Machine to peripheral: the fault record (port bits and reason).
                 'enters a two-stage clk_sys synchroniser (fault_request_sync, its launch into stage 0 a named '
                 'false path), and clk_sys copies fault_launch into machine_fault only on the clock where '
                 'fault_request_sync[1] differs from fault_request_seen, at least two clk_sys clocks (20 ns) after '
-                'the request reaches stage 0. The bundle paths are bounded to 10 ns.')
+                'the request reaches stage 0. The bundle paths are bounded to 10 ns or one machine period '
+                'rounded down, whichever is shorter.')
 BIU_RESET = ('fes_i386_cpu\'s BIU reset, a machine-clock register: it drives synchronous clears, and the '
              'synthesis netlist also uses it in clock enables (fetch prediction). It is not an '
-             'asynchronous reset; its paths are timed in the machine clock.')
+             'asynchronous reset; its paths are timed in the machine clock. In the post-fit atom database '
+             'for 486DX seed 1 at b840b088, cpu_biu_reset~_Duplicate_2.comb is a bypassed FF. Its '
+             'non-inverting input comes from a copy of the BIU reset register with the same data and clock '
+             'as the original. Its output drives the reported cache clear and fetch-prediction enable.')
+# Only this measured passthrough spelling is covered. Other .comb nodes may be actual logic.
+BIU_RESET_DRIVER = r'cpu_biu_reset(?:' + COPY + r'|~_Duplicate_2\.comb)'
 MACHINE_RESET = ('pc386_system\'s machine reset, a machine-clock register fed by the board\'s reset '
                  'synchroniser: it drives asynchronous clears (8259 masks), synchronous clears and, '
                  'through the netlist, RTC clock enables. Its recovery and removal are timed in the '
@@ -256,11 +309,11 @@ BASES = (
      # window_fault_record's SDC collects fault_launch[*] alone, so no copy is admitted.
      'match': {0: nodes(WINDOW + r'fault_launch\[\d+\]'), 1: nodes(WINDOW + r'machine_fault\[\d+\]'),
                2: re.escape(MACHINE), 3: re.escape(SYS)}},
-    lint('biu-reset', 'cpu_biu_reset', BIU_RESET),
-    lint('machine-reset', 'reset', MACHINE_RESET),
+    lint('biu-reset', BIU_RESET_DRIVER, BIU_RESET),
+    lint('machine-reset', 'reset' + COPY, MACHINE_RESET),
     advisory('FLP-10000', 'small-rams', 3, nodes(
         '(?:' + S + r'[^|]+|' + E + r'window\|port[0-2]\|command_[a-z]+_rtl_\d+|' + E + r'arbiter\|unpack[12]\|[^ ]+|'
         + re.escape('soc_inst|subsys_periph|fes_win_cdc|fes_win_cdc|cmd_fifo|') + r'[^ ]+)(?:\|[^ ]+)?'), RAM),
-    advisory('TMC-20602', 'cpu-control-tension', 0,
-             S + r'(?:cpu_[a-z0-9_]+|reset|_\d+_|machine_at_decoder_(?:state|phase|cycle_port)|audio_dsp_write)(?:\[\d+\])?' + COPY, TENSION),
+    CPU_CONTROL_TENSION,
+    RETIMED_CONTROL_TENSION,
 )

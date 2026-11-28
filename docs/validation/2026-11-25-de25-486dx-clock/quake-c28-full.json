@@ -1,0 +1,41 @@
+{
+  "classification": "completed C28 host RTL Quake window",
+  "revision": "cb91390dbf936393e6e7e4640fe3717d58c193bc",
+  "clock_hz": "2350000000/21",
+  "presenter_sha256": "7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167",
+  "visual_verification": "The first sampled rendered frame at 15.00, the 20.00 frame and the final frame show advancing Necropolis gameplay.",
+  "handover_cycle": 503571519,
+  "end_cycle": 2741666815,
+  "end_seconds": "24.500",
+  "end_profile_seconds": 24.500001,
+  "rtl_window_seconds": 20.0,
+  "end_steps": 763178078,
+  "retired": 640601632,
+  "protected_mode_retired": 429494574,
+  "oracle_fallback_steps": 0,
+  "protected_oracle_steps": 0,
+  "vga": {
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0
+  },
+  "exit_code": 0,
+  "files_sha256": {
+    "games/inputs.json": "0fa8142166c021c09dd186b14c8069afbe56e6ef42d47f7d2d61f5d50fda772d",
+    "games/analysis.json": "543d379b718acf7928c1ec20f01fc30474010c907e3b827c88f02ed08f630011",
+    "game-control/result.json": "35ce6446556ae3008ac23913e4fc04422cf6f2a3bdc411f7718edc85810fe738",
+    "compiled-presenter.json": "6afaa503883c2b84e18f38213d6350bc0c1e2c85e4160365de852ffff90aefc6",
+    "games/dx-quake/demo-milestone/summary.json": "2e34cd0fa4c103266f838a35a54a36df78570af5748f5f016392c7c6dd485296",
+    "milestones/quake-t0015.00.png": "3bb9e3dd993089e66e246c3a8f1e24ba4a5b56746c2f6a98755d0198b7cf669b",
+    "milestones/quake-t0020.00.png": "db14be99d77f6598624a5d1af14fc0cf83aa88c98e8308dd492a23d644144efd",
+    "milestones/quake-final.png": "1a9afa9fa866eead45e44cfea7701d378608cc97cefe02fb42b72d18303dcd6d",
+    "games/dx-quake/result.json": "e8f8c5c55c76bdfdf2e28f794dc26bf41579bf73cb32b509806122e26591cd8f",
+    "games/dx-quake/command.json": "3162049f09a84f652d5f940308111cffe5a7e744b892ce39832afdda22d2e9e6",
+    "games/dx-quake/run.log": "5f9185c30d9405f17cf78b5e009aabb22403e37519c7970c6a0f4c35eab94827",
+    "games/dx-quake/cpu.prof": "21a1506588616f51ee5d51182de50783e3cf2cbfe7c9f2e9b7a78fd234f9db0d",
+    "games/dx-quake/frames/t0015.00.ppm": "b835a2fe762373353b45055e390102e1f2f692f2ccaa8b37604781af6400638d",
+    "games/dx-quake/frames/t0020.00.ppm": "90382b62c6a7dfb4c4f616cbe6f128856f0adab0eead21d49e158609d0ac9ab1",
+    "games/dx-quake/frames/final.ppm": "693197296597618789b52f06c59442ccc8fea75486bea828dd75951ec0494887"
+  }
+}

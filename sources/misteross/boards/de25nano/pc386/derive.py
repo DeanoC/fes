@@ -19,6 +19,7 @@ controller.
 
 For the 486DX model, retarget_system_cpu then points pc386_system's CPU at the
 DE25's i486DX, fes_i486dx_cpu (i486dx/derive.py); the 486SX keeps fes_i386_cpu.
+The 486DX also spaces presenter LOADED reports by at least eight machine clocks.
 
 Each derivation fails if its anchor moves. A removed block is pinned by its
 SHA-256, so a change inside it fails too.
@@ -251,3 +252,35 @@ def retarget_system_cpu(source):
     result = source.replace(SYSTEM_CPU_BEFORE, SYSTEM_CPU_AFTER)
     return result, _record(source, result, [{"before": SYSTEM_CPU_BEFORE.decode(), "after": SYSTEM_CPU_AFTER.decode(),
                                              "count": 1}])
+
+
+PRESENTER_UPSTREAM = "cores/fes-pc386/rtl/pc386_presenter.sv"
+PRESENTER_UPSTREAM_SHA256 = "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3"
+LOADED_REARM_CYCLES = 8
+PRESENTER_LOADED = (
+    (b"    reg loaded_flag;",
+     b"    reg loaded_flag;\n    reg [2:0] loaded_report_gap;"),
+    (b"            loaded_flag <= 0;",
+     b"            loaded_report_gap <= 3'd0;\n            loaded_flag <= 0;"),
+    (b"            request_sync <= {request_sync[1:0], request_toggle};",
+     b"            if (loaded_report_gap != 0) loaded_report_gap <= loaded_report_gap - 3'd1;\n"
+     b"            request_sync <= {request_sync[1:0], request_toggle};"),
+    (b"            if (f_busy && f_received == f_beats && f_issued == f_beats && !ddr_read) begin",
+     b"            if (f_busy && f_received == f_beats && f_issued == f_beats && !ddr_read &&\n"
+     b"                loaded_report_gap == 0) begin\n"
+     + f"                loaded_report_gap <= 3'd{LOADED_REARM_CYCLES - 1};".encode()),
+)
+
+
+def retarget_presenter_loaded(source: bytes) -> tuple[bytes, dict]:
+    """Hold the completed DX fetch until its LOADED report may be published."""
+    if sha(source) != PRESENTER_UPSTREAM_SHA256:
+        raise ValueError("pc386 presenter upstream changed; review the LOADED re-arm")
+    result = source
+    changes = []
+    for before, after in PRESENTER_LOADED:
+        if result.count(before) != 1:
+            raise ValueError("pc386 presenter LOADED completion anchor changed")
+        result = result.replace(before, after)
+        changes.append({"before": before.decode(), "after": after.decode(), "count": 1})
+    return result, {**_record(source, result, changes), "loaded_rearm_cycles": LOADED_REARM_CYCLES}

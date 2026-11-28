@@ -1,0 +1,25 @@
+{
+  "classification": "completed host RTL G2/G4/G5 with an exact-input signoff candidate match",
+  "built_revision": "7e3227f68081a30c8d920a060eeaa930ab880357",
+  "candidate_revision": "54fe2d45ac1d97779aa81584d87c90853e84b066",
+  "clock_hz": "293750000/3",
+  "c0": 32,
+  "presenter_sha256": "7437e4b680112d6d8e5fb7ecf5a0a65f92ba937148b9bfbdfe1550703bdf8167",
+  "g2_pass": true,
+  "g4_pass": true,
+  "g5_demo_frame_pass": true,
+  "g5_full_window_pass": true,
+  "replay_artifact_count": 112,
+  "doom_dx33_realtics": 2173.0966214033065,
+  "3dbench_dx_to_base_cpi": 1.0161572935411092,
+  "files_sha256": {
+    "sim-c32.complete.json": "f6d030bd62e0d5242e5d81a6f9db43ec2082f0d5fbd6b792a35b24231a1f136e",
+    "compare-54fe2d45.json": "70bd362658a289fcec5b0a42331292976913a74e201530789c27c79648634828",
+    "compare_c32_sources.py": "ca07eea8299884e96a8abf05d695d1bc3b5e80acde531344ba9deb401106a71a",
+    "milestones/sim-c32-g2.json": "2d7dee50aa92383c8f7d20b233ec19ddd70e696ef32a0b3b831ed3e6f893ad7b",
+    "testfloat-vector-identity.json": "4857eda7b3b3db269a8cdb0a589d611cdf573c94e9947045cd0ccfd57c7c7df3",
+    "g4-milestone/receipt.json": "7b7d5b4528a7b94a48353454f0feff71cfbe01f56bca3152ce4fcb881fd9f444",
+    "milestones/sim-c32-quake-demo.json": "97f4feecad82139755b224bf90017442d9709c9f8d32b7568c57a7c2975b2937",
+    "milestones/quake-full-window.json": "88c964f85dfa7b4a92611a5369d4d7df36f84c1125a5bc5e4b32c094bbd42a80"
+  }
+}

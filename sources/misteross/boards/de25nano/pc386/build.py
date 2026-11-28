@@ -37,6 +37,7 @@ DIRECTORY = "pc386"
 CORE_ID = "fes.pc386"
 COMPONENT = "fes_de25_pc386_standard"
 SDC = BOARD + "pc386/pc386-clocks.sdc"
+DERIVE = BOARD + "pc386/derive.py"
 MODELS = {"486sx": None, "486dx": None}
 # pc386_system's CPU identity parameter (fes_i386_cpu I486): the 486, both models.
 I486 = 1
@@ -71,6 +72,7 @@ LOCAL_FILES = ("build.py", "derive.py", "signoff_bases.py", "model_clocks.py", "
                "fes_de25_pc386_standard_hw.tcl", "fes_de25_hps_window.v", "fes_de25_hps_window_control.v",
                "fes_de25_window_arbiter.v", "fes_de25_window_unpack.v", "generated/fes_de25_hps_window.vh",
                "pc386_dma2_registers.sv")
+REVIEW_FILES = ("retimed_tension.py", "retimed_tension.tcl", "retimed_structure.tcl")
 SHARED_FILES = ("fes_computer_mailbox.v",)
 
 
@@ -81,13 +83,53 @@ def load(path, name):
     return module
 
 
-board = load(HERE.parent / "machine/board.py", "de25_pc386_machine_board")
-dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
-sys.path.insert(0, str(board.ROOT / MISTEROSS))
+class RegisteredBoard:
+    """Add pc386's model-specific check to the registered compile stage."""
+
+    def __init__(self, delegate):
+        self.delegate = delegate
+
+    def __getattr__(self, name):
+        return getattr(self.delegate, name)
+
+    def compile_board(self, spec, output, scanout, hps, display, tool):
+        from boards.de25nano.scanout import machine_findings
+
+        directory = output / "combined/hps"
+        record = output.parent / "build-inputs.json"
+        try:
+            model = json.loads(record.read_bytes())["parameters"]["model"]
+            prepared_model = json.loads((directory / "inputs.json").read_bytes())[self.delegate.RECORD]["model"]
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise machine_findings.BuildError("DE25 pc386 registered fit lacks a recorded or prepared model") from error
+        if not isinstance(model, str) or model not in MODELS:
+            raise machine_findings.BuildError(f"DE25 pc386 registered fit has unknown model {model!r}")
+        if model != prepared_model:
+            raise machine_findings.BuildError(
+                f"DE25 pc386 recorded model {model!r} differs from prepared model {prepared_model!r}")
+
+        with quartus_lease("pro", label="DE25 pc386 registered fit"):
+            artifact = self.delegate.compile_board(spec, output, scanout, hps, display, tool)
+            basis = load(HERE / "signoff_bases.py", "de25_pc386_signoff_bases")
+            drc = (directory / "project/output_files/golden_top.tq.drc.signoff.rpt").read_text()
+            if model == DX_MODEL:
+                proof = load(HERE / "retimed_tension.py", "de25_pc386_retimed_tension")
+                subjects = proof.reviewed_targets(drc, basis.CPU_CONTROL_TENSION, basis.RETIMED_CONTROL_TENSION)
+                if subjects:
+                    proof.collect(output, tool.with_name("quartus_sta"), subjects)
+            else:
+                machine_findings.review(drc, "", (basis.CPU_CONTROL_TENSION,))
+            return artifact
+
+
+sys.path.insert(0, str(HERE.parents[2]))
 from scripts import pc386_quartus as sealer  # noqa: E402
 from scripts import yosys_netlist  # noqa: E402
 from scripts import fit_i386_device as fit  # noqa: E402
+from scripts.quartus_tools import quartus_lease  # noqa: E402
 
+board = RegisteredBoard(load(HERE.parent / "machine/board.py", "de25_pc386_machine_board"))
+dx = load(HERE / "i486dx/derive.py", "de25_pc386_i486dx_derive")
 CLOCKS = load(HERE / "model_clocks.py", "de25_pc386_model_clocks")
 VCO = Fraction(CLOCKS.VCO_NUMERATOR, CLOCKS.VCO_DENOMINATOR)
 
@@ -117,7 +159,7 @@ def model_clock(model=None):
             "audio": Fraction(c0, CLOCKS.AUDIO_C * 256)}
 
 DX_FILES = ("derive.py", "fes_i486dx_l1i.sv", "fes_i486dx_l1d.sv")
-SOURCES = ({BOARD + "pc386/" + name for name in LOCAL_FILES} |
+SOURCES = ({BOARD + "pc386/" + name for name in (*LOCAL_FILES, *REVIEW_FILES)} |
            {BOARD + "pc386/i486dx/" + name for name in DX_FILES} |
            {BOARD + "spectrum/derive.py", BOARD + "zx81-hps/fes_de25_computer.v",
             "sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v"} |
@@ -184,7 +226,7 @@ def authenticate_front_end(*, cache_root=None, gpu_router=None):
 
 def record_parameters(root, model=None):
     """A producer record's machine parameters, from the source module at root: guest rates, the
-    linked firmware and the CPU and x87 identity. The 486DX's also names its CPU."""
+    linked firmware and the CPU and x87 identity. The 486DX also records its presenter re-arm interval."""
     root, model = Path(root), selected(model)
     parameters = {"front_end": "yosys-seal-netlist", "guest_rates": json.dumps(guest_rates(model), sort_keys=True),
                   "i486": I486,
@@ -192,7 +234,8 @@ def record_parameters(root, model=None):
                                          sort_keys=True),
                   "x87_present": False, "signoff_findings_review_policy": "de25-pc386-reviewed-signoff-findings-v1"}
     if model == DX_MODEL:
-        parameters.update(cpu=dx.TOP, x87_present=True)
+        derive = load(root / DERIVE.removeprefix(MISTEROSS), "de25_pc386_record_derive")
+        parameters.update(cpu=dx.TOP, x87_present=True, loaded_rearm_cycles=derive.LOADED_REARM_CYCLES)
     return parameters
 
 
@@ -255,11 +298,13 @@ def elaboration(sources, model=None):
     """A model's derived machine files (keyed by name, as machine_netlist takes them), the 486DX's derived
     CPU (None for the 486SX) and their records, without running Yosys."""
     model = selected(model)
-    derive = board.module(sources, BOARD + "pc386/derive.py", "pc386_selected_derive")
+    derive = board.module(sources, DERIVE, "pc386_selected_derive")
     derived = {}
     machine, derived["pc386_machine.sv"] = derive.retarget_machine(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_machine.sv"])
     system, derived["pc386_system.sv"] = derive.retarget_system(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_system.sv"])
     at_core, derived["pc386_at_core.sv"] = derive.retarget_at_core(sources[MISTEROSS + "cores/fes-pc386/rtl/pc386_at_core.sv"])
+    files = {"pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
+             "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}
     cpu = None
     if model == DX_MODEL:
         i486dx = board.module(sources, BOARD + "pc386/i486dx/derive.py", "pc386_selected_i486dx")
@@ -268,10 +313,11 @@ def elaboration(sources, model=None):
                 raise ValueError("an i486DX fork is behind its upstream: " + upstream)
             if MISTEROSS + fork not in sources:
                 raise ValueError("an i486DX fork is not a captured source: " + fork)
-        system, derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
+        files["pc386_system.sv"], derived["pc386_system_486dx_cpu"] = derive.retarget_system_cpu(system)
         cpu, derived[i486dx.CPU_FILE] = i486dx.derive_cpu(sources[MISTEROSS + i486dx.CPU_UPSTREAM])
-    files = {"pc386_machine.sv": machine, "pc386_system.sv": system, "pc386_at_core.sv": at_core,
-             "pc386_dma2_registers.sv": sources[BOARD + "pc386/pc386_dma2_registers.sv"]}
+        presenter = Path(derive.PRESENTER_UPSTREAM).name
+        files[presenter], derived[presenter] = derive.retarget_presenter_loaded(
+            sources[MISTEROSS + derive.PRESENTER_UPSTREAM])
     return files, cpu, derived
 
 
@@ -305,4 +351,4 @@ def project_files(sources):
 
 
 if __name__ == "__main__":
-    board.main(sys.modules[__name__])
+    board.delegate.main(sys.modules[__name__])

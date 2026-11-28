@@ -40,7 +40,7 @@ DE25_RTL = (HERE / 'pc386_dma2_registers.sv', HERE / 'fes_de25_hps_window.v', HE
 
 def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:
     """The three DE10 files derive.py changes, written for this build; for the 486DX, its pc386_system's CPU
-    retargeted and the i486DX's CPU sources in place of the integer core's."""
+    retargeted, its presenter re-armed, and the i486DX CPU sources in place of the integer core's."""
     output.mkdir(parents=True, exist_ok=True)
     rtl = ROOT / 'cores/fes-pc386/rtl'
     result = {}
@@ -52,6 +52,10 @@ def derived_sources(output: Path, model: str = MODELS[0]) -> dict[Path, Path]:
         (output / name).write_bytes(data)
         result[rtl / name] = output / name
     if model == '486dx':
+        presenter = ROOT / derive.PRESENTER_UPSTREAM
+        guarded, _ = derive.retarget_presenter_loaded(presenter.read_bytes())
+        result[presenter] = output / presenter.name
+        result[presenter].write_bytes(guarded)
         for old, new in zip(sim.CPU_RTL, i486dx.sim_sources(output.parent / 'i486dx', ROOT, rename=True)):
             if old != new:
                 result[old] = new

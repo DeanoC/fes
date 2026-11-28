@@ -1,0 +1,14 @@
+pcxt
+  raw golden_top.qsf SHA-256 main 09fc829082f0e7f4d17acfc0c31adc9cd244f6a8c1f6a220bbef2e4e434a3255
+  raw golden_top.qsf SHA-256 candidate 09fc829082f0e7f4d17acfc0c31adc9cd244f6a8c1f6a220bbef2e4e434a3255
+  raw RTL inventory SHA-256 main b4846fc1b08ce0957ccaafe2bdc29d14df80bef9db9834550e46f9e2fcadfd71 (722 files)
+  raw RTL inventory SHA-256 candidate b4846fc1b08ce0957ccaafe2bdc29d14df80bef9db9834550e46f9e2fcadfd71 (722 files)
+  compiler QSF and all staged and generated RTL are cmp-equal
+  main 2f19382bfe294d23a99742adebabd09b0ebc2793, candidate 4fe7bada67a8e6689bc4c3dc480a844db72e0076
+  same BUILD_ID 1b17aa286e0c8def577ec2f2dbb4a613 and 825 project inputs after path normalization
+  project inputs with path differences only ['integrate-mailbox.tcl']
+  same toolchain identity 19b020efc5565f99f442efdc1937d874f1e75f28e84ae4555ff946763411e5ad
+  cmp-equal execution record SHA-256 de2119e4c469fe62d3318a5164a90ef1568c71b76b5435890b72769021e7af95
+  candidate admitted and sealed as 90cd2c31673aa7d2526c9636a0f8e6388a1012bee3151ee60da1e489a678e11b
+  FAIL RBF differs: main 8e9f4be4bbfd4963b279711cbcc8d175325050581c2cadf8f72893edf582203a, candidate 4d6799b9154e2afe7974689cb97511a733a8d625ff1ebed55be638c372525adc
+D12 incomplete for pcxt
