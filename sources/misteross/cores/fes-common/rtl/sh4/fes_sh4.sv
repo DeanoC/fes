@@ -1,0 +1,1500 @@
+module fes_sh4 #(
+    parameter logic [31:0] RESET_PC = 32'ha000_0000,
+    parameter logic [15:0] RESET_CCR = 16'b0,
+    parameter bit STOP_ON_RESET_EXCEPTION = 0
+) (
+    input  logic        clk,
+    input  logic        reset, manual_reset,
+    input  logic        peripheral_restart_ready,
+    output logic        peripheral_restart_pending, peripheral_restart,
+    input  logic [3:0]  irq_level,
+    input  logic [11:0] irq_event,
+    input  logic        nmi,
+    input  logic        nmi_while_blocked,
+    input  logic        standby, standby_ready,
+    output logic        sleeping, standby_wake,
+    output logic        irq_ack, nmi_ack,
+    output logic        mem_valid,
+    output logic        mem_lock,
+    output logic        mem_sq,
+    output logic [3:0]  mem_rmask,
+    input  logic        mem_ready,
+    output logic [31:0] mem_addr,
+    output logic [3:0]  mem_wstrb,
+    output logic [31:0] mem_wdata,
+    input  logic        mem_rvalid,
+    input  logic [31:0] mem_rdata,
+    output logic        retired,
+    output logic [31:0] retired_pc,
+    output logic [3:0]  fault,
+    output logic [31:0] fault_pc
+);
+    typedef enum logic [4:0] {
+        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT,
+        COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT,
+        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, SQ_ACCESS, SQ_WORD, SQ_SEND, FP_RESULT, FP_SECOND, FP_LHS, FP_ADDEND, FP_START, FP_WAIT, FP_RETIRE,
+        FP_VECTOR_LHS, FP_VECTOR_RHS, FP_VECTOR_WRITE, ASLEEP, STOP
+    } stage_t;
+    typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
+    typedef enum logic [5:0] {
+        BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
+        EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
+        JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS, OCBI, OCBWB, OCBP, MOVCA, PREF, FLOAT_OP, FLOAT_ARITH, FLOAT_VECTOR, FLOAT_TRIG
+    } op_t;
+    typedef enum logic [1:0] {BYTE, WORD, LONGWORD, QUADWORD} size_t;
+    typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
+    localparam logic [3:0] ILLEGAL = 4'd1, SLOT_ILLEGAL = 4'd2,
+                           FETCH_ALIGN = 4'd3, DATA_ALIGN = 4'd4, TLB_MISS = 4'd5, TLB_MULTIPLE = 4'd6,
+                           TLB_PROTECT = 4'd7, TLB_INITIAL_WRITE = 4'd8,
+                           ADDRESS_ERROR = 4'd9, TRAP = 4'd10,
+                           FPU_DISABLED = 4'd11, SLOT_FPU_DISABLED = 4'd12, FPU_EXCEPTION = 4'd13;
+    localparam logic [31:0] SR_MASK = 32'h7000_83f3;
+
+    stage_t stage;
+    logic [31:0] gpr [0:15];
+    logic [31:0] gpr_storage [0:23];
+    logic [31:0] pc, pr, delay_target, delay_branch_pc, pre_slot_pr;
+    logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
+    logic [31:0] gbr, dbr, mach, macl, sys_value, fpscr, fpul;
+    logic dec_fp_mem, dec_fp_pair, fp_mem, fp_pair, fp_second;
+    logic fp_opcode, fp_instruction, fp_system, fp_format_error, fp_write_register, fp_write_fpul, fp_write_fpscr;
+    logic [3:0] fp_read_number, fp_write_number;
+    logic [63:0] fp_read_value, fp_source, fp_result;
+    logic [31:0] fp_system_value, fp_addend;
+    logic [63:0] fp_lhs, fp_arith_value, fp_trig_value;
+    logic fp_arith_done, fp_normal_operands, fp_trig_done;
+    logic [5:0] fp_causes, fp_scalar_causes, fp_dot_causes, fp_vector_causes;
+    logic [1:0] fp_vector_lane, fp_vector_row;
+    logic fp_vector_matrix, fp_dot_done;
+    logic [31:0] fp_dot_value, fp_vector_value [0:3];
+    logic [63:0] fp_write_value;
+    logic [2:0] dec_fp_transfer, fp_transfer;
+    logic fp_compare, fp_to_fpul, fp_completion_trap;
+    control_reg_t dec_control_reg, control_reg;
+    logic dec_control_transfer, control_transfer, control_write, writes_sr, load_gpr;
+    logic [31:0] control_read_value, control_write_value;
+    logic [63:0] product, mac_result;
+    logic mac_second, mac_word;
+    logic [31:0] mac_second_addr;
+    logic [32:0] mac_low_sum, mac_high_sum, mac_addend_hi, mac_product_hi;
+    logic [1:0] mac_word_signs;
+    logic mac_word_overflow, mac_long_overflow;
+    logic dec_sys_load, sys_load, dest_r0;
+    logic alu_recognized, alu_r0, alu_write;
+    logic [31:0] alu_result;
+    logic [3:0] alu_flag_mask, alu_flag_value;
+    logic [11:0] expevt, intevt, exception_event;
+    logic nmi_previous, nmi_pending, nmi_edge, nmi_ready, irq_ready, take_interrupt, interrupt_pending;
+    logic [7:0] tra, trap_imm;
+    logic [3:0] exception_cause, fetch_issue_cause;
+    logic take_exception, address_exception, privileged_op, is_store;
+    logic restart_pending, restart, core_reset;
+    logic [31:0] fault_address;
+    logic t, in_slot, supervisor, fetch_supervisor, bank_one, rte_slot, slot_wrote_pr;
+    logic [15:0] ir;
+
+    logic [3:0] n, m, dst, base_reg;
+    logic [4:0] dst_index, base_index;
+    op_t decoded, fp_decoded, op;
+    size_t dec_size, size;
+    logic dec_pre, dec_post, dec_pc_relative, pre, post, pc_relative;
+    logic [31:0] dec_a, dec_b, dec_offset, a, b, offset, store_value;
+
+    logic [31:0] value, target, effective_addr;
+    logic [32:0] arithmetic;
+    logic write_gpr, write_t, next_t, write_pr, control, delayed, taken, aligned;
+    logic [31:0] wb_value, next_pc, link_value, writeback_base;
+    logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
+    logic [31:2] data_addr;
+    logic [13:2] data_index, dc_index;
+    logic data_va25, operand_ram, area7_access;
+    logic [31:2] area7_virtual_addr;
+    logic [7:0] bus_ic_index;
+    logic cache_array, ic_array, cache_data_array, cache_assoc, ic_array_active, cache_array_barrier;
+    logic ic_array_ready, ic_array_complete;
+    logic [31:0] ic_array_rdata;
+    logic [31:0] data_wdata;
+    logic [3:0] data_wstrb, operand_read_mask;
+    logic byte_access, byte_writes, ordinary_store, cache_maintenance;
+    logic [1:0] cache_command;
+    logic [7:0] byte_result;
+    logic [31:0] load_word, load_value, local_read_value;
+    logic [1:0] data_addr_lane;
+
+    bus_state_t bus_state;
+    logic bus_fetch, bus_sq;
+    logic sq_region, sq_request, plain_prefetch, sqmd, qacr_register, sq_store;
+    logic [2:0] qacr [0:1];
+    logic [31:0] sq_words [0:15], sq_wdata;
+    logic [28:5] sq_line_addr;
+    logic sq_select;
+    logic [2:0] sq_word_index;
+    logic [31:0] fetch_pc, fetch_read_addr;
+    logic [15:0] fetch_instruction;
+    logic fetch_valid, fetch_consume, serialize_fetch, fetch_read, fetch_read_ready, fetch_response;
+    logic fetch_lookup, fetch_cacheable, fetch_flush, redirect, store_accepted;
+    logic data_ready, data_complete, data_bus_request, data_bus_ready, data_bus_response;
+    logic [31:0] data_read_word, data_bus_addr, data_bus_wdata;
+    logic [3:0] data_bus_wstrb;
+
+    logic mmu_ready, mmu_response, mmu_enabled, mmu_cacheable, mmu_request;
+    logic [31:0] mmu_va, mmu_pa, mmu_reg_rdata, mmu_array_rdata;
+    logic [3:0] mmu_fault, mmu_register_index;
+    logic mmu_array, mmu_array_write, mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
+    logic ccr_register, ccr_write, mmu_write_through, data_copyback, data_bus_writeback;
+    logic ic_enable, oc_enable, p1_copyback, direct_write_through;
+    logic ic_index_mode, oc_index_mode, oc_ram_mode;
+    logic fetch_mapped, data_mapped, fetch_tlb_pending, fetch_tlb_valid;
+    logic bad_fetch_region, bad_data_region, fetch_page_cacheable, data_cacheable;
+    logic [31:0] physical_fetch_pc;
+
+    // R8–R15 are shared. R0–R7 select the second bank only in privileged mode with RB set.
+    function automatic logic [4:0] gpr_index(input logic [3:0] number, input logic bank);
+        return bank && !number[3] ? {2'b10, number[2:0]} : {1'b0, number};
+    endfunction
+
+    assign supervisor = sr[30];
+    assign bank_one = supervisor && sr[29];
+    assign dst_index = gpr_index(dst, bank_one ^ (control_write && control_reg == CR_BANK));
+    assign base_index = gpr_index(base_reg, bank_one);
+    assign t = sr[0];
+    // RTE restores SR for executing its slot, but the fetch uses the old MD.
+    assign fetch_supervisor = supervisor || rte_slot;
+    for (genvar r = 0; r < 16; r++) begin : visible_regs
+        assign gpr[r] = gpr_storage[gpr_index(4'(r), bank_one)];
+    end
+
+    fes_sh4_integer integer_extra (
+        .clk, .capture(stage == DECODE), .ir, .recognized(alu_recognized), .use_r0(alu_r0),
+        .lhs(a), .rhs(b), .flags({sr[9:8], sr[0]}),
+        .result(alu_result), .write_gpr(alu_write), .flag_mask(alu_flag_mask), .flag_value(alu_flag_value)
+    );
+
+    fes_sh4_multiplier multiplier (
+        .clk, .launch(stage == MUL_PRODUCTS), .sum_products(stage == MUL_SUM), .finish(stage == MUL_RESULT),
+        .word_operands(ir[15:12] == 4'h2 || (op == MAC && mac_word)),
+        .signed_operands(ir[3:0] == 4'hd || ir[3:0] == 4'hf),
+        .lhs(a), .rhs(b), .product
+    );
+
+    assign mac_word = size == WORD;
+    assign mac_second_addr = n == m ? writeback_base : b;
+    assign mac_addend_hi = sr[1] && !mac_word ? {{17{mach[15]}}, mach[15:0]} : {mach[31], mach};
+    assign mac_product_hi = mac_word ? {33{product[31]}} : {product[63], product[63:32]};
+    assign mac_word_overflow = mac_word_signs[0] == mac_word_signs[1] &&
+                               mac_low_sum[31] != mac_word_signs[0];
+    assign mac_long_overflow = mac_high_sum[32:15] != {18{mac_high_sum[32]}};
+
+    always_comb begin
+        mac_result = {mac_high_sum[31:0], mac_low_sum[31:0]};
+        if (sr[1]) begin
+            if (mac_word) begin
+                mac_result[63:32] = mach;
+                if (mac_word_overflow) begin
+                    mac_result[32] = 1'b1;
+                    mac_result[31:0] = mac_word_signs[0] ? 32'h8000_0000 : 32'h7fff_ffff;
+                end
+            end else begin
+                mac_result[63:48] = mach[31:16];
+                if (mac_long_overflow)
+                    mac_result[47:0] = mac_high_sum[32] ? 48'h8000_0000_0000 : 48'h7fff_ffff_ffff;
+            end
+        end
+    end
+
+    assign n = ir[11:8];
+    assign m = ir[7:4];
+
+    always_comb begin
+        case (ir[7:4])
+            0: sys_value = mach;
+            1: sys_value = macl;
+            5: sys_value = fpul;
+            6: sys_value = fpscr;
+            default: sys_value = pr;
+        endcase
+    end
+
+    always_comb begin
+        case (ir[7:4])
+            0: dec_control_reg = CR_SR;
+            1: dec_control_reg = CR_GBR;
+            2: dec_control_reg = CR_VBR;
+            3: dec_control_reg = (ir[15:12] == 4'h0 && ir[3:0] == 4'ha) ||
+                                 (ir[15:12] == 4'h4 && ir[3:0] == 4'h2) ? CR_SGR : CR_SSR;
+            4: dec_control_reg = CR_SPC;
+            15: dec_control_reg = ir[3:0] inside {4'ha, 4'h6} ||
+                                  (ir[15:12] == 4'h4 && ir[3:0] == 4'h2) ? CR_DBR : CR_BANK;
+            default: dec_control_reg = CR_BANK;
+        endcase
+        case (dec_control_reg)
+            CR_SR:   control_read_value = sr;
+            CR_GBR:  control_read_value = gbr;
+            CR_VBR:  control_read_value = vbr;
+            CR_SSR:  control_read_value = ssr;
+            CR_SPC:  control_read_value = spc;
+            CR_SGR:  control_read_value = sgr;
+            CR_DBR:  control_read_value = dbr;
+            CR_BANK: control_read_value = gpr_storage[gpr_index({1'b0, ir[6:4]}, !bank_one)];
+        endcase
+    end
+
+    always_comb begin
+        decoded = alu_recognized ? INTEGER : BAD;
+        dest_r0 = alu_r0;
+        dec_sys_load = 1'b0;
+        dec_fp_mem = 1'b0;
+        dec_control_transfer = 1'b0;
+        dec_size = BYTE;
+        dec_pre = 1'b0;
+        dec_post = 1'b0;
+        dec_pc_relative = 1'b0;
+        dec_a = gpr[n];
+        dec_b = gpr[m];
+        dec_offset = 32'b0;
+
+        casez (ir)
+            16'h0009: decoded = NOP;
+            16'h001b: decoded = SLEEP;
+            16'h0008, 16'h0018: begin decoded = SET_T; dec_b = {31'b0, ir[4]}; end
+            16'h000b: decoded = RETURN_OP;
+            16'h0038: decoded = LDTLB;
+            16'h4?0e, 16'h4?1e, 16'h4?2e, 16'h4?3e, 16'h4?4e, 16'h4?fa,
+            16'b0100_????_1???_1110: begin
+                decoded = LDC;
+                dec_control_transfer = 1'b1;
+            end
+            16'h0?02, 16'h0?12, 16'h0?22, 16'h0?32, 16'h0?42, 16'h0?3a, 16'h0?fa,
+            16'b0000_????_1???_0010: begin
+                decoded = MOV;
+                dec_control_transfer = 1'b1;
+                dec_b = control_read_value;
+            end
+            16'h4?07, 16'h4?17, 16'h4?27, 16'h4?37, 16'h4?47, 16'h4?f6,
+            16'b0100_????_1???_0111: begin
+                decoded = LOAD;
+                dec_control_transfer = 1'b1;
+                dec_size = LONGWORD;
+                dec_post = 1'b1;
+            end
+            16'h4?03, 16'h4?13, 16'h4?23, 16'h4?33, 16'h4?43, 16'h4?32, 16'h4?f2,
+            16'b0100_????_1???_0011: begin
+                decoded = STORE;
+                dec_control_transfer = 1'b1;
+                dec_size = LONGWORD;
+                dec_pre = 1'b1;
+                dec_b = control_read_value;
+            end
+            16'h002b: decoded = RTE;
+            16'hc3??: decoded = TRAPA;
+            16'h0?29: decoded = MOV_T;
+            16'h0028: decoded = CLRMAC;
+            16'h0??f, 16'h4??f: begin
+                decoded = MAC;
+                dec_size = ir[14] ? WORD : LONGWORD;
+            end
+            16'h3??5, 16'h3??d, 16'h0??7, 16'h2??e, 16'h2??f: decoded = MULTIPLY;
+            16'h4?0a, 16'h4?1a, 16'h4?2a, 16'h4?5a, 16'h4?6a: decoded = LDS;
+            16'h0?0a, 16'h0?1a, 16'h0?2a, 16'h0?5a, 16'h0?6a: decoded = STS;
+            16'h4?06, 16'h4?16, 16'h4?26, 16'h4?56, 16'h4?66: begin
+                decoded = LOAD;
+                dec_size = LONGWORD;
+                dec_post = 1'b1;
+                dec_sys_load = 1'b1;
+            end
+            16'h4?02, 16'h4?12, 16'h4?22, 16'h4?52, 16'h4?62: begin
+                decoded = STORE;
+                dec_size = LONGWORD;
+                dec_pre = 1'b1;
+                dec_b = sys_value;
+            end
+
+            16'hf??6, 16'hf??8, 16'hf??9: begin
+                dec_fp_mem = 1'b1;
+                dec_size = fpscr[20] ? QUADWORD : LONGWORD;
+                dec_a = gpr[m];
+                dec_post = ir[3:0] == 4'h9;
+                if (ir[3:0] == 4'h6)
+                    dec_offset = gpr[0];
+            end
+            16'hf??7, 16'hf??a, 16'hf??b: begin
+                dec_fp_mem = 1'b1;
+                dec_size = fpscr[20] ? QUADWORD : LONGWORD;
+                dec_pre = ir[3:0] == 4'hb;
+                if (ir[3:0] == 4'h7)
+                    dec_offset = gpr[0];
+            end
+            16'he???: begin decoded = MOV; dec_b = {{24{ir[7]}}, ir[7:0]}; end
+            16'h7???: begin decoded = ADD; dec_b = {{24{ir[7]}}, ir[7:0]}; end
+            16'h6??3: decoded = MOV;
+            16'h3??c: decoded = ADD;
+            16'h3??8: decoded = SUB;
+            16'h3??e: decoded = ADDC;
+            16'h3??a: decoded = SUBC;
+            16'h2??9: decoded = AND_OP;
+            16'h2??b: decoded = OR_OP;
+            16'h2??a: decoded = XOR_OP;
+            16'h6??7: decoded = NOT_OP;
+            16'h3??0: decoded = EQ;
+            16'h3??2: decoded = HS;
+            16'h3??3: decoded = GE;
+            16'h3??6: decoded = HI;
+            16'h3??7: decoded = GT;
+            16'h2??8: decoded = TST;
+            16'h88??: begin decoded = EQ; dec_a = gpr[0]; dec_b = {{24{ir[7]}}, ir[7:0]}; end
+            16'h4?00, 16'h4?20: decoded = SHLL;
+            16'h4?01: decoded = SHLR;
+            16'h4?21: decoded = SHAR;
+
+            16'h4?2b: decoded = JMP;
+            16'h4?0b: decoded = CALL;
+            16'h0?23: begin decoded = BRAF; dec_offset = gpr[n]; end
+            16'h0?03: begin decoded = BSRF; dec_offset = gpr[n]; end
+            16'ha???, 16'hb???: begin
+                decoded = ir[12] ? BSR : BR;
+                dec_offset = {{19{ir[11]}}, ir[11:0], 1'b0};
+            end
+            16'h89??, 16'h8b??, 16'h8d??, 16'h8f??: begin
+                case (ir[11:8])
+                    4'h9: decoded = BT;
+                    4'hb: decoded = BF;
+                    4'hd: decoded = BTS;
+                    default: decoded = BFS;
+                endcase
+                dec_offset = {{23{ir[7]}}, ir[7:0], 1'b0};
+            end
+
+            16'h6??0, 16'h6??1, 16'h6??2, 16'h6??4, 16'h6??5, 16'h6??6: begin
+                decoded = LOAD;
+                dec_size = size_t'(ir[1:0]);
+                dec_post = ir[2];
+                dec_a = gpr[m];
+            end
+            16'h2??0, 16'h2??1, 16'h2??2, 16'h2??4, 16'h2??5, 16'h2??6: begin
+                decoded = STORE;
+                dec_size = size_t'(ir[1:0]);
+                dec_pre = ir[2];
+            end
+            16'h0??4, 16'h0??5, 16'h0??6, 16'h0??c, 16'h0??d, 16'h0??e: begin
+                decoded = ir[3] ? LOAD : STORE;
+                dec_size = size_t'(ir[1:0]);
+                dec_a = ir[3] ? gpr[m] : gpr[n];
+                dec_offset = gpr[0];
+            end
+            16'h0?83: decoded = PREF;
+            16'h0?93: decoded = OCBI;
+            16'h0?a3: decoded = OCBP;
+            16'h0?b3: decoded = OCBWB;
+            16'h0?c3: begin
+                decoded = MOVCA;
+                dec_size = LONGWORD;
+                dec_b = gpr[0];
+            end
+            16'h4?1b: decoded = TAS;
+            16'hcc??, 16'hcd??, 16'hce??, 16'hcf??: begin
+                decoded = MEMORY_BYTE;
+                dec_a = gbr;
+                dec_offset = gpr[0];
+            end
+            16'hc0??, 16'hc1??, 16'hc2??, 16'hc4??, 16'hc5??, 16'hc6??: begin
+                decoded = ir[10] ? LOAD : STORE;
+                dec_size = size_t'(ir[9:8]);
+                dest_r0 = ir[10];
+                dec_a = gbr;
+                dec_b = gpr[0];
+                dec_offset = {24'b0, ir[7:0]} << dec_size;
+            end
+            16'h1???, 16'h5???: begin
+                decoded = ir[14] ? LOAD : STORE;
+                dec_size = LONGWORD;
+                dec_a = ir[14] ? gpr[m] : gpr[n];
+                dec_offset = {26'b0, ir[3:0], 2'b00};
+            end
+            default: ;
+        endcase
+
+        if (alu_recognized && alu_r0) begin
+            dec_a = gpr[0];
+            dec_b = {24'b0, ir[7:0]};
+        end
+
+        // Byte and word displacement forms place the register in a different field.
+        casez (ir)
+            16'h80??, 16'h81??, 16'h84??, 16'h85??: begin
+                decoded = ir[10] ? LOAD : STORE;
+                dest_r0 = ir[10];
+                dec_size = ir[8] ? WORD : BYTE;
+                dec_a = gpr[m];
+                dec_b = gpr[0];
+                dec_offset = ir[8] ? {27'b0, ir[3:0], 1'b0} : {28'b0, ir[3:0]};
+            end
+            16'h9???, 16'hd???, 16'hc7??: begin
+                dest_r0 = ir[15:12] == 4'hc;
+                decoded = dest_r0 ? MOVA : LOAD;
+                dec_size = ir[15:12] == 4'h9 ? WORD : LONGWORD;
+                dec_pc_relative = 1'b1;
+                dec_offset = dec_size == WORD ? {23'b0, ir[7:0], 1'b0} : {22'b0, ir[7:0], 2'b00};
+            end
+            default: ;
+        endcase
+        if (ir[15:12] == 4'hf)
+            decoded = fp_decoded;
+    end
+
+    // These are the only arithmetic operations on the shared register operands.
+    always_comb begin
+        case (op)
+            ADDC: arithmetic = {1'b0, a} + {1'b0, b} + {32'b0, t};
+            SUBC: arithmetic = {1'b0, a} - {1'b0, b} - {32'b0, t};
+            SUB:  arithmetic = {1'b0, a} - {1'b0, b};
+            default: arithmetic = {1'b0, a} + {1'b0, b};
+        endcase
+        value = 32'b0;
+        target = pc + 32'd4 + offset;
+        effective_addr = a + offset;
+        if (pre)
+            effective_addr = a - (32'd1 << size);
+        if (pc_relative)
+            effective_addr = (size == WORD ? pc + 32'd4 : (pc + 32'd4) & 32'hffff_fffc) + offset;
+        aligned = (size != QUADWORD || effective_addr[2:0] == 3'b000) &&
+                  (size != LONGWORD || effective_addr[1:0] == 2'b00) &&
+                  (size != WORD || !effective_addr[0]);
+
+        write_gpr = 1'b0;
+        write_t = 1'b0;
+        next_t = 1'b0;
+        write_pr = 1'b0;
+        control = 1'b0;
+        delayed = 1'b0;
+        taken = 1'b0;
+
+        case (op)
+            MOV, MOV_T, MOVA, STS,
+            ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP, SHLL, SHLR, SHAR: begin
+                write_gpr = 1'b1;
+                case (op)
+                    MOV: value = b;
+                    MOV_T: value = {31'b0, t};
+                    STS: value = sys_value;
+                    MOVA: value = effective_addr;
+                    ADD, SUB, ADDC, SUBC: begin
+                        value = arithmetic[31:0];
+                        write_t = op == ADDC || op == SUBC;
+                        next_t = arithmetic[32];
+                    end
+                    AND_OP: value = a & b;
+                    OR_OP: value = a | b;
+                    XOR_OP: value = a ^ b;
+                    NOT_OP: value = ~b;
+                    default: begin
+                        value = op == SHLL ? {a[30:0], 1'b0} : {op == SHAR && a[31], a[31:1]};
+                        write_t = 1'b1;
+                        next_t = op == SHLL ? a[31] : a[0];
+                    end
+                endcase
+            end
+            EQ, HS, GE, HI, GT, TST, SET_T: begin
+                write_t = 1'b1;
+                case (op)
+                    EQ: next_t = a == b;
+                    HS: next_t = a >= b;
+                    GE: next_t = $signed(a) >= $signed(b);
+                    HI: next_t = a > b;
+                    GT: next_t = $signed(a) > $signed(b);
+                    TST: next_t = (a & b) == 32'b0;
+                    default: next_t = b[0];
+                endcase
+            end
+            JMP, CALL, RETURN_OP, BR, BSR, BRAF, BSRF, BT, BF, BTS, BFS, RTE: begin
+                control = 1'b1;
+                delayed = op != BT && op != BF;
+                taken = (op == BT || op == BTS) ? t : (op == BF || op == BFS) ? !t : 1'b1;
+                write_pr = op inside {CALL, BSR, BSRF};
+                if (op == JMP || op == CALL)
+                    target = a;
+                if (op == RETURN_OP)
+                    target = pr;
+                if (op == RTE)
+                    target = spc;
+            end
+            default: ;
+        endcase
+    end
+
+    assign byte_access = op == TAS || op == MEMORY_BYTE;
+    assign byte_writes = op == TAS || (op == MEMORY_BYTE && ir[9:8] != 0);
+    assign ordinary_store = op == STORE || op == MOVCA;
+    assign is_store = ordinary_store || byte_writes || op == OCBI;
+    // Bit 1 writes back a dirty line. Bit 0 invalidates a hit.
+    assign cache_command = op == OCBI ? 2'b01 : op == OCBWB ? 2'b10 : op == OCBP ? 2'b11 : 2'b00;
+    assign cache_maintenance = cache_command != 0;
+    assign operand_read_mask = size == BYTE ? 4'b0001 << data_addr_lane :
+                               size == WORD ? 4'b0011 << data_addr_lane : 4'b1111;
+
+    always_comb begin
+        if (op == TAS)
+            byte_result = wb_value[7:0] | 8'h80;
+        else case (ir[9:8])
+            0, 1: byte_result = wb_value[7:0] & ir[7:0];
+            2: byte_result = wb_value[7:0] ^ ir[7:0];
+            3: byte_result = wb_value[7:0] | ir[7:0];
+        endcase
+    end
+    // Keep the FPR port mode on the opcode-only decode path.
+    always_comb begin
+        casez (ir)
+            16'hf??6, 16'hf??8, 16'hf??9: fp_decoded = LOAD;
+            16'hf??7, 16'hf??a, 16'hf??b: fp_decoded = STORE;
+            16'hf??0, 16'hf??1, 16'hf??2, 16'hf??3, 16'hf??4, 16'hf??5, 16'hf??e,
+            16'hf?2d, 16'hf?3d, 16'hf?6d, 16'hf?7d, 16'hf?ad, 16'hf?bd: fp_decoded = FLOAT_ARITH;
+            16'hf0fd, 16'hf2fd, 16'hf4fd, 16'hf6fd,
+            16'hf8fd, 16'hfafd, 16'hfcfd, 16'hfefd: fp_decoded = FLOAT_TRIG;
+            16'hf?ed, 16'hf1fd, 16'hf5fd, 16'hf9fd, 16'hfdfd: fp_decoded = FLOAT_VECTOR;
+            16'hf??c, 16'hf?0d, 16'hf?1d, 16'hf?4d, 16'hf?5d, 16'hf?8d, 16'hf?9d,
+            16'hf3fd, 16'hfbfd: fp_decoded = FLOAT_OP;
+            default: fp_decoded = BAD;
+        endcase
+    end
+    assign dec_fp_pair = fp_decoded == FLOAT_TRIG ? 1'b1 :
+                         fp_decoded == FLOAT_ARITH ? fpscr[19] :
+                         ir[3:0] == 4'hd ? (ir[7:4] inside {4'h4, 4'h5}) && fpscr[19] : fpscr[20];
+    always_comb begin
+        case (stage)
+            FP_VECTOR_LHS: fp_read_number = {ir[11:10], fp_vector_lane};
+            FP_VECTOR_RHS: fp_read_number = fp_vector_matrix ? {fp_vector_lane, fp_vector_row} :
+                                           {ir[9:8], fp_vector_lane};
+            FP_LHS: fp_read_number = fp_transfer == 7 ? 4'b0 : n;
+            FP_ADDEND: fp_read_number = n;
+            default: fp_read_number = ir[3:0] == 4'hd ? n : m;
+        endcase
+    end
+    // These modes are consumed after decode, so their capture does not
+    // need the shared exception and interrupt write-enable path.
+    always_ff @(posedge clk) begin
+        if (stage == DECODE) begin
+            fp_pair <= dec_fp_pair;
+            fp_transfer <= dec_fp_transfer;
+        end
+    end
+    assign fp_vector_matrix = ir[4];
+    assign fp_causes = op == FLOAT_TRIG ? 6'b1 :
+                       op == FLOAT_VECTOR ? fp_vector_causes : fp_scalar_causes;
+    assign fp_write_number = stage == FP_VECTOR_WRITE ?
+                             {ir[11:10], fp_vector_matrix ? fp_vector_row : 2'b11} : n;
+    assign fp_write_value = stage == FP_VECTOR_WRITE ? {32'b0, fp_vector_value[fp_vector_row]} : fp_result;
+    assign fp_system = (ir[7:4] inside {4'h5, 4'h6}) &&
+                       ((ir[15:12] == 4'h0 && ir[3:0] == 4'ha) ||
+                        (ir[15:12] == 4'h4 && (ir[3:0] inside {4'h2, 4'h6, 4'ha})));
+    assign fp_opcode = (ir[15:12] == 4'hf && ir != 16'hfffd) || fp_system;
+    always_comb begin
+        case (ir[3:0])
+            4: dec_fp_transfer = 3'd1; // FCMP/EQ
+            5: dec_fp_transfer = 3'd2; // FCMP/GT
+            14: dec_fp_transfer = 3'd7; // FMAC
+            13: case (ir[7:4])
+                2: dec_fp_transfer = 3'd3; // FLOAT
+                3: dec_fp_transfer = 3'd4; // FTRC
+                10: dec_fp_transfer = 3'd5; // FCNVSD
+                11: dec_fp_transfer = 3'd6; // FCNVDS
+                default: dec_fp_transfer = 0;
+            endcase
+            default: dec_fp_transfer = 0;
+        endcase
+    end
+    assign fp_compare = op == FLOAT_ARITH && (fp_transfer inside {3'd1, 3'd2});
+    assign fp_to_fpul = op == FLOAT_ARITH && (fp_transfer inside {3'd4, 3'd6});
+    assign fp_completion_trap = (op == FLOAT_VECTOR && fp_vector_matrix && fpscr[11]) ||
+                               ((fp_transfer == 7 || op == FLOAT_VECTOR) && (|fpscr[9:7])) ||
+                               fp_normal_operands &&
+                               ((fp_transfer == 3 || (fp_transfer == 0 && ir[3:0] == 4'hd)) ? fpscr[7] :
+                                (fp_transfer inside {3'd0, 3'd6}) && (|fpscr[9:7]));
+    assign fp_format_error = (fp_decoded == FLOAT_ARITH && (dec_fp_transfer inside {3'd5, 3'd6}) && !fpscr[19]) ||
+                             (fpscr[19] &&
+                              (fp_decoded inside {FLOAT_VECTOR, FLOAT_TRIG} ||
+                               (fp_decoded == FLOAT_ARITH && (ir[7:0] == 8'h7d || dec_fp_transfer == 7 || n[0] || (ir[3:0] != 4'hd && m[0]))) ||
+                               (fp_decoded == FLOAT_OP && ir[3:0] == 4'hd &&
+                                ((ir[7:4] inside {4'h8, 4'h9, 4'hf}) ||
+                                 ((ir[7:4] inside {4'h4, 4'h5}) && n[0])))));
+    assign fp_write_register = stage == FP_VECTOR_WRITE || (stage == COMMIT && ((op == LOAD && fp_mem) || op == FLOAT_TRIG ||
+                               (op == FLOAT_ARITH && !fp_compare && !fp_to_fpul) ||
+                               (op == FLOAT_OP && !(ir[3:0] == 4'hd && (ir[7:4] inside {4'h1, 4'hf})))));
+    assign fp_write_fpul = stage == COMMIT && (fp_to_fpul || (op == FLOAT_OP && ir[7:0] == 8'h1d) ||
+                           (fp_system && ir[7:4] == 4'h5 && ((op == LDS) || (op == LOAD && sys_load))));
+    assign fp_write_fpscr = stage == COMMIT && fp_system && ir[7:4] == 4'h6 &&
+                            ((op == LDS) || (op == LOAD && sys_load));
+    assign fp_system_value = fp_to_fpul ? fp_result[31:0] : op == FLOAT_OP ? fp_source[31:0] : op == LDS ? a : wb_value;
+
+    fes_sh4_fpu_regs fpu_regs (
+        .clk, .reset(core_reset), .read_number(fp_read_number), .read_pair(dec_fp_pair), .read_value(fp_read_value),
+        .read_other_bank(stage == FP_VECTOR_RHS && fp_vector_matrix),
+        .write_register(fp_write_register), .write_number(fp_write_number), .write_pair(fp_pair), .write_value(fp_write_value),
+        .write_fpul(fp_write_fpul), .write_fpscr(fp_write_fpscr),
+        .change_bank(stage == COMMIT && op == FLOAT_OP && ir == 16'hfbfd),
+        .change_size(stage == COMMIT && op == FLOAT_OP && ir == 16'hf3fd),
+        .update_exceptions(stage == FP_RETIRE), .causes(fp_causes),
+        .system_value(fp_system_value), .fpul, .fpscr
+    );
+
+    fes_sh4_fp_arithmetic fp_arithmetic (
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_ARITH), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
+        .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[7:0] == 8'h6d),
+        .reciprocal_root(ir[7:0] == 8'h7d), .transfer(fp_transfer),
+        .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source), .addend(fp_addend),
+        .done(fp_arith_done), .value(fp_arith_value), .causes(fp_scalar_causes), .normal_operands(fp_normal_operands)
+    );
+
+    fes_sh4_fp_dot fp_dot (
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_VECTOR), .lane(fp_vector_lane),
+        .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]),
+        .lhs(fp_lhs[31:0]), .rhs(fp_source[31:0]),
+        .done(fp_dot_done), .value(fp_dot_value), .causes(fp_dot_causes)
+    );
+
+    fes_sh4_fsca fp_trig (
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_TRIG),
+        .toward_zero(fpscr[0]), .angle(fpul[15:0]), .done(fp_trig_done), .value(fp_trig_value)
+    );
+
+    assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
+                           (control_transfer && control_reg != CR_GBR);
+    assign control_write = control_transfer && (op == LDC || op == LOAD);
+    assign control_write_value = op == LDC ? a : wb_value;
+    assign writes_sr = control_write && control_reg == CR_SR;
+    assign load_gpr = !fp_mem && !sys_load && (!control_transfer || control_reg == CR_BANK);
+
+    always_comb begin
+        exception_cause = 4'b0;
+        address_exception = 1'b0;
+        fault_address = pc;
+        case (stage)
+            ISSUE: begin
+                exception_cause = fetch_issue_cause;
+                address_exception = pc[0] || bad_fetch_region;
+            end
+            EXECUTE: begin
+                if (fp_instruction && sr[15])
+                    exception_cause = in_slot ? SLOT_FPU_DISABLED : FPU_DISABLED;
+                else if (op == BAD || (!supervisor && privileged_op) ||
+                    (in_slot && (control || pc_relative || writes_sr || op == TRAPA)))
+                    exception_cause = in_slot ? SLOT_ILLEGAL : ILLEGAL;
+                else if ((op == LOAD || op == MAC || is_store) && !aligned) begin
+                    exception_cause = DATA_ALIGN;
+                    address_exception = 1'b1;
+                    fault_address = effective_addr;
+                end else if (op == TRAPA)
+                    exception_cause = TRAP;
+            end
+            FP_RETIRE: if (fp_causes[5] || |(fp_causes[4:0] & fpscr[11:7]) ||
+                           fp_completion_trap)
+                exception_cause = FPU_EXCEPTION;
+            MAC_READ: if (!mac_second && (mac_second_addr[0] || (!mac_word && mac_second_addr[1]))) begin
+                exception_cause = DATA_ALIGN;
+                address_exception = 1'b1;
+                fault_address = mac_second_addr;
+            end
+            DATA_TRANSLATE: if (!plain_prefetch && (bad_data_region ||
+                ((mmu_register || event_register || ccr_register || qacr_register || mmu_array || cache_array) && size != LONGWORD) ||
+                (sq_region && (!sq_store && op != PREF || (!mmu_enabled && !supervisor && sqmd))))) begin
+                exception_cause = ADDRESS_ERROR;
+                address_exception = 1'b1;
+                fault_address = {area7_access ? area7_virtual_addr : data_addr, data_addr_lane};
+            end
+            DATA_TLB_WAIT: if (mmu_response && !plain_prefetch) begin
+                exception_cause = cache_assoc && mmu_fault != TLB_MULTIPLE ? 4'b0 : mmu_fault;
+                if (sq_region && mmu_fault == 0 && !supervisor && sqmd) begin
+                    exception_cause = ADDRESS_ERROR;
+                    address_exception = 1'b1;
+                    fault_address = {data_addr, data_addr_lane};
+                end
+            end
+            default: ;
+        endcase
+
+        case (exception_cause)
+            ILLEGAL:           exception_event = 12'h180;
+            SLOT_ILLEGAL:      exception_event = 12'h1a0;
+            FETCH_ALIGN:       exception_event = 12'h0e0;
+            DATA_ALIGN,
+            ADDRESS_ERROR:     exception_event = stage != ISSUE && is_store ? 12'h100 : 12'h0e0;
+            TLB_MISS:          exception_event = stage != ISSUE && is_store ? 12'h060 : 12'h040;
+            TLB_MULTIPLE:      exception_event = 12'h140;
+            TLB_PROTECT:       exception_event = stage != ISSUE && is_store ? 12'h0c0 : 12'h0a0;
+            TLB_INITIAL_WRITE: exception_event = 12'h080;
+            TRAP:              exception_event = 12'h160;
+            FPU_DISABLED:      exception_event = 12'h800;
+            SLOT_FPU_DISABLED: exception_event = 12'h820;
+            FPU_EXCEPTION:     exception_event = 12'h120;
+            default:           exception_event = 12'h000;
+        endcase
+    end
+
+    assign take_exception = exception_cause != 0 && exception_cause != TLB_MULTIPLE && !sr[28] && !rte_slot;
+
+    // STOP suppresses new fetches while the accepted bus request drains.
+    // A multiple hit also needs the SoC to finish its current DMA unit.
+    assign restart = restart_pending && bus_state == BUS_IDLE &&
+                     (!peripheral_restart_pending || peripheral_restart_ready);
+    assign peripheral_restart = restart && peripheral_restart_pending;
+    assign core_reset = reset || restart;
+
+    // Acknowledge between instructions, after any delayed branch slot and
+    // after an outstanding instruction translation has supplied its result.
+    assign sleeping = stage == ASLEEP;
+    assign standby_wake = standby && interrupt_pending;
+    assign nmi_edge = nmi && !nmi_previous;
+    assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked || stage == ASLEEP);
+    assign irq_ready = (!sr[28] || standby) && irq_level > sr[7:4];
+    assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
+    assign fetch_issue_cause = pc[0] ? FETCH_ALIGN : bad_fetch_region ? ADDRESS_ERROR :
+                               fetch_tlb_pending && mmu_response ? mmu_fault : 4'b0;
+    assign take_interrupt = interrupt_pending && !ubc_wait && !ubc_trap && ((sleeping && (!standby || standby_ready)) || (stage == ISSUE && fetch_issue_cause == 0));
+
+    // These instructions serialize fetch at retirement. Decode them before
+    // entering the execution and memory stages.
+    always_ff @(posedge clk) begin
+        if (stage == DECODE) begin
+            casez (ir)
+                16'h001b, 16'h0038, 16'h4?0e, 16'h4?07: serialize_fetch <= 1'b1;
+                default: serialize_fetch <= 1'b0;
+            endcase
+        end
+    end
+
+    assign redirect = stage == COMMIT && fetch_pc != next_pc;
+    assign privilege_write = stage == COMMIT && writes_sr;
+    assign mmu_ldtlb = stage == COMMIT && op == LDTLB;
+    assign bad_fetch_region = (!fetch_supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111 ||
+                              (oc_enable && oc_ram_mode && fetch_pc[31:26] == 6'b011111);
+    assign sq_region = data_addr[31:26] == 6'b111000;
+    assign plain_prefetch = op == PREF && !sq_region;
+    assign sq_store = ordinary_store && (size inside {LONGWORD, QUADWORD});
+    assign sq_request = stage == SQ_SEND;
+    assign mem_sq = bus_sq;
+    assign bad_data_region = !supervisor && data_addr[31] && !sq_region && !area7_access;
+    logic ubc_enabled, ubc_selected, ubc_rvalid, ubc_dbr;
+    logic ubc_checked, ubc_probe_pc, ubc_probe_slot, ubc_wait, ubc_before, ubc_after;
+    logic ubc_pre_hit, ubc_commit_hit, ubc_trap, ubc_operand_valid, ubc_operand_write;
+    logic ubc_operand_has_data, ubc_management, ubc_access;
+    logic [1:0] ubc_matches, ubc_pending_matches, ubc_retired_matches;
+    logic [2:0] ubc_operand_size;
+    logic [7:0] ubc_asid;
+    logic [31:0] ubc_rdata, ubc_virtual_addr, ubc_operand_data;
+
+    // Observe the architectural PC, never a speculative cache lookup.
+    // Check a delayed branch's slot before the branch changes registers.
+    assign ubc_probe_pc = ubc_enabled && stage == ISSUE && !ubc_checked && (in_slot || !ubc_after);
+    assign ubc_probe_slot = ubc_enabled && stage == EXECUTE && control && delayed &&
+                            op != RTE && !ubc_checked;
+    assign ubc_wait = ubc_probe_pc || ubc_probe_slot;
+    assign ubc_management = cache_maintenance || op == PREF;
+    assign ubc_access = (stage == DATA_TRANSLATE && ubc_management && exception_cause == 0) ||
+                        (stage == DATA_WAIT && data_complete && !ic_array && !ubc_selected && !ubc_management);
+    assign ubc_retired_matches = stage == COMMIT ? ubc_pending_matches | ubc_matches : 2'b0;
+    assign ubc_trap = !sr[28] && (ubc_before || (ubc_after && stage == ISSUE && !in_slot));
+
+    fes_sh7091_ubc ubc (
+        .clk, .reset(reset || peripheral_restart), .power_reset(reset && !manual_reset),
+        .request(stage == DATA_TRANSLATE && exception_cause == 0 && !plain_prefetch),
+        .address(data_addr), .rmask(operand_read_mask), .wstrb(data_wstrb), .wdata(data_wdata),
+        .selected(ubc_selected), .rvalid(ubc_rvalid), .rdata(ubc_rdata),
+        .observed(ubc_wait || ubc_operand_valid), .allow_pre(!in_slot), .allow_post(!ubc_probe_slot),
+        .operand(ubc_operand_valid),
+        .written(ubc_operand_valid && ubc_operand_write), .data_present(ubc_operand_has_data),
+        .operand_size(ubc_operand_valid ? ubc_operand_size : 3'd2), .observed_asid(ubc_asid),
+        .observed_address(ubc_operand_valid ? ubc_virtual_addr : ubc_probe_slot ? pc + 32'd2 : pc),
+        .observed_data({2{ubc_operand_data}}), .retired_matches(ubc_retired_matches),
+        .post_matches(ubc_matches), .enabled(ubc_enabled), .pre_break(ubc_pre_hit),
+        .post_break(ubc_commit_hit), .debug_vector(ubc_dbr)
+    );
+
+    always_ff @(posedge clk) begin
+        if (core_reset || stage == EXCEPTION) begin
+            ubc_checked <= 0;
+            ubc_before <= 0;
+            ubc_after <= 0;
+            ubc_operand_valid <= 0;
+            ubc_pending_matches <= 0;
+        end else begin
+            if (ubc_wait)
+                ubc_checked <= 1;
+            else if (stage != ISSUE || fetch_consume || take_interrupt || exception_cause != 0)
+                ubc_checked <= 0;
+            ubc_before <= ubc_pre_hit;
+            if (stage == COMMIT)
+                ubc_after <= ubc_after || ubc_commit_hit;
+            if (ubc_trap || (ubc_after && stage == ISSUE && !in_slot))
+                ubc_after <= 0;
+            if (exception_cause != 0 || take_interrupt || ubc_trap || stage == COMMIT)
+                ubc_pending_matches <= 0;
+            else
+                ubc_pending_matches <= ubc_pending_matches | ubc_matches;
+
+            if (stage == EXECUTE && !ubc_wait)
+                ubc_virtual_addr <= effective_addr;
+            if (stage == MAC_READ && !mac_second)
+                ubc_virtual_addr <= mac_second_addr;
+            ubc_operand_valid <= ubc_enabled && ubc_access;
+            if (ubc_access) begin
+                ubc_operand_size <= ubc_management ? 3'd3 : {1'b0, size} + 3'd1;
+                ubc_operand_write <= op == OCBI || data_wstrb != 0;
+                ubc_operand_has_data <= !ubc_management;
+                ubc_operand_data <= data_wstrb != 0 ? data_wdata >> {data_addr_lane, 3'b000} : load_value;
+            end
+        end
+    end
+
+    assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
+    assign data_mapped = mmu_enabled && !operand_ram && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
+    assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
+    assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region && !ic_array_active &&
+                          (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
+    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write || cache_array_barrier ||
+                         privilege_write || exception_cause != 0 || take_interrupt || ubc_trap ||
+                         (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
+    assign fetch_consume = fetch_valid && !ubc_trap && !ubc_wait && ((stage == ISSUE && fetch_issue_cause == 0 && !interrupt_pending) ||
+                                           (stage == COMMIT && !ubc_enabled && !redirect && !serialize_fetch &&
+                                            !irq_ready && !nmi_ready));
+    assign store_accepted = mem_valid && mem_ready && mem_wstrb != 0;
+
+    assign mmu_register_index = data_addr[5:2];
+    assign mmu_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
+                          (mmu_register_index inside {4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd13});
+    assign cache_array = data_addr[31:24] inside {8'hf0, 8'hf1, 8'hf4, 8'hf5};
+    assign ic_array = cache_array && !data_addr[26];
+    assign cache_data_array = data_addr[24];
+    assign cache_assoc = cache_array && !cache_data_array && data_addr[3] && is_store;
+    assign ic_array_active = ic_array && (stage inside {DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT});
+    assign cache_array_barrier = stage == DATA_TRANSLATE && ic_array && !plain_prefetch;
+    assign mmu_array = data_addr[31:24] inside {8'hf2, 8'hf3, 8'hf6, 8'hf7};
+    assign mmu_array_write = stage == DATA_TLB_WAIT && mmu_response && mmu_array && is_store;
+    assign qacr_register = data_addr[31:3] == 29'h1fe0_0007;
+    assign operand_ram = oc_enable && oc_ram_mode && data_addr[31:26] == 6'b011111;
+    assign ccr_register = data_addr == 30'h3fc0_0007;
+    assign ccr_write = stage == DATA_TRANSLATE && !bad_data_region && ccr_register &&
+                       size == LONGWORD && is_store;
+    assign event_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
+                            (mmu_register_index inside {4'd8, 4'd9, 4'd10});
+    assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
+                           size == LONGWORD && is_store;
+    assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region &&
+                          ((mmu_array || (cache_assoc && mmu_enabled)) ? size == LONGWORD : data_mapped) &&
+                          (!plain_prefetch || oc_enable) && (!sq_region || sq_store || op == PREF)) ||
+                         (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt && !ubc_wait && !ubc_trap &&
+                          !bad_fetch_region && !fetch_pc[0]);
+    assign mmu_va = stage != DATA_TRANSLATE ? fetch_pc :
+                    cache_assoc ? {data_wdata[31:10], 10'b0} : {data_addr, data_addr_lane};
+
+    fes_sh4_mmu mmu (
+        .clk, .reset(core_reset), .preserve_fault(peripheral_restart && !reset), .request(mmu_request), .ready(mmu_ready),
+        .instruction(stage == ISSUE || (stage == DATA_TRANSLATE && cache_assoc && ic_array)),
+        .array_access(stage == DATA_TRANSLATE && mmu_array), .tag_probe(stage == DATA_TRANSLATE && cache_assoc),
+        .write(stage == DATA_TRANSLATE && is_store),
+        .quiet(stage == DATA_TRANSLATE && (plain_prefetch || cache_assoc)), .sqmd,
+        .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
+        .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
+        .cacheable(mmu_cacheable), .write_through(mmu_write_through), .fault(mmu_fault), .enabled(mmu_enabled),
+        .reg_select(mmu_register_index), .reg_write(mmu_reg_write), .reg_wdata(data_wdata),
+        .active_asid(ubc_asid), .reg_rdata(mmu_reg_rdata), .array_rdata(mmu_array_rdata), .ldtlb(mmu_ldtlb)
+    );
+
+    fes_sh4_icache icache (
+        .clk, .reset(core_reset), .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
+        .invalidate(store_accepted), .invalidate_index(bus_ic_index),
+        .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .lookup_index({ic_index_mode ? fetch_pc[25] : fetch_pc[12], fetch_pc[11:5]}),
+        .array_request(stage == DATA_REQ && ic_array), .array_data(cache_data_array),
+        .array_assoc(cache_assoc), .array_write(is_store), .array_address(data_index[12:2]),
+        .array_wdata(data_wdata), .array_ready(ic_array_ready), .array_complete(ic_array_complete),
+        .array_rdata(ic_array_rdata), .cacheable(fetch_cacheable),
+        .instruction_valid(fetch_valid), .instruction(fetch_instruction), .consume(fetch_consume),
+        .read_valid(fetch_read), .read_addr(fetch_read_addr), .read_ready(fetch_read_ready),
+        .response_valid(fetch_response), .response_data(mem_rdata)
+    );
+
+    fes_sh4_dcache dcache (
+        .clk, .reset(core_reset), .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ && !ic_array), .ready(data_ready),
+        .address(data_addr), .index(dc_index),
+        .array_access(cache_array || operand_ram), .array_data(cache_data_array || operand_ram), .array_assoc(cache_assoc), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
+        .purge_before_read(op == TAS), .maintenance(cache_command), .allocate_without_read(op == MOVCA),
+        .wstrb(data_wstrb), .wdata(data_wdata),
+        .complete(data_complete), .rdata(data_read_word),
+        .bus_request(data_bus_request), .bus_writeback(data_bus_writeback), .bus_ready(data_bus_ready),
+        .bus_address(data_bus_addr), .bus_wstrb(data_bus_wstrb), .bus_wdata(data_bus_wdata),
+        .bus_response(data_bus_response), .bus_rdata(mem_rdata)
+    );
+
+    // Data gets priority between refill beats. The bus owns a registered
+    // request until acceptance and tags the read until its response arrives.
+    assign mem_valid = !reset && bus_state == BUS_SEND;
+    assign data_bus_ready = mem_valid && mem_ready && !bus_fetch && !bus_sq;
+    assign data_bus_response = bus_state == BUS_REPLY && mem_rvalid && !bus_fetch && !bus_sq;
+    assign fetch_read_ready = bus_state == BUS_IDLE && !data_bus_request && !(stage inside {SQ_WORD, SQ_SEND}) && !mem_lock;
+    assign fetch_response = bus_state == BUS_REPLY && mem_rvalid && bus_fetch;
+    assign load_word = data_read_word >> {data_addr_lane, 3'b000};
+    always_comb begin
+        case (mmu_register_index)
+            8: local_read_value = {22'b0, tra, 2'b00};
+            9: local_read_value = {20'b0, expevt};
+            10: local_read_value = {20'b0, intevt};
+            default: local_read_value = mmu_reg_rdata;
+        endcase
+        if (!event_register)
+            local_read_value = mmu_reg_rdata;
+    end
+
+    always_comb begin
+        case (size)
+            BYTE: load_value = {{24{load_word[7]}}, load_word[7:0]};
+            WORD: load_value = {{16{load_word[15]}}, load_word[15:0]};
+            default: load_value = load_word;
+        endcase
+    end
+
+    always_ff @(posedge clk) begin
+        if (core_reset) begin
+            bus_state <= BUS_IDLE;
+            mem_lock <= 1'b0;
+        end else begin
+            case (bus_state)
+                BUS_IDLE: begin
+                    if (sq_request) begin
+                        bus_fetch <= 1'b0;
+                        bus_sq <= 1'b1;
+                        mem_addr <= {3'b0, sq_line_addr, sq_word_index, 2'b00};
+                        bus_ic_index <= {ic_index_mode ? sq_line_addr[25] : sq_line_addr[12], sq_line_addr[11:5]};
+                        mem_wstrb <= 4'b1111;
+                        mem_wdata <= sq_wdata;
+                        bus_state <= BUS_SEND;
+                    end else if (data_bus_request) begin
+                        bus_fetch <= 1'b0;
+                        bus_sq <= 1'b0;
+                        mem_addr <= data_bus_addr;
+                        if (ic_index_mode && !data_bus_writeback)
+                            bus_ic_index <= {data_va25, data_index[11:5]};
+                        else
+                            bus_ic_index <= {ic_index_mode ? data_bus_addr[25] : data_bus_addr[12], data_bus_addr[11:5]};
+                        mem_wstrb <= data_bus_wstrb;
+                        mem_rmask <= data_cacheable ? 4'b1111 : operand_read_mask;
+                        mem_wdata <= data_bus_wdata;
+                        if (op == TAS && !data_bus_writeback)
+                            mem_lock <= 1'b1;
+                        bus_state <= BUS_SEND;
+                    end else if (fetch_read && fetch_read_ready) begin
+                        bus_fetch <= 1'b1;
+                        bus_sq <= 1'b0;
+                        mem_addr <= fetch_read_addr;
+                        mem_wstrb <= 4'b0;
+                        mem_rmask <= 4'b1111;
+                        mem_wdata <= 32'b0;
+                        bus_state <= BUS_SEND;
+                    end
+                end
+                BUS_SEND: if (mem_ready) begin
+                    bus_state <= mem_wstrb == 0 ? BUS_REPLY : BUS_IDLE;
+                    if (mem_wstrb != 0)
+                        mem_lock <= 1'b0;
+                end
+                BUS_REPLY: if (mem_rvalid)
+                    bus_state <= BUS_IDLE;
+                default: bus_state <= BUS_IDLE;
+            endcase
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        retired <= 1'b0;
+        if (core_reset) begin
+            restart_pending <= 1'b0;
+            peripheral_restart_pending <= 1'b0;
+            stage <= ISSUE;
+            qacr[0] <= '0;
+            qacr[1] <= '0;
+            {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {RESET_CCR[8], RESET_CCR[2:0]};
+            {ic_index_mode, oc_index_mode, oc_ram_mode} <= {RESET_CCR[15], RESET_CCR[7], RESET_CCR[5]};
+            pc <= RESET_PC;
+            fetch_pc <= RESET_PC;
+            pr <= 32'b0;
+            gbr <= 32'b0;
+            dbr <= 32'b0;
+            mach <= 32'b0;
+            macl <= 32'b0;
+            sr <= 32'h7000_00f0;
+            ssr <= '0;
+            spc <= '0;
+            sgr <= '0;
+            vbr <= '0;
+            if (reset || !peripheral_restart)
+                expevt <= manual_reset || restart ? 12'h020 : 12'b0;
+            intevt <= '0;
+            nmi_previous <= 1'b0;
+            nmi_pending <= 1'b0;
+            irq_ack <= 1'b0;
+            nmi_ack <= 1'b0;
+            tra <= '0;
+            rte_slot <= 1'b0;
+            slot_wrote_pr <= 1'b0;
+            fetch_tlb_pending <= 1'b0;
+            fetch_tlb_valid <= 1'b0;
+            in_slot <= 1'b0;
+            fault <= 4'b0;
+            fault_pc <= 32'b0;
+            retired_pc <= 32'b0;
+        end else begin
+            nmi_previous <= nmi;
+            nmi_pending <= (nmi_pending || nmi_edge) && !(take_interrupt && nmi_ready);
+            irq_ack <= take_interrupt && !nmi_ready;
+            nmi_ack <= take_interrupt && nmi_ready;
+
+            if (ccr_write) begin
+                {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {data_wdata[8], data_wdata[2:0]};
+                {ic_index_mode, oc_index_mode, oc_ram_mode} <= {data_wdata[15], data_wdata[7], data_wdata[5]};
+            end
+
+            if (redirect)
+                fetch_pc <= next_pc;
+            else if (fetch_consume) begin
+                fetch_pc <= fetch_pc + 32'd2;
+                ir <= fetch_instruction;
+            end
+
+            if (fetch_flush || fetch_consume)
+                fetch_tlb_valid <= 1'b0;
+            else if (stage == ISSUE && fetch_tlb_pending && mmu_response && mmu_fault == 0) begin
+                physical_fetch_pc <= mmu_pa;
+                fetch_page_cacheable <= mmu_cacheable;
+                fetch_tlb_valid <= 1'b1;
+            end
+            if (stage == ISSUE) begin
+                if (mmu_request && mmu_ready)
+                    fetch_tlb_pending <= 1'b1;
+                else if (mmu_response)
+                    fetch_tlb_pending <= 1'b0;
+            end
+
+            if (ubc_trap) begin
+                expevt <= 12'h1e0;
+                ssr <= sr;
+                spc <= pc;
+                sgr <= gpr[15];
+                sr[30:28] <= 3'b111;
+                vector_pc <= ubc_dbr ? dbr : vbr + 32'h100;
+                in_slot <= 0;
+                stage <= EXCEPTION;
+            end else if (!ubc_wait && (exception_cause != 0 || take_interrupt)) begin
+                if (take_interrupt)
+                    intevt <= nmi_ready ? 12'h1c0 : irq_event;
+                else
+                    expevt <= exception_event;
+                if (take_exception || take_interrupt) begin
+                    ssr <= sr;
+                    spc <= exception_cause == TRAP ? pc + 32'd2 : in_slot ? delay_branch_pc : pc;
+                    sgr <= gpr[15];
+                    sr[30:28] <= 3'b111;
+                    vector_pc <= vbr + (take_interrupt ? 32'h600 :
+                                        exception_cause == TLB_MISS ? 32'h400 : 32'h100);
+                    if (exception_cause == TRAP)
+                        tra <= trap_imm;
+                    if (in_slot && slot_wrote_pr)
+                        pr <= pre_slot_pr;
+                    in_slot <= 1'b0;
+                    stage <= EXCEPTION;
+                end else begin
+                    if (STOP_ON_RESET_EXCEPTION) begin
+                        fault <= exception_cause;
+                        fault_pc <= pc;
+                    end else begin
+                        restart_pending <= 1'b1;
+                        peripheral_restart_pending <= exception_cause == TLB_MULTIPLE;
+                    end
+                    stage <= STOP;
+                end
+            end else case (stage)
+                ISSUE: if (fetch_consume)
+                    stage <= DECODE;
+                DECODE: begin
+                    op <= fp_format_error ? BAD : decoded;
+                    fp_instruction <= fp_opcode;
+                    trap_imm <= ir[7:0];
+                    size <= dec_size;
+                    pre <= dec_pre;
+                    post <= dec_post && (dec_sys_load || dec_control_transfer || dec_fp_mem || n != m);
+                    fp_mem <= dec_fp_mem;
+                    fp_source <= fp_read_value;
+                    sys_load <= dec_sys_load;
+                    control_reg <= dec_control_reg;
+                    control_transfer <= dec_control_transfer;
+                    pc_relative <= dec_pc_relative;
+                    a <= dec_a;
+                    b <= dec_b;
+                    offset <= dec_offset;
+                    store_value <= dec_b;
+                    dst <= decoded == MAC ? m :
+                           dec_control_transfer && dec_control_reg == CR_BANK && (decoded inside {LDC, LOAD}) ?
+                               {1'b0, ir[6:4]} : dest_r0 ? 4'd0 : n;
+                    base_reg <= decoded == LOAD && !dec_sys_load && !dec_control_transfer ? m : n;
+                    stage <= EXECUTE;
+                end
+                EXECUTE: if (!ubc_wait) begin
+                    next_pc <= in_slot ? delay_target : control && taken && !delayed ? target : pc + 32'd2;
+                    start_slot <= control && delayed;
+                    if (control && delayed)
+                        delay_target <= taken ? target : pc + 32'd4;
+                    wb_gpr <= write_gpr || (op == LDC && control_reg == CR_BANK);
+                    wb_value <= op == LDC ? a : value;
+                    wb_t <= write_t;
+                    wb_t_value <= next_t;
+                    wb_pr <= write_pr;
+                    link_value <= pc + 32'd4;
+                    wb_base <= (op == STORE && pre) || (op == LOAD && post) || op == MAC;
+                    writeback_base <= pre ? effective_addr : a + (32'd1 << size);
+                    mac_second <= 1'b0;
+                    fp_second <= 1'b0;
+                    if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance || op == PREF) begin
+                        data_addr <= effective_addr[31:2];
+                        area7_access <= 0;
+                        data_index <= effective_addr[13:2];
+                        data_va25 <= effective_addr[25];
+                        data_addr_lane <= effective_addr[1:0];
+                        data_wdata <= fp_mem ? fp_source[31:0] :
+                                      store_value << {effective_addr[1:0], 3'b000};
+                        case (size)
+                            BYTE: data_wstrb <= ordinary_store ? 4'b0001 << effective_addr[1:0] : 4'b0;
+                            WORD: data_wstrb <= ordinary_store ? 4'b0011 << effective_addr[1:0] : 4'b0;
+                            default: data_wstrb <= ordinary_store ? 4'b1111 : 4'b0;
+                        endcase
+                        stage <= DATA_TRANSLATE;
+                    end else if (op == FLOAT_OP) begin
+                        stage <= FP_RESULT;
+                    end else if (op == FLOAT_VECTOR) begin
+                        fp_vector_lane <= 0;
+                        fp_vector_row <= 0;
+                        fp_vector_causes <= 0;
+                        stage <= FP_VECTOR_LHS;
+                    end else if (op == FLOAT_TRIG) begin
+                        stage <= FP_START;
+                    end else if (op == FLOAT_ARITH) begin
+                        stage <= FP_LHS;
+                    end else if (op == INTEGER) begin
+                        stage <= INTEGER_RESULT;
+                    end else if (op == MULTIPLY) begin
+                        stage <= MUL_PRODUCTS;
+                    end else begin
+                        stage <= COMMIT;
+                    end
+                end
+                FP_LHS: begin
+                    fp_lhs <= (fp_transfer inside {3'd3, 3'd5}) ? {32'b0, fpul} : fp_read_value;
+                    stage <= fp_transfer == 7 ? FP_ADDEND : FP_START;
+                end
+                FP_ADDEND: begin
+                    fp_addend <= fp_read_value[31:0];
+                    stage <= FP_START;
+                end
+                FP_VECTOR_LHS: begin
+                    fp_lhs <= fp_read_value;
+                    stage <= FP_VECTOR_RHS;
+                end
+                FP_VECTOR_RHS: begin
+                    fp_source <= fp_read_value;
+                    stage <= FP_START;
+                end
+                FP_START: stage <= FP_WAIT;
+                FP_WAIT: begin
+                    if (op == FLOAT_VECTOR) begin
+                        if (fp_dot_done) begin
+                            fp_vector_lane <= fp_vector_lane + 2'd1;
+                            stage <= FP_VECTOR_LHS;
+                            if (fp_vector_lane == 3) begin
+                                fp_vector_value[fp_vector_row] <= fp_dot_value;
+                                fp_vector_causes <= fp_vector_causes | fp_dot_causes;
+                                fp_vector_row <= fp_vector_row + 2'd1;
+                                if (!fp_vector_matrix || fp_vector_row == 3)
+                                    stage <= FP_RETIRE;
+                            end
+                        end
+                    end else if (op == FLOAT_TRIG) begin
+                        if (fp_trig_done) begin
+                            fp_result <= fp_trig_value;
+                            stage <= FP_RETIRE;
+                        end
+                    end else if (fp_arith_done) begin
+                        fp_result <= fp_arith_value;
+                        stage <= FP_RETIRE;
+                    end
+                end
+                FP_RETIRE: begin
+                    fp_vector_row <= 0;
+                    stage <= op == FLOAT_VECTOR ? FP_VECTOR_WRITE : COMMIT;
+                end
+                FP_VECTOR_WRITE: begin
+                    // Read all sources and resolve exceptions before publishing any row.
+                    fp_vector_row <= fp_vector_row + 2'd1;
+                    if (!fp_vector_matrix || fp_vector_row == 3)
+                        stage <= COMMIT;
+                end
+                FP_RESULT: begin
+                    fp_result <= fp_source;
+                    if (ir[3:0] == 4'hd) begin
+                        case (ir[7:4])
+                            0: fp_result[31:0] <= fpul;
+                            4: if (fp_pair) fp_result[63] <= !fp_source[63];
+                               else fp_result[31] <= !fp_source[31];
+                            5: if (fp_pair) fp_result[63] <= 1'b0;
+                               else fp_result[31] <= 1'b0;
+                            8: fp_result[31:0] <= 32'b0;
+                            9: fp_result[31:0] <= 32'h3f80_0000;
+                            default: ;
+                        endcase
+                    end
+                    stage <= COMMIT;
+                end
+                FP_SECOND: begin
+                    data_addr <= data_addr + 30'd1;
+                    data_index[2] <= 1'b1;
+                    dc_index[2] <= 1'b1;
+                    data_wdata <= fp_source[63:32];
+                    fp_second <= 1'b1;
+                    stage <= sq_region ? SQ_ACCESS : DATA_REQ;
+                end
+                INTEGER_RESULT: begin
+                    wb_value <= alu_result;
+                    wb_gpr <= alu_write;
+                    wb_t <= alu_flag_mask[0];
+                    wb_t_value <= alu_flag_value[0];
+                    stage <= COMMIT;
+                end
+                MUL_PRODUCTS: stage <= MUL_SUM;
+                MUL_SUM: stage <= MUL_RESULT;
+                MUL_RESULT: stage <= op == MAC ? MAC_LOW : COMMIT;
+                MAC_READ: begin
+                    if (!mac_second) begin
+                        a <= wb_value;
+                        {data_addr, data_addr_lane} <= mac_second_addr;
+                        area7_access <= 0;
+                        data_index <= mac_second_addr[13:2];
+                        data_va25 <= mac_second_addr[25];
+                        offset <= mac_second_addr + (32'd1 << size);
+                        mac_second <= 1'b1;
+                        stage <= DATA_TRANSLATE;
+                    end else begin
+                        b <= wb_value;
+                        stage <= MUL_PRODUCTS;
+                    end
+                end
+                MAC_LOW: begin
+                    mac_low_sum <= {1'b0, macl} + {1'b0, product[31:0]};
+                    mac_word_signs <= {macl[31], product[31]};
+                    stage <= MAC_HIGH;
+                end
+                MAC_HIGH: begin
+                    mac_high_sum <= mac_addend_hi + mac_product_hi + {32'b0, mac_low_sum[32]};
+                    if (n == m)
+                        writeback_base <= offset;
+                    else begin
+                        wb_value <= offset;
+                        wb_gpr <= 1'b1;
+                    end
+                    stage <= COMMIT;
+                end
+                DATA_TRANSLATE: begin
+                    // In RAM mode, entry bit 7 separates the cache and RAM
+                    // halves. The index MSB still selects either half's bank.
+                    dc_index <= cache_array ? data_index :
+                                {oc_index_mode ? data_va25 : data_index[13],
+                                 oc_ram_mode && oc_enable ? operand_ram : data_index[12], data_index[11:2]};
+                    if (operand_ram && (plain_prefetch || cache_command != 0))
+                        stage <= COMMIT;
+                    else if (plain_prefetch && (!oc_enable || bad_data_region ||
+                                          (data_addr[31:29] inside {3'b101, 3'b111}))) begin
+                        stage <= COMMIT;
+                    end else if (cache_array) begin
+                        if (!cache_assoc || !mmu_enabled)
+                            stage <= DATA_REQ;
+                        else if (mmu_ready)
+                            stage <= DATA_TLB_WAIT;
+                    end else if (ubc_selected) begin
+                        stage <= is_store ? COMMIT : DATA_WAIT;
+                    end else if (qacr_register) begin
+                        if (ordinary_store)
+                            qacr[data_addr[2]] <= data_wdata[4:2];
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= {27'b0, qacr[data_addr[2]], 2'b0};
+                        stage <= COMMIT;
+                    end else if (mmu_register || event_register || ccr_register) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= ccr_register ? {16'b0, ic_index_mode, 6'b0, ic_enable, oc_index_mode,
+                                                     1'b0, oc_ram_mode, 2'b0, p1_copyback,
+                                                     direct_write_through, oc_enable} : local_read_value;
+                        if (event_register && is_store) begin
+                            case (mmu_register_index)
+                                8: tra <= data_wdata[9:2];
+                                9: expevt <= data_wdata[11:0];
+                                10: intevt <= data_wdata[11:0];
+                                default: ;
+                            endcase
+                        end
+                        stage <= op == MAC ? MAC_READ : COMMIT;
+                    end else if (data_mapped || mmu_array) begin
+                        if (mmu_ready)
+                            stage <= DATA_TLB_WAIT;
+                    end else if (sq_region) begin
+                        sq_line_addr <= {qacr[data_addr[5]], data_addr[25:5]};
+                        stage <= SQ_ACCESS;
+                    end else begin
+                        data_cacheable <= oc_enable && op != TAS && data_addr[31:29] != 3'b101 &&
+                                          data_addr[31:29] != 3'b111;
+                        data_copyback <= data_addr[31:29] == 3'b100 ? p1_copyback : !direct_write_through;
+                        stage <= DATA_REQ;
+                    end
+                end
+                DATA_TLB_WAIT: if (mmu_response) begin
+                    if (cache_assoc) begin
+                        if (mmu_fault == 0) begin
+                            data_wdata[28:10] <= mmu_pa[28:10];
+                            stage <= DATA_REQ;
+                        end else
+                            stage <= COMMIT;
+                    end else if (mmu_array) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= mmu_array_rdata;
+                        stage <= COMMIT;
+                    end else if (sq_region) begin
+                        sq_line_addr <= mmu_pa[28:5];
+                        stage <= SQ_ACCESS;
+                    end else if (plain_prefetch && (mmu_fault != 0 || !mmu_cacheable)) begin
+                        stage <= COMMIT;
+                    end else if (mmu_pa[28:24] == 5'h1f && !mmu_cacheable) begin
+                        // An uncached mapping into area 7 can reach the P4
+                        // control registers with the privileges of that page.
+                        area7_access <= 1;
+                        area7_virtual_addr <= data_addr;
+                        data_addr <= {3'b111, mmu_pa[28:2]};
+                        stage <= DATA_TRANSLATE;
+                    end else begin
+                        data_addr <= mmu_pa[31:2];
+                        data_cacheable <= oc_enable && op != TAS && mmu_cacheable;
+                        data_copyback <= !mmu_write_through;
+                        stage <= DATA_REQ;
+                    end
+                end
+                SQ_ACCESS: begin
+                    if (op == PREF) begin
+                        sq_select <= data_addr[5];
+                        sq_word_index <= 3'b0;
+                        stage <= SQ_WORD;
+                    end else begin
+                        sq_words[data_addr[5:2]] <= data_wdata;
+                        stage <= fp_mem && fp_pair && !fp_second ? FP_SECOND : COMMIT;
+                    end
+                end
+                SQ_WORD: begin
+                    sq_wdata <= sq_words[{sq_select, sq_word_index}];
+                    stage <= SQ_SEND;
+                end
+                SQ_SEND: if (mem_valid && mem_ready && bus_sq) begin
+                    sq_word_index <= sq_word_index + 3'd1;
+                    stage <= sq_word_index == 3'd7 ? COMMIT : SQ_WORD;
+                end
+                DATA_REQ: if (ic_array ? ic_array_ready : data_ready)
+                    stage <= DATA_WAIT;
+                DATA_WAIT: if (ubc_selected) begin
+                    if (ubc_rvalid) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= size == BYTE ? {{24{ubc_rdata[7]}}, ubc_rdata[7:0]} :
+                                    size == WORD ? {{16{ubc_rdata[15]}}, ubc_rdata[15:0]} : ubc_rdata;
+                        stage <= COMMIT;
+                    end
+                end else if (ic_array ? ic_array_complete : data_complete) begin
+                    if (op == LOAD && fp_mem) begin
+                        if (!fp_second)
+                            fp_result[31:0] <= load_value;
+                        else
+                            fp_result[63:32] <= load_value;
+                    end
+                    if (op == LOAD || op == MAC || (byte_access && data_wstrb == 0)) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= ic_array ? ic_array_rdata : load_value;
+                    end
+                    stage <= fp_mem && fp_pair && !fp_second ? FP_SECOND :
+                             op == MAC ? MAC_READ : byte_access && data_wstrb == 0 ? BYTE_MODIFY : COMMIT;
+                end
+                BYTE_MODIFY: begin
+                    if (op == TAS || !byte_writes) begin
+                        wb_t <= 1'b1;
+                        wb_t_value <= (op == TAS ? wb_value[7:0] : byte_result) == 0;
+                    end
+                    if (byte_writes) begin
+                        data_wstrb <= operand_read_mask;
+                        data_wdata <= {4{byte_result}};
+                        stage <= DATA_REQ;
+                    end else
+                        stage <= COMMIT;
+                end
+                COMMIT: begin
+                    if (wb_base)
+                        gpr_storage[base_index] <= writeback_base;
+                    if (wb_gpr)
+                        gpr_storage[dst_index] <= wb_value;
+                    if (fp_compare)
+                        sr[0] <= fp_result[0];
+                    else if (wb_t)
+                        sr[0] <= wb_t_value;
+                    if (wb_pr) begin
+                        pre_slot_pr <= pr;
+                        pr <= link_value;
+                    end
+                    if (control_write) begin
+                        case (control_reg)
+                            CR_SR:  sr <= control_write_value & SR_MASK;
+                            CR_GBR: gbr <= control_write_value;
+                            CR_VBR: vbr <= control_write_value;
+                            CR_SSR: ssr <= control_write_value & SR_MASK;
+                            CR_SPC: spc <= control_write_value;
+                            CR_DBR: dbr <= control_write_value;
+                            default: ;
+                        endcase
+                    end
+                    case (op)
+                        RTE: sr <= ssr;
+                        INTEGER: begin
+                            if (alu_flag_mask[3]) sr[9] <= alu_flag_value[3];
+                            if (alu_flag_mask[2]) sr[8] <= alu_flag_value[2];
+                            if (alu_flag_mask[1]) sr[1] <= alu_flag_value[1];
+                        end
+                        CLRMAC: {mach, macl} <= 64'b0;
+                        MAC: {mach, macl} <= mac_result;
+                        MULTIPLY: begin
+                            macl <= product[31:0];
+                            if (ir[15:12] == 4'h3)
+                                mach <= product[63:32];
+                        end
+                        LDS, LOAD: if ((op == LDS || sys_load) && !fp_system) begin
+                            case (ir[5:4])
+                                0: mach <= op == LDS ? a : wb_value;
+                                1: macl <= op == LDS ? a : wb_value;
+                                default: pr <= op == LDS ? a : wb_value;
+                            endcase
+                        end
+                        default: ;
+                    endcase
+                    if (start_slot)
+                        delay_branch_pc <= pc;
+                    slot_wrote_pr <= wb_pr;
+                    rte_slot <= op == RTE;
+                    pc <= next_pc;
+                    in_slot <= start_slot;
+                    retired <= 1'b1;
+                    retired_pc <= pc;
+                    stage <= op == SLEEP && !ubc_commit_hit ? ASLEEP : fetch_consume ? DECODE : ISSUE;
+                end
+                EXCEPTION: begin
+                    pc <= vector_pc;
+                    fetch_pc <= vector_pc;
+                    stage <= ISSUE;
+                end
+                ASLEEP, STOP: ;
+                default: stage <= STOP;
+            endcase
+        end
+    end
+endmodule

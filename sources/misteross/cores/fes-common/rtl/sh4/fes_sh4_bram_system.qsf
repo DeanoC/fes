@@ -1,0 +1,33 @@
+set_global_assignment -name FAMILY "Agilex 5"
+set_global_assignment -name DEVICE A5EB013BB23BE4SCS
+set_global_assignment -name TOP_LEVEL_ENTITY fes_sh4_bram_system
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 8
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_icache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_dcache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_mmu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_integer.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_multiplier.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fpu_regs.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_arithmetic.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fp_dot.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_fsca.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_ubc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bsc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_gpio.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_cpg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_tmu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_intc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_wdt.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_rtc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_serial_async.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_sci.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_scif.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_dmac.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091_bus.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh7091.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_bram_system.sv
+set_global_assignment -name SDC_FILE fes_sh4_bram_system.sdc
+set_instance_assignment -name VIRTUAL_PIN ON -to *
+set_instance_assignment -name VIRTUAL_PIN OFF -to clk

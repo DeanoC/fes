@@ -1,0 +1,93 @@
+// Standalone diagnostic with a 2 KiB unified memory. While reset is asserted,
+// the loader can write any word. The CPU owns the port after reset.
+module fes_sh4_bram_system #(
+    parameter bit STOP_ON_RESET_EXCEPTION = 0
+) (
+    input  logic        clk,
+    input  logic        reset, rtc_tick,
+    input  logic        sci_rxd, sci_sck, scif_rxd, scif_cts_n, scif_tick,
+    output logic        sci_txd, sci_txd_enable, sci_sck_out, sci_sck_enable,
+    output logic        scif_txd, scif_txd_enable, scif_rts_n,
+    input  logic [19:0] gpio_in,
+    output logic [19:0] gpio_out, gpio_oe, gpio_pullup,
+    input  logic        ddt_valid,
+    input  logic [1:0]  ddt_kind,
+    input  logic [63:0] ddt_command,
+    output logic        ddt_ready,
+    output logic        device_valid, device_write, device_last,
+    output logic [1:0]  device_channel,
+    output logic [3:0]  device_mask,
+    output logic [31:0] device_wdata,
+    input  logic        device_ready,
+    input  logic [31:0] device_rdata,
+    input  logic [3:0]  irq_level,
+    input  logic [11:0] irq_event,
+    input  logic        nmi,
+    input  logic        nmi_while_blocked,
+    output logic        irq_ack,
+    input  logic        load_we,
+    input  logic [8:0]  load_word_addr,
+    input  logic [31:0] load_data,
+    output logic [11:0] frequency_control,
+    output logic        frequency_change,
+    output logic [1:0]  processor_status,
+    output logic        standby, deep_sleep, peripheral_high_z, peripheral_pullup,
+    output logic        retired,
+    output logic [31:0] retired_pc,
+    output logic [3:0]  fault,
+    output logic [31:0] fault_pc
+);
+    // The private RAM has no competing master or read side effects.
+    logic valid, rvalid, unused_mem_lock, unused_mem_sq;
+    logic [3:0] unused_mem_rmask;
+    logic [1:0] unused_refresh_irq, unused_sdram_command, unused_dreq_ack, unused_watchdog_reset;
+    logic unused_sdram_mode_set, unused_tclk_enable, unused_tclk_output, unused_capture_dma;
+    logic [11:0] unused_sdram_mode_address;
+    logic [31:0] addr, wdata, rdata, ram_wdata, ram_rdata;
+    logic [3:0] wstrb, ram_wstrb;
+    logic [8:0] ram_addr;
+    logic ram_read, in_range, read_in_range;
+
+    fes_sh7091 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103), .STOP_ON_RESET_EXCEPTION(STOP_ON_RESET_EXCEPTION)) system_cpu (
+        .clk, .reset, .bus_tick(1'b1), .watchdog_tick(1'b1), .watchdog_reset(unused_watchdog_reset), .peripheral_tick(1'b1), .rtc_tick, .tclk(1'b0),
+        .sci_rxd, .sci_sck, .sci_txd, .sci_txd_enable, .sci_sck_out, .sci_sck_enable,
+        .scif_rxd, .scif_cts_n, .scif_tick, .scif_txd, .scif_txd_enable, .scif_rts_n,
+        .frequency_control, .frequency_change, .processor_status,
+        .standby, .deep_sleep, .peripheral_high_z, .peripheral_pullup,
+        .gpio_in, .gpio_out, .gpio_oe, .gpio_pullup,
+        .capture_ack(1'b0), .dreq_n(2'b11), .dreq_ack(unused_dreq_ack), .tclk_output_enable(unused_tclk_enable), .tclk_output(unused_tclk_output), .capture_dma(unused_capture_dma), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
+        .ddt_valid, .ddt_kind, .ddt_command, .ddt_ready,
+        .device_valid, .device_write, .device_last, .device_channel, .device_mask,
+        .device_wdata, .device_ready, .device_rdata,
+        .mem_valid(valid), .mem_lock(unused_mem_lock), .mem_sq(unused_mem_sq), .mem_rmask(unused_mem_rmask), .mem_ready(1'b1),
+        .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
+        .mem_rvalid(rvalid), .mem_rdata(rdata),
+        .refresh_irq(unused_refresh_irq), .sdram_command(unused_sdram_command),
+        .sdram_mode_set(unused_sdram_mode_set), .sdram_mode_address(unused_sdram_mode_address),
+        .retired, .retired_pc, .fault, .fault_pc
+    );
+
+    assign in_range = addr[31:11] == 0 && addr[1:0] == 0;
+    assign ram_addr = reset ? load_word_addr : addr[10:2];
+    assign ram_wdata = reset ? load_data : wdata;
+    assign ram_wstrb = reset ? {4{load_we}} : valid && in_range ? wstrb : 4'b0;
+    assign ram_read = valid && wstrb == 0;
+    assign rdata = read_in_range ? ram_rdata : 32'b0;
+
+    always_ff @(posedge clk) begin
+        rvalid <= ram_read;
+        if (ram_read)
+            read_in_range <= in_range;
+    end
+
+    for (genvar lane = 0; lane < 4; lane++) begin : bytes
+        (* ramstyle = "M20K" *) logic [7:0] bank [0:511];
+
+        always_ff @(posedge clk) begin
+            if (ram_wstrb[lane])
+                bank[ram_addr] <= ram_wdata[8*lane +: 8];
+            if (ram_read)
+                ram_rdata[8*lane +: 8] <= bank[ram_addr];
+        end
+    end
+endmodule

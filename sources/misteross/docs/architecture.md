@@ -380,6 +380,17 @@ it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
 
+The standalone [SH-4 diagnostic](../cores/fes-common/rtl/sh4/README.md)
+uses a registered, little-endian memory interface. Its 8 KiB M20K instruction
+cache overlaps fetch with execution. The 16 KiB M20K operand cache supports
+write-through and copy-back modes. The pipelined MMU uses a 64-entry UTLB
+and four-entry ITLB. Exception vectors and the RTE delay slot let the guest
+populate the TLB and retry faulting accesses. The SH7091 wrapper adds
+interrupt arbitration, timers, RTC, bus-state and DMA registers, and bus
+ownership for CPU and DMA traffic. The DE25 virtual-pin diagnostic uses
+a 2 KiB unified M20K memory. The core has no console or package consumer
+yet.
+
 The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)
 accepts decoded 80-bit add/subtract/multiply/compare requests at one per clock,
 with registered shared operand normalization, an iterative divide/square-root
