@@ -2,6 +2,7 @@
 // writes begin, so a wide unit can travel over the 32-bit external port.
 module fes_sh7091_dmac (
     input  logic        clk, reset, nmi, pause, stopped,
+    output logic        idle,
     input  logic        reg_request,
     input  logic [31:2] reg_addr,
     input  logic [3:0]  reg_rmask, reg_wstrb,
@@ -50,6 +51,7 @@ module fes_sh7091_dmac (
     logic [28:0] serial_tx_addr, serial_rx_addr;
 
     // Channel registers and DMAOR are longword P4 accesses.
+    assign idle = state == IDLE;
     assign reg_channel = reg_addr[5:4];
     assign op_register = reg_addr[6];
     assign reg_selected = reg_addr[31:7] == 25'h1ff4000 && (!op_register || reg_addr[5:2] == 0);

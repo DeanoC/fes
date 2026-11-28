@@ -2,7 +2,7 @@
 // control-register addresses are decoded by the CPU before this interface.
 module fes_sh4_mmu (
     input  logic        clk,
-    input  logic        reset,
+    input  logic        reset, preserve_fault,
     input  logic        request,
     output logic        ready,
     input  logic        instruction,
@@ -158,12 +158,14 @@ module fes_sh4_mmu (
             state <= IDLE;
             utlb_valid <= '0;
             itlb_valid <= '0;
-            pteh_vpn <= '0;
-            asid <= '0;
+            if (!preserve_fault) begin
+                pteh_vpn <= '0;
+                asid <= '0;
+                tea <= '0;
+            end
             ptel <= '0;
             ptea <= '0;
             ttb <= '0;
-            tea <= '0;
             urc <= '0;
             urb <= '0;
             lrui <= '0;

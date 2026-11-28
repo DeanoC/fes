@@ -1,6 +1,8 @@
 // Standalone diagnostic with a 2 KiB unified memory. While reset is asserted,
 // the loader can write any word. The CPU owns the port after reset.
-module fes_sh4_bram_system (
+module fes_sh4_bram_system #(
+    parameter bit STOP_ON_RESET_EXCEPTION = 0
+) (
     input  logic        clk,
     input  logic        reset, rtc_tick,
     input  logic        sci_rxd, sci_sck, scif_rxd, scif_cts_n, scif_tick,
@@ -36,7 +38,7 @@ module fes_sh4_bram_system (
     logic [8:0] ram_addr;
     logic ram_read, in_range, read_in_range;
 
-    fes_sh7091 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103)) system_cpu (
+    fes_sh7091 #(.RESET_PC(32'b0), .RESET_CCR(16'h0103), .STOP_ON_RESET_EXCEPTION(STOP_ON_RESET_EXCEPTION)) system_cpu (
         .clk, .reset, .bus_tick(1'b1), .watchdog_tick(1'b1), .watchdog_reset(unused_watchdog_reset), .peripheral_tick(1'b1), .rtc_tick, .tclk(1'b0),
         .sci_rxd, .sci_sck, .sci_txd, .sci_txd_enable, .sci_sck_out, .sci_sck_enable,
         .scif_rxd, .scif_cts_n, .scif_tick, .scif_txd, .scif_txd_enable, .scif_rts_n,

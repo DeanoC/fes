@@ -1,9 +1,12 @@
 module fes_sh4 #(
     parameter logic [31:0] RESET_PC = 32'ha000_0000,
-    parameter logic [15:0] RESET_CCR = 16'b0
+    parameter logic [15:0] RESET_CCR = 16'b0,
+    parameter bit STOP_ON_RESET_EXCEPTION = 0
 ) (
     input  logic        clk,
     input  logic        reset, manual_reset,
+    input  logic        peripheral_restart_ready,
+    output logic        peripheral_restart_pending, peripheral_restart,
     input  logic [3:0]  irq_level,
     input  logic [11:0] irq_event,
     input  logic        nmi,
@@ -86,6 +89,7 @@ module fes_sh4 #(
     logic [7:0] tra, trap_imm;
     logic [3:0] exception_cause, fetch_issue_cause;
     logic take_exception, address_exception, privileged_op, is_store;
+    logic restart_pending, restart, core_reset;
     logic [31:0] fault_address;
     logic t, in_slot, supervisor, fetch_supervisor, bank_one, rte_slot, slot_wrote_pr;
     logic [15:0] ir;
@@ -622,7 +626,7 @@ module fes_sh4 #(
     assign fp_system_value = fp_to_fpul ? fp_result[31:0] : op == FLOAT_OP ? fp_source[31:0] : op == LDS ? a : wb_value;
 
     fes_sh4_fpu_regs fpu_regs (
-        .clk, .reset, .read_number(fp_read_number), .read_pair(dec_fp_pair), .read_value(fp_read_value),
+        .clk, .reset(core_reset), .read_number(fp_read_number), .read_pair(dec_fp_pair), .read_value(fp_read_value),
         .read_other_bank(stage == FP_VECTOR_RHS && fp_vector_matrix),
         .write_register(fp_write_register), .write_number(fp_write_number), .write_pair(fp_pair), .write_value(fp_write_value),
         .write_fpul(fp_write_fpul), .write_fpscr(fp_write_fpscr),
@@ -633,7 +637,7 @@ module fes_sh4 #(
     );
 
     fes_sh4_fp_arithmetic fp_arithmetic (
-        .clk, .reset, .start(stage == FP_START && op == FLOAT_ARITH), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_ARITH), .wide(fp_pair), .subtract(ir[3:0] == 4'h1),
         .multiply(ir[3:0] == 4'h2), .divide(ir[3:0] == 4'h3), .square_root(ir[7:0] == 8'h6d),
         .reciprocal_root(ir[7:0] == 8'h7d), .transfer(fp_transfer),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]), .lhs(fp_lhs), .rhs(fp_source), .addend(fp_addend),
@@ -641,14 +645,14 @@ module fes_sh4 #(
     );
 
     fes_sh4_fp_dot fp_dot (
-        .clk, .reset, .start(stage == FP_START && op == FLOAT_VECTOR), .lane(fp_vector_lane),
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_VECTOR), .lane(fp_vector_lane),
         .toward_zero(fpscr[0]), .flush_denormals(fpscr[18]),
         .lhs(fp_lhs[31:0]), .rhs(fp_source[31:0]),
         .done(fp_dot_done), .value(fp_dot_value), .causes(fp_dot_causes)
     );
 
     fes_sh4_fsca fp_trig (
-        .clk, .reset, .start(stage == FP_START && op == FLOAT_TRIG),
+        .clk, .reset(core_reset), .start(stage == FP_START && op == FLOAT_TRIG),
         .toward_zero(fpscr[0]), .angle(fpul[15:0]), .done(fp_trig_done), .value(fp_trig_value)
     );
 
@@ -725,8 +729,14 @@ module fes_sh4 #(
         endcase
     end
 
-    // Reset-style multiple-hit and blocked/nested cases remain diagnostic stops.
     assign take_exception = exception_cause != 0 && exception_cause != TLB_MULTIPLE && !sr[28] && !rte_slot;
+
+    // STOP suppresses new fetches while the accepted bus request drains.
+    // A multiple hit also needs the SoC to finish its current DMA unit.
+    assign restart = restart_pending && bus_state == BUS_IDLE &&
+                     (!peripheral_restart_pending || peripheral_restart_ready);
+    assign peripheral_restart = restart && peripheral_restart_pending;
+    assign core_reset = reset || restart;
 
     // Acknowledge between instructions, after any delayed branch slot and
     // after an outstanding instruction translation has supplied its result.
@@ -784,7 +794,7 @@ module fes_sh4 #(
     assign ubc_trap = !sr[28] && (ubc_before || (ubc_after && stage == ISSUE && !in_slot));
 
     fes_sh7091_ubc ubc (
-        .clk, .reset, .power_reset(!manual_reset),
+        .clk, .reset(reset || peripheral_restart), .power_reset(reset && !manual_reset),
         .request(stage == DATA_TRANSLATE && exception_cause == 0 && !plain_prefetch),
         .address(data_addr), .rmask(operand_read_mask), .wstrb(data_wstrb), .wdata(data_wdata),
         .selected(ubc_selected), .rvalid(ubc_rvalid), .rdata(ubc_rdata),
@@ -799,7 +809,7 @@ module fes_sh4 #(
     );
 
     always_ff @(posedge clk) begin
-        if (reset || stage == EXCEPTION) begin
+        if (core_reset || stage == EXCEPTION) begin
             ubc_checked <= 0;
             ubc_before <= 0;
             ubc_after <= 0;
@@ -876,7 +886,7 @@ module fes_sh4 #(
                     cache_assoc ? {data_wdata[31:10], 10'b0} : {data_addr, data_addr_lane};
 
     fes_sh4_mmu mmu (
-        .clk, .reset, .request(mmu_request), .ready(mmu_ready),
+        .clk, .reset(core_reset), .preserve_fault(peripheral_restart && !reset), .request(mmu_request), .ready(mmu_ready),
         .instruction(stage == ISSUE || (stage == DATA_TRANSLATE && cache_assoc && ic_array)),
         .array_access(stage == DATA_TRANSLATE && mmu_array), .tag_probe(stage == DATA_TRANSLATE && cache_assoc),
         .write(stage == DATA_TRANSLATE && is_store),
@@ -889,7 +899,7 @@ module fes_sh4 #(
     );
 
     fes_sh4_icache icache (
-        .clk, .reset, .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
+        .clk, .reset(core_reset), .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
         .invalidate(store_accepted), .invalidate_index(bus_ic_index),
         .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .lookup_index({ic_index_mode ? fetch_pc[25] : fetch_pc[12], fetch_pc[11:5]}),
         .array_request(stage == DATA_REQ && ic_array), .array_data(cache_data_array),
@@ -902,7 +912,7 @@ module fes_sh4 #(
     );
 
     fes_sh4_dcache dcache (
-        .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ && !ic_array), .ready(data_ready),
+        .clk, .reset(core_reset), .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ && !ic_array), .ready(data_ready),
         .address(data_addr), .index(dc_index),
         .array_access(cache_array || operand_ram), .array_data(cache_data_array || operand_ram), .array_assoc(cache_assoc), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
         .purge_before_read(op == TAS), .maintenance(cache_command), .allocate_without_read(op == MOVCA),
@@ -941,7 +951,7 @@ module fes_sh4 #(
     end
 
     always_ff @(posedge clk) begin
-        if (reset) begin
+        if (core_reset) begin
             bus_state <= BUS_IDLE;
             mem_lock <= 1'b0;
         end else begin
@@ -993,7 +1003,9 @@ module fes_sh4 #(
 
     always_ff @(posedge clk) begin
         retired <= 1'b0;
-        if (reset) begin
+        if (core_reset) begin
+            restart_pending <= 1'b0;
+            peripheral_restart_pending <= 1'b0;
             stage <= ISSUE;
             qacr[0] <= '0;
             qacr[1] <= '0;
@@ -1011,7 +1023,8 @@ module fes_sh4 #(
             spc <= '0;
             sgr <= '0;
             vbr <= '0;
-            expevt <= manual_reset ? 12'h020 : 12'b0;
+            if (reset || !peripheral_restart)
+                expevt <= manual_reset || restart ? 12'h020 : 12'b0;
             intevt <= '0;
             nmi_previous <= 1'b0;
             nmi_pending <= 1'b0;
@@ -1086,8 +1099,13 @@ module fes_sh4 #(
                     in_slot <= 1'b0;
                     stage <= EXCEPTION;
                 end else begin
-                    fault <= exception_cause;
-                    fault_pc <= pc;
+                    if (STOP_ON_RESET_EXCEPTION) begin
+                        fault <= exception_cause;
+                        fault_pc <= pc;
+                    end else begin
+                        restart_pending <= 1'b1;
+                        peripheral_restart_pending <= exception_cause == TLB_MULTIPLE;
+                    end
                     stage <= STOP;
                 end
             end else case (stage)

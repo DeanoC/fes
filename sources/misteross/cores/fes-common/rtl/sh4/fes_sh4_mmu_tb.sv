@@ -8,7 +8,7 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
     logic array_access = 0, tag_probe = 0;
     logic [31:0] array_rdata;
     logic [7:0] unused_asid;
-    fes_sh4_mmu dut (.active_asid(unused_asid),.write_through(unused_write_through), .sqmd(unused_sqmd), .quiet(1'b0), .address_exception(1'b0), .fault_address(32'b0), .*);
+    fes_sh4_mmu dut (.preserve_fault(1'b0), .active_asid(unused_asid),.write_through(unused_write_through), .sqmd(unused_sqmd), .quiet(1'b0), .address_exception(1'b0), .fault_address(32'b0), .*);
 
     task automatic config_write(input logic [3:0] sel, input logic [31:0] data);
         @(negedge clk);

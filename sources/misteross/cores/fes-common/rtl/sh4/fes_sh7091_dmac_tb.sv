@@ -22,7 +22,9 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
     logic [3:0] mem_rmask, mem_wstrb;
     logic [31:0] memory [0:127];
 
+    logic unused_idle;
     fes_sh7091_dmac dma (
+        .idle(unused_idle),
         .clk, .reset, .nmi, .pause, .stopped, .reg_request, .reg_addr, .reg_rmask, .reg_wstrb,
         .reg_wdata, .reg_selected, .reg_rvalid, .reg_rdata, .dreq_n, .dreq_ack,
         .capture_pending, .capture_value(32'h1234_5678), .capture_accept, .irq,

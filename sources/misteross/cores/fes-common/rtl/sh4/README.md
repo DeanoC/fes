@@ -238,10 +238,14 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 
 Board bus signaling, PTEA PCMCIA behavior and instruction cases outside
 the supported sets still need integration.
-Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
-set stop the diagnostic. An exception in an RTE delay slot also stops it.
+A synchronous fault with SR.BL set reports EXPEVT 0x020, restarts the CPU
+at the reset vector and leaves the peripherals running. Instruction and operand TLB multiple hits
+restart the CPU and apply a manual reset to the peripherals. They report
+EXPEVT 0x140 and preserve TEA and PTEH for the boot code. The core waits for
+accepted bus transactions before restarting. The SH-4 manual leaves
+exceptions in an RTE delay slot undefined. This core restarts in that case.
 
-Terminal fault codes 1–4 indicate an unsupported or privileged opcode, a
+With `STOP_ON_RESET_EXCEPTION` enabled for simulation, terminal fault codes 1–4 indicate an unsupported or privileged opcode, a
 prohibited delay slot, an unaligned fetch, and an unaligned data access.
 Codes 5–10 indicate a TLB miss, multiple hit, protection violation, initial
 page write, address error, and TRAPA. `fault_pc` records the instruction or

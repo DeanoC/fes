@@ -38,7 +38,16 @@ module fes_sh4_tb;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
     logic dma_finished, rtc_finished, scif_finished, sci_finished, gpio_finished, cpg_finished;
-    logic ubc_finished;
+    logic ubc_finished, restart_waited_for_dma;
+    always_ff @(posedge clk)
+        if (bram_reset)
+            restart_waited_for_dma <= 0;
+        else if (bram.system_cpu.peripheral_restart_pending && !bram.system_cpu.dma_idle) begin
+            restart_waited_for_dma <= 1;
+            assert (!bram.system_cpu.peripheral_restart)
+                else $fatal(1, "Multiple-hit reset interrupted a DMA unit");
+        end
+
     fes_sh7091_ubc_tb ubc_test (.clk, .finished(ubc_finished));
     fes_sh7091_cpg_tb cpg_test (.clk, .finished(cpg_finished));
     fes_sh7091_gpio_tb gpio_test (.clk, .finished(gpio_finished));
@@ -54,8 +63,10 @@ module fes_sh4_tb;
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
     logic check_warm_loop = 0, check_alias_load = 1;
 
-    fes_sh4 #(.RESET_PC(0), .RESET_CCR(16'h0103)) dut (
-        .clk, .reset, .standby(1'b0), .standby_ready(1'b0),
+    logic unused_restart_pending, unused_restart;
+    fes_sh4 #(.RESET_PC(0), .RESET_CCR(16'h0103), .STOP_ON_RESET_EXCEPTION(1)) dut (
+        .clk, .reset, .peripheral_restart_ready(1'b1),
+        .peripheral_restart_pending(unused_restart_pending), .peripheral_restart(unused_restart), .standby(1'b0), .standby_ready(1'b0),
         .sleeping(unused_sleeping), .standby_wake(unused_standby_wake), .manual_reset(1'b0), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack, .nmi_ack(unused_nmi_ack),
         .mem_valid(valid), .mem_lock(locked), .mem_sq(queue_write), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
@@ -279,7 +290,8 @@ module fes_sh4_tb;
             @(negedge clk);
             load_we = 1;
             load_word_addr = 9'(i);
-            load_data = image[i];
+            // Let the BRAM core sleep after the same integer sequence.
+            load_data = i == ('h58 >> 2) ? {16'h001b, image[i][15:0]} : image[i];
         end
         @(negedge clk);
         load_we = 0;
@@ -297,7 +309,9 @@ module fes_sh4_tb;
         assert (ext_mem['h200 >> 2] == 32'hffff_ff80 && ext_mem['h100 >> 2][23:16] == 8'h7f &&
                 ext_mem['h104 >> 2] == 32'h007f_ff80 && ext_mem['h108 >> 2] == 127)
             else $fatal(1, "Unexpected byte lanes or delayed store");
-        assert (bram_fault == 1 && bram_fault_pc == 'h5a && !bram_retired && bram_retired_pc == 'h58 &&
+        wait (bram.system_cpu.sleeping);
+        @(negedge clk);
+        assert (bram_fault == 0 && bram_retired_pc == 'h5a &&
                 bram.system_cpu.cpu.gpr[5] == 32'hffff_ff80 && bram.system_cpu.cpu.gpr[7] == dut.gpr[7] &&
                 bram.system_cpu.cpu.gpr[9] == dut.gpr[9])
             else $fatal(1, "Synchronous BRAM execution diverged from stalled bus");
@@ -2663,6 +2677,113 @@ module fes_sh4_tb;
             bram_reset = 1;
         end
 
+        // Re-enter the reset vector with a BRAM marker left by the first
+        // pass. TCOR0 distinguishes a CPU-only reset from a manual SoC reset.
+        for (int kind = 0; kind < 3; kind++) begin
+            image = '{default:32'hfffd_fffd};
+            literal('h00, 1, 'h80);       // Marker address
+            emit('h02, 'h6012);           // MOV.L @R1,R0
+            emit('h04, 'h8800);           // CMP/EQ #0,R0
+            emit('h06, 'h8b2b);           // BF 0x60 on second boot
+            emit('h08, 'he001);           // MOV #1,R0
+            emit('h0a, 'h2102);           // MOV.L R0,@R1
+            literal('h0c, 2, 'h84);       // TCOR0
+            emit('h0e, 'h2202);           // MOV.L R0,@R2
+            if (kind != 0) begin
+                literal('h10, 3, 'h88);   // PTEH
+                literal('h12, 0, 'h8c);   // VPN 0, ASID 0x2a
+                emit('h14, 'h2302);       // MOV.L R0,@R3
+                literal('h16, 0, 'h90);   // Identity mapping, 1 KiB
+                emit('h18, 'h1301);       // MOV.L R0,@(4,R3)
+                emit('h1a, 'h0038);       // LDTLB, UTLB entry 0
+                literal('h1c, 0, 'h94);   // VPN 0x4000, ASID 0x2a
+                emit('h1e, 'h2302);
+                literal('h20, 0, 'h98);   // URC 1
+                emit('h22, 'h1304);       // MOV.L R0,@(16,R3)
+                emit('h24, 'h0038);       // LDTLB, UTLB entry 1
+                literal('h26, 0, 'h9c);   // URC 2
+                emit('h28, 'h1304);
+                emit('h2a, 'h0038);       // LDTLB, UTLB entry 2
+                literal('h2c, 4, 'ha0);   // Conflicting virtual address
+                emit('h2e, 'he001);
+                emit('h30, 'h1304);       // Enable address translation
+                emit('h32, kind == 1 ? 16'ha04d : 16'h442b); // BRA 0xd0 or JMP @R4
+                emit('h34, 'h0009);       // Branch delay slot
+            end
+            literal('h60, 3, 'h88);
+            emit('h62, 'h5d39);           // EXPEVT -> R13
+            emit('h64, 'h5c33);           // TEA -> R12
+            emit('h66, 'h6b32);           // PTEH -> R11
+            emit('h68, 'h5a34);           // MMUCR -> R10
+            literal('h6a, 2, 'h84);
+            emit('h6c, 'h6922);           // TCOR0 -> R9
+            emit('h6e, 'h0009);
+            emit('h70, 'h0802);           // STC SR,R8
+            image['h80 >> 2] = 'hc0;
+            image['h84 >> 2] = 'hffd8_0008;
+            image['h88 >> 2] = 'hff00_0000;
+            image['h8c >> 2] = 'h2a;
+            image['h90 >> 2] = 'h164;
+            image['h94 >> 2] = 'h402a;
+            image['h98 >> 2] = 'h400;
+            image['h9c >> 2] = 'h800;
+            image['ha0 >> 2] = 'h4004;
+            image['hc0 >> 2] = 0;
+            if (kind == 1) begin
+                // Start a 32-byte automatic DMA unit just before the fault.
+                literal('hd0, 6, 'h100); // SAR0
+                literal('hd2, 7, 'h104); // Source
+                emit('hd4, 'h2672);
+                literal('hd6, 7, 'h108); // Destination
+                emit('hd8, 'h1671);
+                emit('hda, 'he701);     // Count
+                emit('hdc, 'h1672);
+                literal('hde, 7, 'h10c); // CHCR: automatic, 32 bytes, enabled
+                emit('he0, 'h1673);
+                literal('he2, 6, 'h110); // DMAOR
+                emit('he4, 'h2602);     // DMAOR.DME = 1
+                emit('he6, 'h6542);     // MOV.L @R4,R5 triggers the multiple hit
+                literal('h72, 1, 'h114); // Check the last word after restart
+                emit('h74, 'h6712);
+                image['h100 >> 2] = 'hffa0_0000;
+                image['h104 >> 2] = 'h180;
+                image['h108 >> 2] = 'h1a0;
+                image['h10c >> 2] = 'h441;
+                image['h110 >> 2] = 'hffa0_0040;
+                image['h114 >> 2] = 'h1bc;
+                image['h19c >> 2] = 'h1357_9bdf;
+            end
+            for (int word = 0; word <= 'h1bc >> 2; word++) begin
+                @(negedge clk);
+                load_we = 1;
+                load_word_addr = 9'(word);
+                load_data = image[word];
+            end
+            @(negedge clk);
+            load_we = 0;
+            bram_reset = 0;
+            wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h70));
+            @(negedge clk);
+            assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == (kind == 0 ? 'h020 : 'h140) &&
+                    bram.system_cpu.cpu.gpr[12] == (kind == 0 ? 0 : 'h4004) &&
+                    bram.system_cpu.cpu.gpr[11] == (kind == 0 ? 0 : 'h402a) &&
+                    bram.system_cpu.cpu.gpr[10] == 0 &&
+                    bram.system_cpu.cpu.gpr[9] == (kind == 0 ? 1 : '1) &&
+                    (bram.system_cpu.cpu.gpr[8] & ~32'b1) == 'h7000_00f0)
+                else $fatal(1, "Reset kind %d: EXPEVT %h TEA %h PTEH %h MMUCR %h TCOR0 %h SR %h",
+                            kind, bram.system_cpu.cpu.gpr[13], bram.system_cpu.cpu.gpr[12],
+                            bram.system_cpu.cpu.gpr[11], bram.system_cpu.cpu.gpr[10],
+                            bram.system_cpu.cpu.gpr[9], bram.system_cpu.cpu.gpr[8]);
+            if (kind == 1) begin
+                wait (bram_retired && bram_retired_pc == 'h74);
+                @(negedge clk);
+                assert (restart_waited_for_dma &&
+                        bram.system_cpu.cpu.gpr[7] == 'h1357_9bdf)
+                    else $fatal(1, "DMA did not drain before the multiple-hit reset");
+            end
+            bram_reset = 1;
+        end
+
         assert (ubc_finished) else $fatal(1, "UBC test did not finish");
         assert (cpg_finished) else $fatal(1, "CPG test did not finish");
         assert (gpio_finished) else $fatal(1, "GPIO test did not finish");
@@ -2674,7 +2795,7 @@ module fes_sh4_tb;
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
         wait (rtc_finished && scif_finished && sci_finished);
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, CPG, standby, UBC, and bus and interrupt arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception reset and return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, CPG, standby, UBC, and bus and interrupt arbitration");
         $finish;
     end
 
