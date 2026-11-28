@@ -494,6 +494,12 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec, lifetime
 		}
 		observation = &obs
 	}
+	// Runtime observation may block long enough for either the request or
+	// the admitting execution lease to end. Never confirm or replace an
+	// attachment after that authority has been lost.
+	if err := errors.Join(ctx.Err(), lifetime.Err()); err != nil {
+		return err
+	}
 	if sameLease {
 		return nil
 	}

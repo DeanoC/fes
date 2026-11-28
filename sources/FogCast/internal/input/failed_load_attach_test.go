@@ -102,3 +102,51 @@ func TestAttachRechecksObservedCoreBeforeReuseOrReplacement(t *testing.T) {
 	}
 	_ = conn.Close()
 }
+
+func TestReattachDoesNotSucceedAfterObservationLosesAuthority(t *testing.T) {
+	for _, cancelTarget := range []string{"request", "lease"} {
+		t.Run(cancelTarget, func(t *testing.T) {
+			ports := &controllerPortsSink{fallback: &recordingSink{}}
+			controller := newTargetControllerWithSink("127.0.0.1:0", ports)
+			controller.ports = ports
+			t.Cleanup(func() { _ = controller.Close() })
+			observation := CoreObservation{Active: true, CoreID: "fes.pc386"}
+			controller.ObserveCore(func(context.Context) (CoreObservation, error) { return observation, nil })
+			lifetime, cancelLifetime := context.WithCancel(context.Background())
+			defer cancelLifetime()
+			spec := Spec{Session: 1, Token: []byte("0123456789abcdef"), Core: "fes.pc386"}
+			if err := controller.Attach(kitlease.WithLeaseLifetime(context.Background(), lifetime), spec); err != nil {
+				t.Fatal(err)
+			}
+			entered, resume := make(chan struct{}), make(chan struct{})
+			controller.ObserveCore(func(context.Context) (CoreObservation, error) {
+				close(entered)
+				<-resume
+				return observation, nil
+			})
+			request, cancelRequest := context.WithCancel(context.Background())
+			defer cancelRequest()
+			done := make(chan error, 1)
+			go func() { done <- controller.Attach(kitlease.WithLeaseLifetime(request, lifetime), spec) }()
+			select {
+			case <-entered:
+			case <-time.After(time.Second):
+				t.Fatal("runtime observation did not start")
+			}
+			if cancelTarget == "request" {
+				cancelRequest()
+			} else {
+				cancelLifetime()
+			}
+			close(resume)
+			select {
+			case err := <-done:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("reattach after %s ended = %v", cancelTarget, err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("reattach did not finish")
+			}
+		})
+	}
+}
