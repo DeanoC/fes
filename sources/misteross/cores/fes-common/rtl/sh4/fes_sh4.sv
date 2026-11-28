@@ -16,25 +16,37 @@ module fes_sh4 #(
     output logic [31:0] fault_pc
 );
     typedef enum logic [3:0] {
-        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT, COMMIT, STOP
+        ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT, COMMIT, EXCEPTION, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
-        JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC_SR, STC_SR
+        JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC_SR, STC_SR,
+        LDC_VBR, LDC_SSR, LDC_SPC, STC_VBR, STC_SSR, STC_SPC, STC_SGR, RTE, TRAPA
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
     localparam logic [3:0] ILLEGAL = 4'd1, SLOT_ILLEGAL = 4'd2,
-                           FETCH_ALIGN = 4'd3, DATA_ALIGN = 4'd4, ADDRESS_ERROR = 4'd9;
+                           FETCH_ALIGN = 4'd3, DATA_ALIGN = 4'd4, TLB_MISS = 4'd5, TLB_MULTIPLE = 4'd6,
+                           TLB_PROTECT = 4'd7, TLB_INITIAL_WRITE = 4'd8,
+                           ADDRESS_ERROR = 4'd9, TRAP = 4'd10;
+    localparam logic [31:0] SR_MASK = 32'h7000_83f3;
 
     stage_t stage;
     logic [31:0] gpr [0:15];
-    logic [31:0] pc, pr, delay_target;
-    logic t, in_slot, supervisor;
+    logic [31:0] gpr_storage [0:23];
+    logic [31:0] pc, pr, delay_target, delay_branch_pc, pre_slot_pr;
+    logic [31:0] sr, ssr, spc, sgr, vbr, vector_pc;
+    logic [11:0] expevt, exception_event;
+    logic [7:0] tra, trap_imm;
+    logic [3:0] exception_cause;
+    logic take_exception, address_exception, privileged_op, is_store;
+    logic [31:0] fault_address;
+    logic t, in_slot, supervisor, fetch_supervisor, bank_one, rte_slot, slot_wrote_pr;
     logic [15:0] ir;
 
     logic [3:0] n, m, dst, base_reg;
+    logic [4:0] dst_index, base_index;
     op_t decoded, op;
     size_t dec_size, size;
     logic dec_pre, dec_post, dec_pc_relative, pre, post, pc_relative;
@@ -64,10 +76,26 @@ module fes_sh4 #(
     logic mmu_ready, mmu_response, mmu_enabled, mmu_cacheable, mmu_request;
     logic [31:0] mmu_va, mmu_pa, mmu_reg_rdata;
     logic [3:0] mmu_fault, mmu_register_index;
-    logic mmu_register, mmu_reg_write, mmu_ldtlb, privilege_write;
+    logic mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
     logic fetch_mapped, data_mapped, fetch_tlb_pending, fetch_tlb_valid;
     logic bad_fetch_region, bad_data_region, fetch_page_cacheable, data_cacheable;
     logic [31:0] physical_fetch_pc;
+
+    // R8–R15 are shared. R0–R7 select the second bank only in privileged mode with RB set.
+    function automatic logic [4:0] gpr_index(input logic [3:0] number, input logic bank);
+        return bank && !number[3] ? {2'b10, number[2:0]} : {1'b0, number};
+    endfunction
+
+    assign supervisor = sr[30];
+    assign bank_one = supervisor && sr[29];
+    assign dst_index = gpr_index(dst, bank_one);
+    assign base_index = gpr_index(base_reg, bank_one);
+    assign t = sr[0];
+    // RTE restores SR for executing its slot, but the fetch uses the old MD.
+    assign fetch_supervisor = supervisor || rte_slot;
+    for (genvar r = 0; r < 16; r++) begin : visible_regs
+        assign gpr[r] = gpr_storage[gpr_index(4'(r), bank_one)];
+    end
 
     assign n = ir[11:8];
     assign m = ir[7:4];
@@ -89,6 +117,15 @@ module fes_sh4 #(
             16'h0038: decoded = LDTLB;
             16'h4?0e: decoded = LDC_SR;
             16'h0?02: decoded = STC_SR;
+            16'h4?2e: decoded = LDC_VBR;
+            16'h4?3e: decoded = LDC_SSR;
+            16'h4?4e: decoded = LDC_SPC;
+            16'h0?22: decoded = STC_VBR;
+            16'h0?32: decoded = STC_SSR;
+            16'h0?42: decoded = STC_SPC;
+            16'h0?3a: decoded = STC_SGR;
+            16'h002b: decoded = RTE;
+            16'hc3??: decoded = TRAPA;
             16'h0?29: decoded = MOV_T;
 
             16'he???: begin decoded = MOV; dec_b = {{24{ir[7]}}, ir[7:0]}; end
@@ -195,12 +232,17 @@ module fes_sh4 #(
         taken = 1'b0;
 
         case (op)
-            MOV, MOV_T, MOVA, STC_SR, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP, SHLL, SHLR, SHAR: begin
+            MOV, MOV_T, MOVA, STC_SR, STC_VBR, STC_SSR, STC_SPC, STC_SGR,
+            ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP, SHLL, SHLR, SHAR: begin
                 write_gpr = 1'b1;
                 case (op)
                     MOV: value = b;
                     MOV_T: value = {31'b0, t};
-                    STC_SR: value = {1'b0, supervisor, 29'b0, t};
+                    STC_SR: value = sr;
+                    STC_VBR: value = vbr;
+                    STC_SSR: value = ssr;
+                    STC_SPC: value = spc;
+                    STC_SGR: value = sgr;
                     MOVA: value = effective_addr;
                     ADD, SUB, ADDC, SUBC: begin
                         value = arithmetic[31:0];
@@ -218,7 +260,7 @@ module fes_sh4 #(
                     end
                 endcase
             end
-            EQ, HS, GE, HI, GT, TST, SET_T, LDC_SR: begin
+            EQ, HS, GE, HI, GT, TST, SET_T: begin
                 write_t = 1'b1;
                 case (op)
                     EQ: next_t = a == b;
@@ -227,11 +269,10 @@ module fes_sh4 #(
                     HI: next_t = a > b;
                     GT: next_t = $signed(a) > $signed(b);
                     TST: next_t = (a & b) == 32'b0;
-                    LDC_SR: next_t = a[0];
                     default: next_t = b[0];
                 endcase
             end
-            JMP, CALL, RETURN_OP, BR, BSR, BT, BF, BTS, BFS: begin
+            JMP, CALL, RETURN_OP, BR, BSR, BT, BF, BTS, BFS, RTE: begin
                 control = 1'b1;
                 delayed = op != BT && op != BF;
                 taken = (op == BT || op == BTS) ? t : (op == BF || op == BFS) ? !t : 1'b1;
@@ -240,30 +281,92 @@ module fes_sh4 #(
                     target = a;
                 if (op == RETURN_OP)
                     target = pr;
+                if (op == RTE)
+                    target = spc;
             end
             default: ;
         endcase
     end
 
+    assign is_store = op == STORE;
+    assign privileged_op = op inside {LDTLB, LDC_SR, STC_SR, LDC_VBR, LDC_SSR, LDC_SPC,
+                                      STC_VBR, STC_SSR, STC_SPC, STC_SGR, RTE};
+
+    always_comb begin
+        exception_cause = 4'b0;
+        address_exception = 1'b0;
+        fault_address = pc;
+        case (stage)
+            ISSUE: begin
+                if (pc[0]) begin
+                    exception_cause = FETCH_ALIGN;
+                    address_exception = 1'b1;
+                end else if (bad_fetch_region) begin
+                    exception_cause = ADDRESS_ERROR;
+                    address_exception = 1'b1;
+                end else if (fetch_tlb_pending && mmu_response)
+                    exception_cause = mmu_fault;
+            end
+            EXECUTE: begin
+                if (op == BAD || (!supervisor && privileged_op) ||
+                    (in_slot && (control || pc_relative || op == LDC_SR || op == TRAPA)))
+                    exception_cause = in_slot ? SLOT_ILLEGAL : ILLEGAL;
+                else if ((op == LOAD || is_store) && !aligned) begin
+                    exception_cause = DATA_ALIGN;
+                    address_exception = 1'b1;
+                    fault_address = effective_addr;
+                end else if (op == TRAPA)
+                    exception_cause = TRAP;
+            end
+            DATA_TRANSLATE: if (bad_data_region || ((mmu_register || event_register) && size != LONGWORD)) begin
+                exception_cause = ADDRESS_ERROR;
+                address_exception = 1'b1;
+                fault_address = {data_addr, data_addr_lane};
+            end
+            DATA_TLB_WAIT: if (mmu_response)
+                exception_cause = mmu_fault;
+            default: ;
+        endcase
+
+        case (exception_cause)
+            ILLEGAL:           exception_event = 12'h180;
+            SLOT_ILLEGAL:      exception_event = 12'h1a0;
+            FETCH_ALIGN:       exception_event = 12'h0e0;
+            DATA_ALIGN,
+            ADDRESS_ERROR:     exception_event = stage != ISSUE && is_store ? 12'h100 : 12'h0e0;
+            TLB_MISS:          exception_event = stage != ISSUE && is_store ? 12'h060 : 12'h040;
+            TLB_MULTIPLE:      exception_event = 12'h140;
+            TLB_PROTECT:       exception_event = stage != ISSUE && is_store ? 12'h0c0 : 12'h0a0;
+            TLB_INITIAL_WRITE: exception_event = 12'h080;
+            TRAP:              exception_event = 12'h160;
+            default:           exception_event = 12'h000;
+        endcase
+    end
+
+    // Reset-style multiple-hit and blocked/nested cases remain diagnostic stops.
+    assign take_exception = exception_cause != 0 && exception_cause != TLB_MULTIPLE && !sr[28] && !rte_slot;
+
     assign redirect = stage == COMMIT && fetch_pc != next_pc;
     assign privilege_write = stage == COMMIT && op == LDC_SR;
     assign mmu_ldtlb = stage == COMMIT && op == LDTLB;
-    assign bad_fetch_region = (!supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111;
+    assign bad_fetch_region = (!fetch_supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111;
     assign bad_data_region = !supervisor && data_addr[31];
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
     assign data_mapped = mmu_enabled && (!data_addr[31] || data_addr[31:29] == 3'b110);
     assign fetch_cacheable = fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101;
-    assign fetch_lookup = stage != STOP && !fetch_pc[0] && !bad_fetch_region &&
+    assign fetch_lookup = stage != STOP && stage != EXCEPTION && !fetch_pc[0] && !bad_fetch_region &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
     assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb ||
-                         privilege_write || stage == STOP;
-    assign fetch_consume = fetch_valid && ((stage == ISSUE && !pc[0]) ||
+                         privilege_write || exception_cause != 0 || stage == EXCEPTION || stage == STOP;
+    assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0) ||
                                            (stage == COMMIT && !redirect && !privilege_write && !mmu_ldtlb));
     assign store_accepted = data_bus_ready && mem_wstrb != 0;
 
     assign mmu_register_index = data_addr[5:2];
     assign mmu_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                           (mmu_register_index inside {4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd13});
+    assign event_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
+                            (mmu_register_index == 8 || mmu_register_index == 9);
     assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
                            size == LONGWORD && op == STORE;
     assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region && data_mapped && !mmu_register) ||
@@ -274,7 +377,8 @@ module fes_sh4 #(
     fes_sh4_mmu mmu (
         .clk, .reset, .request(mmu_request), .ready(mmu_ready),
         .instruction(stage == ISSUE), .write(stage == DATA_TRANSLATE && op == STORE),
-        .supervisor, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
+        .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
+        .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
         .cacheable(mmu_cacheable), .fault(mmu_fault), .enabled(mmu_enabled),
         .reg_select(mmu_register_index), .reg_write(mmu_reg_write), .reg_wdata(data_wdata),
         .reg_rdata(mmu_reg_rdata), .ldtlb(mmu_ldtlb)
@@ -343,8 +447,15 @@ module fes_sh4 #(
             pc <= RESET_PC;
             fetch_pc <= RESET_PC;
             pr <= 32'b0;
-            t <= 1'b0;
-            supervisor <= 1'b1;
+            sr <= 32'h7000_00f0;
+            ssr <= '0;
+            spc <= '0;
+            sgr <= '0;
+            vbr <= '0;
+            expevt <= '0;
+            tra <= '0;
+            rte_slot <= 1'b0;
+            slot_wrote_pr <= 1'b0;
             fetch_tlb_pending <= 1'b0;
             fetch_tlb_valid <= 1'b0;
             in_slot <= 1'b0;
@@ -373,22 +484,31 @@ module fes_sh4 #(
                     fetch_tlb_pending <= 1'b0;
             end
 
-            case (stage)
-                ISSUE: begin
-                    if (pc[0]) begin
-                        fault <= FETCH_ALIGN;
-                        fault_pc <= pc;
-                        stage <= STOP;
-                    end else if (bad_fetch_region || (fetch_tlb_pending && mmu_response && mmu_fault != 0)) begin
-                        fault <= bad_fetch_region ? ADDRESS_ERROR : mmu_fault;
-                        fault_pc <= pc;
-                        stage <= STOP;
-                    end else if (fetch_consume) begin
-                        stage <= DECODE;
-                    end
+            if (exception_cause != 0) begin
+                expevt <= exception_event;
+                if (take_exception) begin
+                    ssr <= sr;
+                    spc <= exception_cause == TRAP ? pc + 32'd2 : in_slot ? delay_branch_pc : pc;
+                    sgr <= gpr[15];
+                    sr[30:28] <= 3'b111;
+                    vector_pc <= vbr + (exception_cause == TLB_MISS ? 32'h400 : 32'h100);
+                    if (exception_cause == TRAP)
+                        tra <= trap_imm;
+                    if (in_slot && slot_wrote_pr)
+                        pr <= pre_slot_pr;
+                    in_slot <= 1'b0;
+                    stage <= EXCEPTION;
+                end else begin
+                    fault <= exception_cause;
+                    fault_pc <= pc;
+                    stage <= STOP;
                 end
+            end else case (stage)
+                ISSUE: if (fetch_consume)
+                    stage <= DECODE;
                 DECODE: begin
                     op <= decoded;
+                    trap_imm <= ir[7:0];
                     size <= dec_size;
                     pre <= dec_pre;
                     post <= dec_post && n != m;
@@ -414,39 +534,35 @@ module fes_sh4 #(
                     link_value <= pc + 32'd4;
                     wb_base <= (op == STORE && pre) || (op == LOAD && post);
                     writeback_base <= pre ? effective_addr : a + (32'd1 << size);
-                    if (op == BAD || (!supervisor && (op inside {LDTLB, LDC_SR, STC_SR})) ||
-                        (in_slot && (control || pc_relative || op == LDC_SR))) begin
-                        fault <= in_slot ? SLOT_ILLEGAL : ILLEGAL;
-                        fault_pc <= pc;
-                        stage <= STOP;
-                    end else if (op == LOAD || op == STORE) begin
-                        if (!aligned) begin
-                            fault <= DATA_ALIGN;
-                            fault_pc <= pc;
-                            stage <= STOP;
-                        end else begin
-                            data_addr <= effective_addr[31:2];
-                            data_addr_lane <= effective_addr[1:0];
-                            data_wdata <= store_value << {effective_addr[1:0], 3'b000};
-                            case (size)
-                                BYTE: data_wstrb <= op == STORE ? 4'b0001 << effective_addr[1:0] : 4'b0;
-                                WORD: data_wstrb <= op == STORE ? 4'b0011 << effective_addr[1:0] : 4'b0;
-                                default: data_wstrb <= op == STORE ? 4'b1111 : 4'b0;
-                            endcase
-                            stage <= DATA_TRANSLATE;
-                        end
+                    if (op == LOAD || is_store) begin
+                        data_addr <= effective_addr[31:2];
+                        data_addr_lane <= effective_addr[1:0];
+                        data_wdata <= store_value << {effective_addr[1:0], 3'b000};
+                        case (size)
+                            BYTE: data_wstrb <= is_store ? 4'b0001 << effective_addr[1:0] : 4'b0;
+                            WORD: data_wstrb <= is_store ? 4'b0011 << effective_addr[1:0] : 4'b0;
+                            default: data_wstrb <= is_store ? 4'b1111 : 4'b0;
+                        endcase
+                        stage <= DATA_TRANSLATE;
                     end else begin
                         stage <= COMMIT;
                     end
                 end
                 DATA_TRANSLATE: begin
-                    if (bad_data_region || (mmu_register && size != LONGWORD)) begin
-                        fault <= ADDRESS_ERROR;
-                        fault_pc <= pc;
-                        stage <= STOP;
-                    end else if (mmu_register) begin
+                    if (mmu_register || event_register) begin
                         wb_gpr <= op == LOAD;
                         wb_value <= mmu_reg_rdata;
+                        if (event_register) begin
+                            if (mmu_register_index == 8) begin
+                                wb_value <= {22'b0, tra, 2'b00};
+                                if (is_store)
+                                    tra <= data_wdata[9:2];
+                            end else begin
+                                wb_value <= {20'b0, expevt};
+                                if (is_store)
+                                    expevt <= data_wdata[11:0];
+                            end
+                        end
                         stage <= COMMIT;
                     end else if (data_mapped) begin
                         if (mmu_ready)
@@ -457,15 +573,9 @@ module fes_sh4 #(
                     end
                 end
                 DATA_TLB_WAIT: if (mmu_response) begin
-                    if (mmu_fault != 0) begin
-                        fault <= mmu_fault;
-                        fault_pc <= pc;
-                        stage <= STOP;
-                    end else begin
-                        data_addr <= mmu_pa[31:2];
-                        data_cacheable <= mmu_cacheable;
-                        stage <= DATA_REQ;
-                    end
+                    data_addr <= mmu_pa[31:2];
+                    data_cacheable <= mmu_cacheable;
+                    stage <= DATA_REQ;
                 end
                 DATA_REQ: if (data_ready)
                     stage <= DATA_WAIT;
@@ -482,20 +592,37 @@ module fes_sh4 #(
                 end
                 COMMIT: begin
                     if (wb_base)
-                        gpr[base_reg] <= writeback_base;
+                        gpr_storage[base_index] <= writeback_base;
                     if (wb_gpr)
-                        gpr[dst] <= wb_value;
+                        gpr_storage[dst_index] <= wb_value;
                     if (wb_t)
-                        t <= wb_t_value;
-                    if (wb_pr)
+                        sr[0] <= wb_t_value;
+                    if (wb_pr) begin
+                        pre_slot_pr <= pr;
                         pr <= link_value;
-                    if (privilege_write)
-                        supervisor <= a[30];
+                    end
+                    case (op)
+                        LDC_SR: sr <= a & SR_MASK;
+                        LDC_VBR: vbr <= a;
+                        LDC_SSR: ssr <= a & SR_MASK;
+                        LDC_SPC: spc <= a;
+                        RTE: sr <= ssr;
+                        default: ;
+                    endcase
+                    if (start_slot)
+                        delay_branch_pc <= pc;
+                    slot_wrote_pr <= wb_pr;
+                    rte_slot <= op == RTE;
                     pc <= next_pc;
                     in_slot <= start_slot;
                     retired <= 1'b1;
                     retired_pc <= pc;
                     stage <= fetch_consume ? DECODE : ISSUE;
+                end
+                EXCEPTION: begin
+                    pc <= vector_pc;
+                    fetch_pc <= vector_pc;
+                    stage <= ISSUE;
                 end
                 STOP: ;
                 default: stage <= STOP;

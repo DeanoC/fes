@@ -8,6 +8,8 @@ module fes_sh4_mmu (
     input  logic        instruction,
     input  logic        write,
     input  logic        supervisor,
+    input  logic        address_exception,
+    input  logic [31:0] fault_address,
     input  logic [31:0] virtual_addr,
     output logic        response,
     output logic [31:0] physical_addr,
@@ -150,6 +152,8 @@ module fes_sh4_mmu (
             sqmd <= 1'b0;
             enabled <= 1'b0;
         end else begin
+            if (address_exception)
+                tea <= fault_address;
             case (state)
                 IDLE: begin
                     if (reg_write) begin

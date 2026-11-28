@@ -385,8 +385,9 @@ executes a subset of the SH-4 ISA through a registered, little-endian memory
 interface. Its 8 KiB M20K instruction cache overlaps fetch with execution and
 shares the external port with a 16 KiB write-through M20K data cache. The
 pipelined MMU translates mapped fetches and data accesses using a 64-entry
-UTLB and four-entry ITLB. The DE25 virtual-pin diagnostic uses separate
-inferred M20K program/data RAM. The core has no console or package consumer
+UTLB and four-entry ITLB. Synchronous exception vectors and the RTE delay
+slot let guest software populate the TLB and retry faulting accesses. The
+DE25 virtual-pin diagnostic uses separate inferred M20K program/data RAM. The core has no console or package consumer
 yet.
 
 The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)

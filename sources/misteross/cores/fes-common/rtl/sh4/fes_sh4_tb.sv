@@ -15,6 +15,7 @@ module fes_sh4_tb;
     logic held;
     logic [67:0] held_request;
     int retire_count, read_count, previous_retire_cycle;
+    int retried_word_writes;
     int resident_reads, conflict_reads, cold_store_line_reads, alias_reads;
     logic check_data_cache = 0;
     logic cache_cancel_done, mmu_done;
@@ -46,6 +47,7 @@ module fes_sh4_tb;
             held <= 0;
             retire_count <= 0;
             read_count <= 0;
+            retried_word_writes <= 0;
             resident_reads <= 0;
             conflict_reads <= 0;
             cold_store_line_reads <= 0;
@@ -91,6 +93,8 @@ module fes_sh4_tb;
                     if (check_data_cache && addr == 32'h604)
                         assert (cold_store_line_reads == 0)
                             else $fatal(1, "A store miss fetched a line before writing through");
+                    if (addr == 32'h1010)
+                        retried_word_writes <= retried_word_writes + 1;
                     for (int lane = 0; lane < 4; lane++)
                         if (wstrb[lane])
                             ext_mem[addr[14:2]][8*lane +: 8] <= wdata[8*lane +: 8];
@@ -372,6 +376,72 @@ module fes_sh4_tb;
         expect_stop(5, 'hc00);
         assert (dut.mmu.tea == 'hc00) else $fatal(1, "Fetch miss did not retain its virtual address");
 
+        // Keep the first page mapping from the MMU boot fixture. The handler
+        // runs from a direct P2 alias and installs a mapping using exception PTEH.
+        literal('h1e, 10, 'ha0);
+        emit('h20, 'h4a2e); // LDC R10,VBR
+        emit('h22, 'h0b22); // STC VBR,R11
+        emit('h24, 'hef7c); // MOV #0x7c,R15, for SGR verification
+        emit('h26, 'he001); // User SR with T set
+        emit('h28, 'h400e); // LDC R0,SR (enable exceptions, select bank zero)
+        literal('h2a, 5, 'h98);
+        emit('h2c, 'he015); // Distinct user R0
+        emit('h2e, 'h6652); // MOV.L @R5,R6, initially faults
+        emit('h30, 'h0729); // MOVT R7
+        emit('h32, 'hc317); // TRAPA #0x17, general vector
+        image['h98 >> 2] = 'hc10;
+        image['ha0 >> 2] = 'ha000_1000;
+        image['h1010 >> 2] = 'h1357_2468;
+
+        emit('h1400, 'h0842); // STC SPC,R8
+        emit('h1402, 'h0932); // STC SSR,R9
+        emit('h1404, 'h0a3a); // STC SGR,R10
+        literal('h1406, 1, 'h1440);
+        emit('h1408, 'h5c19); // MOV.L @(0x24,R1),R12 (EXPEVT)
+        emit('h140a, 'h5d13); // MOV.L @(0x0c,R1),R13 (TEA)
+        literal('h140c, 2, 'h1444);
+        emit('h140e, 'h1121); // MOV.L R2,@(4,R1) (PTEL)
+        emit('h1410, 'h0038); // LDTLB
+        emit('h1412, 'h493e); // LDC R9,SSR
+        emit('h1414, 'h484e); // LDC R8,SPC
+        emit('h1416, 'he0ff); // Handler R0 is in bank one
+        emit('h1418, 'h002b); // RTE
+        emit('h141a, 'h7001); // ADD #1,R0 using the restored bank
+        image['h1440 >> 2] = 'hff00_0000;
+        image['h1444 >> 2] = 'h0000_116c;
+        literal('h1100, 1, 'h1110);
+        emit('h1102, 'h5e18); // MOV.L @(0x20,R1),R14 (TRA)
+        image['h1110 >> 2] = 'hff00_0000;
+
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr_storage[0] == 'h16 && dut.gpr_storage[16] == 'hffff_ffff &&
+                dut.gpr_storage[6] == 'h1357_2468 && dut.gpr_storage[7] == 1 &&
+                dut.gpr[8] == 'h2e && dut.gpr[9] == 1 && dut.gpr[10] == 'h7c &&
+                dut.gpr[11] == 'ha000_1000 && dut.gpr[12] == 'h40 && dut.gpr[13] == 'hc10 &&
+                dut.gpr[14] == 'h5c && dut.spc == 'h34 && dut.ssr == 1)
+            else $fatal(1, "Read miss, RTE slot, banked registers or TRAPA did not resume correctly");
+
+        emit('h2e, 'h452b); // JMP @R5, missing instruction page
+        emit('h30, 'h0009);
+        emit('h1010, 'he64d); // First opcode at the translated target
+        emit('h1012, 'hc317);
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr_storage[6] == 'h4d && dut.gpr[8] == 'hc10 && dut.gpr[12] == 'h40 &&
+                dut.gpr[13] == 'hc10 && dut.spc == 'hc14)
+            else $fatal(1, "Instruction miss did not restart the remapped fetch");
+
+        emit('h2e, 'hb007); // BSR 0x40
+        emit('h30, 'h2502); // MOV.L R0,@R5 in the delay slot (store miss)
+        emit('h40, 'hc317);
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr[8] == 'h2e && dut.gpr[12] == 'h60 && dut.gpr[13] == 'hc10 &&
+                dut.pr == 'h32 && dut.spc == 'h42 && retried_word_writes == 1 &&
+                ext_mem['h1010 >> 2] == 'h16)
+            else $fatal(1, "Store miss did not replay the branch and store exactly once");
+
         // Supervisor can read SR and clear MD. A user execution of LDTLB
         // must fault before changing the TLB state.
         image = '{default:32'hfffd_fffd};
@@ -380,19 +450,20 @@ module fes_sh4_tb;
         emit('h04, 'h400e); // LDC R0,SR
         emit('h06, 'h0038); // LDTLB
         start_bus();
-        expect_stop(1, 'h06);
-        assert (dut.gpr[1] == 'h4000_0000 && !dut.supervisor && dut.mmu.utlb_valid == 0)
+        expect_stop(1, 'h100);
+        assert (dut.gpr_storage[17] == 'h7000_00f0 && dut.spc == 6 &&
+                dut.ssr == 0 && dut.mmu.utlb_valid == 0)
             else $fatal(1, "Supervisor-only MMU control was not enforced");
 
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions and translation");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception vectors and RTE");
         $finish;
     end
 
     initial begin
-        #80000;
+        #180000;
         $fatal(1, "Timed out");
     end
 endmodule

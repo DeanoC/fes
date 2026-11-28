@@ -4,7 +4,7 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
     logic [3:0] fault, reg_select;
     logic [31:0] virtual_addr, physical_addr, reg_wdata, reg_rdata;
 
-    fes_sh4_mmu dut (.*);
+    fes_sh4_mmu dut (.address_exception(1'b0), .fault_address(32'b0), .*);
 
     task automatic config_write(input logic [3:0] sel, input logic [31:0] data);
         @(negedge clk);

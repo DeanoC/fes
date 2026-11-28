@@ -51,19 +51,37 @@ defines instruction encodings and behavior. The implemented slice includes:
   literal loads, and MOVA.
 - BT, BF, BT/S, BF/S, BRA, BSR, JMP, JSR, RTS, and NOP. The branch decision and
   target are captured before the delay slot executes.
-- LDTLB and register forms of LDC/STC for SR.MD and SR.T.
+- LDTLB, TRAPA, RTE, and register forms of LDC/STC for SR, VBR, SSR, and SPC.
+  STC also reads SGR.
 
-FPU, the remaining integer and privileged state, exception entry and RTE,
-interrupts, copy-back mode, software cache controls, raw TLB arrays, area-7
-MMU register aliases, board buses and PTEA PCMCIA behavior remain outside this
-slice. The core exposes sticky diagnostic faults until reset.
+## Exception entry and return
 
-Codes 1–4 indicate an unsupported or privileged opcode, a prohibited delay
-slot, an unaligned fetch, and an unaligned data access. Codes 5–9 indicate a TLB
-miss, multiple hit, protection violation, initial page write, and address
-error. `fault_pc` identifies the offending instruction or attempted fetch.
-TLB faults capture the virtual address in TEA and its page number in PTEH. General registers have
-no defined reset values. Software must initialize them before reading them.
+TLB misses enter at VBR + 0x400. Address errors, illegal instructions, TLB
+protection and initial-write exceptions, and TRAPA enter at VBR + 0x100. Entry
+saves SR, the restart PC and R15 in SSR, SPC and SGR, sets SR.MD, SR.RB and
+SR.BL, and records EXPEVT. Delay-slot faults save the branch PC for replay.
+TRAPA saves the next PC and makes its immediate available through TRA. The
+longword P4 registers are TRA at `0xff000020` and EXPEVT at `0xff000024`.
+
+Privileged SR.RB selects the second bank of R0–R7. RTE restores SR from SSR
+and jumps to SPC after executing its delay slot. The slot is fetched with
+the original privilege and executes with the restored SR and register bank.
+The guest TLB handler can read TEA and PTEH, load PTEL, execute LDTLB, then
+return and retry the faulting access.
+
+FPU, the remaining integer and privileged instructions, interrupts,
+copy-back mode, software cache controls, raw TLB arrays, area-7 MMU register
+aliases, board buses and PTEA PCMCIA behavior remain outside this slice.
+Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
+set stop the diagnostic. An exception in an RTE delay slot also stops it.
+
+Terminal fault codes 1–4 indicate an unsupported or privileged opcode, a
+prohibited delay slot, an unaligned fetch, and an unaligned data access.
+Codes 5–10 indicate a TLB miss, multiple hit, protection violation, initial
+page write, address error, and TRAPA. `fault_pc` records the instruction or
+attempted fetch at a diagnostic stop. TLB faults capture the virtual address
+in TEA and its page number in PTEH. General registers have no defined reset
+values. Software must initialize them before reading them.
 
 ## Memory contract
 
@@ -102,7 +120,9 @@ test checks warm hits, partial writes, conflict refills, an uncached alias
 read and write, and a cold store that leaves the line unallocated. MMU checks
 cover all page sizes, ITLB replacement and hits, ASID/shared-page rules,
 faults, and guest code that programs the TLB and accesses remapped code and
-data.
+data. The exception tests execute an in-guest refill handler for a data read,
+an instruction fetch, and a store in a branch delay slot. They check restart
+through RTE, the restored register bank, and the general TRAPA vector.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
