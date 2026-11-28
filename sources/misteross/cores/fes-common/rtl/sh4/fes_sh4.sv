@@ -1,6 +1,6 @@
 module fes_sh4 #(
     parameter logic [31:0] RESET_PC = 32'ha000_0000,
-    parameter logic [8:0] RESET_CCR = 9'b0
+    parameter logic [15:0] RESET_CCR = 16'b0
 ) (
     input  logic        clk,
     input  logic        reset,
@@ -101,7 +101,9 @@ module fes_sh4 #(
     logic [31:0] wb_value, next_pc, link_value, writeback_base;
     logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
     logic [31:2] data_addr;
-    logic [13:2] data_index;
+    logic [13:2] data_index, dc_index;
+    logic data_va25, operand_ram;
+    logic [7:0] bus_ic_index;
     logic cache_array, ic_array, cache_data_array, cache_assoc, ic_array_active, cache_array_barrier;
     logic ic_array_ready, ic_array_complete;
     logic [31:0] ic_array_rdata;
@@ -135,6 +137,7 @@ module fes_sh4 #(
     logic mmu_array, mmu_array_write, mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
     logic ccr_register, ccr_write, mmu_write_through, data_copyback, data_bus_writeback;
     logic ic_enable, oc_enable, p1_copyback, direct_write_through;
+    logic ic_index_mode, oc_index_mode, oc_ram_mode;
     logic fetch_mapped, data_mapped, fetch_tlb_pending, fetch_tlb_valid;
     logic bad_fetch_region, bad_data_region, fetch_page_cacheable, data_cacheable;
     logic [31:0] physical_fetch_pc;
@@ -746,7 +749,8 @@ module fes_sh4 #(
     assign redirect = stage == COMMIT && fetch_pc != next_pc;
     assign privilege_write = stage == COMMIT && writes_sr;
     assign mmu_ldtlb = stage == COMMIT && op == LDTLB;
-    assign bad_fetch_region = (!fetch_supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111;
+    assign bad_fetch_region = (!fetch_supervisor && fetch_pc[31]) || fetch_pc[31:29] == 3'b111 ||
+                              (oc_enable && oc_ram_mode && fetch_pc[31:26] == 6'b011111);
     assign sq_region = data_addr[31:26] == 6'b111000;
     assign plain_prefetch = op == PREF && !sq_region;
     assign sq_store = ordinary_store && (size inside {LONGWORD, QUADWORD});
@@ -754,7 +758,7 @@ module fes_sh4 #(
     assign mem_sq = bus_sq;
     assign bad_data_region = !supervisor && data_addr[31] && !sq_region;
     assign fetch_mapped = mmu_enabled && (!fetch_pc[31] || fetch_pc[31:29] == 3'b110);
-    assign data_mapped = mmu_enabled && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
+    assign data_mapped = mmu_enabled && !operand_ram && (!data_addr[31] || data_addr[31:29] == 3'b110 || sq_region);
     assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
     assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region && !ic_array_active &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
@@ -778,6 +782,7 @@ module fes_sh4 #(
     assign mmu_array = data_addr[31:24] inside {8'hf2, 8'hf3, 8'hf6, 8'hf7};
     assign mmu_array_write = stage == DATA_TLB_WAIT && mmu_response && mmu_array && is_store;
     assign qacr_register = data_addr[31:3] == 29'h1fe0_0007;
+    assign operand_ram = oc_enable && oc_ram_mode && data_addr[31:26] == 6'b011111;
     assign ccr_register = data_addr == 30'h3fc0_0007;
     assign ccr_write = stage == DATA_TRANSLATE && !bad_data_region && ccr_register &&
                        size == LONGWORD && is_store;
@@ -808,8 +813,8 @@ module fes_sh4 #(
 
     fes_sh4_icache icache (
         .clk, .reset, .flush(fetch_flush), .invalidate_all(ccr_write && data_wdata[11]),
-        .invalidate(store_accepted), .invalidate_index(mem_addr[12:5]),
-        .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .lookup_index(fetch_pc[12:5]),
+        .invalidate(store_accepted), .invalidate_index(bus_ic_index),
+        .lookup(fetch_lookup), .lookup_pc(fetch_mapped ? physical_fetch_pc : fetch_pc), .lookup_index({ic_index_mode ? fetch_pc[25] : fetch_pc[12], fetch_pc[11:5]}),
         .array_request(stage == DATA_REQ && ic_array), .array_data(cache_data_array),
         .array_assoc(cache_assoc), .array_write(is_store), .array_address(data_index[12:2]),
         .array_wdata(data_wdata), .array_ready(ic_array_ready), .array_complete(ic_array_complete),
@@ -821,8 +826,8 @@ module fes_sh4 #(
 
     fes_sh4_dcache dcache (
         .clk, .reset, .invalidate_all(ccr_write && data_wdata[3]), .request(stage == DATA_REQ && !ic_array), .ready(data_ready),
-        .address(data_addr), .index(data_index),
-        .array_access(cache_array), .array_data(cache_data_array), .array_assoc(cache_assoc), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
+        .address(data_addr), .index(dc_index),
+        .array_access(cache_array || operand_ram), .array_data(cache_data_array || operand_ram), .array_assoc(cache_assoc), .address_cacheable(data_cacheable), .address_copyback(data_copyback),
         .purge_before_read(op == TAS), .maintenance(cache_command), .allocate_without_read(op == MOVCA),
         .wstrb(data_wstrb), .wdata(data_wdata),
         .complete(data_complete), .rdata(data_read_word),
@@ -869,6 +874,7 @@ module fes_sh4 #(
                         bus_fetch <= 1'b0;
                         bus_sq <= 1'b1;
                         mem_addr <= {3'b0, sq_line_addr, sq_word_index, 2'b00};
+                        bus_ic_index <= {ic_index_mode ? sq_line_addr[25] : sq_line_addr[12], sq_line_addr[11:5]};
                         mem_wstrb <= 4'b1111;
                         mem_wdata <= sq_wdata;
                         bus_state <= BUS_SEND;
@@ -876,6 +882,10 @@ module fes_sh4 #(
                         bus_fetch <= 1'b0;
                         bus_sq <= 1'b0;
                         mem_addr <= data_bus_addr;
+                        if (ic_index_mode && !data_bus_writeback)
+                            bus_ic_index <= {data_va25, data_index[11:5]};
+                        else
+                            bus_ic_index <= {ic_index_mode ? data_bus_addr[25] : data_bus_addr[12], data_bus_addr[11:5]};
                         mem_wstrb <= data_bus_wstrb;
                         mem_rmask <= data_cacheable ? 4'b1111 : operand_read_mask;
                         mem_wdata <= data_bus_wdata;
@@ -911,6 +921,7 @@ module fes_sh4 #(
             qacr[0] <= '0;
             qacr[1] <= '0;
             {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {RESET_CCR[8], RESET_CCR[2:0]};
+            {ic_index_mode, oc_index_mode, oc_ram_mode} <= {RESET_CCR[15], RESET_CCR[7], RESET_CCR[5]};
             pc <= RESET_PC;
             fetch_pc <= RESET_PC;
             pr <= 32'b0;
@@ -942,8 +953,10 @@ module fes_sh4 #(
             nmi_pending <= (nmi_pending || nmi_edge) && !(take_interrupt && nmi_ready);
             irq_ack <= take_interrupt && !nmi_ready;
 
-            if (ccr_write)
+            if (ccr_write) begin
                 {ic_enable, p1_copyback, direct_write_through, oc_enable} <= {data_wdata[8], data_wdata[2:0]};
+                {ic_index_mode, oc_index_mode, oc_ram_mode} <= {data_wdata[15], data_wdata[7], data_wdata[5]};
+            end
 
             if (redirect)
                 fetch_pc <= next_pc;
@@ -1033,6 +1046,7 @@ module fes_sh4 #(
                     if (op == LOAD || op == MAC || byte_access || ordinary_store || cache_maintenance || op == PREF) begin
                         data_addr <= effective_addr[31:2];
                         data_index <= effective_addr[13:2];
+                        data_va25 <= effective_addr[25];
                         data_addr_lane <= effective_addr[1:0];
                         data_wdata <= fp_mem ? fp_source[31:0] :
                                       store_value << {effective_addr[1:0], 3'b000};
@@ -1129,7 +1143,8 @@ module fes_sh4 #(
                 end
                 FP_SECOND: begin
                     data_addr <= data_addr + 30'd1;
-                    data_index <= data_index + 12'd1;
+                    data_index[2] <= 1'b1;
+                    dc_index[2] <= 1'b1;
                     data_wdata <= fp_source[63:32];
                     fp_second <= 1'b1;
                     stage <= sq_region ? SQ_ACCESS : DATA_REQ;
@@ -1149,6 +1164,7 @@ module fes_sh4 #(
                         a <= wb_value;
                         {data_addr, data_addr_lane} <= mac_second_addr;
                         data_index <= mac_second_addr[13:2];
+                        data_va25 <= mac_second_addr[25];
                         offset <= mac_second_addr + (32'd1 << size);
                         mac_second <= 1'b1;
                         stage <= DATA_TRANSLATE;
@@ -1173,7 +1189,14 @@ module fes_sh4 #(
                     stage <= COMMIT;
                 end
                 DATA_TRANSLATE: begin
-                    if (plain_prefetch && (!oc_enable || bad_data_region ||
+                    // In RAM mode, entry bit 7 separates the cache and RAM
+                    // halves. The index MSB still selects either half's bank.
+                    dc_index <= cache_array ? data_index :
+                                {oc_index_mode ? data_va25 : data_index[13],
+                                 oc_ram_mode && oc_enable ? operand_ram : data_index[12], data_index[11:2]};
+                    if (operand_ram && (plain_prefetch || cache_command != 0))
+                        stage <= COMMIT;
+                    else if (plain_prefetch && (!oc_enable || bad_data_region ||
                                           (data_addr[31:29] inside {3'b101, 3'b111}))) begin
                         stage <= COMMIT;
                     end else if (cache_array) begin
@@ -1189,7 +1212,8 @@ module fes_sh4 #(
                         stage <= COMMIT;
                     end else if (mmu_register || event_register || ccr_register) begin
                         wb_gpr <= op == LOAD && load_gpr;
-                        wb_value <= ccr_register ? {23'b0, ic_enable, 5'b0, p1_copyback,
+                        wb_value <= ccr_register ? {16'b0, ic_index_mode, 6'b0, ic_enable, oc_index_mode,
+                                                     1'b0, oc_ram_mode, 2'b0, p1_copyback,
                                                      direct_write_through, oc_enable} : local_read_value;
                         if (event_register && is_store) begin
                             case (mmu_register_index)

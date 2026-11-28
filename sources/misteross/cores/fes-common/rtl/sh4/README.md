@@ -88,6 +88,23 @@ defines instruction encodings and behavior. The implemented slice includes:
   GBR, VBR, SSR, SPC, DBR and the inactive R0–R7 bank. STC also reads and
   stacks SGR. STS/LDS support PR register and stack transfers.
 
+## Cache index and RAM modes
+
+CCR.IIX substitutes effective-address bit 25 for bit 12 of the
+instruction cache index. CCR.OIX substitutes bit 25 for bit 13 of the
+operand cache index. Both modes retain physical tags. The P4 cache
+arrays address raw cache entries in either mode.
+
+With CCR.ORA and CCR.OCE set, operand cache entries 128–255 and 384–511
+become two 4 KiB RAM banks. Data accesses at `0x7c000000–0x7fffffff`
+use those banks without translation or external bus activity. Bank
+selection uses effective-address bit 13 in normal index mode and bit
+25 in OC index mode. Bits 11–0 select a byte within the bank. Normal
+cache accesses use the remaining 8 KiB. Byte enables apply to RAM
+writes, and an aligned paired transfer reads or writes both words in
+the bank. Instruction fetches from this range raise an address error
+while RAM mode is enabled.
+
 ## Cache arrays
 
 Privileged longword accesses can read and write instruction cache tags
@@ -209,8 +226,8 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 The remaining floating-point, integer and privileged instructions, interrupt
-source arbitration and peripherals, standby power controls, cache index
-and RAM modes, area-7 MMU register aliases, board buses and PTEA PCMCIA
+source arbitration and peripherals, standby power controls,
+area-7 MMU register aliases, board buses and PTEA PCMCIA
 behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -293,7 +310,10 @@ refill, associative invalidation and refresh, ASID matching, and multiple
 matches. A guest also enables translation using mappings installed through
 the P4 arrays. Cache-array regressions exercise injected instruction
 words, associative invalidation, translated operand tags, and dirty
-write-back on an operand retag. Floating-point transfer tests cover both
+write-back on an operand retag. Index-mode tests cover instruction and operand
+indexes and raw P4 entries. Operand RAM tests cover mirrored banks,
+byte masks, paired transfers, concurrent use of the cache half, and
+access with the MMU enabled. Floating-point transfer tests cover both
 banks, single and paired moves, endian order, alignment, system-register
 stack transfers, a TLB retry, and FPU-disable exception return. Arithmetic tests
 cover signed cancellation, normalization, ties, overflow, subnormal results,

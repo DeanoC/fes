@@ -26,7 +26,7 @@ module fes_sh4_tb;
     logic [2:0] queue_beat;
     logic [31:5] queue_line;
     int resident_reads, resident_writes, conflict_reads, cold_store_line_reads, alias_reads;
-    logic check_data_cache = 0;
+    logic check_data_cache = 0, check_operand_ram = 0, check_index_modes = 0;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished;
@@ -36,7 +36,7 @@ module fes_sh4_tb;
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
     logic check_warm_loop = 0, check_alias_load = 1;
 
-    fes_sh4 #(.RESET_PC(0), .RESET_CCR(9'h103)) dut (
+    fes_sh4 #(.RESET_PC(0), .RESET_CCR(16'h0103)) dut (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
         .mem_valid(valid), .mem_lock(locked), .mem_sq(queue_write), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
@@ -119,6 +119,9 @@ module fes_sh4_tb;
                 end
             end
             if (valid && ready) begin
+                if (check_operand_ram)
+                    assert (addr[31:26] != 6'b011111)
+                        else $fatal(1, "Internal operand RAM accessed the external bus");
                 if (queue_beat != 0)
                     assert (queue_write && queue_line == addr[31:5])
                         else $fatal(1, "A foreign request interrupted a store queue transfer");
@@ -128,7 +131,9 @@ module fes_sh4_tb;
                     queue_line <= addr[31:5];
                     queue_beat <= queue_beat + 3'd1;
                 end
-                assert (latency == 0 && addr[1:0] == 0 && addr[25:15] == 0 &&
+                assert (latency == 0 && addr[1:0] == 0 &&
+                        (addr[25:15] == 0 || (check_index_modes &&
+                         (addr[31:5] inside {27'h0100010, 27'h0100080}) && wstrb == 0)) &&
                         (addr[28:26] == 0 || (check_qacr_area && addr[31:5] == 27'h0600011 && wstrb == 4'hf)))
                     else $fatal(1, "Unexpected memory request at %h", addr);
                 if (wstrb == 0) begin
@@ -1212,6 +1217,108 @@ module fes_sh4_tb;
                 dut.gpr[12] == 'hca5e_0010 && dut.gpr[13] == 'h1001 && dut.gpr[14] == 'h1000)
             else $fatal(1, "Guest TLB array values did not configure instruction and data translation");
 
+        // The index modes substitute virtual address bit 25 for the
+        // high index bit while the cache array ports keep their raw indexes.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // IIX | OIX | ICE | WT | OCE
+        literal('h06, 3, 'h88);
+        literal('h08, 4, 'h8c);
+        emit('h0a, 'h6a32);
+        emit('h0c, 'h6b42);
+        literal('h0e, 5, 'h90);
+        literal('h10, 6, 'h94);
+        emit('h12, 'h450b); // Call VA with bit 12 set and bit 25 clear.
+        emit('h14, 'h0009);
+        emit('h16, 'h6893);
+        emit('h18, 'h460b); // Call VA with bit 12 clear and bit 25 set.
+        emit('h1a, 'h0009);
+        literal('h1c, 7, 'h98);
+        emit('h1e, 'h6c72); // Read tag from OC array entry 128.
+        literal('h20, 7, 'h9c);
+        emit('h22, 'h6d72);
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h0000_8183;
+        image['h88 >> 2] = 'h0000_3000;
+        image['h8c >> 2] = 'h0200_1000;
+        image['h90 >> 2] = 'h0000_1200;
+        image['h94 >> 2] = 'h0200_0200;
+        image['h98 >> 2] = 'hf400_1000;
+        image['h9c >> 2] = 'hf400_3000;
+        image['h3000 >> 2] = 'h1234_5678;
+        image['h1000 >> 2] = 'h0123_4567;
+        image['h1200 >> 2] = 'h000b_e920;
+        emit('h1204, 'h0009);
+        image['h200 >> 2] = 'h000b_e941;
+        emit('h204, 'h0009);
+        check_index_modes = 1;
+        start_bus();
+        expect_stop(1, 'h24);
+        check_index_modes = 0;
+        assert (dut.gpr[8] == 'h20 && dut.gpr[9] == 'h41 &&
+                dut.gpr[10] == 'h1234_5678 && dut.gpr[11] == 'h0123_4567 &&
+                dut.gpr[12] == 'h3001 && dut.gpr[13] == 'h0200_1001 &&
+                dut.icache.valid_lines[16] && dut.icache.valid_lines[144])
+            else $fatal(1, "IC or OC index mode did not select the expected virtual index");
+
+        // RAM banks alias differently in the two index modes. Normal cache
+        // fills must leave RAM intact, even if their address has bit 12 set.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // ICE | ORA | OCE
+        literal('h06, 3, 'h88);
+        literal('h08, 4, 'h8c);
+        literal('h0a, 5, 'h90);
+        literal('h0c, 6, 'h94);
+        emit('h0e, 'h2362);
+        emit('h10, 'he05a);
+        emit('h12, 'h2400); // Byte write through a RAM bank 0 alias.
+        emit('h14, 'he047);
+        emit('h16, 'h2502);
+        emit('h18, 'h1361);
+        literal('h1a, 7, 'ha0);
+        emit('h1c, 'h6b72); // Ordinary cache fill at a RAM-reserved raw index.
+        emit('h1e, 'hf3fd);
+        emit('h20, 'hf238); // Paired load from operand RAM.
+        emit('h22, 'h6832);
+        emit('h24, 'h6952);
+        literal('h26, 2, 'h98);
+        emit('h28, 'h2122); // Turn on OIX. Bit 25 selects the RAM bank.
+        literal('h2a, 7, 'h9c);
+        emit('h2c, 'h6a72);
+        literal('h2e, 0, 'ha4);
+        emit('h30, 'h402b);
+        emit('h32, 'h0009);
+        literal('h60, 0, 'ha8); // P2 code can run with AT set and no entries.
+        emit('h62, 'he201);
+        emit('h64, 'h2022);
+        emit('h66, 'h6c32); // Operand RAM bypasses translation.
+        emit('h68, 'h6d12);
+        image['h80 >> 2] = 'hff00_001c;
+        image['h84 >> 2] = 'h0000_0121;
+        image['h88 >> 2] = 'h7c00_0000;
+        image['h8c >> 2] = 'h7c00_1001;
+        image['h90 >> 2] = 'h7c00_2000;
+        image['h94 >> 2] = 'h1122_3344;
+        image['h98 >> 2] = 'h0000_01a1;
+        image['h9c >> 2] = 'h7e00_0000;
+        image['ha0 >> 2] = 'h1000;
+        image['ha4 >> 2] = 'ha000_0060;
+        image['ha8 >> 2] = 'hff00_0010;
+        image['h1000 >> 2] = 'h1234_5678;
+        check_operand_ram = 1;
+        start_bus();
+        expect_stop(1, 'ha000_006a);
+        check_operand_ram = 0;
+        assert (dut.gpr[8] == 'h1122_5a44 && dut.gpr[9] == 'h47 &&
+                dut.gpr[10] == 'h47 && dut.gpr[11] == 'h1234_5678 &&
+                dut.gpr[12] == 'h1122_5a44 && dut.gpr[13] == 'h01a1 &&
+                dut.fpu_regs.fr_even[1] == 'h1122_3344 &&
+                dut.fpu_regs.fr_odd[1] == 'h1122_5a44)
+            else $fatal(1, "Operand RAM bank selection, byte mask, paired data or MMU bypass failed");
+
         // Write executable data to the instruction cache. The first
         // call hits the injected line, and the second reads external RAM
         // after an associative invalidation.
@@ -1903,7 +2010,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, and FSRRA");
         $finish;
     end
 

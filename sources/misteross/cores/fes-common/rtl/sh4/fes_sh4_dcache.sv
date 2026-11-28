@@ -87,8 +87,9 @@ module fes_sh4_dcache (
     // writes words left over from an unrelated physical address.
     assign ram_write_data = refill ? bus_rdata :
                             allocate_word && line_word != saved_addr[4:2] ? 32'b0 : saved_wdata;
-    assign ram_write_mask = refill || allocate_word || (state == ARRAY_WRITE && saved_data_array) ? 4'b1111 :
-                            (state == UPDATE || (store_complete && store_hit)) ? saved_wstrb : 4'b0000;
+    assign ram_write_mask = refill || allocate_word ? 4'b1111 :
+                            (state == UPDATE || (store_complete && store_hit) ||
+                             (state == ARRAY_WRITE && saved_data_array)) ? saved_wstrb : 4'b0000;
 
     always_ff @(posedge clk) begin
         if (lookup || state == WB_READ)
