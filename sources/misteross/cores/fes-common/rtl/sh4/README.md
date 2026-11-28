@@ -56,6 +56,16 @@ addresses and the entry's C bit. Translated instruction lookups wait for the
 architectural fetch PC to avoid speculative TLB changes. Direct-address
 fetches still overlap execution.
 
+Privileged longword accesses can read and write the ITLB address and data
+arrays at `0xf2000000` and `0xf3000000`, and the UTLB arrays at
+`0xf6000000` and `0xf7000000`. Data array 2 starts at `0xf3800000` or
+`0xf7800000` and holds the page's SA and TC bits. LDTLB saves PTEA in the
+entry, and an ITLB refill copies those bits with the mapping. An associative
+UTLB address write uses PTEH.ASID and the supplied VPN, updates the matching
+valid and dirty bits, and updates any matching ITLB entry. A multiple-hit
+exception prevents the update. Indexed accesses and associative writes use
+the translation pipeline's match and reduction stages.
+
 The [Renesas SH-4 software manual](https://www.renesas.com/en/document/mas/sh-4-software-manual?r=1055166)
 defines instruction encodings and behavior. The implemented slice includes:
 
@@ -129,7 +139,7 @@ Level zero means idle. The synchronous `nmi` input is edge-triggered, and
 `nmi_while_blocked` lets the controller permit NMI while SR.BL is set.
 
 FPU, the remaining integer and privileged instructions, interrupt source
-arbitration and peripherals, standby power controls, cache arrays, raw TLB arrays, area-7 MMU register aliases, board
+arbitration and peripherals, standby power controls, cache arrays, area-7 MMU register aliases, board
 buses and PTEA PCMCIA behavior remain outside this slice.
 Reset-style cases such as TLB multiple-hit and a synchronous fault with SR.BL
 set stop the diagnostic. An exception in an RTE delay slot also stops it.
@@ -207,7 +217,10 @@ Line-operation tests cover permission checks on misses, preserving or
 discarding resident lines, and MOVCA.L allocation without refill traffic.
 Store-queue tests cover QACR selection, UTLB translation, ordered bursts,
 privilege and initial-write faults, and PREF misses both inside and outside
-the queue window.
+the queue window. TLB array tests cover indexed data and attributes, ITLB
+refill, associative invalidation and refresh, ASID matching, and multiple
+matches. A guest also enables translation using mappings installed through
+the P4 arrays.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 

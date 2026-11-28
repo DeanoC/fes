@@ -6,6 +6,7 @@ module fes_sh4_mmu (
     input  logic        request,
     output logic        ready,
     input  logic        instruction,
+    input  logic        array_access,
     input  logic        write,
     input  logic        quiet,
     input  logic        supervisor,
@@ -23,6 +24,7 @@ module fes_sh4_mmu (
     input  logic        reg_write,
     input  logic [31:0] reg_wdata,
     output logic [31:0] reg_rdata,
+    output logic [31:0] array_rdata,
     input  logic        ldtlb
 );
     typedef struct packed {
@@ -32,8 +34,9 @@ module fes_sh4_mmu (
         logic [1:0] size;
         logic [1:0] prot;
         logic shared_page, cached, dirty, wt;
+        logic [3:0] attributes;
     } entry_t;
-    typedef enum logic [2:0] {IDLE, MATCH, GROUP, SELECT, RESULT, RESPOND} state_t;
+    typedef enum logic [2:0] {IDLE, MATCH, GROUP, SELECT, RESULT, ARRAY_RESULT, RESPOND} state_t;
     localparam logic [3:0] MISS = 4'd5, MULTIPLE = 4'd6, PROTECTION = 4'd7, INITIAL_WRITE = 4'd8;
 
     state_t state;
@@ -49,7 +52,11 @@ module fes_sh4_mmu (
     logic [5:0] urc, urb, lrui;
     logic sv;
 
-    logic [31:0] va;
+    logic [31:0] va, array_wdata;
+    logic [31:10] comparison_vpn;
+    logic array_active, associative, indexed, unified, data_array, data_array_two, array_valid;
+    logic [5:0] uindex;
+    logic [1:0] iindex;
     logic fetch, store, privileged, suppress_fault_state;
     logic [7:0] group_hit, group_multi;
     entry_t group_entry [0:7];
@@ -111,6 +118,12 @@ module fes_sh4_mmu (
     end
 
     assign ready = state == IDLE;
+    assign indexed = array_active && !associative;
+    assign unified = va[26];
+    assign data_array = va[24];
+    assign data_array_two = va[23];
+    assign uindex = va[13:8];
+    assign iindex = va[9:8];
     assign response = state == RESPOND;
     assign ihit = fetch && |imatch;
     assign result_fault = multiple ? MULTIPLE : !found ? MISS :
@@ -178,10 +191,17 @@ module fes_sh4_mmu (
                         endcase
                     end else if (ldtlb) begin
                         utlb[urc] <= {pteh_vpn, ptel[28:10], asid, ptel[7], ptel[4],
-                                       ptel[6:5], ptel[1], ptel[3], ptel[2], ptel[0]};
+                                       ptel[6:5], ptel[1], ptel[3], ptel[2], ptel[0], ptea};
                         utlb_valid[urc] <= ptel[8];
                     end else if (request) begin
                         va <= virtual_addr;
+                        comparison_vpn <= array_access ? reg_wdata[31:10] : virtual_addr[31:10];
+                        array_wdata <= reg_wdata;
+                        array_active <= array_access;
+                        associative <= array_access && write && virtual_addr[26] &&
+                                       !virtual_addr[24] && virtual_addr[7];
+                        array_valid <= virtual_addr[26] ? utlb_valid[virtual_addr[13:8]] :
+                                                        itlb_valid[virtual_addr[9:8]];
                         fetch <= instruction;
                         store <= write;
                         suppress_fault_state <= quiet;
@@ -191,22 +211,24 @@ module fes_sh4_mmu (
                 end
                 MATCH: begin
                     for (int i = 0; i < 64; i++)
-                        umatch[i] <= utlb_valid[i] && page_matches(utlb[i].vpn, va[31:10], utlb[i].size,
+                        umatch[i] <= indexed ? unified && uindex == 6'(i) :
+                                     utlb_valid[i] && page_matches(utlb[i].vpn, comparison_vpn, utlb[i].size,
                                                  utlb[i].asid, asid, utlb[i].shared_page || (sv && privileged));
                     for (int i = 0; i < 4; i++)
-                        imatch[i] <= itlb_valid[i] && page_matches(itlb[i].vpn, va[31:10], itlb[i].size,
+                        imatch[i] <= indexed ? !unified && iindex == 2'(i) :
+                                     itlb_valid[i] && page_matches(itlb[i].vpn, comparison_vpn, itlb[i].size,
                                                  itlb[i].asid, asid, itlb[i].shared_page || (sv && privileged));
                     state <= GROUP;
                 end
                 GROUP: state <= SELECT;
                 SELECT: begin
                     use_utlb <= !ihit;
-                    selected <= ihit ? ientry : uentry;
+                    selected <= ihit || (indexed && !unified) ? ientry : uentry;
                     selected_way <= ihit ? iway : victim;
                     found <= ihit || |group_hit;
                     multiple <= ihit ? |(imatch & (imatch - 4'd1)) :
                                 |group_multi || |(group_hit & (group_hit - 8'd1));
-                    state <= RESULT;
+                    state <= array_active ? ARRAY_RESULT : RESULT;
                 end
                 RESULT: begin
                     physical_addr <= {3'b0, selected.ppn[28:20],
@@ -228,6 +250,66 @@ module fes_sh4_mmu (
                             itlb[selected_way] <= selected;
                             itlb_valid[selected_way] <= 1'b1;
                         end
+                    end
+                    state <= RESPOND;
+                end
+                ARRAY_RESULT: begin
+                    fault <= 4'b0;
+                    if (associative) begin
+                        if (multiple) begin
+                            fault <= MULTIPLE;
+                            tea <= va;
+                            pteh_vpn <= comparison_vpn;
+                        end else begin
+                            for (int i = 0; i < 64; i++) begin
+                                if (umatch[i]) begin
+                                    utlb[i].dirty <= array_wdata[9];
+                                    utlb_valid[i] <= array_wdata[8];
+                                end
+                            end
+                            for (int i = 0; i < 4; i++) begin
+                                if (imatch[i]) begin
+                                    itlb_valid[i] <= array_wdata[8];
+                                    if (found)
+                                        itlb[i] <= selected;
+                                end
+                            end
+                        end
+                    end else if (store) begin
+                        if (!data_array) begin
+                            if (unified) begin
+                                {utlb[uindex].vpn, utlb[uindex].asid} <= {array_wdata[31:10], array_wdata[7:0]};
+                                {utlb[uindex].dirty, utlb_valid[uindex]} <= array_wdata[9:8];
+                            end else begin
+                                {itlb[iindex].vpn, itlb[iindex].asid} <= {array_wdata[31:10], array_wdata[7:0]};
+                                itlb_valid[iindex] <= array_wdata[8];
+                            end
+                        end else if (data_array_two) begin
+                            if (unified)
+                                utlb[uindex].attributes <= array_wdata[3:0];
+                            else
+                                itlb[iindex].attributes <= array_wdata[3:0];
+                        end else if (unified) begin
+                            {utlb[uindex].ppn, utlb_valid[uindex], utlb[uindex].size, utlb[uindex].prot,
+                             utlb[uindex].cached, utlb[uindex].dirty, utlb[uindex].shared_page, utlb[uindex].wt} <=
+                                {array_wdata[28:10], array_wdata[8:7], array_wdata[4], array_wdata[6:5],
+                                 array_wdata[3:0]};
+                        end else begin
+                            {itlb[iindex].ppn, itlb_valid[iindex], itlb[iindex].size,
+                             itlb[iindex].prot[1], itlb[iindex].cached, itlb[iindex].shared_page} <=
+                                {array_wdata[28:10], array_wdata[8:7], array_wdata[4],
+                                 array_wdata[6], array_wdata[3], array_wdata[1]};
+                        end
+                    end else begin
+                        if (!data_array)
+                            array_rdata <= {selected.vpn, unified && selected.dirty, array_valid, selected.asid};
+                        else if (data_array_two)
+                            array_rdata <= {28'b0, selected.attributes};
+                        else
+                            array_rdata <= {3'b0, selected.ppn, 1'b0, array_valid,
+                                            selected.size[1], selected.prot[1], unified && selected.prot[0],
+                                            selected.size[0], selected.cached, unified && selected.dirty,
+                                            selected.shared_page, unified && selected.wt};
                     end
                     state <= RESPOND;
                 end

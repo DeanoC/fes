@@ -5,6 +5,8 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
     logic [31:0] virtual_addr, physical_addr, reg_wdata, reg_rdata;
 
     logic unused_write_through, unused_sqmd;
+    logic array_access = 0;
+    logic [31:0] array_rdata;
     fes_sh4_mmu dut (.write_through(unused_write_through), .sqmd(unused_sqmd), .quiet(1'b0), .address_exception(1'b0), .fault_address(32'b0), .*);
 
     task automatic config_write(input logic [3:0] sel, input logic [31:0] data);
@@ -48,6 +50,29 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
             assert (physical_addr == pa && cacheable == cached)
                 else $fatal(1, "MMU translated %h to %h (C=%b), expected %h (C=%b)",
                             va, physical_addr, cacheable, pa, cached);
+    endtask
+
+    task automatic array_transfer(input logic [31:0] addr, data,
+                                  input logic do_write, input logic [3:0] error);
+        wait (ready);
+        @(negedge clk);
+        virtual_addr = addr;
+        reg_wdata = data;
+        instruction = 0;
+        write = do_write;
+        supervisor = 1;
+        array_access = 1;
+        request = 1;
+        @(negedge clk);
+        request = 0;
+        array_access = 0;
+        wait (response);
+        @(negedge clk);
+        assert (fault == error)
+            else $fatal(1, "TLB array access %h reported %d, expected %d", addr, fault, error);
+        if (!do_write)
+            assert (array_rdata == data)
+                else $fatal(1, "TLB array %h read %h, expected %h", addr, array_rdata, data);
     endtask
 
     task automatic expect_register(input logic [3:0] sel, input logic [31:0] mask, data);
@@ -103,6 +128,50 @@ module fes_sh4_mmu_tb(input logic clk, output logic done);
         expect_register(4, 5, 1);
         config_write(0, 7);
         translate('h1234_5004, 0, 1, 0, 0, 0, 5);
+        // Indexed reads include invalid entries and ignore the A bit.
+        array_transfer('hf600_2700, 'h1234_5107, 1, 0);
+        array_transfer('hf700_2700, 'h0112_3179, 1, 0);
+        array_transfer('hf780_2700, 'h0000_000d, 1, 0);
+        array_transfer('hf600_2780, 'h1234_5107, 0, 0);
+        array_transfer('hf700_2700, 'h0112_3179, 0, 0);
+        array_transfer('hf780_2700, 'h0000_000d, 0, 0);
+        translate('h1234_5198, 0, 0, 1, 0, 0, 8);
+        array_transfer('hf600_0080, 'h1234_5f99, 1, 0); // ASID comes from PTEH, not this value.
+        translate('h1234_5198, 'h0112_3198, 0, 1, 0, 1, 0);
+
+        config_write(4, 1); // Reset the ITLB replacement order, preserving entries.
+        translate('h1234_5004, 'h0112_3004, 1, 0, 0, 1, 0);
+        array_transfer('hf200_0300, 'h1234_5107, 0, 0);
+        array_transfer('hf380_0300, 'hd, 0, 0);
+        array_transfer('hf700_2700, 'h0116_317d, 1, 0);
+        translate('h1234_5004, 'h0112_3004, 1, 0, 0, 1, 0); // ITLB still has the old mapping.
+        array_transfer('hf600_0080, 'h1234_5300, 1, 0);
+        translate('h1234_5004, 'h0116_3004, 1, 0, 0, 1, 0);
+        array_transfer('hf300_0300, 'h0116_3158, 0, 0);
+
+        config_write(0, 8);
+        array_transfer('hf600_0080, 'h1234_5007, 1, 0); // Wrong PTEH.ASID is a no-op.
+        array_transfer('hf600_2700, 'h1234_5307, 0, 0);
+        config_write(0, 7);
+        array_transfer('hf600_0080, 'h1234_5000, 1, 0);
+        array_transfer('hf600_2700, 'h1234_5007, 0, 0);
+        translate('h1234_5004, 0, 1, 0, 0, 0, 5);
+
+        // Direct ITLB-only translation, including the data2 range.
+        array_transfer('hf200_0100, 'h2222_2107, 1, 0);
+        array_transfer('hf300_0100, 'h0456_7148, 1, 0);
+        array_transfer('hf380_0100, 'hb, 1, 0);
+        array_transfer('hf380_0100, 'hb, 0, 0);
+        translate('h2222_2080, 'h0456_7080, 1, 0, 0, 1, 0);
+        array_transfer('hf600_0080, 'h2222_2000, 1, 0); // ITLB hit and UTLB miss.
+        translate('h2222_2080, 0, 1, 0, 0, 0, 5);
+
+        install(8, 'h4000_0000, 'h0000_1000, 7, 9'h16d);
+        install(61, 'h4000_0000, 'h0000_2000, 7, 9'h16d);
+        array_transfer('hf600_0080, 'h4000_0000, 1, 6);
+        array_transfer('hf600_0800, 'h4000_0307, 0, 0);
+        array_transfer('hf600_3d00, 'h4000_0307, 0, 0);
+
         done = 1;
     end
 endmodule

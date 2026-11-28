@@ -110,9 +110,9 @@ module fes_sh4 #(
     logic [3:0] data_bus_wstrb;
 
     logic mmu_ready, mmu_response, mmu_enabled, mmu_cacheable, mmu_request;
-    logic [31:0] mmu_va, mmu_pa, mmu_reg_rdata;
+    logic [31:0] mmu_va, mmu_pa, mmu_reg_rdata, mmu_array_rdata;
     logic [3:0] mmu_fault, mmu_register_index;
-    logic mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
+    logic mmu_array, mmu_array_write, mmu_register, event_register, mmu_reg_write, mmu_ldtlb, privilege_write;
     logic ccr_register, ccr_write, mmu_write_through, data_copyback, data_bus_writeback;
     logic ic_enable, oc_enable, p1_copyback, direct_write_through;
     logic fetch_mapped, data_mapped, fetch_tlb_pending, fetch_tlb_valid;
@@ -529,7 +529,7 @@ module fes_sh4 #(
                 fault_address = mac_second_addr;
             end
             DATA_TRANSLATE: if (!plain_prefetch && (bad_data_region ||
-                ((mmu_register || event_register || ccr_register || qacr_register) && size != LONGWORD) ||
+                ((mmu_register || event_register || ccr_register || qacr_register || mmu_array) && size != LONGWORD) ||
                 (sq_region && (!sq_store && op != PREF || (!mmu_enabled && !supervisor && sqmd))))) begin
                 exception_cause = ADDRESS_ERROR;
                 address_exception = 1'b1;
@@ -587,7 +587,7 @@ module fes_sh4 #(
     assign fetch_cacheable = ic_enable && (fetch_mapped ? fetch_page_cacheable : fetch_pc[31:29] != 3'b101);
     assign fetch_lookup = stage != STOP && stage != EXCEPTION && stage != ASLEEP && !fetch_pc[0] && !bad_fetch_region &&
                           (fetch_mapped ? fetch_tlb_valid : fetch_cacheable || stage == ISSUE);
-    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write ||
+    assign fetch_flush = redirect || store_accepted || mmu_reg_write || mmu_ldtlb || ccr_write || mmu_array_write ||
                          privilege_write || exception_cause != 0 || take_interrupt ||
                          (stage == COMMIT && op == SLEEP) || stage == EXCEPTION || stage == STOP;
     assign fetch_consume = fetch_valid && ((stage == ISSUE && exception_cause == 0 && !take_interrupt) ||
@@ -598,6 +598,8 @@ module fes_sh4 #(
     assign mmu_register_index = data_addr[5:2];
     assign mmu_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                           (mmu_register_index inside {4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd13});
+    assign mmu_array = data_addr[31:24] inside {8'hf2, 8'hf3, 8'hf6, 8'hf7};
+    assign mmu_array_write = stage == DATA_TLB_WAIT && mmu_response && mmu_array && is_store;
     assign qacr_register = data_addr[31:3] == 29'h1fe0_0007;
     assign ccr_register = data_addr == 30'h3fc0_0007;
     assign ccr_write = stage == DATA_TRANSLATE && !bad_data_region && ccr_register &&
@@ -606,7 +608,8 @@ module fes_sh4 #(
                             (mmu_register_index inside {4'd8, 4'd9, 4'd10});
     assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
                            size == LONGWORD && is_store;
-    assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region && data_mapped &&
+    assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region &&
+                          (mmu_array ? size == LONGWORD : data_mapped) &&
                           (!plain_prefetch || oc_enable) && (!sq_region || sq_store || op == PREF)) ||
                          (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt &&
                           !bad_fetch_region && !fetch_pc[0]);
@@ -614,13 +617,13 @@ module fes_sh4 #(
 
     fes_sh4_mmu mmu (
         .clk, .reset, .request(mmu_request), .ready(mmu_ready),
-        .instruction(stage == ISSUE), .write(stage == DATA_TRANSLATE && is_store),
+        .instruction(stage == ISSUE), .array_access(stage == DATA_TRANSLATE && mmu_array), .write(stage == DATA_TRANSLATE && is_store),
         .quiet(stage == DATA_TRANSLATE && plain_prefetch), .sqmd,
         .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
         .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
         .cacheable(mmu_cacheable), .write_through(mmu_write_through), .fault(mmu_fault), .enabled(mmu_enabled),
         .reg_select(mmu_register_index), .reg_write(mmu_reg_write), .reg_wdata(data_wdata),
-        .reg_rdata(mmu_reg_rdata), .ldtlb(mmu_ldtlb)
+        .reg_rdata(mmu_reg_rdata), .array_rdata(mmu_array_rdata), .ldtlb(mmu_ldtlb)
     );
 
     fes_sh4_icache icache (
@@ -916,7 +919,7 @@ module fes_sh4 #(
                             endcase
                         end
                         stage <= op == MAC ? MAC_READ : COMMIT;
-                    end else if (data_mapped) begin
+                    end else if (data_mapped || mmu_array) begin
                         if (mmu_ready)
                             stage <= DATA_TLB_WAIT;
                     end else if (sq_region) begin
@@ -930,7 +933,11 @@ module fes_sh4 #(
                     end
                 end
                 DATA_TLB_WAIT: if (mmu_response) begin
-                    if (sq_region) begin
+                    if (mmu_array) begin
+                        wb_gpr <= op == LOAD && load_gpr;
+                        wb_value <= mmu_array_rdata;
+                        stage <= COMMIT;
+                    end else if (sq_region) begin
                         sq_line_addr <= mmu_pa[28:5];
                         stage <= SQ_ACCESS;
                     end else if (plain_prefetch && (mmu_fault != 0 || !mmu_cacheable)) begin

@@ -1149,6 +1149,50 @@ module fes_sh4_tb;
                 queue_zero_writes == 0)
             else $fatal(1, "SQMD did not protect the user-mode queue window");
 
+        // Program a bootstrap and operand mapping through the guest's P4
+        // arrays. Neither array access may leak onto the shared memory bus.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2122); // UTLB address array for bootstrap page
+        literal('h06, 1, 'h88);
+        literal('h08, 2, 'h8c);
+        emit('h0a, 'h2122); // UTLB data1 for bootstrap page
+        literal('h0c, 1, 'h90);
+        literal('h0e, 2, 'h94);
+        emit('h10, 'h2122); // UTLB address array for operand page
+        emit('h12, 'h6812);
+        literal('h14, 1, 'h98);
+        literal('h16, 2, 'h9c);
+        emit('h18, 'h2122); // UTLB data1 for operand page
+        emit('h1a, 'h6912);
+        literal('h1c, 1, 'ha0);
+        emit('h1e, 'he20f);
+        emit('h20, 'h2122); // UTLB data2 for operand page
+        emit('h22, 'h6a12);
+        literal('h24, 1, 'ha4);
+        emit('h26, 'he201);
+        emit('h28, 'h2122); // MMUCR.AT
+        literal('h2a, 7, 'ha8);
+        emit('h2c, 'h6c72);
+        image['h80 >> 2] = 'hf600_0000;
+        image['h84 >> 2] = 'h100;
+        image['h88 >> 2] = 'hf700_0000;
+        image['h8c >> 2] = 'h16d;
+        image['h90 >> 2] = 'hf600_0100;
+        image['h94 >> 2] = 'h500;
+        image['h98 >> 2] = 'hf700_0100;
+        image['h9c >> 2] = 'h116d;
+        image['ha0 >> 2] = 'hf780_0100;
+        image['ha4 >> 2] = 'hff00_0010;
+        image['ha8 >> 2] = 'h410;
+        image['h1010 >> 2] = 'hca5e_0010;
+        start_bus();
+        expect_stop(1, 'h2e);
+        assert (dut.gpr[8] == 'h500 && dut.gpr[9] == 'h116d && dut.gpr[10] == 'hf &&
+                dut.gpr[12] == 'hca5e_0010)
+            else $fatal(1, "Guest TLB array values did not configure instruction and data translation");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -1340,7 +1384,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance and store queues");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, store queues and TLB arrays");
         $finish;
     end
 
