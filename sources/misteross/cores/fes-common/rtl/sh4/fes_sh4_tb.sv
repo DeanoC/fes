@@ -2577,7 +2577,7 @@ module fes_sh4_tb;
 
         // Exercise pre/post instruction breaks, a delay-slot break and a
         // data-value watchpoint through the guest-visible P4 registers.
-        for (int kind = 0; kind < 4; kind++) begin
+        for (int kind = 0; kind < 5; kind++) begin
             int handler;
             handler = kind == 1 ? 'h140 : 'h100;
             image = '{default:32'hfffd_fffd};
@@ -2608,8 +2608,8 @@ module fes_sh4_tb;
             emit('h30, 'h2342); // BDMRB
             for (int at = 'h32; at < 'h40; at += 2)
                 emit(at, 'h0009);
-            emit('h40, kind == 2 ? 16'ha002 : kind == 3 ? 16'h2122 : 16'h7e01);
-            emit('h42, kind == 2 ? 16'h7e01 : 16'h0009);
+            emit('h40, (kind inside {2, 4}) ? 16'ha002 : kind == 3 ? 16'h2122 : 16'h7e01);
+            emit('h42, (kind inside {2, 4}) ? 16'h7e01 : 16'h0009);
             emit('h44, 'h0009);
             emit('h46, 'h0009);
             emit('h48, 'h0009);
@@ -2617,7 +2617,7 @@ module fes_sh4_tb;
             image['h84 >> 2] = kind == 3 ? 'h180 : kind == 2 ? 'h42 : 'h40;
             image['h88 >> 2] = kind == 3 ? 'hff20_0010 : 'hff20_0004;
             image['h8c >> 2] = 'hff20_0020;
-            image['h90 >> 2] = kind == 1 ? 'h0401 : kind == 3 ? 'h80 : 0;
+            image['h90 >> 2] = kind == 1 ? 'h0401 : kind == 4 ? 'h0400 : kind == 3 ? 'h80 : 0;
             image['h94 >> 2] = kind == 3 ? 'hff20_0014 : 'hff20_0008;
             image['h98 >> 2] = kind == 3 ? 'h2b : 'h16;
             image['h9c >> 2] = 'h4000_0000;
@@ -2653,8 +2653,8 @@ module fes_sh4_tb;
             wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h48));
             @(negedge clk);
             assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[13] == 'h1e0 &&
-                    bram.system_cpu.cpu.gpr[11] == (kind == 1 ? 1 : 0) &&
-                    bram.system_cpu.cpu.gpr[12] == ((kind inside {1, 3}) ? 'h42 : 'h40) &&
+                    bram.system_cpu.cpu.gpr[11] == ((kind inside {1, 4}) ? 1 : 0) &&
+                    bram.system_cpu.cpu.gpr[12] == (kind == 4 ? 'h48 : (kind inside {1, 3}) ? 'h42 : 'h40) &&
                     bram.system_cpu.cpu.gpr[14] == (kind == 3 ? 0 : 1) &&
                     bram.system_cpu.cpu.gpr[10][kind == 3 ? 14 : 15])
                 else $fatal(1, "User break %d fault %d at %h expevt %h SPC %h R14 on entry %h",
