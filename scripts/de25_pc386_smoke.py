@@ -57,12 +57,16 @@ def preflight(drives, model):
 
 
 def timedemo_result(text):
-    match = SCORE.search(" ".join(text.split()))
-    mode = re.search(r"(?im)^\s*320\s*x\s*200\s*$", text)
-    if match and mode:
-        seconds, fps = map(float, match.groups())
-        if seconds > 0 and fps > 0 and abs(969 / seconds - fps) <= 0.06:
-            return {"frames": 969, "seconds": seconds, "fps": fps, "mode": "320x200"}
+    match = SCORE.search(text)
+    if not match:
+        return None
+    # The log also prints a mode during startup. Require the response to
+    # the explicit query issued after the timedemo.
+    mode = re.search(r"(?im)vid_describecurrentmode[ \t\r]*\n[ \t]*320[ \t]*x[ \t]*200[ \t\r]*$",
+                     text[match.end():])
+    seconds, fps = map(float, match.groups())
+    if mode and seconds > 0 and fps > 0 and abs(969 / seconds - fps) <= 0.06:
+        return {"frames": 969, "seconds": seconds, "fps": fps, "mode": "320x200"}
     return None
 
 

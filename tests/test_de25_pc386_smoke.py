@@ -11,14 +11,15 @@ from scripts import de25_pc386_smoke as smoke
 class Pc386SmokeTests(unittest.TestCase):
     def test_timedemo_requires_complete_consistent_result_and_mode(self):
         score = "969 frames 122.6 seconds   7.9 fps"
-        self.assertEqual(smoke.timedemo_result(score + "\n320x200"),
+        mode = "\nlvid_describecurrentmode\n320x200"
+        self.assertEqual(smoke.timedemo_result(score + mode),
                          {"frames": 969, "seconds": 122.6, "fps": 7.9, "mode": "320x200"})
         self.assertIsNone(smoke.timedemo_result(score))
-        self.assertIsNone(smoke.timedemo_result(score + "\n640x480"))
+        self.assertIsNone(smoke.timedemo_result("320x200\n" + score + mode.replace("320x200", "640x480")))
         for text in ("6 frames 1.0 seconds 6.0 fps", "969 frames 123.6 seconds 7.9 fps",
                      "969 frames 0.0 seconds 7.9 fps", "969 frames 122.6 seconds"):
             with self.subTest(text=text):
-                self.assertIsNone(smoke.timedemo_result(text + "\n320x200"))
+                self.assertIsNone(smoke.timedemo_result(text + mode))
 
     def test_model_is_bound_to_package_manifest(self):
         for model, description in (("486sx", "Standard DE25 pc386: CPU as a 486SX (I486 = 1)"),
