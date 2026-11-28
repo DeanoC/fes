@@ -11,14 +11,18 @@ module fes_sh4_tb;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
     logic [3:0] fault, bram_fault;
-    logic [3:0] wstrb;
+    logic locked;
+    logic [3:0] wstrb, rmask;
     logic [31:0] image [0:8191];
     logic [31:0] ext_mem [0:8191];
     int cycle, latency;
     logic held;
-    logic [67:0] held_request;
+    logic [72:0] held_request;
     int retire_count, read_count, previous_retire_cycle;
-    int retried_word_writes;
+    int retried_word_writes, locked_reads, locked_writes, mapped_operand_reads;
+    logic lock_open;
+    logic [31:0] lock_addr;
+    logic [3:0] lock_lane;
     int resident_reads, conflict_reads, cold_store_line_reads, alias_reads;
     logic check_data_cache = 0;
     logic cache_cancel_done, mmu_done;
@@ -29,7 +33,7 @@ module fes_sh4_tb;
 
     fes_sh4 #(.RESET_PC(0)) dut (
         .clk, .reset, .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack,
-        .mem_valid(valid), .mem_ready(ready),
+        .mem_valid(valid), .mem_lock(locked), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
         .retired, .retired_pc, .fault, .fault_pc
@@ -56,6 +60,10 @@ module fes_sh4_tb;
             retire_count <= 0;
             read_count <= 0;
             retried_word_writes <= 0;
+            locked_reads <= 0;
+            mapped_operand_reads <= 0;
+            locked_writes <= 0;
+            lock_open <= 0;
             resident_reads <= 0;
             conflict_reads <= 0;
             cold_store_line_reads <= 0;
@@ -74,14 +82,31 @@ module fes_sh4_tb;
                 retire_count <= retire_count + 1;
             end
             if (held)
-                assert (valid && {addr, wdata, wstrb} == held_request)
+                assert (valid && {addr, wdata, wstrb, locked, rmask} == held_request)
                     else $fatal(1, "Request changed while backpressured");
             held <= valid && !ready;
-            held_request <= {addr, wdata, wstrb};
+            held_request <= {addr, wdata, wstrb, locked, rmask};
 
             if (latency != 0) begin
                 latency <= latency - 1;
                 rvalid <= latency == 1;
+            end
+            if (lock_open)
+                assert (locked) else $fatal(1, "Lock dropped before the TAS.B write was accepted");
+            if (valid && ready && locked) begin
+                if (!lock_open) begin
+                    assert (wstrb == 0 && $onehot(rmask))
+                        else $fatal(1, "TAS.B did not start with a single-byte read");
+                    lock_open <= 1;
+                    lock_addr <= addr;
+                    lock_lane <= rmask;
+                    locked_reads <= locked_reads + 1;
+                end else begin
+                    assert (addr == lock_addr && wstrb == lock_lane)
+                        else $fatal(1, "An unrelated bus request interrupted TAS.B");
+                    lock_open <= 0;
+                    locked_writes <= locked_writes + 1;
+                end
             end
             if (valid && ready) begin
                 assert (latency == 0 && addr[1:0] == 0 && addr[28:15] == 0)
@@ -93,6 +118,7 @@ module fes_sh4_tb;
                         32'h0000_0200: resident_reads <= resident_reads + 1;
                         32'h0000_4200: conflict_reads <= conflict_reads + 1;
                         32'h0000_0600: cold_store_line_reads <= cold_store_line_reads + 1;
+                        32'h0000_0800: mapped_operand_reads <= mapped_operand_reads + 1;
                         32'ha000_0200: alias_reads <= alias_reads + 1;
                         default: ;
                     endcase
@@ -373,6 +399,49 @@ module fes_sh4_tb;
                 dut.gpr[9] == 'h2a && ext_mem['h810 >> 2] == 'h1233_5678)
             else $fatal(1, "CPU translation or cache use produced incorrect results");
 
+        // A TAS.B lookup is a store permission check. It must never issue
+        // even the read on a read-only or clean page.
+        emit('h20, 'h451b); // TAS.B @R5 (VA 0x410)
+        image['h810 >> 2] = 'h1122_3300;
+        image['h94 >> 2] = 'h0000_0968; // Writable, D=0
+        start_bus();
+        expect_stop(8, 'h20);
+        assert (dut.expevt == 'h080 && dut.mmu.tea == 'h410 && dut.sr[0] == 0 &&
+                mapped_operand_reads == 0 && locked_reads == 0 && ext_mem['h810 >> 2] == 'h1122_3300)
+            else $fatal(1, "Initial-write exception issued a TAS.B access or changed T");
+
+        image['h94 >> 2] = 'h0000_094c; // Read-only, D=1
+        start_bus();
+        expect_stop(7, 'h20);
+        assert (dut.expevt == 'h0c0 && dut.mmu.tea == 'h410 && dut.sr[0] == 0 &&
+                mapped_operand_reads == 0 && locked_reads == 0 && ext_mem['h810 >> 2] == 'h1122_3300)
+            else $fatal(1, "Protected TAS.B issued a memory access or changed T");
+
+        // Read-only byte test still succeeds through that same mapping.
+        emit('h20, 'h451e); // LDC R5,GBR
+        emit('h22, 'he000);
+        emit('h24, 'hcc80); // TST.B #0x80,@(R0,GBR)
+        emit('h26, 'h0829); // MOVT R8
+        emit('h28, 'hfffd);
+        start_bus();
+        expect_stop(1, 'h28);
+        assert (dut.gpr[8] == 1 && mapped_operand_reads == 8 && locked_reads == 0 &&
+                ext_mem['h810 >> 2] == 'h1122_3300)
+            else $fatal(1, "TST.B did not behave as a read");
+        emit('h24, 'hcf80); // OR.B #0x80,@(R0,GBR)
+        start_bus();
+        expect_stop(7, 'h24);
+        assert (dut.expevt == 'h0c0 && dut.mmu.tea == 'h410 && mapped_operand_reads == 0 &&
+                ext_mem['h810 >> 2] == 'h1122_3300)
+            else $fatal(1, "Protected OR.B issued a memory access");
+
+        image['h94 >> 2] = 'h0000_096c;
+        emit('h20, 'h6652);
+        emit('h22, 'he033);
+        emit('h24, 'h8052);
+        emit('h26, 'h6852);
+        literal('h28, 9, 'h9c);
+
         image['h98 >> 2] = 'hc10; // Leave this virtual page unmapped.
         start_bus();
         expect_stop(5, 'h20);
@@ -479,6 +548,16 @@ module fes_sh4_tb;
         assert (dut.gpr[8] == 'h2e && dut.gpr[12] == 'h40 && dut.gpr[13] == 'hc10 &&
                 dut.gpr_storage[5] == 'hc14 && dut.gpr_storage[6] == 7)
             else $fatal(1, "LDC.L did not retry through a TLB miss");
+
+        emit('h2e, 'h451b); // TAS.B @R5, initially unmapped
+        emit('h30, 'h0629); // MOVT R6
+        image['h1010 >> 2] = 'h1122_3300;
+        start_bus();
+        expect_stop(1, 'ha000_1104);
+        assert (dut.gpr[8] == 'h2e && dut.gpr[12] == 'h60 && dut.gpr[13] == 'hc10 &&
+                dut.gpr_storage[6] == 1 && locked_reads == 1 && locked_writes == 1 &&
+                retried_word_writes == 1 && ext_mem['h1010 >> 2] == 'h1122_3380)
+            else $fatal(1, "TAS.B write-class miss did not retry exactly once");
 
         // Supervisor can read SR and clear MD. A user execution of LDTLB
         // must fault before changing the TLB state.
@@ -701,6 +780,39 @@ module fes_sh4_tb;
                 dut.gpr[15] == 'h300 && ext_mem['h2fc >> 2] == 8)
             else $fatal(1, "Call linkage or indexed and GBR-relative memory was incorrect");
 
+        // TAS.B bypasses a warm operand cache and locks only its addressed
+        // byte. The immediate GBR forms use the same byte lane and preserve
+        // the other bytes in the word.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 3, 'h84);
+        emit('h04, 'h431e); // LDC R3,GBR
+        emit('h06, 'he003);
+        emit('h08, 'h6410); // Warm D-cache with MOV.B @R1,R4
+        emit('h0a, 'h411b); // TAS.B @R1, test zero
+        emit('h0c, 'h0829);
+        emit('h0e, 'h411b); // TAS.B @R1, test nonzero
+        emit('h10, 'h0929);
+        emit('h12, 'hcc01); // TST.B #1,@(R0,GBR)
+        emit('h14, 'h0a29);
+        emit('h16, 'hcf05); // OR.B #5,@(R0,GBR)
+        emit('h18, 'hce0f); // XOR.B #15,@(R0,GBR)
+        emit('h1a, 'hcd0f); // AND.B #15,@(R0,GBR)
+        emit('h1c, 'h0b29); // Capture T, preserved by OR/XOR/AND
+        emit('h1e, 'hcc08); // TST.B #8,@(R0,GBR)
+        emit('h20, 'h0c29);
+        emit('h22, 'h6d10);
+        image['h80 >> 2] = 'h203;
+        image['h84 >> 2] = 'h200;
+        image['h200 >> 2] = 'h0012_3456;
+        start_bus();
+        expect_stop(1, 'h24);
+        assert (dut.gpr[4] == 0 && dut.gpr[8] == 1 && dut.gpr[9] == 0 &&
+                dut.gpr[10] == 1 && dut.gpr[11] == 1 && dut.gpr[12] == 0 &&
+                dut.gpr[13] == 'h0a && ext_mem['h200 >> 2] == 'h0a12_3456 &&
+                locked_reads == 2 && locked_writes == 2 && resident_reads == 18)
+            else $fatal(1, "TAS.B or GBR byte logic violated memory or flag semantics");
+
         // Banked control transfers always use the bank opposite SR.RB.
         // When LDC.L restores SR, the postincrement belongs to the old bank.
         image = '{default:32'hfffd_fffd};
@@ -892,7 +1004,7 @@ module fes_sh4_tb;
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers and interrupts");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, exception return, extended integer execution, MAC, control transfers, interrupts and byte operations");
         $finish;
     end
 

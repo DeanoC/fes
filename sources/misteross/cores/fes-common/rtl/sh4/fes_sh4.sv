@@ -9,6 +9,8 @@ module fes_sh4 #(
     input  logic        nmi_while_blocked,
     output logic        irq_ack,
     output logic        mem_valid,
+    output logic        mem_lock,
+    output logic [3:0]  mem_rmask,
     input  logic        mem_ready,
     output logic [31:0] mem_addr,
     output logic [3:0]  mem_wstrb,
@@ -23,14 +25,14 @@ module fes_sh4 #(
     typedef enum logic [4:0] {
         ISSUE, DECODE, EXECUTE, DATA_TRANSLATE, DATA_TLB_WAIT, DATA_REQ, DATA_WAIT,
         COMMIT, EXCEPTION, INTEGER_RESULT, MUL_PRODUCTS, MUL_SUM, MUL_RESULT,
-        MAC_READ, MAC_LOW, MAC_HIGH, ASLEEP, STOP
+        MAC_READ, MAC_LOW, MAC_HIGH, BYTE_MODIFY, ASLEEP, STOP
     } stage_t;
     typedef enum logic [1:0] {BUS_IDLE, BUS_SEND, BUS_REPLY} bus_state_t;
     typedef enum logic [5:0] {
         BAD, NOP, MOV, ADD, SUB, ADDC, SUBC, AND_OP, OR_OP, XOR_OP, NOT_OP,
         EQ, HS, GE, HI, GT, TST, SET_T, MOV_T, SHLL, SHLR, SHAR,
         JMP, CALL, BR, BSR, RETURN_OP, BT, BF, BTS, BFS, LOAD, STORE, MOVA, LDTLB, LDC,
-        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP
+        RTE, TRAPA, INTEGER, MULTIPLY, CLRMAC, LDS, STS, BRAF, BSRF, MAC, SLEEP, MEMORY_BYTE, TAS
     } op_t;
     typedef enum logic [1:0] {BYTE, WORD, LONGWORD} size_t;
     typedef enum logic [2:0] {CR_SR, CR_GBR, CR_VBR, CR_SSR, CR_SPC, CR_SGR, CR_DBR, CR_BANK} control_reg_t;
@@ -82,7 +84,9 @@ module fes_sh4 #(
     logic wb_gpr, wb_t, wb_t_value, wb_pr, wb_base, start_slot;
     logic [31:2] data_addr;
     logic [31:0] data_wdata;
-    logic [3:0] data_wstrb;
+    logic [3:0] data_wstrb, operand_read_mask;
+    logic byte_access, byte_writes;
+    logic [7:0] byte_result;
     logic [31:0] load_word, load_value, local_read_value;
     logic [1:0] data_addr_lane;
 
@@ -319,6 +323,12 @@ module fes_sh4 #(
                 dec_a = ir[3] ? gpr[m] : gpr[n];
                 dec_offset = gpr[0];
             end
+            16'h4?1b: decoded = TAS;
+            16'hcc??, 16'hcd??, 16'hce??, 16'hcf??: begin
+                decoded = MEMORY_BYTE;
+                dec_a = gbr;
+                dec_offset = gpr[0];
+            end
             16'hc0??, 16'hc1??, 16'hc2??, 16'hc4??, 16'hc5??, 16'hc6??: begin
                 decoded = ir[10] ? LOAD : STORE;
                 dec_size = size_t'(ir[9:8]);
@@ -441,7 +451,21 @@ module fes_sh4 #(
         endcase
     end
 
-    assign is_store = op == STORE;
+    assign byte_access = op == TAS || op == MEMORY_BYTE;
+    assign byte_writes = op == TAS || (op == MEMORY_BYTE && ir[9:8] != 0);
+    assign is_store = op == STORE || byte_writes;
+    assign operand_read_mask = size == BYTE ? 4'b0001 << data_addr_lane :
+                               size == WORD ? 4'b0011 << data_addr_lane : 4'b1111;
+
+    always_comb begin
+        if (op == TAS)
+            byte_result = wb_value[7:0] | 8'h80;
+        else case (ir[9:8])
+            0, 1: byte_result = wb_value[7:0] & ir[7:0];
+            2: byte_result = wb_value[7:0] ^ ir[7:0];
+            3: byte_result = wb_value[7:0] | ir[7:0];
+        endcase
+    end
     assign privileged_op = (op inside {LDTLB, RTE, SLEEP}) ||
                            (control_transfer && control_reg != CR_GBR);
     assign control_write = control_transfer && (op == LDC || op == LOAD);
@@ -540,7 +564,7 @@ module fes_sh4 #(
     assign event_register = {data_addr[31:6], 6'b0} == 32'hff00_0000 &&
                             (mmu_register_index inside {4'd8, 4'd9, 4'd10});
     assign mmu_reg_write = stage == DATA_TRANSLATE && !bad_data_region && mmu_register &&
-                           size == LONGWORD && op == STORE;
+                           size == LONGWORD && is_store;
     assign mmu_request = (stage == DATA_TRANSLATE && !bad_data_region && data_mapped && !mmu_register) ||
                          (stage == ISSUE && fetch_mapped && !fetch_tlb_pending && !fetch_tlb_valid && !take_interrupt &&
                           !bad_fetch_region && !fetch_pc[0]);
@@ -548,7 +572,7 @@ module fes_sh4 #(
 
     fes_sh4_mmu mmu (
         .clk, .reset, .request(mmu_request), .ready(mmu_ready),
-        .instruction(stage == ISSUE), .write(stage == DATA_TRANSLATE && op == STORE),
+        .instruction(stage == ISSUE), .write(stage == DATA_TRANSLATE && is_store),
         .supervisor(stage == ISSUE ? fetch_supervisor : supervisor),
         .address_exception, .fault_address, .virtual_addr(mmu_va), .response(mmu_response), .physical_addr(mmu_pa),
         .cacheable(mmu_cacheable), .fault(mmu_fault), .enabled(mmu_enabled),
@@ -579,7 +603,7 @@ module fes_sh4 #(
     assign mem_valid = !reset && bus_state == BUS_SEND;
     assign data_bus_ready = mem_valid && mem_ready && !bus_fetch;
     assign data_bus_response = bus_state == BUS_REPLY && mem_rvalid && !bus_fetch;
-    assign fetch_read_ready = bus_state == BUS_IDLE && !data_bus_request;
+    assign fetch_read_ready = bus_state == BUS_IDLE && !data_bus_request && !mem_lock;
     assign fetch_response = bus_state == BUS_REPLY && mem_rvalid && bus_fetch;
     assign load_word = data_read_word >> {data_addr_lane, 3'b000};
     always_comb begin
@@ -604,6 +628,7 @@ module fes_sh4 #(
     always_ff @(posedge clk) begin
         if (reset) begin
             bus_state <= BUS_IDLE;
+            mem_lock <= 1'b0;
         end else begin
             case (bus_state)
                 BUS_IDLE: begin
@@ -611,18 +636,25 @@ module fes_sh4 #(
                         bus_fetch <= 1'b0;
                         mem_addr <= data_bus_addr;
                         mem_wstrb <= data_bus_wstrb;
+                        mem_rmask <= data_cacheable ? 4'b1111 : operand_read_mask;
                         mem_wdata <= data_bus_wdata;
+                        if (op == TAS)
+                            mem_lock <= 1'b1;
                         bus_state <= BUS_SEND;
-                    end else if (fetch_read) begin
+                    end else if (fetch_read && fetch_read_ready) begin
                         bus_fetch <= 1'b1;
                         mem_addr <= fetch_read_addr;
                         mem_wstrb <= 4'b0;
+                        mem_rmask <= 4'b1111;
                         mem_wdata <= 32'b0;
                         bus_state <= BUS_SEND;
                     end
                 end
-                BUS_SEND: if (mem_ready)
+                BUS_SEND: if (mem_ready) begin
                     bus_state <= mem_wstrb == 0 ? BUS_REPLY : BUS_IDLE;
+                    if (mem_wstrb != 0)
+                        mem_lock <= 1'b0;
+                end
                 BUS_REPLY: if (mem_rvalid)
                     bus_state <= BUS_IDLE;
                 default: bus_state <= BUS_IDLE;
@@ -746,14 +778,14 @@ module fes_sh4 #(
                     wb_base <= (op == STORE && pre) || (op == LOAD && post) || op == MAC;
                     writeback_base <= pre ? effective_addr : a + (32'd1 << size);
                     mac_second <= 1'b0;
-                    if (op == LOAD || op == MAC || is_store) begin
+                    if (op == LOAD || op == MAC || byte_access || op == STORE) begin
                         data_addr <= effective_addr[31:2];
                         data_addr_lane <= effective_addr[1:0];
                         data_wdata <= store_value << {effective_addr[1:0], 3'b000};
                         case (size)
-                            BYTE: data_wstrb <= is_store ? 4'b0001 << effective_addr[1:0] : 4'b0;
-                            WORD: data_wstrb <= is_store ? 4'b0011 << effective_addr[1:0] : 4'b0;
-                            default: data_wstrb <= is_store ? 4'b1111 : 4'b0;
+                            BYTE: data_wstrb <= op == STORE ? 4'b0001 << effective_addr[1:0] : 4'b0;
+                            WORD: data_wstrb <= op == STORE ? 4'b0011 << effective_addr[1:0] : 4'b0;
+                            default: data_wstrb <= op == STORE ? 4'b1111 : 4'b0;
                         endcase
                         stage <= DATA_TRANSLATE;
                     end else if (op == INTEGER) begin
@@ -818,23 +850,37 @@ module fes_sh4 #(
                         if (mmu_ready)
                             stage <= DATA_TLB_WAIT;
                     end else begin
-                        data_cacheable <= data_addr[31:29] != 3'b101 && data_addr[31:29] != 3'b111;
+                        data_cacheable <= op != TAS && data_addr[31:29] != 3'b101 &&
+                                          data_addr[31:29] != 3'b111;
                         stage <= DATA_REQ;
                     end
                 end
                 DATA_TLB_WAIT: if (mmu_response) begin
                     data_addr <= mmu_pa[31:2];
-                    data_cacheable <= mmu_cacheable;
+                    data_cacheable <= op != TAS && mmu_cacheable;
                     stage <= DATA_REQ;
                 end
                 DATA_REQ: if (data_ready)
                     stage <= DATA_WAIT;
                 DATA_WAIT: if (data_complete) begin
-                    if (op == LOAD || op == MAC) begin
+                    if (op == LOAD || op == MAC || (byte_access && data_wstrb == 0)) begin
                         wb_gpr <= op == LOAD && load_gpr;
                         wb_value <= load_value;
                     end
-                    stage <= op == MAC ? MAC_READ : COMMIT;
+                    stage <= op == MAC ? MAC_READ :
+                             byte_access && data_wstrb == 0 ? BYTE_MODIFY : COMMIT;
+                end
+                BYTE_MODIFY: begin
+                    if (op == TAS || !byte_writes) begin
+                        wb_t <= 1'b1;
+                        wb_t_value <= (op == TAS ? wb_value[7:0] : byte_result) == 0;
+                    end
+                    if (byte_writes) begin
+                        data_wstrb <= operand_read_mask;
+                        data_wdata <= {4{byte_result}};
+                        stage <= DATA_REQ;
+                    end else
+                        stage <= COMMIT;
                 end
                 COMMIT: begin
                     if (wb_base)

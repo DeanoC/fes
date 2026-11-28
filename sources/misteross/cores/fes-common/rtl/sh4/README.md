@@ -54,6 +54,9 @@ defines instruction encodings and behavior. The implemented slice includes:
 - Byte, word, and longword MOV through a register, including predecrement
   stores and postincrement loads, base-plus-displacement forms, PC-relative
   literal loads, indexed and GBR-relative forms, and MOVA.
+- TST.B, AND.B, XOR.B and OR.B with GBR-relative byte addressing, and
+  TAS.B with a locked byte read and write. TAS.B checks store permission
+  and the dirty bit before touching memory, then uses the uncached path.
 - BT, BF, BT/S, BF/S, BRA, BSR, BRAF, BSRF, JMP, JSR, RTS, and NOP. The branch decision and
   target are captured before the delay slot executes.
 - LDTLB, TRAPA, RTE, SLEEP, and register and stack forms of LDC/STC for SR,
@@ -105,8 +108,10 @@ values. Software must initialize them before reading them.
 ## Memory contract
 
 `mem_valid && mem_ready` accepts one aligned byte-addressed request.
-`mem_wstrb == 0` selects a read. A write completes when accepted, with one strobe
-per little-endian byte lane. A read returns exactly one `mem_rvalid` pulse at
+`mem_wstrb == 0` selects a read, with `mem_rmask` marking the requested byte
+lanes. Cache fills and instruction reads request a whole word. A write
+completes when accepted, with one strobe per little-endian byte lane.
+A read returns exactly one `mem_rvalid` pulse at
 least one cycle after acceptance. The core holds its request while stalled and
 has at most one outstanding read. Already accepted instruction reads can
 complete after a redirect or diagnostic fault. Cacheable executable memory
@@ -116,6 +121,12 @@ both caches and flush outstanding reads in the surrounding memory interface.
 The bus carries translated physical addresses for mapped accesses and retains
 architectural addresses for direct accesses, including the default reset
 address `0xa0000000`.
+
+For TAS.B, `mem_lock` stays high from the first byte read request through
+acceptance of the matching byte write. A shared-bus arbiter must preserve
+exclusive ownership from acceptance of the locked read until the locked
+write is accepted. The core defers intervening instruction reads. The
+diagnostic RAM has a single master and no read side effects.
 
 The diagnostic top resets to address zero and exposes a host-side word loader
 while reset is asserted. It uses four synchronous byte banks for a 2 KiB
@@ -149,6 +160,9 @@ postincrement, and a TLB miss on the second operand followed by RTE.
 Control transfer tests cover stack round trips, user-mode GBR transfers,
 privilege violations and a faulting SR load. They also check that an
 LDC.L changing SR.RB increments the original bank's address register.
+Byte-operation tests cover lane selection, preservation of neighboring bytes,
+T-bit behavior, lock duration, and a TAS.B retry after a TLB miss. Read-only
+and initial-write faults must precede any TAS.B bus request.
 Interrupt tests cover priority masking, delay-slot completion, RTE,
 SLEEP and wakeup, and NMI priority and block behavior.
 
