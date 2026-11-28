@@ -1,5 +1,5 @@
 module fes_sh7091_sci_tb (input logic clk, output logic finished);
-    logic reset = 1, request = 0, external_sck = 1;
+    logic reset = 1, stopped = 0, request = 0, external_sck = 1;
     logic [3:0] index, rmask, wstrb, irq;
     logic [7:0] wdata;
     logic rvalid, txd, txd_enable, sck_out, sck_enable;
@@ -7,7 +7,7 @@ module fes_sh7091_sci_tb (input logic clk, output logic finished);
     logic [1:0] dma_request, dma_ready;
 
     fes_sh7091_sci dut (
-        .clk, .reset, .peripheral_tick(1'b1), .request, .dma_access(1'b0),
+        .clk, .reset, .peripheral_tick(1'b1), .stopped, .request, .dma_access(1'b0),
         .index, .rmask, .wstrb, .wdata, .rvalid, .rdata,
         .rxd(txd), .sck_in(external_sck), .txd, .txd_enable, .sck_out, .sck_enable,
         .irq, .dma_request, .dma_ready
@@ -94,6 +94,13 @@ module fes_sh7091_sci_tb (input logic clk, output logic finished);
         end
         read_reg(5, 'h6b);
         read_reg(4, 'hc4);
+        stopped = 1;
+        repeat (2) @(negedge clk);
+        assert (txd_enable && !sck_enable);
+        read_reg(2, 0);
+        stopped = 0;
+        read_reg(4, 'h84);
+        read_reg(1, 'hff);
         finished = 1;
     end
 endmodule

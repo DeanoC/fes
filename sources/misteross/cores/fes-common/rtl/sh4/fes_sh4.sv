@@ -8,6 +8,8 @@ module fes_sh4 #(
     input  logic [11:0] irq_event,
     input  logic        nmi,
     input  logic        nmi_while_blocked,
+    input  logic        standby, standby_ready,
+    output logic        sleeping, standby_wake,
     output logic        irq_ack, nmi_ack,
     output logic        mem_valid,
     output logic        mem_lock,
@@ -728,13 +730,15 @@ module fes_sh4 #(
 
     // Acknowledge between instructions, after any delayed branch slot and
     // after an outstanding instruction translation has supplied its result.
+    assign sleeping = stage == ASLEEP;
+    assign standby_wake = standby && interrupt_pending;
     assign nmi_edge = nmi && !nmi_previous;
     assign nmi_ready = (nmi_pending || nmi_edge) && (!sr[28] || nmi_while_blocked || stage == ASLEEP);
-    assign irq_ready = !sr[28] && irq_level > sr[7:4];
+    assign irq_ready = (!sr[28] || standby) && irq_level > sr[7:4];
     assign interrupt_pending = !in_slot && !fetch_tlb_pending && (nmi_ready || irq_ready);
     assign fetch_issue_cause = pc[0] ? FETCH_ALIGN : bad_fetch_region ? ADDRESS_ERROR :
                                fetch_tlb_pending && mmu_response ? mmu_fault : 4'b0;
-    assign take_interrupt = interrupt_pending && (stage == ASLEEP || (stage == ISSUE && fetch_issue_cause == 0));
+    assign take_interrupt = interrupt_pending && ((sleeping && (!standby || standby_ready)) || (stage == ISSUE && fetch_issue_cause == 0));
 
     // These instructions serialize fetch at retirement. Decode them before
     // entering the execution and memory stages.

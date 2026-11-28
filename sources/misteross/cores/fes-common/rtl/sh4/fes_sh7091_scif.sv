@@ -1,6 +1,6 @@
 // SH7091 asynchronous serial controller with 16-byte FIFOs.
 module fes_sh7091_scif (
-    input  logic        clk, reset, peripheral_tick, external_tick,
+    input  logic        clk, reset, peripheral_tick, stopped, external_tick,
     input  logic        request, dma_access,
     input  logic [3:0]  index,
     input  logic [3:0]  rmask, wstrb,
@@ -36,10 +36,10 @@ module fes_sh7091_scif (
     logic time_out, break_received, sample_tick;
     logic [14:0] baud_counter, baud_limit;
 
-    assign read_byte = request && wstrb == 0 && rmask == 4'h1;
-    assign read_word = request && wstrb == 0 && rmask == 4'h3;
-    assign write_byte = request && wstrb == 4'h1;
-    assign write_word = request && wstrb == 4'h3;
+    assign read_byte = request && !stopped && wstrb == 0 && rmask == 4'h1;
+    assign read_word = request && !stopped && wstrb == 0 && rmask == 4'h3;
+    assign write_byte = request && !stopped && wstrb == 4'h1;
+    assign write_word = request && !stopped && wstrb == 4'h3;
     assign status_read = read_word && index == 4;
     assign status_write = write_word && index == 4;
     assign reset_tx_fifo = fifo_control[2] || (write_word && index == 6 && wdata[2]);
@@ -59,7 +59,7 @@ module fes_sh7091_scif (
     assign rts_n = fifo_control[3] ? rx_count >= 15 : port_control[5] && port_control[4];
 
     assign baud_limit = (({6'b0, baud, 1'b0} + 15'd2) << {mode[1:0], 1'b0}) - 15'd1;
-    assign sample_tick = control[1] ? external_tick : peripheral_tick && baud_counter == baud_limit;
+    assign sample_tick = !stopped && (control[1] ? external_tick : peripheral_tick && baud_counter == baud_limit);
     assign frame_samples = (mode[6] ? 8'd144 : 8'd160) + (mode[5] ? 8'd16 : 8'd0);
     assign break_received = low_samples >= {frame_samples, 1'b0} - 9'd8 && !rx_pin;
     assign time_out = inactivity == 8'd248 && !rx_valid; // Stop-bit midpoint plus 15 bits.
@@ -148,7 +148,7 @@ module fes_sh7091_scif (
             if (write_byte && index == 1) begin
                 baud_counter <= 0;
                 baud <= wdata[7:0];
-            end else if (peripheral_tick)
+            end else if (peripheral_tick && !stopped)
                 baud_counter <= baud_counter == baud_limit ? 15'b0 : baud_counter + 15'd1;
 
             if (reset_tx_fifo) begin

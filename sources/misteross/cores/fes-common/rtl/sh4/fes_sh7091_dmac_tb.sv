@@ -9,6 +9,7 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
     logic [1:0] dreq_n = 3, dreq_ack;
     logic capture_pending = 0, capture_accept;
     logic [4:0] irq;
+    logic pause = 0, stopped = 0;
     logic [1:0] unused_dma_serial;
     logic dma_valid, dma_ready, dma_burst, dma_rvalid;
     logic [31:0] dma_addr, dma_wdata;
@@ -22,7 +23,7 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
     logic [31:0] memory [0:127];
 
     fes_sh7091_dmac dma (
-        .clk, .reset, .nmi, .reg_request, .reg_addr, .reg_rmask, .reg_wstrb,
+        .clk, .reset, .nmi, .pause, .stopped, .reg_request, .reg_addr, .reg_rmask, .reg_wstrb,
         .reg_wdata, .reg_selected, .reg_rvalid, .reg_rdata, .dreq_n, .dreq_ack,
         .capture_pending, .capture_value(32'h1234_5678), .capture_accept, .irq,
         .serial_request(4'b0), .mem_serial(unused_dma_serial), .mem_valid(dma_valid), .mem_burst(dma_burst), .mem_ready(dma_ready),
@@ -103,7 +104,16 @@ module fes_sh7091_dmac_tb (input logic clk, output logic finished);
             memory[16+i] = 32'h1234_0100 + 32'(i);
         channel(0, 'h40, 'h80, 2, 'h5445);
         mem_ready = 0;
+        pause = 1;
         write_reg('h40, 1);
+        repeat (6) @(negedge clk);
+        assert (!dma_valid); // Deep sleep leaves the configured request pending.
+        stopped = 1;
+        check_reg('h08, 0);
+        write_reg('h08, 1);
+        stopped = 0;
+        check_reg('h08, 2);
+        pause = 0;
         wait (mem_valid);
         @(negedge clk);
         cpu_valid = 1;

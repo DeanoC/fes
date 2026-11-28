@@ -1,6 +1,6 @@
 // SH7091 interrupt control, pin modes and on-chip priority arbitration.
 module fes_sh7091_intc (
-    input  logic        clk, reset, bus_tick,
+    input  logic        clk, reset, bus_tick, standby,
     input  logic        nmi, nmi_ack,
     output logic        nmi_request, nmi_block_override,
     input  logic        request,
@@ -133,7 +133,7 @@ module fes_sh7091_intc (
         end else begin
             nmi_previous <= nmi;
             nmi_request <= nmi_inhibit == 0 && nmi != nmi_previous && nmi != icr[8] &&
-                           !change_nmi_edge;
+                           !change_nmi_edge && !(standby && icr[14]);
             if (change_nmi_edge)
                 nmi_inhibit <= 3'd6;
             else if (bus_tick && nmi_inhibit != 0)

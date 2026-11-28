@@ -1,6 +1,7 @@
 // Three SH7091 down-counters and the channel 2 input-capture unit.
 module fes_sh7091_tmu (
     input  logic        clk, reset,
+    input  logic        stopped, bus_standby,
     input  logic        peripheral_tick, rtc_tick, tclk,
     input  logic        request,
     input  logic [31:2] address,
@@ -21,14 +22,14 @@ module fes_sh7091_tmu (
     logic [9:0] prescaler;
     logic [3:0] reg_number, read_mask;
     logic read_reg, write_reg, capture_event;
-    logic [2:0] pin_edge, count_tick;
+    logic [2:0] pin_edge, count_tick, rtc_channel;
 
     assign reg_number = address[5:2];
     assign selected = address[31:6] == 26'h3ff6000 && reg_number <= 11;
     assign read_mask = reg_number <= 1 ? 4'h1 :
                        reg_number inside {4'd4, 4'd7, 4'd10} ? 4'h3 : 4'hf;
-    assign read_reg = request && selected && wstrb == 0 && rmask == read_mask;
-    assign write_reg = request && selected && wstrb == read_mask;
+    assign read_reg = request && selected && wstrb == 0 && rmask == read_mask && !stopped;
+    assign write_reg = request && selected && wstrb == read_mask && !stopped;
     assign capture_event = control[2][7] && pin_edge[2];
     assign timer_irq[3] = captured && (&control[2][7:6]);
 
@@ -39,16 +40,17 @@ module fes_sh7091_tmu (
         logic prescaled_tick;
 
         assign timer_irq[i] = underflow[i] && control[i][5];
-        assign pin_edge[i] = !tclk_output_enable && tclk_sample != tclk_previous &&
+        assign rtc_channel[i] = control[i][2:0] == 6;
+        assign pin_edge[i] = !stopped && !bus_standby && !tclk_output_enable && tclk_sample != tclk_previous &&
                              (control[i][4] || tclk_sample != control[i][3]);
         assign count_tick[i] = running[i] && prescaled_tick;
         always_comb begin
             case (control[i][2:0])
-                0: prescaled_tick = peripheral_tick && (&prescaler[1:0]);
-                1: prescaled_tick = peripheral_tick && (&prescaler[3:0]);
-                2: prescaled_tick = peripheral_tick && (&prescaler[5:0]);
-                3: prescaled_tick = peripheral_tick && (&prescaler[7:0]);
-                4: prescaled_tick = peripheral_tick && (&prescaler);
+                0: prescaled_tick = !stopped && !bus_standby && peripheral_tick && (&prescaler[1:0]);
+                1: prescaled_tick = !stopped && !bus_standby && peripheral_tick && (&prescaler[3:0]);
+                2: prescaled_tick = !stopped && !bus_standby && peripheral_tick && (&prescaler[5:0]);
+                3: prescaled_tick = !stopped && !bus_standby && peripheral_tick && (&prescaler[7:0]);
+                4: prescaled_tick = !stopped && !bus_standby && peripheral_tick && (&prescaler);
                 6: prescaled_tick = rtc_tick;
                 7: prescaled_tick = pin_edge[i];
                 default: prescaled_tick = 0;
@@ -92,11 +94,13 @@ module fes_sh7091_tmu (
             tclk_sync <= tclk;
             tclk_sample <= tclk_sync;
             tclk_previous <= tclk_sample;
-            if (peripheral_tick)
+            if (!stopped && !bus_standby && peripheral_tick)
                 prescaler <= prescaler + 10'd1;
             if (write_reg && reg_number == 0)
                 tclk_output_enable <= wdata[0];
-            if (write_reg && reg_number == 1)
+            if (stopped || bus_standby)
+                running <= running & rtc_channel;
+            else if (write_reg && reg_number == 1)
                 running <= wdata[2:0];
             if (write_reg && reg_number == 10)
                 captured <= captured && wdata[9];

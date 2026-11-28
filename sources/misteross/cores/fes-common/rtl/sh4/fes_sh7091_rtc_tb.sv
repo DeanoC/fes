@@ -3,12 +3,12 @@ module fes_sh7091_rtc_tb (input logic clk, output logic finished);
     logic [31:2] address;
     logic [3:0] rmask, wstrb;
     logic [15:0] wdata;
-    logic selected, rvalid, tmu_tick, clock_out;
+    logic selected, rvalid, tmu_tick, clock_out, unused_oscillator_enabled;
     logic [31:0] rdata;
     logic [2:0] irq;
 
-    fes_sh7091_rtc rtc (.clk, .reset, .power_reset, .tick, .request, .address,
-        .rmask, .wstrb, .wdata, .selected, .rvalid, .rdata, .irq, .tmu_tick, .clock_out);
+    fes_sh7091_rtc rtc (.clk, .reset, .power_reset, .tick, .stopped(1'b0), .request, .address,
+        .rmask, .wstrb, .wdata, .selected, .rvalid, .rdata, .irq, .tmu_tick, .clock_out, .oscillator_enabled(unused_oscillator_enabled));
 
     task automatic write_reg(input logic [3:0] index, input logic [15:0] value,
                              input logic [3:0] strobes = 4'h1);

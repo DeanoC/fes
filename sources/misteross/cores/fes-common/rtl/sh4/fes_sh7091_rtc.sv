@@ -1,6 +1,6 @@
 // SH7091 calendar and alarm clock driven by a 32.768 kHz clock enable.
 module fes_sh7091_rtc (
-    input  logic        clk, reset, power_reset, tick,
+    input  logic        clk, reset, power_reset, tick, stopped,
     input  logic        request,
     input  logic [31:2] address,
     input  logic [3:0]  rmask, wstrb,
@@ -8,7 +8,7 @@ module fes_sh7091_rtc (
     output logic        selected, rvalid,
     output logic [31:0] rdata,
     output logic [2:0]  irq,
-    output logic        tmu_tick, clock_out
+    output logic        tmu_tick, clock_out, oscillator_enabled
 );
     // The calendar and divider persist across processor resets.
     logic [15:0] phase = 0, year = 16'h2000;
@@ -32,12 +32,13 @@ module fes_sh7091_rtc (
 
     assign selected = address[31:6] == 26'h3ff2000;
     assign reg_index = address[5:2];
-    assign write_byte = !reset && request && selected && wstrb == 4'h1;
+    assign write_byte = !reset && request && selected && !stopped && wstrb == 4'h1;
     assign write_rcr2 = write_byte && reg_index == 15;
-    assign read_phase = request && selected && reg_index == 0 && wstrb == 0 && rmask == 4'h1;
+    assign read_phase = request && selected && !stopped && reg_index == 0 && wstrb == 0 && rmask == 4'h1;
     assign adjust = write_rcr2 && wdata[2];
     assign phase_reset = write_rcr2 && (|wdata[2:1]);
-    assign clock_out = control2[3] && phase[0];
+    assign oscillator_enabled = control2[3];
+    assign clock_out = oscillator_enabled && phase[0];
     assign tmu_tick = count_tick && phase[0];
     assign count_tick = tick && control2[3];
     assign second_carry = count_tick && (&phase[14:0]);
@@ -87,7 +88,7 @@ module fes_sh7091_rtc (
             rvalid <= request && selected && wstrb == 0;
             if (request && selected && wstrb == 0) begin
                 rdata <= 0;
-                if (rmask == 4'h1) case (reg_index)
+                if (!stopped && rmask == 4'h1) case (reg_index)
                     0: rdata[6:0] <= phase[14:8];
                     1, 2, 3, 4, 5, 6: rdata[7:0] <= calendar[reg_index[2:0] - 3'd1];
                     8, 9, 10, 11, 12, 13: rdata[7:0] <= alarm[reg_index[2:0]];
@@ -95,7 +96,7 @@ module fes_sh7091_rtc (
                     15: rdata[7:0] <= control2;
                     default: ;
                 endcase
-                if (rmask == 4'h3 && reg_index == 7)
+                if (!stopped && rmask == 4'h3 && reg_index == 7)
                     rdata[15:0] <= year;
             end
 
@@ -144,7 +145,7 @@ module fes_sh7091_rtc (
             if (reg_index inside {[8:13]})
                 alarm[reg_index[2:0]] <= wdata[7:0] & (FIELD_MASK[reg_index[2:0]] | 8'h80);
         end
-        if (!reset && request && selected && reg_index == 7 && wstrb == 4'h3)
+        if (!reset && request && selected && !stopped && reg_index == 7 && wstrb == 4'h3)
             year <= wdata;
         if (reset && power_reset)
             for (int i = 0; i < 6; i++)

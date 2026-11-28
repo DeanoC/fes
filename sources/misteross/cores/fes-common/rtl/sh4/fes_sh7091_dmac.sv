@@ -1,7 +1,7 @@
 // SH7091 normal-mode DMA. Each transfer unit is read into a buffer before
 // writes begin, so a wide unit can travel over the 32-bit external port.
 module fes_sh7091_dmac (
-    input  logic        clk, reset, nmi,
+    input  logic        clk, reset, nmi, pause, stopped,
     input  logic        reg_request,
     input  logic [31:2] reg_addr,
     input  logic [3:0]  reg_rmask, reg_wstrb,
@@ -53,8 +53,8 @@ module fes_sh7091_dmac (
     assign reg_channel = reg_addr[5:4];
     assign op_register = reg_addr[6];
     assign reg_selected = reg_addr[31:7] == 25'h1ff4000 && (!op_register || reg_addr[5:2] == 0);
-    assign write_reg = reg_request && reg_selected && reg_wstrb == 4'hf;
-    assign read_reg = reg_request && reg_selected && reg_wstrb == 0 && reg_rmask == 4'hf;
+    assign write_reg = reg_request && reg_selected && !stopped && reg_wstrb == 4'hf;
+    assign read_reg = reg_request && reg_selected && !stopped && reg_wstrb == 0 && reg_rmask == 4'hf;
     assign channel_write = write_reg && !op_register && (reg_channel != 0 || !dmaor[15]);
 
     for (genvar i = 0; i < 4; i++) begin : request_channel
@@ -196,7 +196,7 @@ module fes_sh7091_dmac (
             capture_accept <= 0;
 
             case (state)
-                IDLE: if (have_request && !write_reg) begin
+                IDLE: if (!pause && have_request && !write_reg) begin
                     channel <= chosen;
                     state <= CAPTURE;
                 end else if (!have_request)
@@ -208,7 +208,7 @@ module fes_sh7091_dmac (
                     beat <= 0;
                     state <= CHECK;
                 end
-                CHECK: if (!dmaor[0] || dmaor[2:1] != 0 || !chcr[channel][0] || (nmi && !prior_nmi))
+                CHECK: if (pause || !dmaor[0] || dmaor[2:1] != 0 || !chcr[channel][0] || (nmi && !prior_nmi))
                     state <= IDLE;
                 else if (address_error) begin
                     dmaor[2] <= 1;

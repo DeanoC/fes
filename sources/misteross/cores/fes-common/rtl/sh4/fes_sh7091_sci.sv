@@ -1,6 +1,6 @@
 // SH7091 SCI register file and double-buffered serial paths.
 module fes_sh7091_sci (
-    input  logic        clk, reset, peripheral_tick,
+    input  logic        clk, reset, peripheral_tick, stopped,
     input  logic        request, dma_access,
     input  logic [3:0]  index,
     input  logic [3:0]  rmask, wstrb,
@@ -18,6 +18,7 @@ module fes_sh7091_sci (
     logic read_byte, write_byte, dma_tx_write, dma_rx_read, receive_error;
     logic tx_valid, tx_ready, tx_busy, rx_enabled, rx_valid, rx_frame, rx_parity, rx_mark;
     logic [7:0] rx_byte;
+    logic [3:0] serial_pins, held_pins;
 
     logic async_tick, async_ready, async_busy, async_txd, async_sck;
     logic async_valid, async_frame, async_parity, async_mark;
@@ -30,8 +31,8 @@ module fes_sh7091_sci (
     logic [1:0] sync_sample;
     logic [7:0] sync_tx_shift, sync_rx_shift;
 
-    assign read_byte = request && wstrb == 0 && rmask == 4'h1;
-    assign write_byte = request && wstrb == 4'h1;
+    assign read_byte = request && !stopped && wstrb == 0 && rmask == 4'h1;
+    assign write_byte = request && !stopped && wstrb == 4'h1;
     assign dma_tx_write = write_byte && dma_access && index == 3;
     assign dma_rx_read = read_byte && dma_access && index == 5;
     assign receive_error = |status[5:3];
@@ -40,18 +41,26 @@ module fes_sh7091_sci (
 
     assign baud_limit = (({6'b0, baud, 1'b0} + 15'd2) << {mode[1:0], 1'b0}) - 15'd1;
     assign baud_tick = peripheral_tick && baud_count == baud_limit;
-    assign async_tick = control[1] ? sck_sync && !sck_previous : baud_tick;
+    assign async_tick = !stopped && (control[1] ? sck_sync && !sck_previous : baud_tick);
     assign sync_run = mode[7] && (sync_busy || tx_valid || rx_enabled);
-    assign sync_rise = control[1] ? sck_sync && !sck_previous : baud_tick && sync_run && !sync_clock;
-    assign sync_fall = control[1] ? !sck_sync && sck_previous : baud_tick && sync_run && sync_clock;
+    assign sync_rise = !stopped && (control[1] ? sck_sync && !sck_previous : baud_tick && sync_run && !sync_clock);
+    assign sync_fall = !stopped && (control[1] ? !sck_sync && sck_previous : baud_tick && sync_run && sync_clock);
     assign sync_ready = !sync_busy && sync_fall;
 
     assign tx_ready = mode[7] ? sync_ready : async_ready;
     assign tx_busy = mode[7] ? sync_busy : async_busy;
-    assign txd_enable = control[5] || port_control[1];
-    assign txd = control[5] ? (mode[7] ? sync_tx_shift[0] : async_txd) : port_control[0];
-    assign sck_enable = !control[1] && (mode[7] || control[0] || port_control[3]);
-    assign sck_out = mode[7] ? sync_clock : control[0] ? async_sck : port_control[2];
+    assign serial_pins[3] = control[5] || port_control[1];
+    assign serial_pins[2] = control[5] ? (mode[7] ? sync_tx_shift[0] : async_txd) : port_control[0];
+    assign serial_pins[1] = !control[1] && (mode[7] || control[0] || port_control[3]);
+    assign serial_pins[0] = mode[7] ? sync_clock : control[0] ? async_sck : port_control[2];
+    assign {txd_enable, txd, sck_enable, sck_out} = stopped ? held_pins : serial_pins;
+    always_ff @(posedge clk) begin
+        if (reset)
+            held_pins <= 4'b0001;
+        else if (!stopped)
+            held_pins <= serial_pins;
+    end
+
     assign rx_valid = mode[7] ? sync_valid : async_valid;
     assign rx_byte = mode[7] ? sync_rx_shift : async_byte;
     assign rx_frame = !mode[7] && async_frame;
@@ -64,7 +73,7 @@ module fes_sh7091_sci (
     assign dma_request = {control[4] && status[6], control[5] && status[7]};
 
     fes_sh7091_serial_async asynchronous (
-        .clk, .reset, .sample_tick(async_tick), .tx_enable(!mode[7] && control[5]),
+        .clk, .reset(reset || stopped), .sample_tick(async_tick), .tx_enable(!mode[7] && control[5]),
         .rx_enable(!mode[7] && rx_enabled), .tx_pause(1'b0),
         .seven_bits(mode[6]), .parity_enable(mode[5]), .odd_parity(mode[4]), .two_stops(mode[3]),
         .multiprocessor(mode[2]), .tx_mark(status[0]), .tx_valid, .tx_data(transmit_data),
@@ -80,7 +89,7 @@ module fes_sh7091_sci (
         sck_sync <= sck_meta;
         sck_previous <= sck_sync;
         sync_valid <= 0;
-        if (reset || !mode[7]) begin
+        if (reset || stopped || !mode[7]) begin
             sync_busy <= 0;
             sync_clock <= 1;
             sync_tx_shift <= '1;
@@ -90,7 +99,7 @@ module fes_sh7091_sci (
             sync_sample <= {sync_sample[0], sync_rise};
             if (!sync_run || control[1])
                 sync_clock <= 1;
-            else if (baud_tick)
+            else if (baud_tick && !stopped)
                 sync_clock <= !sync_clock;
 
             if (!control[5] || receive_error)
@@ -120,8 +129,10 @@ module fes_sh7091_sci (
     end
 
     always_ff @(posedge clk) begin
-        if (reset) begin
-            rvalid <= 0;
+        rvalid <= !reset && request && wstrb == 0;
+        if (reset || stopped) begin
+            if (request && wstrb == 0)
+                rdata <= 0;
             mode <= 0;
             control <= 0;
             baud <= '1;
@@ -132,7 +143,6 @@ module fes_sh7091_sci (
             receive_data <= 0;
             baud_count <= 0;
         end else begin
-            rvalid <= request && wstrb == 0;
             if (request && wstrb == 0) begin
                 rdata <= 0;
                 if (read_byte) case (index)
@@ -158,7 +168,7 @@ module fes_sh7091_sci (
 
             if (write_byte && (index == 0 || index == 1))
                 baud_count <= 0;
-            else if (peripheral_tick)
+            else if (peripheral_tick && !stopped)
                 baud_count <= baud_tick ? 15'b0 : baud_count + 15'd1;
 
             if (read_byte && index == 4)

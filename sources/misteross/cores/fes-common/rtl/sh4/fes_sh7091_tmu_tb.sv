@@ -9,7 +9,7 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
     logic tclk_output_enable, capture_dma, cpu_ack, ext_ack;
 
     fes_sh7091_tmu tmu (
-        .clk, .reset, .peripheral_tick, .rtc_tick, .tclk, .request, .address,
+        .clk, .reset, .stopped(1'b0), .bus_standby(1'b0), .peripheral_tick, .rtc_tick, .tclk, .request, .address,
         .rmask, .wstrb, .wdata, .selected(tmu_selected), .rvalid(tmu_rvalid), .rdata(tmu_rdata),
         .timer_irq, .tclk_output_enable, .capture_dma, .capture_ack, .capture_value
     );
@@ -20,7 +20,7 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
     logic [4:0] dma_irq = 0;
     logic [3:0] sci_irq = 0, scif_irq = 0;
     fes_sh7091_intc intc (
-        .clk, .reset, .bus_tick(1'b1), .nmi, .nmi_ack,
+        .clk, .reset, .standby(1'b0), .bus_tick(1'b1), .nmi, .nmi_ack,
         .nmi_request, .nmi_block_override(nmi_override),
         .request, .address, .rmask, .wstrb, .wdata(wdata[15:0]),
         .selected(intc_selected), .rvalid(intc_rvalid), .rdata(intc_rdata),
@@ -28,8 +28,9 @@ module fes_sh7091_tmu_tb(input logic clk, output logic finished);
         .cpu_level, .cpu_event, .ext_ack
     );
 
+    logic unused_standby_ready;
     fes_sh7091_wdt wdt (
-        .clk, .reset, .tick(watchdog_tick), .request, .address, .rmask, .wstrb,
+        .clk, .reset, .tick(watchdog_tick), .standby(1'b0), .standby_wake(1'b0), .standby_ready(unused_standby_ready), .request, .address, .rmask, .wstrb,
         .wdata(wdata[15:0]), .selected(wdt_selected), .rvalid(wdt_rvalid),
         .rdata(wdt_rdata), .interval_irq(watchdog_irq), .reset_request(watchdog_reset)
     );

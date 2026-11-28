@@ -10,6 +10,10 @@ module fes_sh4_tb;
     logic [11:0] irq_event = 0;
     logic bram_sci_txd, unused_sci_txd_enable, unused_sci_sck_out, unused_sci_sck_enable;
     logic [19:0] bram_gpio_in = '1, bram_gpio_out, bram_gpio_oe, bram_gpio_pullup;
+    logic unused_sleeping, unused_standby_wake;
+    logic [11:0] bram_frequency_control;
+    logic [1:0] bram_processor_status;
+    logic bram_freq_change, bram_standby, bram_deep_sleep, bram_high_z, bram_peripheral_pullup;
     logic unused_nmi_ack, unused_scif_txd, unused_scif_txd_enable, unused_scif_rts_n;
     logic nmi = 0, nmi_while_blocked = 0, irq_ack;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
@@ -33,7 +37,8 @@ module fes_sh4_tb;
     logic check_qacr_area = 0;
     int qacr_area_writes, queue_zero_writes, mapped_queue_writes;
     logic cache_cancel_done, mmu_done, fp_arith_finished, bsc_finished, tmu_finished;
-    logic dma_finished, rtc_finished, scif_finished, sci_finished, gpio_finished;
+    logic dma_finished, rtc_finished, scif_finished, sci_finished, gpio_finished, cpg_finished;
+    fes_sh7091_cpg_tb cpg_test (.clk, .finished(cpg_finished));
     fes_sh7091_gpio_tb gpio_test (.clk, .finished(gpio_finished));
     fes_sh7091_sci_tb sci_test (.clk, .finished(sci_finished));
     fes_sh7091_scif_tb scif_test (.clk, .finished(scif_finished));
@@ -48,7 +53,8 @@ module fes_sh4_tb;
     logic check_warm_loop = 0, check_alias_load = 1;
 
     fes_sh4 #(.RESET_PC(0), .RESET_CCR(16'h0103)) dut (
-        .clk, .reset, .manual_reset(1'b0), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack, .nmi_ack(unused_nmi_ack),
+        .clk, .reset, .standby(1'b0), .standby_ready(1'b0),
+        .sleeping(unused_sleeping), .standby_wake(unused_standby_wake), .manual_reset(1'b0), .irq_level, .irq_event, .nmi, .nmi_while_blocked, .irq_ack, .nmi_ack(unused_nmi_ack),
         .mem_valid(valid), .mem_lock(locked), .mem_sq(queue_write), .mem_rmask(rmask), .mem_ready(ready),
         .mem_addr(addr), .mem_wstrb(wstrb), .mem_wdata(wdata),
         .mem_rvalid(rvalid), .mem_rdata(rdata),
@@ -59,6 +65,9 @@ module fes_sh4_tb;
         .clk, .reset(bram_reset), .rtc_tick(bram_rtc_tick), .irq_level(4'b0), .irq_event(12'b0),
         .sci_rxd(bram_sci_txd), .sci_sck(1'b1), .sci_txd(bram_sci_txd), .sci_txd_enable(unused_sci_txd_enable),
         .sci_sck_out(unused_sci_sck_out), .sci_sck_enable(unused_sci_sck_enable),
+        .frequency_control(bram_frequency_control), .frequency_change(bram_freq_change),
+        .processor_status(bram_processor_status), .standby(bram_standby), .deep_sleep(bram_deep_sleep),
+        .peripheral_high_z(bram_high_z), .peripheral_pullup(bram_peripheral_pullup),
         .gpio_in(bram_gpio_in), .gpio_out(bram_gpio_out), .gpio_oe(bram_gpio_oe), .gpio_pullup(bram_gpio_pullup),
         .scif_rxd(1'b1), .scif_cts_n(1'b0), .scif_tick(1'b0),
         .scif_txd(unused_scif_txd), .scif_txd_enable(unused_scif_txd_enable), .scif_rts_n(unused_scif_rts_n),
@@ -2465,6 +2474,106 @@ module fes_sh4_tb;
         bram_reset = 1;
         bram_gpio_in = '1;
 
+        // Type 1 standby waits for the watchdog's 32-tick stabilization.
+        // The SCI register port is inaccessible with MSTP0 set.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        literal('h02, 2, 'h84);
+        emit('h04, 'h2121); // FRQCR
+        literal('h06, 1, 'h88);
+        emit('h08, 'he220);
+        emit('h0a, 'h2120); // SCSCR1.TE
+        literal('h0c, 1, 'h8c);
+        emit('h0e, 'he2c1);
+        emit('h10, 'h2120); // Enter standby on SLEEP, enable PHZ and MSTP0
+        literal('h12, 1, 'h88);
+        emit('h14, 'h6b10); // Stopped SCI read
+        literal('h16, 1, 'h90);
+        literal('h18, 2, 'h94);
+        emit('h1a, 'h2121); // WTCNT = 0xff
+        emit('h1c, 'h001b);
+        literal('h1e, 1, 'h8c);
+        emit('h20, 'he200);
+        emit('h22, 'h2120); // Restart SCI
+        literal('h24, 1, 'h88);
+        emit('h26, 'h6c10); // SCSCR1 resets while stopped
+        emit('h28, 'hee71);
+        image['h80 >> 2] = 'hffc0_0000;
+        image['h84 >> 2] = 'h0e0b;
+        image['h88 >> 2] = 'hffe0_0008;
+        image['h8c >> 2] = 'hffc0_0004;
+        image['h90 >> 2] = 'hffc0_0008;
+        image['h94 >> 2] = 'h5aff;
+        literal('h600, 1, 'h640);
+        emit('h602, 'h6d12); // INTEVT
+        literal('h604, 1, 'h644);
+        emit('h606, 'h6a10); // WTCSR: stabilization must not set WOVF or IOVF
+        emit('h608, 'h002b);
+        emit('h60a, 'h0009);
+        image['h640 >> 2] = 'hff00_0028;
+        image['h644 >> 2] = 'hffc0_000c;
+        for (int word = 0; word <= 'h644 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || bram_freq_change);
+        assert (bram_fault == 0 && bram_frequency_control == 'he0b)
+            else $fatal(1, "FRQCR access did not report the new clock control");
+        wait (bram_fault != 0 || bram_standby);
+        @(negedge clk);
+        assert (bram_fault == 0 && bram_processor_status == 1 && bram_high_z &&
+                bram_peripheral_pullup && !bram_deep_sleep);
+        bram_nmi = 1;
+        repeat (31) @(negedge clk);
+        assert (bram_standby) else $fatal(1, "Standby bypassed watchdog stabilization");
+        wait (!bram_standby);
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h28));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[10] == 0 &&
+                bram.system_cpu.cpu.gpr[11] == 0 && bram.system_cpu.cpu.gpr[12] == 0 &&
+                bram.system_cpu.cpu.gpr[13] == 'h1c0 && bram.system_cpu.cpu.gpr[14] == 'h71)
+            else $fatal(1, "Standby wake or SCI reset failed at %h, INTEVT %h",
+                        bram_fault_pc, bram.system_cpu.cpu.gpr[13]);
+        bram_reset = 1;
+        bram_nmi = 0;
+
+        // Deep sleep exits on NMI without the watchdog stabilization delay.
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80);
+        emit('h02, 'he280);
+        emit('h04, 'h2120); // STBCR2.DSLP
+        emit('h06, 'h001b);
+        emit('h08, 'hee27);
+        image['h80 >> 2] = 'hffc0_0010;
+        emit('h600, 'h002b);
+        emit('h602, 'h0009);
+        for (int word = 0; word <= 'h602 >> 2; word++) begin
+            @(negedge clk);
+            load_we = 1;
+            load_word_addr = 9'(word);
+            load_data = image[word];
+        end
+        @(negedge clk);
+        load_we = 0;
+        bram_reset = 0;
+        wait (bram_fault != 0 || bram_deep_sleep);
+        @(negedge clk);
+        assert (bram_fault == 0 && !bram_standby && bram_processor_status == 2);
+        bram_nmi = 1;
+        repeat (8) @(negedge clk);
+        assert (!bram_deep_sleep) else $fatal(1, "Deep sleep unexpectedly delayed NMI wake");
+        wait (bram_fault != 0 || (bram_retired && bram_retired_pc == 'h08));
+        @(negedge clk);
+        assert (bram_fault == 0 && bram.system_cpu.cpu.gpr[14] == 'h27);
+        bram_reset = 1;
+        bram_nmi = 0;
+
+        assert (cpg_finished) else $fatal(1, "CPG test did not finish");
         assert (gpio_finished) else $fatal(1, "GPIO test did not finish");
         assert (fp_arith_finished) else $fatal(1, "Floating-point arithmetic checks did not finish");
         assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
@@ -2474,7 +2583,7 @@ module fes_sh4_tb;
         assert (dma_finished) else $fatal(1, "DMAC regression timed out");
         assert (bsc_finished) else $fatal(1, "BSC regression timed out");
         wait (rtc_finished && scif_finished && sci_finished);
-        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, and bus and interrupt arbitration");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions, area 7, exception return, extended integer execution, MAC, control transfers, interrupts, byte operations, copy-back, cache maintenance, cache index and RAM modes, store queues, TLB arrays, cache arrays, FPU transfers, arithmetic, comparisons, conversions, vectors, FSCA, FSRRA, BSC, TMU, DMAC, WDT, RTC, SCI, SCIF, GPIO, CPG, standby, and bus and interrupt arbitration");
         $finish;
     end
 

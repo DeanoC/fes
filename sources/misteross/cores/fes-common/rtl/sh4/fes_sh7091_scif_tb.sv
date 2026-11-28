@@ -8,7 +8,7 @@ module fes_sh7091_scif_tb (input logic clk, output logic finished);
     logic [3:0] irq;
     logic [1:0] dma_request, dma_ready;
 
-    fes_sh7091_scif dut (.clk, .reset, .peripheral_tick(1'b1), .external_tick(1'b0),
+    fes_sh7091_scif dut (.clk, .reset, .peripheral_tick(1'b1), .stopped(1'b0), .external_tick(1'b0),
         .request, .dma_access(1'b0), .index, .rmask, .wstrb, .wdata,
         .rvalid, .rdata, .rxd(1'b1), .cts_n(1'b0), .txd, .txd_enable, .rts_n,
         .irq, .dma_request, .dma_ready);

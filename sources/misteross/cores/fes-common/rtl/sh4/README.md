@@ -293,6 +293,28 @@ The sixteen port A inputs can generate a shared active-low level
 interrupt. The handler reads PDTRA to identify the inputs. IPRC
 sets its priority and INTEVT reports `0x620`.
 
+## Clock and standby control
+
+FRQCR exposes the requested clock ratios, PLL settings and clock output
+enable. The core keeps one FPGA fabric clock. The wrapper exports the
+programmed control and a change pulse for the board clock-enable and
+PLL logic. The reset value is parameterized.
+
+STBCR selects standby on SLEEP and controls module stops. STBCR2 selects
+deep sleep, which defers new DMA units until wake. Ordinary sleep leaves
+the peripherals running. The wrapper exports processor status, standby
+mode, and the peripheral high-impedance and pull-up requests for the
+board pins. Module stops gate the register ports and the relevant
+peripheral activity. SCI state initializes when stopped and its output
+pins hold their previous levels.
+
+The RTC stays active in standby. NMI, RTC interrupts and eligible
+external interrupts can start a watchdog stabilization count. The CPU
+takes the wake interrupt only after the count wraps. This wrap neither
+requests a reset nor sets an overflow flag. The board supplies the
+watchdog and oscillator clock enables, and implements the physical
+clock and pin changes.
+
 ## Watchdog timer
 
 The watchdog timer supports the keyed WTCNT and WTCSR writes, eight
@@ -302,8 +324,7 @@ Watchdog overflow resets the core and its peripherals and publishes the
 selected reset kind on `watchdog_reset` for the board. The external bus
 responder flushes outstanding responses when either reset output is set.
 The timer and its overflow state survive that internal reset. The reset handler reads
-EXPEVT `0x020` following a manual watchdog reset. Oscillator and PLL
-control, standby clock sequencing and reset of external devices are
+EXPEVT `0x020` following a manual watchdog reset. Physical oscillator and PLL control and reset of external devices are
 outside this wrapper. See the watchdog and interrupt controller chapters
 of the [Renesas SH7750-series hardware manual](https://www.renesas.com/en/document/mah/sh7750-sh7750s-sh7750r-group-users-manual-hardware?r=1055161).
 
@@ -323,8 +344,7 @@ SCI exposes the SH7091 byte registers at `0xffe00000`. It has separate
 transmit and receive data registers and supports asynchronous framing,
 multiprocessor reception, and internally or externally clocked
 synchronous transfers. The SCI pin interface exposes RxD, TxD and SCK
-with separate output enables. The smart-card mode and standby clock
-sequencing remain outside the wrapper.
+with separate output enables. SCI smart-card mode remains outside the wrapper.
 
 SCIF exposes its byte and word registers at `0xffe80000`. It has
 16-byte transmit and receive FIFOs, programmable thresholds, an
@@ -465,6 +485,9 @@ RAM through separate TX and RX DMA channels on each serial port.
 GPIO tests cover register widths, pin direction, pull-ups and reset
 retention. A guest enables BCR2.PORTEN, wakes on a port A interrupt,
 reads the triggered input and resumes through RTE.
+CPG regressions check FRQCR writes, module-stop access, standby wake
+after watchdog stabilization and direct NMI wake from deep sleep.
+The DMA test checks that a paused controller defers a pending transfer.
 
 The Quartus Pro build uses the shared builder lease and leaves reports under
 `out/sh4/fit/output_files`. It targets
