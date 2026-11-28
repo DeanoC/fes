@@ -1,0 +1,39 @@
+{
+  "bidirectional_freeze_sha256": "bfc4022a602a063cc7b6fde68aa424cf47ff1ba5f2fb1da05880dd44907c30e4",
+  "boot_id": "af4407e48b21634e",
+  "c64_result_sha256": "2d41efcbab899e6a456dc6d4bc018e67eb7d2460a898c481ad1285ab0777d7ab",
+  "c64_uart_sha256": "c65774353656f98d518973d1d3bf0e1bad0e816e9a7200f64b8cc8703baefff9",
+  "checked_utc": "2026-11-27T16:03:59.424224+00:00",
+  "cycle_sha256": "ea801a79b2d24f63aae916c6148a4366d98c43236948a7e05bd4673a3dc9b008",
+  "diagnostic_id": "5678b0582587947b",
+  "final_handles": {
+    "errors": [],
+    "open_handles": [],
+    "paths": [
+      "/dev/ttyUSB0",
+      "/dev/bus/usb/003/116"
+    ],
+    "status": "passed"
+  },
+  "freeze_sha256": "e53177fa1b5fa6d5ad05df46178fec6836a668fc3a88256f0f707c45372364cb",
+  "generation": 1,
+  "host_window_complete": false,
+  "measurement_result_sha256": "7e47ad1a16624c9cdae5466d894a777caddb2343338d114ef2c137ecc92bafb6",
+  "measurement_uart_sha256": "28f0492062960f00a521d278f699cc044f6bde38229be023b4d63fdf9e06a541",
+  "owner": 11272623671620889695,
+  "parked": true,
+  "phase_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+  "preferences": "ram",
+  "qualified_rounds": 0,
+  "ready": true,
+  "round1_reply_matched": true,
+  "round1_reply_receipt_sha256": "a340481e7ac27f43f090d9bc642ed857b0671025c8958c892046297815d1bca4",
+  "round1_reply_sha256": "ee92e1e448a7aac40db574708e8bfc19bcb0de92e22a699df64f2943387f5ad1",
+  "round1_request_observed": true,
+  "round1_request_sha256": "0d4b3a0642c21f344e3f599628ba1fd72036c5d41a15b203cc1c89e76e775d97",
+  "scope": "C64-physical-cold-return",
+  "serial": "TRWU8CBL",
+  "stopped_sha256": "013a909677d2f81c14fa0617f83c746afa7768e45f079b41604b77797eaabad3",
+  "target_disposition": "cold-recovery",
+  "two_rounds_passed": false
+}

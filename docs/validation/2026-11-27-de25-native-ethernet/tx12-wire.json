@@ -1,0 +1,22 @@
+{
+  "drops": 0,
+  "frame_bytes": 60,
+  "frame_sha256": "7ee41bf8106911e90054c4452a3621e0418bd7636e24780976ea7816b2b8c217",
+  "ifindex": 2,
+  "interface": "enp130s0",
+  "kernel_packets": 1,
+  "matched": 1,
+  "owner_sha256": "ed6d275cb8dbe95a264e5e28feaaa057962be5960f7927709fa0b1c91a093dff",
+  "pid": 2952019,
+  "positive_seal": "6bd58194ecebf5a2069b2a68dc70e6992fedfb0e170f49afad2adbfb9c9be730",
+  "prior_restore_sha256": "17fb0771e64b43a5edf657d81456e0c06568e884ea21f6e47f4474dc8f658b5a",
+  "ready_sha256": "82fa5afc56cdbe96ff36af83671966abb53eca142429b271fa6a37878f7d4b71",
+  "ready_utc": "2026-11-27T15:06:35.710319+00:00",
+  "receiver_sha256": "9da0ef4305a07d7db441ee0c8eac32c1ef2deb2b52fccfcdd8ade621625e17ea",
+  "serial": "TRWU8CBL",
+  "start_ticks": 282351040,
+  "target_sha256": "b01fe7b78c573942c9cf033a5ec89e705ef7fd31f3861479b12a9591fe85a27f",
+  "timeout_seconds": 300,
+  "userspace_packets": 1,
+  "window_closed_utc": "2026-11-27T15:06:59.875157+00:00"
+}

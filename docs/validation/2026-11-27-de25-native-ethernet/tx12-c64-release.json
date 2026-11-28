@@ -1,0 +1,33 @@
+{
+  "boot_id": "af4407e48b21634e",
+  "c64_result_sha256": "3df5d35d9aca35c0e7945facadfa2fdaffdca51fad1b6cbb3a0a9138c7508e81",
+  "c64_uart_sha256": "c01f2bc18222a54821259be2beec240975ac7ead9465005b02b07d16b20e5652",
+  "checked_utc": "2026-11-27T15:51:45.494940+00:00",
+  "cycle_sha256": "19f2659f3821c7dd9e7c3cd7ddd3de27c0d951f6f083514832d41e3acd3b0193",
+  "diagnostic_id": "d6204947677dc27c",
+  "failed_restore_log_sha256": "f26c53aed48dda91b2b2500395da9273bd3debe1831f824584c568375a903554",
+  "failed_restore_result_sha256": "63dce1614b2775f702f7e5a2874adcb20faaa2f5c800e15d759a2bf67d2c95ca",
+  "final_handles": {
+    "errors": [],
+    "open_handles": [],
+    "paths": [
+      "/dev/ttyUSB0",
+      "/dev/bus/usb/003/116"
+    ],
+    "status": "passed"
+  },
+  "freeze_sha256": "97712574b114354884b367399dcbbf6ca6f6cb5a4f96b3569b1dbfd8a4a91406",
+  "generation": 1,
+  "measurement_result_sha256": "b01fe7b78c573942c9cf033a5ec89e705ef7fd31f3861479b12a9591fe85a27f",
+  "owner": 11272623671860855859,
+  "parked": true,
+  "phase_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+  "preferences": "ram",
+  "ready": true,
+  "scope": "C64-physical-cold-return",
+  "serial": "TRWU8CBL",
+  "tx12_freeze_sha256": "6bd58194ecebf5a2069b2a68dc70e6992fedfb0e170f49afad2adbfb9c9be730",
+  "wire_sha256": "7ee41bf8106911e90054c4452a3621e0418bd7636e24780976ea7816b2b8c217",
+  "wire_single_sha256": "459b7b93fb209d93389728126b5476ce95f770ffcfdf04ab57aaca6ba08b516f",
+  "wire_verified": true
+}

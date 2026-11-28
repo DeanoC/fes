@@ -1,0 +1,17 @@
+{
+  "c64_boot_id": "af4407e48b21634e",
+  "c64_phase_sha256": "5904a7c8922a847f223f89ac270099fa421d41235934746647ea02ab9950dbe2",
+  "c64_result_sha256": "5aa0d1be8e206e57b14cd4a62ccb10f50db19439180404f8c302ca714e3e76fe",
+  "c64_uart_sha256": "11f8d162f1183a3d68d3f9675bbc95b49ea34a1f4d7f3c73b59185d4b5a6a4b7",
+  "diagnostic_id": "ccf18edfbe576b48",
+  "eligible": false,
+  "freeze_sha256": "087f89af13320bccbd6711a23398e0209f0384dd2be77a0cb17ed6f19ae52465",
+  "handles_clear": true,
+  "held": true,
+  "measurement_result_sha256": "e91049473e6a4ffab78035efa4798d7bddf669be180ab6c83e254efa1256fe0d",
+  "measurement_uart_sha256": "a064354ffabf07e7d4bfeb1ec73c6c36f235273a5b622fdf98260e26f9868c24",
+  "park_generation": 1,
+  "prior_release_sha256": "b217ddf520bfec5c3c1f8e22536dea6e2955070b1360bb783820b75ae26bf836",
+  "scope": "post-DDR passive admission report and #2277 return",
+  "serial": "TRWU8CBL"
+}
