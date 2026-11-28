@@ -38,6 +38,8 @@ type StorageOptions struct {
 	MultiBlock      bool
 	UseCMD23        bool
 	UseADMA2        bool
+	Shared          bool
+	BootOwner       uint64
 }
 
 func OpenStorage() (block.Device, error) {
@@ -81,6 +83,9 @@ func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Sess
 	if opts.UseADMA2 && (profileSDDMABase == 0 || profileSDDMABytes < 256<<10) {
 		return nil, fmt.Errorf("de25-nano: SD ADMA2 requires an admitted uncached DMA window")
 	}
+	if opts.Shared && opts.BootOwner == 0 {
+		return nil, fmt.Errorf("de25-nano: shared SD requires trusted boot owner")
+	}
 	storageLock.Lock()
 	defer storageLock.Unlock()
 	if attempted {
@@ -111,6 +116,8 @@ func openStorage(writeCard sdhci.Identity, opts StorageOptions) (*sdcontrol.Sess
 		DMAPool:              dmaPool,
 		WriteCard:            writeCard,
 		NoSocketWriteProtect: true,
+		Shared:               opts.Shared,
+		BootOwner:            opts.BootOwner,
 	})
 	return storageSession, err
 }

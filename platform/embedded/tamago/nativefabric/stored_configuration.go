@@ -97,7 +97,14 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	var selection *packagestore.Selection
 	var err error
 	if menu != nil {
-		selection, err = handoff.SelectionAfterReturn(menu.storage, menu.returned.After.Owner, menu.returned.After.Generation)
+		if handoff.Receipt().Shared {
+			if !handoff.SameStore(menu.storage) {
+				return nil, HPSBootObservation{}, errors.New("native fabric: storage handoff differs from menu store")
+			}
+			selection, err = handoff.Selection()
+		} else {
+			selection, err = handoff.SelectionAfterReturn(menu.storage, menu.returned.After.Owner, menu.returned.After.Generation)
+		}
 	} else {
 		selection, err = handoff.Selection()
 	}
@@ -113,20 +120,30 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	held, generation := v.coldSource(source), receipt.Generation == source.Bridges.Generation
+	held, generation := v.coldSource(source), receipt.Shared || receipt.Generation == source.Bridges.Generation
 	if rearm && menu != nil {
 		closed := menu.returned.After
-		generation = closed.Generation <= ^uint64(0)-3 && receipt.Generation == source.Bridges.Generation &&
-			receipt.Generation == closed.Generation+3
-		held = menu.self == menu && menu.verifier == v && v.menuSession == menu && menu.closed && menu.closeErr == nil &&
-			menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
-			menu.source.Digest == source.Digest && closed.Owner == source.Bridges.Owner &&
-			source.Bridges.Generation <= ^uint64(0)-3 && v.reconfigurationSource(source)
+		if receipt.Shared {
+			generation = receipt.Generation > 0 && closed.Generation == source.Bridges.Generation
+			held = menu.self == menu && menu.verifier == v && v.menuSession == menu && menu.closed && menu.closeErr == nil &&
+				(menu.storageResumed || menu.storage.SameStore(handoff)) && menu.nextAttempted && menu.returned.Frames > 0 &&
+				menu.source.Digest == source.Digest && closed.Owner == source.Bridges.Owner && v.reconfigurationSource(source)
+		} else {
+			generation = closed.Generation <= ^uint64(0)-3 && receipt.Generation == source.Bridges.Generation &&
+				receipt.Generation == closed.Generation+3
+			held = menu.self == menu && menu.verifier == v && v.menuSession == menu && menu.closed && menu.closeErr == nil &&
+				menu.storageResumed && menu.nextAttempted && menu.returned.Frames > 0 &&
+				menu.source.Digest == source.Digest && closed.Owner == source.Bridges.Owner &&
+				source.Bridges.Generation <= ^uint64(0)-3 && v.reconfigurationSource(source)
+		}
 	} else if rearm {
 		v.computerMu.Lock()
 		returned := v.computerClosed && source.Bridges.Generation > 2 && v.computerGeneration == source.Bridges.Generation-2
 		fromReturn := handoff.ReturnedFrom()
-		if receipt.Generation == source.Bridges.Generation && v.computerClosed && v.computerSDResumed &&
+		if receipt.Shared {
+			returned = returned && v.computerReturn == source.Bridges
+			generation = receipt.Generation > 0
+		} else if receipt.Generation == source.Bridges.Generation && v.computerClosed && v.computerSDResumed &&
 			v.computerReturn.Generation > 0 && v.computerReturn.Generation < source.Bridges.Generation &&
 			fromReturn == (sdcontrol.Receipt{Owner: v.computerReturn.Owner, Generation: v.computerReturn.Generation}) {
 			returned = true
@@ -137,7 +154,11 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 		v.computerMu.Unlock()
 		held = v.reconfigurationSource(source) && returned
 	}
-	if !held || !generation || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner {
+	activeValid := !receipt.Active && !receipt.Prepared
+	if handoff.Concurrent() {
+		activeValid = receipt.Shared && receipt.Active && receipt.Prepared
+	}
+	if !held || !generation || !activeValid || receipt.Owner != source.Bridges.Owner {
 		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or verified return differs from live ownership")
 	}
 	region, err := v.reserveStoredSource(p.payload, source, rearm, reserve)
@@ -166,7 +187,14 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 			if err = menu.checkArena(); err != nil {
 				return err
 			}
-			current, err = handoff.SelectionAfterReturn(menu.storage, menu.returned.After.Owner, menu.returned.After.Generation)
+			if handoff.Receipt().Shared {
+				if !handoff.SameStore(menu.storage) {
+					return errors.New("native fabric: storage handoff differs from menu store")
+				}
+				current, err = handoff.Selection()
+			} else {
+				current, err = handoff.SelectionAfterReturn(menu.storage, menu.returned.After.Owner, menu.returned.After.Generation)
+			}
 		} else {
 			current, err = handoff.Selection()
 		}

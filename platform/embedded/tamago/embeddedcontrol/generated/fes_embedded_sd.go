@@ -4,23 +4,25 @@
 package generated
 
 const (
-	FesEmbeddedSdCall       uint32 = 0xc2000302
-	FesEmbeddedSdCookie     uint32 = 0x46455353
-	FesEmbeddedSdTag        uint32 = 0x46534431
-	FesEmbeddedSdQuery      uint32 = 0x0
-	FesEmbeddedSdResume     uint32 = 0x1
-	FesEmbeddedSdPrepare    uint32 = 0x2
-	FesEmbeddedSdStop       uint32 = 0x3
-	FesEmbeddedSdOK         uint32 = 0x0
-	FesEmbeddedSdBusy       uint32 = 0x1
-	FesEmbeddedSdRejected   uint32 = 0x2
-	FesEmbeddedSdError      uint32 = 0x4
-	FesEmbeddedSdNotReady   uint32 = 0x5
-	FesEmbeddedSdSupported  uint32 = 0x1
-	FesEmbeddedSdActive     uint32 = 0x2
-	FesEmbeddedSdPrepared   uint32 = 0x4
-	FesEmbeddedSdContained  uint32 = 0x8
-	FesEmbeddedSdDataHeld   uint32 = 0x10
-	FesEmbeddedSdClosedOnly uint32 = 0x20
-	FesEmbeddedSdFlags      uint32 = 0x3f
+	FesEmbeddedSdCall              uint32 = 0xc2000302
+	FesEmbeddedSdCookie            uint32 = 0x46455353
+	FesEmbeddedSdTag               uint32 = 0x46534431
+	FesEmbeddedSdQuery             uint32 = 0x0
+	FesEmbeddedSdResume            uint32 = 0x1
+	FesEmbeddedSdPrepare           uint32 = 0x2
+	FesEmbeddedSdStop              uint32 = 0x3
+	FesEmbeddedSdOK                uint32 = 0x0
+	FesEmbeddedSdBusy              uint32 = 0x1
+	FesEmbeddedSdRejected          uint32 = 0x2
+	FesEmbeddedSdError             uint32 = 0x4
+	FesEmbeddedSdNotReady          uint32 = 0x5
+	FesEmbeddedSdSupported         uint32 = 0x1
+	FesEmbeddedSdActive            uint32 = 0x2
+	FesEmbeddedSdPrepared          uint32 = 0x4
+	FesEmbeddedSdContained         uint32 = 0x8
+	FesEmbeddedSdDataHeld          uint32 = 0x10
+	FesEmbeddedSdClosedOnly        uint32 = 0x20
+	FesEmbeddedSdShared            uint32 = 0x40
+	FesEmbeddedSdPrivateGeneration uint32 = 0x80
+	FesEmbeddedSdFlags             uint32 = 0xff
 )

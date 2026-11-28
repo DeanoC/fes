@@ -34,22 +34,37 @@ struct fes_nano_mac_ops {
      * cancellation or a caller's declaration are insufficient. */
     int (*stop)(void *,const struct fes_nano_mac_binding *);
 };
+struct fes_nano_mac;
+/* Optional compiled coexistence policy for shared partner dispatchers.
+ * Zero leaves the default exclusive MAC gate unchanged. */
+struct fes_nano_mac_shared_ops {
+    void *context;
+    int (*valid)(void *, const struct fes_nano_mac *);
+    unsigned allow_during_config;
+};
 struct fes_nano_mac {
     struct fes_nano_mac_binding binding;
     struct fes_nano_mac_ops ops;
     uint64_t generation; /* independent of bridge, USB and SD generations */
     unsigned attempted,initialized,failed,active,confirmed,reservation;
     int first_error;
+    struct fes_nano_mac_shared_ops shared;
 };
 /* Zero once per trusted boot; retain even after failure. Setup and every call
  * hold the existing bridge/configuration lock. No heap allocation or NS init. */
 int fes_nano_mac_init(struct fes_nano_mac *,struct fes_nano_mac_binding,
     struct fes_nano_mac_ops,unsigned qualifications);
+int fes_nano_mac_init_shared(struct fes_nano_mac *,struct fes_nano_mac_binding,
+    struct fes_nano_mac_ops,unsigned qualifications,struct fes_nano_mac_shared_ops);
 void fes_nano_mac_sip(struct fes_nano_mac *,uint64_t operation,uint64_t owner,
     uint64_t generation,unsigned configuring,uint64_t result[4]);
 /* Other owned transitions must require containment. Zero permits, one is busy,
  * negative retires. Unbound returns zero and grants no MAC authority. */
 int fes_nano_mac_gate(struct fes_nano_mac *);
+/* Coexistence gate for mutating partner calls: delegates to fes_nano_mac_gate
+ * when shared.valid is unset; otherwise permits confirmed active traffic while
+ * keeping unconfirmed and (unless allow_during_config) configuration calls busy. */
+int fes_nano_mac_coexist_gate(struct fes_nano_mac *, unsigned for_config);
 /* Read-only coexistence observation: a confirmed active lease may remain
  * running only with fresh trusted scope. Prepared/unconfirmed remains busy. */
 int fes_nano_mac_observe(struct fes_nano_mac *);

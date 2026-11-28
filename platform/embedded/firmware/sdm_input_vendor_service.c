@@ -2379,6 +2379,14 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         goto out;
     }
 #endif
+    unsigned is_config_call=(fid==INTEL_SIP_SMC_FPGA_CONFIG_START ||
+        fid==INTEL_SIP_SMC_FPGA_CONFIG_WRITE ||
+        fid==INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE ||
+        fid==INTEL_SIP_SMC_FPGA_CONFIG_ISDONE ||
+        (fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE &&
+         (x1==FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION ||
+          x1==FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION ||
+          x1==FES_EMBEDDED_BRIDGE_RETIRE_CONFIGURATION)));
     if (fid==FES_EMBEDDED_MAC_CALL) {
         r[0]=FES_EMBEDDED_MAC_REJECTED;r[1]=(uint64_t)FES_EMBEDDED_MAC_TAG<<32;
         if (x3!=FES_EMBEDDED_MAC_COOKIE) goto out;
@@ -2388,14 +2396,20 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
              fes_nano_owned_mac.binding.epoch!=fes_nano_owned_bridges.epoch ||
              fes_nano_owned_usb.failed || fes_nano_owned_sd.failed))
             fes_nano_owned_mac.failed=1;
+        int sd_gate=fes_nano_sd_gate(&fes_nano_owned_sd,0);
+        if (sd_gate) {
+            r[0]=sd_gate<0 ? FES_EMBEDDED_MAC_ERROR : FES_EMBEDDED_MAC_BUSY;
+            if (sd_gate<0) fes_nano_owned_bridges.failed=1;
+            goto out;
+        }
         fes_nano_mac_sip(&fes_nano_owned_mac,x1,x2,x4,
             request_type!=NO_REQUEST || fes_nano_configuration_busy(configuration),r);
         if (fes_nano_owned_mac.failed) fes_nano_owned_bridges.failed=1;
         goto out;
     }
-    /* Only these read-only observations may coexist with a confirmed MAC.
-     * A future qualified supplier must also compose the complete live boot/
-     * master policy. This whitelist grants no bridge or configuration access. */
+    /* Read-only observations permit a confirmed MAC. When shared MAC
+     * coexistence is bound, non-config partner calls are also allowed while
+     * confirmed; configuration calls obey allow_during_config. */
     unsigned mac_read_only=(fid==FES_EMBEDDED_BRIDGE_CALL && x3==FES_EMBEDDED_BRIDGE_COOKIE &&
         (x1==FES_EMBEDDED_BRIDGE_SNAPSHOT || x1==FES_EMBEDDED_BRIDGE_CONTEXT_PART0 ||
          x1==FES_EMBEDDED_BRIDGE_CONTEXT_PART1 || x1==FES_EMBEDDED_BRIDGE_HPS_IO_PART0 ||
@@ -2405,7 +2419,7 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         (fid==FES_EMBEDDED_SD_CALL && x3==FES_EMBEDDED_SD_COOKIE &&
          x1==FES_EMBEDDED_SD_QUERY && !x2 && !x4);
     int mac_gate=mac_read_only ? fes_nano_mac_observe(&fes_nano_owned_mac) :
-        fes_nano_mac_gate(&fes_nano_owned_mac);
+        fes_nano_mac_coexist_gate(&fes_nano_owned_mac,is_config_call);
     if (mac_gate) {
         r[0]=mac_gate<0 ? INTEL_SIP_SMC_STATUS_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
         if (mac_gate<0) fes_nano_owned_bridges.failed=1;
@@ -2417,6 +2431,20 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             r[1]=(uint64_t)FES_EMBEDDED_TAPE_TAG<<32;
         }
         goto out;
+    }
+    if (!(fid==FES_EMBEDDED_SD_CALL && x3==FES_EMBEDDED_SD_COOKIE)) {
+        int sd_gate=fes_nano_sd_gate(&fes_nano_owned_sd,is_config_call);
+        if (sd_gate) {
+            r[0]=sd_gate<0 ? INTEL_SIP_SMC_STATUS_ERROR : INTEL_SIP_SMC_STATUS_BUSY;
+            if (sd_gate<0) fes_nano_owned_bridges.failed=1;
+            if (fid==FES_EMBEDDED_USB_CALL) r[1]=(uint64_t)FES_EMBEDDED_USB_TAG<<32;
+            if (fid==FES_EMBEDDED_BRIDGE_CALL) r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_TAG<<32;
+            if (fid==FES_EMBEDDED_TAPE_CALL) {
+                r[0]=sd_gate<0 ? FES_EMBEDDED_TAPE_ERROR : FES_EMBEDDED_TAPE_BUSY;
+                r[1]=(uint64_t)FES_EMBEDDED_TAPE_TAG<<32;
+            }
+            goto out;
+        }
     }
     if (fid == FES_EMBEDDED_USB_CALL && x3 == FES_EMBEDDED_USB_COOKIE) {
         fes_nano_usb_service_sip(&fes_nano_owned_usb,x1,x2,x4,

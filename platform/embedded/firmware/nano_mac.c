@@ -15,6 +15,8 @@ static int healthy(struct fes_nano_mac *s)
     if (!s->attempted || !s->ops.scope || !s->ops.acquire || !s->ops.confirm || !s->ops.stop ||
         s->active>1 || s->confirmed>1 || s->reservation!=s->active ||
         (s->confirmed && !s->active)) return retire(s,-1);
+    if (s->shared.valid && (!s->shared.context || s->shared.allow_during_config>1 ||
+        s->shared.valid(s->shared.context,s)!=1)) return retire(s,-1);
     return 0;
 }
 static int scope(struct fes_nano_mac *s,unsigned active,unsigned confirmed)
@@ -22,21 +24,37 @@ static int scope(struct fes_nano_mac *s,unsigned active,unsigned confirmed)
     int error=s->ops.scope(s->ops.context,&s->binding,active,confirmed);
     return error ? retire(s,error) : 0;
 }
-int fes_nano_mac_init(struct fes_nano_mac *s,struct fes_nano_mac_binding binding,
-    struct fes_nano_mac_ops ops,unsigned qualifications)
+static int initialize_mac(struct fes_nano_mac *s,struct fes_nano_mac_binding binding,
+    struct fes_nano_mac_ops ops,unsigned qualifications,const struct fes_nano_mac_shared_ops *shared)
 {
     if (!s || s->attempted) return -1;
     s->attempted=1;
     s->binding=binding;s->ops=ops;
+    if (shared) {
+        s->shared=*shared;
+        if (!shared->context || !shared->valid || shared->allow_during_config>1)
+            return retire(s,-22);
+    }
     if (qualifications!=FES_NANO_MAC_QUALIFIED || !ops.scope || !ops.acquire ||
         !ops.confirm || !ops.stop || !binding.owner || !binding.epoch || binding.mac>2 ||
         binding.phy>31 || !binding.phy_id || binding.phy_id==UINT32_MAX ||
         !binding.dma_start || binding.dma_start%0x200000U || binding.dma_size!=0x200000U ||
         binding.dma_start>UINT64_MAX-binding.dma_size || s->active || s->confirmed ||
         s->reservation || s->generation) return retire(s,-22);
+    if (shared && shared->valid(shared->context,s)!=1) return retire(s,-1);
     if (scope(s,0,0)) return -1;
     s->initialized=1;
     return 0;
+}
+int fes_nano_mac_init(struct fes_nano_mac *s,struct fes_nano_mac_binding binding,
+    struct fes_nano_mac_ops ops,unsigned qualifications)
+{
+    return initialize_mac(s,binding,ops,qualifications,0);
+}
+int fes_nano_mac_init_shared(struct fes_nano_mac *s,struct fes_nano_mac_binding binding,
+    struct fes_nano_mac_ops ops,unsigned qualifications,struct fes_nano_mac_shared_ops shared)
+{
+    return initialize_mac(s,binding,ops,qualifications,&shared);
 }
 int fes_nano_mac_gate(struct fes_nano_mac *s)
 {
@@ -44,6 +62,16 @@ int fes_nano_mac_gate(struct fes_nano_mac *s)
     if (healthy(s)) return -1;
     if (s->active || s->reservation) return 1;
     return scope(s,0,0);
+}
+int fes_nano_mac_coexist_gate(struct fes_nano_mac *s,unsigned for_config)
+{
+    if (!s || !s->attempted) return 0;
+    if (!s->shared.valid) return fes_nano_mac_gate(s);
+    if (healthy(s)) return -1;
+    if (s->active && !s->confirmed) return 1;
+    if (for_config && (s->active || s->reservation) && !s->shared.allow_during_config) return 1;
+    if (scope(s,s->active,s->confirmed)) return -1;
+    return healthy(s) ? -1 : 0;
 }
 int fes_nano_mac_observe(struct fes_nano_mac *s)
 {

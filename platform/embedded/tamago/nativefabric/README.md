@@ -64,10 +64,15 @@ flowchart LR
   owner/generation). Active closures stop producers and require hardware drain
   before any reconfiguration SMC; data release requires an explicit nonzero
   mask and live build-ID verification.
-- **Storage mutual exclusion:** `PreflightStoredConfiguration` validates
-  retained archives while SD is open so bad selections leave storage usable.
-  `Store.Contain` closes SD before `ConfigurationTransfer` reserves DMA;
-  `ResumeStorageAfterReturn` reopens SD only after a verified same-owner return.
+- **Storage mutual exclusion vs shared concurrency:** `PreflightStoredConfiguration`
+  validates retained archives while SD is open so bad selections leave storage
+  usable. In default closed-bridge mode, `Store.Contain` closes SD before
+  `ConfigurationTransfer` reserves DMA and `ResumeStorageAfterReturn` reopens SD
+  only after a verified same-owner return. When backed by a `Shared()`
+  `packagestore.Store` (opt-in concurrent mode), `ProgramService` pauses SD
+  only across SDM bitstream reconfiguration, keeps SD and Ethernet live together
+  during MENU display, live `Install` writes, and active Computer sessions, and
+  cleanly quiesces SD on `Park` / `ParkMenu`.
 - **EL3 trust boundary:** `FirmwareBridges` calls the
   [controlled C Nano service](../../firmware/README.md#controlled-nano-bridge-service)
   via synchronous SMCs. Unsigned package metadata never authorizes physical

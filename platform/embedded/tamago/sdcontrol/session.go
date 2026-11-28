@@ -27,6 +27,7 @@ type Session struct {
 	admaActive      atomic.Bool
 	highSpeed       atomic.Bool
 	cmd23Active     atomic.Bool
+	shared          bool
 	transferClockHz atomic.Uint32
 }
 
@@ -66,6 +67,10 @@ type Config struct {
 	// NoSocketWriteProtect is a trusted board-wiring property, not package
 	// policy or write permission. An expected WriteCard is still mandatory.
 	NoSocketWriteProtect bool
+	// Shared opts into concurrent SD access alongside active FPGA bridges and
+	// confirmed Ethernet using private SD generations for BootOwner.
+	Shared    bool
+	BootOwner uint64
 }
 
 // Open grants the lease before the first register access. It returns a retired
@@ -84,6 +89,9 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 	if config.UseCMD23 && !config.MultiBlock {
 		return nil, fmt.Errorf("sdcontrol: UseCMD23 requires MultiBlock")
 	}
+	if config.Shared && config.BootOwner == 0 {
+		return nil, fmt.Errorf("sdcontrol: Shared requires trusted BootOwner")
+	}
 	writable := config.WriteCard != (sdhci.Identity{})
 	if writable {
 		var nonzero, notFF byte
@@ -97,11 +105,17 @@ func Open(cpu Caller, io sdhci.Registers, config Config) (*Session, error) {
 			return nil, fmt.Errorf("sdcontrol: invalid expected writable card")
 		}
 	}
-	firmware, err := NewClient(cpu)
+	var firmware *Client
+	var err error
+	if config.Shared {
+		firmware, err = NewSharedClient(cpu, config.BootOwner)
+	} else {
+		firmware, err = NewClient(cpu)
+	}
 	if err != nil {
 		return nil, err
 	}
-	s := &Session{firmware: firmware}
+	s := &Session{firmware: firmware, shared: config.Shared}
 	if err = firmware.Resume(); err != nil {
 		return s, s.fail(err)
 	}
@@ -251,6 +265,9 @@ func (s *Session) HighSpeed() bool {
 func (s *Session) CMD23Active() bool {
 	return s != nil && s.cmd23Active.Load()
 }
+
+// Shared reports whether this session holds an opt-in concurrent SD lease.
+func (s *Session) Shared() bool { return s != nil && s.shared }
 
 // TransferClockHz returns the active SD clock rate in Hz, or 0 if uninitialized.
 func (s *Session) TransferClockHz() uint32 {
@@ -411,6 +428,9 @@ func (s *Session) resume(owner, generation uint64, returned bool) error {
 	}
 	var err error
 	if returned {
+		if s.shared {
+			return ErrTransition
+		}
 		last, valid := s.firmware.LastReceipt()
 		if !valid {
 			return s.fail(ErrRetired)

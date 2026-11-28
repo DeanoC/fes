@@ -36,9 +36,10 @@ never touches SD concurrently.
    receipt; its retained RAM bytes stay readable while SD is held in reset.
 2. **`Resume()` / `ResumeAfterReturn(owner, generation)`:** Explicitly reopens
    the SD lease under the same owner (requiring controller/card rediscovery and
-   matching CID + capacity) after a closed-bridge pause or a verified FPGA core
-   return. Previous handoffs are invalidated; concurrent core/SD access is
-   forbidden.
+   matching CID + capacity) after a closed-bridge pause (`Resume()` /
+   `ResumeAfterReturn`), or after reconfiguration pause in `Shared()` concurrent
+   mode (`Resume()` + optional `RetainActive`). Previous handoffs are
+   invalidated.
 3. **Fail-closed retirement:** Unexpected ownership changes, bad readbacks, or
    uncertain I/O retire the store and retain the lease until reboot—never
    retrying, rolling back, or adopting a foreign owner.
