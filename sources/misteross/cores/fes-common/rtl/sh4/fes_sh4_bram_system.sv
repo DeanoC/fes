@@ -8,7 +8,7 @@ module fes_sh4_bram_system (
     input  logic [31:0] load_data,
     output logic        retired,
     output logic [31:0] retired_pc,
-    output logic [2:0]  fault,
+    output logic [3:0]  fault,
     output logic [31:0] fault_pc
 );
     logic valid, rvalid;

@@ -6,6 +6,7 @@ module fes_sh4_dcache (
     input  logic        request,
     output logic        ready,
     input  logic [31:2] address,
+    input  logic        address_cacheable,
     input  logic [3:0]  wstrb,
     input  logic [31:0] wdata,
     output logic        complete,
@@ -29,7 +30,7 @@ module fes_sh4_dcache (
     logic [31:0] saved_wdata, word_q;
     logic [17:0] tag_q;
     logic [2:0] fill_word;
-    logic cacheable, lookup, line_valid_q, use_cache, hit, store_hit;
+    logic lookup, line_valid_q, use_cache, hit, store_hit;
     logic refill, last_refill, store_complete;
     logic [11:0] ram_write_addr;
     logic [31:0] ram_write_data;
@@ -37,8 +38,7 @@ module fes_sh4_dcache (
 
     assign ready = state == IDLE;
     assign complete = state == DONE;
-    assign cacheable = address[31:29] != 3'b101 && address[31:29] != 3'b111;
-    assign lookup = request && ready && cacheable;
+    assign lookup = request && ready && address_cacheable;
     assign hit = line_valid_q && tag_q == saved_addr[31:14];
 
     assign bus_request = state == REQUEST;
@@ -79,10 +79,10 @@ module fes_sh4_dcache (
                     saved_addr <= address;
                     saved_wstrb <= wstrb;
                     saved_wdata <= wdata;
-                    use_cache <= cacheable;
+                    use_cache <= address_cacheable;
                     fill_word <= 3'd0;
                     store_hit <= 1'b0;
-                    state <= cacheable ? CHECK : REQUEST;
+                    state <= address_cacheable ? CHECK : REQUEST;
                 end
                 CHECK: begin
                     if (saved_wstrb == 0 && hit) begin

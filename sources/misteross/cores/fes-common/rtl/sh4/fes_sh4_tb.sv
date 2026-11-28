@@ -7,7 +7,7 @@ module fes_sh4_tb;
     logic [31:0] load_data;
     logic valid, ready, rvalid, retired, bram_retired;
     logic [31:0] addr, wdata, rdata, retired_pc, fault_pc, bram_retired_pc, bram_fault_pc;
-    logic [2:0] fault, bram_fault;
+    logic [3:0] fault, bram_fault;
     logic [3:0] wstrb;
     logic [31:0] image [0:8191];
     logic [31:0] ext_mem [0:8191];
@@ -17,8 +17,9 @@ module fes_sh4_tb;
     int retire_count, read_count, previous_retire_cycle;
     int resident_reads, conflict_reads, cold_store_line_reads, alias_reads;
     logic check_data_cache = 0;
-    logic cache_cancel_done;
+    logic cache_cancel_done, mmu_done;
 
+    fes_sh4_mmu_tb mmu_test (.clk, .done(mmu_done));
     fes_sh4_icache_tb cache_cancel (.clk, .done(cache_cancel_done));
     logic check_warm_loop = 0, check_alias_load = 1;
 
@@ -102,6 +103,10 @@ module fes_sh4_tb;
         image[address >> 2][16*address[1] +: 16] = opcode;
     endtask
 
+    task automatic literal(input int address, input logic [3:0] destination, input int pool);
+        emit(address, {4'hd, destination, 8'((pool - ((address + 4) & ~3)) >> 2)});
+    endtask
+
     task automatic start_bus;
         @(negedge clk);
         reset = 1;
@@ -110,7 +115,7 @@ module fes_sh4_tb;
         reset = 0;
     endtask
 
-    task automatic expect_stop(input logic [2:0] cause, input logic [31:0] pc);
+    task automatic expect_stop(input logic [3:0] cause, input logic [31:0] pc);
         wait (fault != 0);
         @(negedge clk);
         assert (fault == cause && fault_pc == pc)
@@ -313,14 +318,81 @@ module fes_sh4_tb;
             else $fatal(1, "Unexpected external traffic: resident=%0d conflict=%0d cold=%0d alias=%0d",
                         resident_reads, conflict_reads, cold_store_line_reads, alias_reads);
 
+        // Install entries through the CPU's P4 registers and LDTLB. Enable
+        // translation, access a remapped operand, and jump into the mapped page.
+        check_data_cache = 0;
+        image = '{default:32'hfffd_fffd};
+        literal('h00, 1, 'h80); // PTEH address
+        literal('h02, 2, 'h84); // Virtual page zero, ASID 7
+        emit('h04, 'h2122); // MOV.L R2,@R1
+        literal('h06, 3, 'h88); // Physical page zero
+        emit('h08, 'h1131); // MOV.L R3,@(4,R1) (PTEL)
+        emit('h0a, 'h0038); // LDTLB
+        literal('h0c, 4, 'h8c); // URC=1
+        emit('h0e, 'h1144); // MOV.L R4,@(16,R1) (MMUCR)
+        literal('h10, 2, 'h90); // Virtual page one
+        emit('h12, 'h2122);
+        literal('h14, 3, 'h94); // Physical page two
+        emit('h16, 'h1131);
+        emit('h18, 'h0038);
+        emit('h1a, 'he401); // MOV #1,R4 (AT)
+        emit('h1c, 'h1144);
+        literal('h1e, 5, 'h98); // Operand VA
+        emit('h20, 'h6652); // MOV.L @R5,R6
+        emit('h22, 'he033);
+        emit('h24, 'h8052); // MOV.B R0,@(2,R5)
+        emit('h26, 'h6852);
+        literal('h28, 9, 'h9c); // Target VA
+        emit('h2a, 'h492b);
+        emit('h2c, 'h0009);
+        image['h80 >> 2] = 'hff00_0000;
+        image['h84 >> 2] = 7;
+        image['h88 >> 2] = 'h0000_016c;
+        image['h8c >> 2] = 'h0000_0400;
+        image['h90 >> 2] = 'h0000_0407;
+        image['h94 >> 2] = 'h0000_096c;
+        image['h98 >> 2] = 'h410;
+        image['h9c >> 2] = 'h400;
+        image['h810 >> 2] = 'h1234_5678;
+        emit('h800, 'he92a); // Only reachable by translated instruction fetch.
+        start_bus();
+        expect_stop(1, 'h402);
+        assert (dut.gpr[6] == 'h1234_5678 && dut.gpr[8] == 'h1233_5678 &&
+                dut.gpr[9] == 'h2a && ext_mem['h810 >> 2] == 'h1233_5678)
+            else $fatal(1, "CPU translation or cache use produced incorrect results");
+
+        image['h98 >> 2] = 'hc10; // Leave this virtual page unmapped.
+        start_bus();
+        expect_stop(5, 'h20);
+        assert (dut.mmu.tea == 'hc10) else $fatal(1, "Data miss did not retain its virtual address");
+
+        image['h98 >> 2] = 'h410;
+        image['h9c >> 2] = 'hc00;
+        start_bus();
+        expect_stop(5, 'hc00);
+        assert (dut.mmu.tea == 'hc00) else $fatal(1, "Fetch miss did not retain its virtual address");
+
+        // Supervisor can read SR and clear MD. A user execution of LDTLB
+        // must fault before changing the TLB state.
+        image = '{default:32'hfffd_fffd};
+        emit('h00, 'h0102); // STC SR,R1
+        emit('h02, 'he000); // MOV #0,R0
+        emit('h04, 'h400e); // LDC R0,SR
+        emit('h06, 'h0038); // LDTLB
+        start_bus();
+        expect_stop(1, 'h06);
+        assert (dut.gpr[1] == 'h4000_0000 && !dut.supervisor && dut.mmu.utlb_valid == 0)
+            else $fatal(1, "Supervisor-only MMU control was not enforced");
+
+        assert (mmu_done) else $fatal(1, "MMU unit check did not finish");
         assert (cache_cancel_done) else $fatal(1, "Cache cancellation check did not finish");
 
-        $display("PASS SH-4 integer, stalls, delay slots, I-cache overlap and D-cache write-through, conflicts and aliases");
+        $display("PASS SH-4 integer, stalls, delay slots, caches, SH-4 MMU control, page sizes, permissions and translation");
         $finish;
     end
 
     initial begin
-        #40000;
+        #80000;
         $fatal(1, "Timed out");
     end
 endmodule

@@ -5,6 +5,7 @@ set_global_assignment -name NUM_PARALLEL_PROCESSORS 8
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_icache.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_dcache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_mmu.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4.sv
 set_global_assignment -name SYSTEMVERILOG_FILE fes_sh4_bram_system.sv
 set_global_assignment -name SDC_FILE fes_sh4_bram_system.sdc
